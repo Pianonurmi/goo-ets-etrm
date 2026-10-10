@@ -209,9 +209,18 @@ data class InvoiceView(
     val approvedBy: String?,
     val issuedAt: Instant?,
     val version: Int,
+    val paidAmount: BigDecimal = BigDecimal.ZERO,
+    val paymentStatus: PaymentStatus = PaymentStatus.UNPAID,
+    /** A credit note reversed this invoice. */
+    val credited: Boolean = false,
 ) {
     val direction: SettlementDirection get() = kind.direction
+
+    /** What is still to be paid (negative for a credit note not yet applied). */
+    val outstanding: BigDecimal get() = grossTotal - paidAmount
 }
+
+enum class PaymentStatus { UNPAID, PARTIALLY_PAID, PAID }
 
 /** Drafts sales (and self-billed) invoices for the open items delivered up to [upTo]. */
 data class InvoiceRun(
@@ -254,6 +263,9 @@ interface InvoiceCommand {
 
     /** Discards a draft; its items are open again. */
     fun discard(invoiceId: UUID, reason: String): InvoiceView
+
+    /** Drafts a credit note reversing an issued invoice in full; issuing it settles the original and reopens its items. */
+    fun creditNote(invoiceId: UUID, reason: String): InvoiceView
 }
 
 interface InvoiceQuery {

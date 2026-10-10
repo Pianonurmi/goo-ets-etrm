@@ -20,6 +20,7 @@ import com.pianonurmi.etrm.settlement.api.InvoiceLineView
 import com.pianonurmi.etrm.settlement.api.InvoiceStatus
 import com.pianonurmi.etrm.settlement.api.InvoiceView
 import com.pianonurmi.etrm.settlement.api.PartySnapshot
+import com.pianonurmi.etrm.settlement.api.PaymentStatus
 import com.pianonurmi.etrm.settlement.api.SettlementDirection
 import com.pianonurmi.etrm.settlement.api.SettlementItemFilter
 import com.pianonurmi.etrm.settlement.api.SettlementItemStatus
@@ -310,6 +311,9 @@ class JooqInvoiceRepository(private val dsl: DSLContext) : InvoiceRepository {
         approvedBy = i.approvedBy
         issuedAt = i.issuedAt
         version = i.version
+        paidAmount = i.paidAmount
+        paymentStatus = i.paymentStatus.name
+        credited = i.credited
     }
 
     private fun writeLines(invoice: InvoiceView) {
@@ -377,6 +381,9 @@ class JooqInvoiceRepository(private val dsl: DSLContext) : InvoiceRepository {
             approvedBy = r.approvedBy,
             issuedAt = r.issuedAt,
             version = r.version,
+            paidAmount = r.paidAmount,
+            paymentStatus = PaymentStatus.valueOf(r.paymentStatus),
+            credited = r.credited,
         )
     }
 }

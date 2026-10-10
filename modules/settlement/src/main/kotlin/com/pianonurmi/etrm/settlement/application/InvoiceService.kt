@@ -28,6 +28,7 @@ import com.pianonurmi.etrm.settlement.api.InvoiceStatus
 import com.pianonurmi.etrm.settlement.api.InvoiceSubmitted
 import com.pianonurmi.etrm.settlement.api.InvoiceView
 import com.pianonurmi.etrm.settlement.api.PartySnapshot
+import com.pianonurmi.etrm.settlement.api.PaymentStatus
 import com.pianonurmi.etrm.settlement.api.RegisterPurchaseInvoice
 import com.pianonurmi.etrm.settlement.api.SettlementDirection
 import com.pianonurmi.etrm.settlement.api.SettlementItemFilter
@@ -64,6 +65,7 @@ class InvoiceService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    private val settlement: InvoiceSettlement,
 ) : InvoiceCommand, InvoiceQuery {
     override fun run(command: InvoiceRun): List<InvoiceView> {
         actor(Role.BACK_OFFICE, Role.ACCOUNTANT)
@@ -170,11 +172,12 @@ class InvoiceService(
                 invoice.taxPointDate,
             )
         val receivable = invoice.direction == SettlementDirection.RECEIVABLE
-        val bank = if (receivable) {
+        val bank = if (receivable && invoice.grossTotal.signum() > 0) {
             parties.bankAccountFor(PartyType.LEGAL_ENTITY, entity.id, invoice.currency)
                 ?: throw ValidationException("Legal entity ${entity.code} has no active ${invoice.currency} bank account to be paid into")
         } else {
             parties.bankAccountFor(PartyType.COUNTERPARTY, counterparty.id, invoice.currency)
+                ?: if (receivable) parties.bankAccountFor(PartyType.LEGAL_ENTITY, entity.id, invoice.currency) else null
         }
         val number = "${invoice.kind.series}-${invoice.invoiceDate.year}-%06d".format(numbers.next(entity.id, invoice.kind.series, invoice.invoiceDate.year))
         val dueDate = referenceData.addBusinessDays(CALENDAR, invoice.invoiceDate.plusDays(counterparty.paymentTermsDays.toLong() - 1), 1)
@@ -184,9 +187,9 @@ class InvoiceService(
             supplier = if (receivable) us else them,
             customer = if (receivable) them else us,
             bankAccount = bank?.let { BankSnapshot(it.accountName, it.iban, it.bic) },
-            notes = notes(invoice),
+            notes = invoice.notes + notes(invoice),
         )
-        val document = if (invoice.kind == InvoiceKind.PURCHASE) {
+        val document = if (invoice.kind == InvoiceKind.PURCHASE || invoice.kind == InvoiceKind.PURCHASE_CREDIT_NOTE) {
             null
         } else {
             documents.renderPdf(
@@ -211,7 +214,19 @@ class InvoiceService(
         )
         repository.update(final)
         events.publishEvent(InvoiceIssued(final))
-        return final
+        if (final.originalInvoiceId != null) reverse(final, by)
+        return repository.find(final.id)!!
+    }
+
+    /** An issued credit note settles the original and makes its deliveries invoiceable again. */
+    private fun reverse(creditNote: InvoiceView, by: String) {
+        val original = locked(creditNote.originalInvoiceId!!)
+        repository.update(original.copy(credited = true))
+        original.lines.mapNotNull { it.settlementItemId }.forEach { id ->
+            val item = items.find(id, forUpdate = true)!!
+            if (item.invoiceId == original.id) items.update(item.copy(status = SettlementItemStatus.OPEN, invoiceId = null, version = item.version + 1))
+        }
+        settlement.applyCreditNote(creditNote, by)
     }
 
     /** The approver sends it back: the invoice is a draft again. */
@@ -235,6 +250,57 @@ class InvoiceService(
         repository.update(discarded)
         events.publishEvent(InvoiceDiscarded(discarded, reason))
         return discarded
+    }
+
+    override fun creditNote(invoiceId: UUID, reason: String): InvoiceView {
+        actor(Role.BACK_OFFICE, Role.ACCOUNTANT)
+        if (reason.isBlank()) throw ValidationException("A credit note needs a reason")
+        val original = locked(invoiceId)
+        if (original.status != InvoiceStatus.ISSUED || original.originalInvoiceId != null) {
+            throw IllegalStateTransitionException("Invoice ${original.number}", original.status.name, "credited")
+        }
+        if (original.credited) throw ConflictException("Invoice ${original.number} is already credited")
+        val pending = repository.find(
+            InvoiceFilter(original.legalEntityId, original.counterpartyId, statuses = setOf(InvoiceStatus.DRAFT, InvoiceStatus.PENDING_APPROVAL)),
+        )
+            .any { it.originalInvoiceId == original.id }
+        if (pending) throw ConflictException("A credit note for ${original.number} is already being prepared")
+        val kind = when (original.kind) {
+            InvoiceKind.SALES -> InvoiceKind.CREDIT_NOTE
+            InvoiceKind.SELF_BILLED -> InvoiceKind.SELF_BILLED
+            InvoiceKind.PURCHASE -> InvoiceKind.PURCHASE_CREDIT_NOTE
+            else -> throw ValidationException("${original.kind} cannot be credited")
+        }
+        val lines = original.lines.map { it.copy(netAmount = it.netAmount.negate(), vatAmount = it.vatAmount.negate(), quantity = it.quantity?.negate()) }
+        val creditNote = original.copy(
+            id = Ids.newId(),
+            kind = kind,
+            status = InvoiceStatus.DRAFT,
+            number = null,
+            counterpartyInvoiceRef = null,
+            invoiceDate = LocalDate.now(clock),
+            dueDate = null,
+            netTotal = original.netTotal.negate(),
+            vatTotal = original.vatTotal.negate(),
+            grossTotal = original.grossTotal.negate(),
+            supplier = null,
+            customer = null,
+            bankAccount = null,
+            notes = listOf("Credit note for invoice ${original.number}: ${reason.trim()}"),
+            originalInvoiceId = original.id,
+            documentId = null,
+            lines = lines,
+            createdBy = actorProvider.current().userId,
+            submittedBy = null,
+            approvedBy = null,
+            issuedAt = null,
+            version = 1,
+            paidAmount = BigDecimal.ZERO,
+            paymentStatus = PaymentStatus.UNPAID,
+            credited = false,
+        )
+        repository.insert(creditNote)
+        return creditNote
     }
 
     @Transactional(readOnly = true)

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Netting statement</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Helvetica, sans-serif; font-size: 9.5pt; color: #111; }
+    h1 { font-size: 15pt; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 1.2mm 2mm; text-align: left; border-bottom: 0.3pt solid #ccc; }
+    .num { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>Netting statement</h1>
+  <p>Counterparty: {{counterparty}}<br/>Currency: {{currency}}<br/>Value date: {{valueDate}}</p>
+  <table>
+    <tr><th>Invoice</th><th>Claim</th><th>Due date</th><th class="num">Outstanding</th></tr>
+    {{#lines}}<tr><td>{{number}}</td><td>{{direction}}</td><td>{{dueDate}}</td><td class="num">{{amount}}</td></tr>{{/lines}}
+  </table>
+  <p>We claim {{receivable}} {{currency}}; you claim {{payable}} {{currency}}.<br/>
+     Net amount {{net}} {{currency}}, payable by {{payer}} on {{valueDate}}.</p>
+  <p>Please confirm this statement by return; the invoices listed are settled by netting and the net payment.</p>
+</body>
+</html>

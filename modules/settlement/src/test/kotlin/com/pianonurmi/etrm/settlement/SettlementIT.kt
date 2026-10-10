@@ -34,19 +34,30 @@ import com.pianonurmi.etrm.referencedata.api.CreateBook
 import com.pianonurmi.etrm.referencedata.api.CreateCounterparty
 import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
 import com.pianonurmi.etrm.referencedata.api.PartyType
+import com.pianonurmi.etrm.referencedata.api.UpdateCounterparty
 import com.pianonurmi.etrm.referencedata.api.UpsertAddress
 import com.pianonurmi.etrm.referencedata.api.UpsertVatRegistration
 import com.pianonurmi.etrm.referencedata.application.PartyDetailsService
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
+import com.pianonurmi.etrm.settlement.adapter.jooq.JooqAllocationRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqInvoiceRepository
+import com.pianonurmi.etrm.settlement.adapter.jooq.JooqNettingRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqNumberSeriesRepository
+import com.pianonurmi.etrm.settlement.adapter.jooq.JooqPaymentRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqSettlementItemRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqVatRuleRepository
+import com.pianonurmi.etrm.settlement.api.AllocatePayment
 import com.pianonurmi.etrm.settlement.api.FixPrice
 import com.pianonurmi.etrm.settlement.api.InvoiceKind
 import com.pianonurmi.etrm.settlement.api.InvoiceLineType
 import com.pianonurmi.etrm.settlement.api.InvoiceRun
 import com.pianonurmi.etrm.settlement.api.InvoiceStatus
+import com.pianonurmi.etrm.settlement.api.InvoiceView
+import com.pianonurmi.etrm.settlement.api.NettingStatus
+import com.pianonurmi.etrm.settlement.api.PaymentDirection
+import com.pianonurmi.etrm.settlement.api.PaymentStatus
+import com.pianonurmi.etrm.settlement.api.PrepareNetting
+import com.pianonurmi.etrm.settlement.api.RecordPayment
 import com.pianonurmi.etrm.settlement.api.RegisterPurchaseInvoice
 import com.pianonurmi.etrm.settlement.api.SettlementDirection
 import com.pianonurmi.etrm.settlement.api.SettlementItemFilter
@@ -54,7 +65,11 @@ import com.pianonurmi.etrm.settlement.api.SettlementItemStatus
 import com.pianonurmi.etrm.settlement.api.SettlementItemView
 import com.pianonurmi.etrm.settlement.api.VatTreatment
 import com.pianonurmi.etrm.settlement.application.InvoiceService
+import com.pianonurmi.etrm.settlement.application.InvoiceSettlement
+import com.pianonurmi.etrm.settlement.application.NettingService
+import com.pianonurmi.etrm.settlement.application.PaymentService
 import com.pianonurmi.etrm.settlement.application.SettlementItemService
+import com.pianonurmi.etrm.settlement.application.SettlementReportService
 import com.pianonurmi.etrm.settlement.application.VatRuleService
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
@@ -67,6 +82,7 @@ import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
@@ -101,6 +117,9 @@ class SettlementIT {
     private lateinit var vat: VatRuleService
     private lateinit var invoices: InvoiceService
     private lateinit var numbers: JooqNumberSeriesRepository
+    private lateinit var payments: PaymentService
+    private lateinit var netting: NettingService
+    private lateinit var reports: SettlementReportService
     private lateinit var entity: UUID
     private lateinit var book: UUID
     private lateinit var domestic: UUID
@@ -132,6 +151,16 @@ class SettlementIT {
         vat = VatRuleService(JooqVatRuleRepository(dsl), actor, bus)
         items = SettlementItemService(JooqSettlementItemRepository(dsl), vat, referenceData, parties, actor, bus)
         numbers = JooqNumberSeriesRepository(dsl)
+        val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
+        val settlement = InvoiceSettlement(
+            JooqInvoiceRepository(dsl),
+            JooqAllocationRepository(dsl),
+            JooqSettlementItemRepository(dsl),
+            trades,
+            trades,
+            bus,
+            clock,
+        )
         invoices = InvoiceService(
             JooqInvoiceRepository(dsl),
             JooqSettlementItemRepository(dsl),
@@ -139,11 +168,24 @@ class SettlementIT {
             JooqVatRuleRepository(dsl),
             referenceData,
             parties,
-            DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock),
+            documents,
             actor,
             bus,
             clock,
+            settlement,
         )
+        payments = PaymentService(JooqPaymentRepository(dsl), JooqInvoiceRepository(dsl), settlement, referenceData, actor, bus)
+        netting = NettingService(
+            JooqNettingRepository(dsl),
+            JooqInvoiceRepository(dsl),
+            JooqPaymentRepository(dsl),
+            settlement,
+            referenceData,
+            documents,
+            actor,
+            bus,
+        )
+        reports = SettlementReportService(JooqInvoiceRepository(dsl), JooqSettlementItemRepository(dsl), referenceData)
         entity = referenceData.createLegalEntity(
             CreateLegalEntity("SETT-FI", "Settlement Oy", "FI", vatNumber = "FI12345678", validFrom = LocalDate.of(2026, 1, 1)),
         ).id
@@ -338,6 +380,149 @@ class SettlementIT {
             status.setRollbackOnly()
         }
         tx.execute { numbers.next(entity, series, 2026) } shouldBe 41L
+    }
+
+    /** Delivers a sale to a fresh counterparty and issues its invoice; returns the issued invoice. */
+    private fun issuedSale(code: String, quantity: Long = 1_000, price: String = "2.00", netting: Boolean = false): InvoiceView {
+        val buyer = referenceData.createCounterparty(
+            CreateCounterparty(code, "$code Oy", "FI", vatNumber = "FI87654321", paymentTermsDays = 14, nettingAgreed = netting),
+        ).id
+        delivered(buyer, quantity = quantity, price = price)
+        user = "billing"
+        val draft = invoices.run(InvoiceRun(entity, LocalDate.of(2026, 10, 31), buyer)).single()
+        invoices.submit(draft.id)
+        return invoices.approve(draft.id, "controller")
+    }
+
+    @Test
+    fun `a payment quoting the invoice number settles it and the fully paid trade becomes settled`() {
+        val invoice = issuedSale("PAY-CP")
+        val tradeId = items.item(invoice.lines.single().settlementItemId!!)!!.tradeId
+        trades.requireTrade(tradeId).status shouldBe TradeStatus.DELIVERED
+        user = "billing"
+        val first = payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                BigDecimal("1000.00"),
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                "BANK-1",
+                remittanceInfo = "Inv ${invoice.number}",
+            ),
+        )
+        first.unappliedAmount.signum() shouldBe 0
+        invoices.invoice(invoice.id)!!.paymentStatus shouldBe PaymentStatus.PARTIALLY_PAID
+        payments.record(
+            RecordPayment(entity, PaymentDirection.INCOMING, BigDecimal("1000.00"), "EUR", LocalDate.of(2026, 10, 20), "BANK-1"),
+        ).id shouldBe first.id
+        payments.importCsv(entity, "bank_reference,value_date,amount,currency,remittance\nBANK-2,2026-10-22,1510.00,EUR,${invoice.number}\n")
+        invoices.invoice(invoice.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.PAID
+            it.outstanding.signum() shouldBe 0
+        }
+        trades.requireTrade(tradeId).status shouldBe TradeStatus.SETTLED
+        payments.allocations(invoice.id).size shouldBe 2
+    }
+
+    @Test
+    fun `unapplied cash is allocated by hand`() {
+        val invoice = issuedSale("UNAPPLIED-CP", quantity = 100)
+        user = "billing"
+        val payment = payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                BigDecimal("300.00"),
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                "BANK-U1",
+                counterpartyId = invoice.counterpartyId,
+            ),
+        )
+        payment.unappliedAmount.compareTo(BigDecimal("300.00")) shouldBe 0
+        payments.allocate(payment.id, AllocatePayment(invoice.id)).unappliedAmount.compareTo(BigDecimal("49.00")) shouldBe 0
+        invoices.invoice(invoice.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+        shouldThrow<ValidationException> {
+            payments.record(
+                RecordPayment(
+                    entity,
+                    PaymentDirection.OUTGOING,
+                    BigDecimal("10"),
+                    "EUR",
+                    LocalDate.of(2026, 10, 20),
+                    "BANK-U2",
+                    invoiceIds = listOf(invoice.id),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `a credit note reverses an issued invoice and its deliveries can be invoiced again`() {
+        val original = issuedSale("CREDIT-CP", quantity = 50)
+        user = "billing"
+        val creditNote = invoices.creditNote(original.id, "wrong price")
+        creditNote.kind shouldBe InvoiceKind.CREDIT_NOTE
+        creditNote.grossTotal.compareTo(original.grossTotal.negate()) shouldBe 0
+        shouldThrow<ConflictException> { invoices.creditNote(original.id, "again") }
+        invoices.submit(creditNote.id)
+        val issued = invoices.approve(creditNote.id, "controller")
+        issued.number!! shouldStartWith "CN-2026-"
+        issued.paymentStatus shouldBe PaymentStatus.PAID
+        invoices.invoice(original.id)!!.let {
+            it.credited shouldBe true
+            it.paymentStatus shouldBe PaymentStatus.PAID
+        }
+        val itemId = original.lines.single().settlementItemId!!
+        items.item(itemId)!!.status shouldBe SettlementItemStatus.OPEN
+        invoices.run(InvoiceRun(entity, LocalDate.of(2026, 10, 31), original.counterpartyId)).single().lines.single().settlementItemId shouldBe itemId
+    }
+
+    @Test
+    fun `receivables and payables with a counterparty are netted and only the net amount is paid`() {
+        val sale = issuedSale("NET-CP", quantity = 1_000, price = "2.00", netting = true)
+        val cp = sale.counterpartyId
+        delivered(cp, side = Side.BUY, quantity = 300, price = "1.10")
+        user = "billing"
+        val purchase = invoices.registerPurchaseInvoice(
+            RegisterPurchaseInvoice(entity, cp, "NET-SUP-1", LocalDate.of(2026, 10, 7), "EUR", BigDecimal("330.00"), BigDecimal("84.15")),
+        )
+        invoices.submit(purchase.id)
+        invoices.approve(purchase.id, "controller")
+
+        val statement = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        statement.receivableTotal.compareTo(BigDecimal("2510.00")) shouldBe 0
+        statement.payableTotal.compareTo(BigDecimal("414.15")) shouldBe 0
+        statement.netAmount.compareTo(BigDecimal("2095.85")) shouldBe 0
+        statement.documentId shouldNotBe null
+        shouldThrow<SegregationOfDutiesException> { netting.agree(statement.id, "THEIR-OK") }
+        user = "controller"
+        netting.agree(statement.id, "THEIR-OK").status shouldBe NettingStatus.AGREED
+        shouldThrow<ValidationException> { netting.settle(statement.id, null) }
+        val net = payments.record(
+            RecordPayment(entity, PaymentDirection.INCOMING, BigDecimal("2095.85"), "EUR", LocalDate.of(2026, 11, 30), "BANK-NET-1", counterpartyId = cp),
+        )
+        netting.settle(statement.id, net.id).status shouldBe NettingStatus.SETTLED
+        invoices.invoice(sale.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+        invoices.invoice(purchase.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+        payments.payment(net.id)!!.unappliedAmount.signum() shouldBe 0
+    }
+
+    @Test
+    fun `reports show ageing, expected cash, VAT by treatment and the EC sales list`() {
+        val overdue = issuedSale("AGE-CP", quantity = 10)
+        val ageing = reports.ageing(entity, overdue.dueDate!!.plusDays(40)).single { it.counterpartyId == overdue.counterpartyId }
+        ageing.days31to60.compareTo(overdue.grossTotal) shouldBe 0
+        reports.cashForecast(entity, LocalDate.of(2026, 10, 1), LocalDate.of(2027, 1, 1)).any {
+            it.date == overdue.dueDate && it.basis == "invoiced"
+        } shouldBe true
+        val vatRows = reports.vatReport(entity, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 11, 1))
+        vatRows.any {
+            it.direction == SettlementDirection.RECEIVABLE && it.treatment == VatTreatment.STANDARD && it.rate.compareTo(BigDecimal("25.5")) == 0
+        } shouldBe true
+        // The German sale of another test is reverse charged; the EC sales list shows it once it is invoiced.
+        reports.ecSalesList(entity, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 11, 1)).all { it.customerVatNumber.startsWith("DE") } shouldBe true
     }
 
     private companion object {

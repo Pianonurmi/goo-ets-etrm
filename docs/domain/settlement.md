@@ -49,3 +49,50 @@ re-evaluates that schedule's items.
   - addresses (registered, billing);
   - VAT registrations per country;
   - bank accounts (IBAN with checksum, BIC), changed only with four eyes (`BANK_ACCOUNT` change requests).
+
+## Payments
+
+- **Recording:** `POST /api/v1/settlement/payments` (direction `INCOMING` or `OUTGOING`, amount, currency, value
+  date, bank reference, optional counterparty and remittance), or a bank statement CSV
+  (`POST /payments/csv?legalEntityId=`, columns `bank_reference,value_date,amount,currency[,counterparty,remittance]`,
+  negative amounts are outgoing).
+  - The bank reference is unique per entity, so importing a statement again changes nothing.
+  - A payment is applied to the listed invoices, else to invoices whose number (or the supplier's reference) appears
+    in the remittance information.
+  - What is left stays unapplied until it is allocated with `POST /payments/{id}/allocations`.
+- **Allocations** (payment, credit note, netting) are append-only. They set the invoice's paid amount and its
+  status (`UNPAID`, `PARTIALLY_PAID`, `PAID`).
+- **Settled trades:** when every delivery of a trade is invoiced and every such invoice is paid (and not credited),
+  a delivered trade becomes `SETTLED`.
+
+## Credit notes
+
+`POST /invoices/{id}/credit-note` drafts a full reversal:
+- `CREDIT_NOTE` for sales;
+- a negative `SELF_BILLED` for self-billed invoices;
+- `PURCHASE_CREDIT_NOTE` for purchases.
+
+It goes through the same four-eyes approval. On issue it settles the original (marked `credited`) and reopens the
+original's items, so the next invoice run invoices them again. A credit note against an invoice that was already
+paid keeps the unused amount open, to be refunded or netted.
+
+## Netting
+
+Netting is only allowed with counterparties that have `nettingAgreed`.
+
+1. **Prepare:** `POST /netting` (entity, counterparty, currency, value date). It takes every issued, unpaid invoice
+   due by the value date and computes the receivable and payable totals and the net. The statement PDF is rendered.
+   Both directions are required.
+2. **Agree:** `POST /netting/{id}/agree` records the counterparty's agreement and reference. It must be a different
+   person from the preparer.
+3. **Settle:** `POST /netting/{id}/settle` with the payment of the net amount (unless it is zero). The smaller side
+   is offset in full against the larger; the payment settles the rest.
+
+## Reports
+
+| Endpoint | Content |
+|---|---|
+| `GET /reports/ageing?legalEntityId=&asOf=` | outstanding by counterparty, direction and currency: not due, 1–30, 31–60, 61–90, over 90 days |
+| `GET /reports/cash-forecast?legalEntityId=&from=&to=` | open invoices by due date, plus delivered but uninvoiced items expected after payment terms |
+| `GET /reports/vat?legalEntityId=&period=YYYY-MM` | issued invoices by tax point: net and VAT by direction, treatment and rate |
+| `GET /reports/ec-sales-list?legalEntityId=&period=YYYY-MM` | intra-EU B2B sales (cross-border reverse charge) by customer VAT number |
