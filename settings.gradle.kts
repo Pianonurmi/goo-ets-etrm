@@ -39,6 +39,7 @@ listOf(
     "valuation",
     "etscompliance",
     "risk",
+    "reporting",
 ).forEach { module ->
     include("modules:$module")
 }

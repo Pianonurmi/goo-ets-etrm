@@ -36,4 +36,32 @@ A `FUTURE` trade:
 
 Margining is not modelled (increment 3 scope).
 
-Report exports and completeness checks follow in the reporting module.
+## EMIR events (reporting module)
+The reporting module records an EMIR event for each lifecycle step of a reportable trade (`emir_event`, append-only):
+
+| Action | When |
+|---|---|
+| NEWT | the trade is confirmed for the first time |
+| MODI | an amended trade is confirmed again |
+| TERM | a reported trade is cancelled |
+| EROR | middle office reports that a reported trade should not have been (`POST /api/v1/reports/emir/trades/{id}/error`) |
+| VALU | a valuation run is signed off, for FC and NFC+ entities |
+
+- Each event carries the report fields as they were at that moment. A replayed event records nothing.
+- Recording never fails the trade's transaction; a gap shows up in completeness.
+- `GET /api/v1/reports/emir/completeness` lists, per trade, the fields that its latest event (and latest valuation)
+  is missing, under the rules in `emir_field_rule`.
+- `EMIR_TRADE_ACTIVITY` exports the events as CSV or JSON.
+- **The field names follow the EMIR Refit report but have not been verified against the regulatory technical
+  standards** (`verified = false` on every rule). There is no XML (ISO 20022) output and no trade repository
+  connection: the entity, or its delegate, reports from the export.
+
+## MiFID II ancillary activity
+`MIFID_ANCILLARY_ACTIVITY` totals a year's emission allowance trades (not cancelled) in EUR, by purpose and by spot or
+derivative:
+- `INTRAGROUP`: with an intercompany counterparty;
+- `HEDGING`: in a hedging book;
+- `COMPLIANCE`: in a compliance or own-use book;
+- `TRADING`: everything else.
+
+These are the inputs to the ancillary activity test. The test itself needs market-size data and is not computed.

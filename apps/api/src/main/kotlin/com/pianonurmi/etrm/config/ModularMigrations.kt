@@ -73,6 +73,7 @@ data class MigrationProperties(
             "valuation",
             "ledger",
             "risk",
+            "reporting",
             "workflow",
             "audit",
         )
