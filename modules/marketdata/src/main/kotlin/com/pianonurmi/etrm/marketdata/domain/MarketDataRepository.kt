@@ -108,3 +108,26 @@ object Plausibility {
         return move > maxMovePct
     }
 }
+
+interface CurveRepository {
+    fun curves(activeOnly: Boolean): List<com.pianonurmi.etrm.marketdata.api.CurveView>
+
+    fun curve(code: String): com.pianonurmi.etrm.marketdata.api.CurveView?
+
+    fun insertCurve(curve: com.pianonurmi.etrm.marketdata.api.CurveView)
+
+    fun nextVersion(curveCode: String, asOfDate: LocalDate): Int
+
+    fun insertSnapshot(snapshot: com.pianonurmi.etrm.marketdata.api.CurveSnapshotView)
+
+    fun snapshot(id: UUID, lock: Boolean = false): com.pianonurmi.etrm.marketdata.api.CurveSnapshotView?
+
+    fun snapshots(curveCode: String, asOfDate: LocalDate): List<com.pianonurmi.etrm.marketdata.api.CurveSnapshotView>
+
+    fun setStatus(id: UUID, status: com.pianonurmi.etrm.marketdata.api.SnapshotStatus, signedOffBy: String? = null, at: Instant? = null)
+
+    fun supersede(id: UUID, at: Instant)
+
+    /** Official at [knownAt] (or now): signed off by then and not superseded by then. */
+    fun official(curveCode: String, asOfDate: LocalDate?, onOrBefore: LocalDate?, knownAt: Instant?): com.pianonurmi.etrm.marketdata.api.CurveSnapshotView?
+}

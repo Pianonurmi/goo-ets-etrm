@@ -44,10 +44,6 @@ interface AllocationPlanRepository {
 
     fun deleteSoftReservations(planId: UUID)
 
-    fun marks(): Map<Pair<String, Int>, BigDecimal>
-
-    fun upsertMark(bucketCode: String, productionYear: Int, mark: BigDecimal, asOf: java.time.LocalDate)
-
     /** Takes a transaction-scoped advisory lock serialising commits for one entity. */
     fun lockEntity(holderEntityId: UUID)
 }

@@ -11,7 +11,7 @@
 - **Segregation of duties**: approver ≠ requester for trades, plans, registry instructions, master data and bank account changes, VAT rules, invoices, confirmation overrides, break acceptance and netting agreement; enforced by the inbox (task four-eyes), in services and by database check constraints.
 - **Security**: OIDC resource server; roles from token claims; `dev`/`test` profiles accept `X-Actor`/`X-Roles` headers.
 - **Errors**: domain exceptions map to RFC 9457 problem details (404, 409, 422, 403, 400).
-- **Configuration as data**: posting rules, specificity weights, bucket marks, transfer routes live in tables with APIs.
+- **Configuration as data**: posting rules, specificity weights, transfer routes, import formats and curve definitions live in tables with APIs.
 - **Approval inbox**: owning modules register task types (`TaskHandler`) and apply decisions in the same transaction (ADR 0011).
 - **Savepoints**: a caught domain exception from a transactional service would leave the transaction rollback-only; callers that tolerate a refusal (bulk decisions, delivery listeners) run the call in a savepoint (`Savepoints.attempt`).
 - **Listeners that must not fail their trigger**: delivery recording from registry confirmations and receipts, settlement items from deliveries; problems are parked (`NEEDS_ATTENTION`, unmatched receipt) instead of thrown.

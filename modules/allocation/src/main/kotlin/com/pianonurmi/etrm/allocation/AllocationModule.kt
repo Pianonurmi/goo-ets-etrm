@@ -11,6 +11,7 @@ import org.springframework.modulith.PackageInfo
         "referencedata :: api",
         "product :: api",
         "product :: criteria",
+        "marketdata :: api",
         "inventory :: api",
         "trade :: api",
         "registry :: api",

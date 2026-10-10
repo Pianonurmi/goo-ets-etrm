@@ -42,6 +42,31 @@ Seeded formats:
 Each file is imported once per format (by content hash). Lines that cannot be read, or that name an unknown
 instrument, are reported with their line number; the rest are imported.
 
+## Curves
+| Kind | Pillars | Reading a price |
+|---|---|---|
+| `EUA_FORWARD` (per allowance product) | listed futures still to deliver, plus spot at two working days | linear in calendar days between pillars, flat beyond (`EXTRAPOLATED`) |
+| `GOO_VINTAGE` (per product bucket) | the bucket's vintage instruments by production year | the vintage's point, else the nearest earlier vintage (`EARLIER_VINTAGE`) |
+
+Building a snapshot works pillar by pillar:
+1. A price of the snapshot date, taking quote types in the curve's order of preference.
+2. Otherwise the latest price within `stalenessDays`, marked `STALE`.
+3. Otherwise the pillar is recorded as a gap.
+
+A proxy curve's official points, plus the spread, fill the pillars the curve lacks.
+
+Lifecycle:
+- A snapshot is immutable. An override is a new version with a reason.
+- `submit` opens a `CURVE_SIGN_OFF` task. Someone other than the builder signs it off.
+- The signed-off snapshot becomes `OFFICIAL` for its date and supersedes the previous one.
+- Readers take the official snapshot, as known at an instant if they ask (ADR 0018).
+- A job builds and submits every active curve at 18:15 Europe/Berlin on weekdays
+  (`etrm.marketdata.curve-build-cron`).
+
+Consumers:
+- Allocation scoring marks are the official vintage prices in EUR.
+- Settlement prices INDEX legs at the fixing for the delivery date plus the leg's spread.
+
 ## API
 `/api/v1/market-data/...`:
 - `instruments`
@@ -52,5 +77,6 @@ instrument, are reported with their line number; the rest are imported.
 - `imports` (multipart upload)
 - `indices`, `indices/{code}/fixings/{date}`
 - `ecb/pull` (ADMIN)
+- `curves`: create; `{code}/snapshots` (build); `snapshots/{id}/override`; `snapshots/{id}/submit`; `{code}/official`; `forward-price`; `vintage-price`
 
 Futures contracts are maintained at `/api/v1/products/futures-contracts`.

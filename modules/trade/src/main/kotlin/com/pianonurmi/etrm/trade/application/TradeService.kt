@@ -436,6 +436,7 @@ class TradeService(
                 priceCurrency = leg.priceCurrency,
                 priceType = leg.priceType,
                 status = d.status,
+                priceIndex = leg.priceIndex,
             )
         }
     }

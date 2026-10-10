@@ -3,7 +3,10 @@ package com.pianonurmi.etrm.settlement
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
+import com.pianonurmi.etrm.marketdata.api.FixingView
 import com.pianonurmi.etrm.marketdata.api.FxRates
+import com.pianonurmi.etrm.marketdata.api.IndexFixings
+import com.pianonurmi.etrm.marketdata.api.QuotesImported
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -110,6 +113,7 @@ import java.util.concurrent.Executors
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SettlementIT {
     private var user = "trader"
+    private val fixings = mutableMapOf<Pair<String, LocalDate>, FixingView>()
     private val actor = ActorProvider { Actor(user, user, setOf(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-10-09T10:00:00Z"), ZoneOffset.UTC) // a Friday
     private lateinit var items: SettlementItemService
@@ -130,6 +134,7 @@ class SettlementIT {
     private lateinit var selfBilled: UUID
 
     @BeforeAll
+    @Suppress("LongMethod") // wires the module graph by hand
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "product", "trade", "document", "settlement")
         val dsl = TestDatabase.dsl
@@ -154,7 +159,21 @@ class SettlementIT {
             "EUR",
         )
         vat = VatRuleService(JooqVatRuleRepository(dsl), actor, bus)
-        items = SettlementItemService(JooqSettlementItemRepository(dsl), vat, referenceData, parties, actor, bus)
+        items = SettlementItemService(
+            JooqSettlementItemRepository(dsl),
+            vat,
+            referenceData,
+            parties,
+            actor,
+            bus,
+            trades,
+            IndexFixings {
+                code,
+                date,
+                ->
+                fixings[code to date]
+            },
+        )
         numbers = JooqNumberSeriesRepository(dsl)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
         val settlement = InvoiceSettlement(
@@ -317,6 +336,7 @@ class SettlementIT {
 
     @Test
     fun `index-priced deliveries wait for the price to be fixed`() {
+        fixings.clear()
         val item = delivered(domestic, priceType = PriceType.INDEX, price = "0")
         item.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
         item.problem!! shouldStartWith "The price of trade"
@@ -325,6 +345,20 @@ class SettlementIT {
             it.status shouldBe SettlementItemStatus.OPEN
             it.netAmount!!.compareTo(BigDecimal("1500.00")) shouldBe 0
         }
+    }
+
+    @Test
+    fun `index-priced deliveries are priced from the index fixing plus the spread`() {
+        val item = delivered(domestic, priceType = PriceType.INDEX, price = "0.10")
+        item.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
+        val schedule = trades.obligation(item.scheduleId)!!
+        fixings["NORDIC-HYDRO-2026" to schedule.deliveryDate] = FixingView("NORDIC-HYDRO-2026", schedule.deliveryDate, BigDecimal("1.40"), "EUR", emptyList())
+        items.on(QuotesImported(UUID.randomUUID(), "TEST", 1, setOf(schedule.deliveryDate)))
+        items.item(item.id)!!.let {
+            it.status shouldBe SettlementItemStatus.OPEN
+            it.unitPrice!!.compareTo(BigDecimal("1.50")) shouldBe 0
+        }
+        fixings.clear()
     }
 
     @Test

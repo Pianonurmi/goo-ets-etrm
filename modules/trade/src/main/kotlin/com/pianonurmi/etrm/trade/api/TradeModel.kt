@@ -258,6 +258,8 @@ data class DeliveryObligationView(
     val priceType: PriceType,
     val status: DeliveryStatus,
     val counterpartyAccountId: UUID? = null,
+    /** For INDEX legs: the market data price index; [price] is then the spread added to the fixing. */
+    val priceIndex: String? = null,
 ) {
     val remainingQuantity: BigDecimal get() = quantity - deliveredQuantity
 }

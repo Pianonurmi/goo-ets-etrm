@@ -313,6 +313,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             priceCurrency = Currency.getInstance(l.priceCurrency),
             priceType = com.pianonurmi.etrm.trade.api.PriceType.valueOf(l.priceType),
             status = DeliveryStatus.valueOf(s.status),
+            priceIndex = l.priceIndex,
         )
     }
 }

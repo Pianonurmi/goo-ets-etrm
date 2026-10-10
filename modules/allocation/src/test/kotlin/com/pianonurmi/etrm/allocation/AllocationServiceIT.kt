@@ -24,6 +24,7 @@ import com.pianonurmi.etrm.inventory.api.ReceiveLots
 import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.marketdata.api.FxRates
+import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -147,7 +148,7 @@ class AllocationServiceIT {
             planRepository,
             JooqObligationRepository(dsl),
             obligations,
-            ProblemBuilder(criteria, buckets, routes, planRepository),
+            ProblemBuilder(criteria, buckets, routes, GooMarks { _, _, _ -> null }),
             criteria,
             lots,
             lots,

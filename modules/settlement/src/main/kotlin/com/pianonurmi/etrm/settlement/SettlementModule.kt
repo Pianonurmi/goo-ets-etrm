@@ -10,6 +10,6 @@ import org.springframework.modulith.PackageInfo
 @PackageInfo
 @ApplicationModule(
     displayName = "Settlement",
-    allowedDependencies = ["referencedata :: api", "product :: api", "trade :: api", "workflow :: api", "document :: api"],
+    allowedDependencies = ["referencedata :: api", "product :: api", "trade :: api", "workflow :: api", "document :: api", "marketdata :: api"],
 )
 class SettlementModule

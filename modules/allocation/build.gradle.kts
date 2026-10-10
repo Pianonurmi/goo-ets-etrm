@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":modules:workflow"))
     implementation(project(":modules:referencedata"))
     implementation(project(":modules:product"))
+    implementation(project(":modules:marketdata"))
     implementation(project(":modules:inventory"))
     implementation(project(":modules:trade"))
     implementation(project(":modules:registry"))
@@ -14,6 +15,5 @@ dependencies {
     implementation(libs.shedlock.spring)
 
     testImplementation(testFixtures(project(":platform")))
-    testImplementation(project(":modules:marketdata"))
     testImplementation(project(":modules:taxonomy"))
 }

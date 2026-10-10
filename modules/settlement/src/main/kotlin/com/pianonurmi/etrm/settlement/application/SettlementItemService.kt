@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.settlement.application
 
+import com.pianonurmi.etrm.marketdata.api.IndexFixings
+import com.pianonurmi.etrm.marketdata.api.QuotesImported
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.DomainException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
@@ -39,6 +41,7 @@ import com.pianonurmi.etrm.settlement.domain.VatRules
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeQuery
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
@@ -142,6 +145,8 @@ class SettlementItemService(
     private val parties: PartyDetailsQuery,
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
+    private val trades: TradeQuery,
+    private val fixings: IndexFixings,
 ) : SettlementItemCommand, SettlementItemQuery {
     private val log = LoggerFactory.getLogger(SettlementItemService::class.java)
 
@@ -216,7 +221,7 @@ class SettlementItemService(
 
     /** Prices the item and determines its VAT; anything missing parks it with the reason. */
     private fun evaluate(item: SettlementItemView): SettlementItemView = try {
-        val price = item.unitPrice ?: repository.priceFixing(item.scheduleId)?.price
+        val price = item.unitPrice ?: repository.priceFixing(item.scheduleId)?.price ?: indexPrice(item)
             ?: return item.needs("The price of trade ${item.tradeNumber} is not fixed yet")
         val net = Amounts.money(item.quantity * price)
         val supply = supplyOf(item)
@@ -238,6 +243,28 @@ class SettlementItemService(
         )
     } catch (e: DomainException) {
         item.needs(e.message ?: e.code)
+    }
+
+    /** An INDEX leg is priced at the index fixing for its delivery date plus the leg's spread. */
+    private fun indexPrice(item: SettlementItemView): BigDecimal? {
+        val o = trades.obligation(item.scheduleId) ?: return null
+        if (o.priceType != PriceType.INDEX || o.priceIndex == null) return null
+        val fixing = fixings.fixing(o.priceIndex!!, o.deliveryDate) ?: return null
+        if (fixing.currency != item.currency) {
+            throw ValidationException(
+                "Index ${o.priceIndex} fixes in ${fixing.currency}; trade ${item.tradeNumber} is in ${item.currency}",
+            )
+        }
+        return fixing.value + o.price
+    }
+
+    /** New prices may fix index-priced deliveries that were waiting for them. */
+    @EventListener
+    fun on(event: QuotesImported) {
+        if (event.accepted == 0) return
+        repository.find(SettlementItemFilter(statuses = setOf(SettlementItemStatus.NEEDS_ATTENTION), limit = 10_000))
+            .filter { it.unitPrice == null }
+            .forEach { reevaluate(it.id) }
     }
 
     private fun SettlementItemView.needs(problem: String) = copy(status = SettlementItemStatus.NEEDS_ATTENTION, problem = problem)

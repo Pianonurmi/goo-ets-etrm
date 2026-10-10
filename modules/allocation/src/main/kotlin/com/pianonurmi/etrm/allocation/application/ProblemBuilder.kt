@@ -1,7 +1,6 @@
 package com.pianonurmi.etrm.allocation.application
 
 import com.pianonurmi.etrm.allocation.api.ObligationView
-import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.AllocationProblem
 import com.pianonurmi.etrm.allocation.domain.LotClass
 import com.pianonurmi.etrm.allocation.domain.LotClassifier
@@ -10,11 +9,13 @@ import com.pianonurmi.etrm.allocation.domain.ProblemShape
 import com.pianonurmi.etrm.allocation.domain.Scoring
 import com.pianonurmi.etrm.allocation.domain.ScoringWeights
 import com.pianonurmi.etrm.inventory.api.LotSnapshot
+import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.registry.api.TransferRoute
 import com.pianonurmi.etrm.registry.api.TransferRouteQuery
 import org.springframework.stereotype.Component
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.BitSet
 import java.util.UUID
@@ -25,7 +26,7 @@ class ProblemBuilder(
     private val criteria: CriteriaService,
     private val buckets: ProductBucketQuery,
     private val routes: TransferRouteQuery,
-    private val plans: AllocationPlanRepository,
+    private val marks: GooMarks,
 ) {
     data class Built(val problem: AllocationProblem, val scoring: Scoring)
 
@@ -66,10 +67,10 @@ class ProblemBuilder(
             bits
         }
 
-        val marks = plans.marks()
+        val known = mutableMapOf<Pair<String, Int>, BigDecimal?>()
         val scoring = Scoring(
             buckets = buckets.bind(criteria.contextFor(asOf)),
-            marks = { code, year -> marks[code to year] },
+            marks = { code, year -> known.getOrPut(code to year) { marks.mark(code, year, asOf) } },
             routes = routeOf,
             weights = weights,
         )

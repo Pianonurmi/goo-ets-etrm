@@ -2,7 +2,6 @@ package com.pianonurmi.etrm.allocation.adapter.jooq
 
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.AllocationLine.ALLOCATION_LINE
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.AllocationPlan.ALLOCATION_PLAN
-import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.BucketMark.BUCKET_MARK
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.Obligation.OBLIGATION
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.SoftReservation.SOFT_RESERVATION
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.records.AllocationLineRecord
@@ -238,23 +237,6 @@ class JooqAllocationPlanRepository(private val dsl: DSLContext) : AllocationPlan
 
     override fun deleteSoftReservations(planId: UUID) {
         dsl.deleteFrom(SOFT_RESERVATION).where(SOFT_RESERVATION.PLAN_ID.eq(planId)).execute()
-    }
-
-    override fun marks(): Map<Pair<String, Int>, BigDecimal> = dsl.selectFrom(BUCKET_MARK).fetch().associate {
-        (it.bucketCode to it.productionYear) to it.markEurPerMwh
-    }
-
-    override fun upsertMark(bucketCode: String, productionYear: Int, mark: BigDecimal, asOf: LocalDate) {
-        dsl.insertInto(BUCKET_MARK)
-            .set(BUCKET_MARK.BUCKET_CODE, bucketCode)
-            .set(BUCKET_MARK.PRODUCTION_YEAR, productionYear)
-            .set(BUCKET_MARK.MARK_EUR_PER_MWH, mark)
-            .set(BUCKET_MARK.AS_OF, asOf)
-            .onConflict(BUCKET_MARK.BUCKET_CODE, BUCKET_MARK.PRODUCTION_YEAR)
-            .doUpdate()
-            .set(BUCKET_MARK.MARK_EUR_PER_MWH, mark)
-            .set(BUCKET_MARK.AS_OF, asOf)
-            .execute()
     }
 
     override fun lockEntity(holderEntityId: UUID) {

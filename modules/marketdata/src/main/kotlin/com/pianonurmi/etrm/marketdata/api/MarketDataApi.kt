@@ -183,7 +183,7 @@ interface MarketDataQuery {
     fun index(code: String): PriceIndexView?
 }
 
-interface IndexFixings {
+fun interface IndexFixings {
     /** The index fixing for [fixingDate] under the index's fixing rule, or null when the quotes are not there yet. */
     fun fixing(indexCode: String, fixingDate: LocalDate): FixingView?
 }

@@ -10,7 +10,6 @@ import com.pianonurmi.etrm.allocation.api.ObligationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.api.OpenObligation
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
-import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -35,7 +34,6 @@ class AllocationController(
     private val allocationQuery: AllocationQuery,
     private val obligations: ObligationCommand,
     private val obligationQuery: ObligationQuery,
-    private val plans: AllocationPlanRepository,
 ) {
     @GetMapping("/obligations")
     fun obligations(
@@ -106,16 +104,6 @@ class AllocationController(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): AllocationPlanView = allocation.cancel(id, body.reason)
-
-    @PutMapping("/marks")
-    fun upsertMark(
-        @RequestBody body: MarkRequest,
-    ): MarkRequest {
-        plans.upsertMark(body.bucketCode.uppercase(), body.productionYear, body.markEurPerMwh, body.asOf ?: LocalDate.now())
-        return body
-    }
 }
 
 data class ReasonRequest(val reason: String)
-
-data class MarkRequest(val bucketCode: String, val productionYear: Int, val markEurPerMwh: BigDecimal, val asOf: LocalDate? = null)

@@ -10,7 +10,7 @@ ledger books them from settlement events (see ADR 0014).
 | Field | Meaning |
 |---|---|
 | direction | `RECEIVABLE` when we sold, `PAYABLE` when we bought |
-| price | the leg's fixed price, or the price fixed for an index or formula schedule (`POST /api/v1/settlement/price-fixings`) |
+| price | the leg's fixed price; for an INDEX leg the market data fixing of its price index for the delivery date plus the leg's spread; otherwise a price fixed by hand (`POST /api/v1/settlement/price-fixings`) |
 | net amount | quantity × price, rounded commercially to cents |
 | VAT | the rule's treatment and rate; VAT is computed per line |
 
