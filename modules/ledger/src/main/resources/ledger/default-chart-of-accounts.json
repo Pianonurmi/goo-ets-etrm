@@ -1,0 +1,21 @@
+[
+  {"code": "1400", "name": "Inventory - guarantees of origin", "type": "ASSET", "glMapping": "140000"},
+  {"code": "1410", "name": "Inventory - emission allowances (trading)", "type": "ASSET", "glMapping": "141000"},
+  {"code": "1610", "name": "Intangible assets - emission allowances (compliance)", "type": "ASSET", "glMapping": "161000"},
+  {"code": "1500", "name": "Trade receivables - accrued", "type": "ASSET", "glMapping": "150000"},
+  {"code": "2200", "name": "Trade payables - accrued", "type": "LIABILITY", "glMapping": "220000"},
+  {"code": "2300", "name": "Provision for emissions", "type": "LIABILITY", "glMapping": "230000"},
+  {"code": "2400", "name": "Deferred income - free allocation", "type": "LIABILITY", "glMapping": "240000"},
+  {"code": "3000", "name": "Revenue - certificate sales", "type": "REVENUE", "glMapping": "300000"},
+  {"code": "3010", "name": "Revenue - allowance sales", "type": "REVENUE", "glMapping": "301000"},
+  {"code": "3020", "name": "Gain/loss on allowances", "type": "REVENUE", "glMapping": "302000"},
+  {"code": "4000", "name": "Cost of certificates sold", "type": "EXPENSE", "glMapping": "400000"},
+  {"code": "4010", "name": "Cost of allowances sold", "type": "EXPENSE", "glMapping": "401000"},
+  {"code": "4100", "name": "Disclosure cost - cancelled certificates", "type": "EXPENSE", "glMapping": "410000"},
+  {"code": "4200", "name": "Emission costs", "type": "EXPENSE", "glMapping": "420000"},
+  {"code": "4300", "name": "Write-off - expired certificates", "type": "EXPENSE", "glMapping": "430000"},
+  {"code": "4400", "name": "Own generation - certificate issuance", "type": "REVENUE", "glMapping": "440000"},
+  {"code": "9000", "name": "Memo - sale commitments", "type": "MEMO", "glMapping": null},
+  {"code": "9001", "name": "Memo - purchase commitments", "type": "MEMO", "glMapping": null},
+  {"code": "9009", "name": "Memo - commitments contra", "type": "MEMO", "glMapping": null}
+]
