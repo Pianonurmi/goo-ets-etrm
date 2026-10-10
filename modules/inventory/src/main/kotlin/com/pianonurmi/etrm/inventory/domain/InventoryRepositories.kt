@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.inventory.domain
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingView
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementView
 import com.pianonurmi.etrm.inventory.api.AllowanceStatementLine
+import com.pianonurmi.etrm.inventory.api.BreakFilter
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.LotEventView
 import com.pianonurmi.etrm.inventory.api.LotFilter
@@ -108,13 +109,22 @@ interface ReconciliationRepository {
 
     fun insertBreak(view: ReconciliationBreakView)
 
+    fun updateBreak(view: ReconciliationBreakView)
+
     fun updateStatementStatus(id: UUID, status: StatementStatus)
 
-    fun findBreak(id: UUID): ReconciliationBreakView?
+    fun findBreak(id: UUID, forUpdate: Boolean = false): ReconciliationBreakView?
 
-    fun updateBreak(view: ReconciliationBreakView, resolvedBy: String)
+    /** The open (or accepted) break for a discrepancy, locked; accepted breaks absorb later sightings. */
+    fun currentByFingerprint(fingerprint: String): ReconciliationBreakView?
 
-    fun openBreaks(registryAccountId: UUID?): List<ReconciliationBreakView>
+    fun openForAccount(registryAccountId: UUID): List<ReconciliationBreakView>
+
+    fun addSighting(breakId: UUID, statementId: UUID)
+
+    fun breaks(filter: BreakFilter): List<ReconciliationBreakView>
+
+    fun ageing(today: java.time.LocalDate): com.pianonurmi.etrm.inventory.api.BreakAgeing
 }
 
 /** Range arithmetic for reconciliation: subtracts covered ranges from a target range. */

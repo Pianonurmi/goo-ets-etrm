@@ -6,6 +6,8 @@ import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqReconciliationRepository
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
+import com.pianonurmi.etrm.inventory.api.BreakAction
+import com.pianonurmi.etrm.inventory.api.BreakStatus
 import com.pianonurmi.etrm.inventory.api.BreakType
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.CancellationPurpose
@@ -15,6 +17,7 @@ import com.pianonurmi.etrm.inventory.api.LotCorrection
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.ReceiveLots
+import com.pianonurmi.etrm.inventory.api.ReconciliationBreakResolved
 import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.inventory.api.StatementLine
 import com.pianonurmi.etrm.inventory.api.StatementStatus
@@ -23,6 +26,7 @@ import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.inventory.application.ReconciliationService
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
+import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.test.TestDatabase
@@ -308,12 +312,50 @@ class InventoryServiceIT {
         // Reconciling the same statement again returns the recorded result and adds no breaks.
         reconciliation.reconcile(statement.id).breaks.map { it.id }.toSet() shouldBe result.breaks.map { it.id }.toSet()
         reconciliation.openBreaks(gooAccountId).size shouldBe result.breaks.size
-        val first = result.breaks.first().id
-        reconciliation.resolveBreak(first, com.pianonurmi.etrm.inventory.api.BreakStatus.ACCEPTED, "known timing difference")
-        reconciliation.openBreaks(gooAccountId).size shouldBe result.breaks.size - 1
-        published.filterIsInstance<com.pianonurmi.etrm.inventory.api.ReconciliationBreakResolved>().single().breakView.id shouldBe first
-        shouldThrow<com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException> {
-            reconciliation.resolveBreak(first, com.pianonurmi.etrm.inventory.api.BreakStatus.RESOLVED, "again")
+        // Accepting a break needs a second person; the database refuses a self-accepted break as well.
+        val accepted = result.breaks.single { it.type == BreakType.ATTRIBUTE_MISMATCH }.id
+        reconciliation.requestAcceptance(accepted, "device re-registered, registry lags").status shouldBe BreakStatus.PENDING_ACCEPTANCE
+        shouldThrow<SegregationOfDutiesException> { reconciliation.decideAcceptance(accepted, true, "tester", null) }
+        reconciliation.decideAcceptance(accepted, true, "supervisor", "ok").let {
+            it.status shouldBe BreakStatus.ACCEPTED
+            it.resolvedBy shouldBe "supervisor"
         }
+        shouldThrow<IllegalStateTransitionException> { reconciliation.resolveBreak(accepted, BreakAction.CORRECT_LOT, "again") }
+        published.filterIsInstance<ReconciliationBreakResolved>().single().breakView.id shouldBe accepted
+
+        val investigated = result.breaks.single { it.type == BreakType.MISSING_IN_REGISTRY && it.lotId == lot.id }.id
+        reconciliation.assignBreak(investigated, "analyst").let {
+            it.status shouldBe BreakStatus.INVESTIGATING
+            it.assignee shouldBe "analyst"
+        }
+
+        // The next statement shows the same gaps again, except the missing receipt, which has been sorted out.
+        val next = reconciliation.importStatement(
+            ImportStatement(
+                "FINGRID",
+                gooAccountId,
+                LocalDate.of(2026, 8, 2),
+                "statement-2.csv",
+                listOf(
+                    StatementLine(1, "FI-2026-0030", CertificateRange.of(40_000, 40_499), "643000000000000016", LocalDateRange.ofMonth(YearMonth.of(2026, 6))),
+                    StatementLine(2, "FI-2026-0030", CertificateRange.of(40_600, 40_999), "643000000000000099", LocalDateRange.ofMonth(YearMonth.of(2026, 6))),
+                ),
+            ),
+        )
+        val second = reconciliation.reconcile(next.id)
+        second.breaks.map { it.id }.toSet() shouldBe result.breaks.filter { it.type != BreakType.MISSING_INTERNALLY }.map { it.id }.toSet()
+        reconciliation.requireBreak(investigated).let {
+            it.status shouldBe BreakStatus.INVESTIGATING
+            it.lastSeenOn shouldBe LocalDate.of(2026, 8, 2)
+            it.firstSeenOn shouldBe LocalDate.of(2026, 8, 1)
+        }
+        reconciliation.requireBreak(accepted).status shouldBe BreakStatus.ACCEPTED
+        val cleared = result.breaks.single { it.type == BreakType.MISSING_INTERNALLY }.id
+        reconciliation.requireBreak(cleared).let {
+            it.status shouldBe BreakStatus.AUTO_CLEARED
+            it.resolvedBy shouldBe "system"
+        }
+        reconciliation.statement(statement.id)!!.breaks.map { it.id }.toSet() shouldBe result.breaks.map { it.id }.toSet()
+        reconciliation.openBreaks(gooAccountId).map { it.id }.toSet() shouldBe second.breaks.filter { it.id != accepted }.map { it.id }.toSet()
     }
 }

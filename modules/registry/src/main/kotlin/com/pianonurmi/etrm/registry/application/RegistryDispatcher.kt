@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.registry.application
 
+import com.pianonurmi.etrm.inventory.api.BreakAgeing
+import com.pianonurmi.etrm.inventory.api.ReconciliationQuery
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.domain.GatewayResult
 import com.pianonurmi.etrm.registry.domain.InstructionStatusSource
@@ -122,13 +124,29 @@ class RegistryJobs(
 
 /** Backlog gauges: open instructions per status and the age of the oldest undispatched one. */
 @Component
-class RegistryMetrics(meters: ObjectProvider<MeterRegistry>, private val repository: RegistryInstructionRepository, private val clock: Clock) {
+class RegistryMetrics(
+    meters: ObjectProvider<MeterRegistry>,
+    private val repository: RegistryInstructionRepository,
+    private val breaks: ReconciliationQuery,
+    private val clock: Clock,
+) {
     init {
         meters.ifAvailable { registry ->
             InstructionStatus.entries.filterNot { it.terminal }.forEach { status ->
                 Gauge.builder("etrm.registry.instructions.open") { (repository.openCounts()[status] ?: 0).toDouble() }
                     .tag("status", status.name)
                     .description("Open registry instructions by status")
+                    .register(registry)
+            }
+            mapOf<String, (BreakAgeing) -> Int>(
+                "1d" to { it.upToOneDay },
+                "7d" to { it.upToOneWeek },
+                "30d" to { it.upToOneMonth },
+                "older" to { it.older },
+            ).forEach { (bucket, count) ->
+                Gauge.builder("etrm.reconciliation.breaks.open") { count(breaks.ageing()).toDouble() }
+                    .tag("age", bucket)
+                    .description("Open reconciliation breaks by days since first seen")
                     .register(registry)
             }
             Gauge.builder("etrm.registry.dispatch.lag.seconds") {

@@ -1,5 +1,8 @@
 package com.pianonurmi.etrm.inventory.application
 
+import com.pianonurmi.etrm.inventory.api.BreakAction
+import com.pianonurmi.etrm.inventory.api.BreakAgeing
+import com.pianonurmi.etrm.inventory.api.BreakFilter
 import com.pianonurmi.etrm.inventory.api.BreakStatus
 import com.pianonurmi.etrm.inventory.api.BreakType
 import com.pianonurmi.etrm.inventory.api.CertificateRange
@@ -8,6 +11,9 @@ import com.pianonurmi.etrm.inventory.api.ImportStatement
 import com.pianonurmi.etrm.inventory.api.InTransferLotLeftAccount
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
+import com.pianonurmi.etrm.inventory.api.ReconciliationBreakAcceptanceRejected
+import com.pianonurmi.etrm.inventory.api.ReconciliationBreakAcceptanceRequested
+import com.pianonurmi.etrm.inventory.api.ReconciliationBreakAssigned
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakDetected
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakResolved
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakView
@@ -23,6 +29,7 @@ import com.pianonurmi.etrm.inventory.domain.RangeArithmetic
 import com.pianonurmi.etrm.inventory.domain.ReconciliationRepository
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -32,10 +39,17 @@ import com.pianonurmi.etrm.referencedata.api.RegistryType
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
+import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Reconciles registry account statements against internal live lots. Lots in transfer are excluded from both
+ * Reconciles registry account statements against internal live lots.
+
+ * A discrepancy is one break across statements, identified by its fingerprint: a later statement that shows it again
+ * adds a sighting; one that no longer shows it clears it (AUTO_CLEARED). An accepted break absorbs later sightings of
+ * the same discrepancy instead of reopening it. Breaks close by a correcting action or by four-eyes acceptance.
+ * Lots in transfer are excluded from both
  * directions because the registry may legitimately show them on either side during settlement.
  *
  * Allowance statements carry balances per product; they are compared with the holdings of the account. Reserved
@@ -50,6 +64,7 @@ class ReconciliationService(
     private val referenceData: ReferenceDataQuery,
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
+    private val clock: Clock = Clock.systemUTC(),
 ) : ReconciliationCommand, ReconciliationQuery {
     override fun importStatement(command: ImportStatement): StatementView {
         val account = statementAccount(command.registryAccountId, command.registryCode, RegistryType.GOO)
@@ -147,16 +162,62 @@ class ReconciliationService(
         return result
     }
 
-    override fun resolveBreak(breakId: UUID, status: BreakStatus, resolution: String): ReconciliationBreakView {
-        if (status == BreakStatus.OPEN) throw ValidationException("Resolution status must be RESOLVED or ACCEPTED")
-        if (resolution.isBlank()) throw ValidationException("A resolution note is required")
-        val current = repository.findBreak(breakId) ?: throw NotFoundException("ReconciliationBreak", breakId)
-        if (current.status != BreakStatus.OPEN) throw IllegalStateTransitionException("ReconciliationBreak", current.status.name, status.name)
-        val updated = current.copy(status = status, resolution = resolution)
-        repository.updateBreak(updated, actorProvider.current().userId)
-        events.publishEvent(ReconciliationBreakResolved(updated, actorProvider.current().userId))
-        return updated
+    override fun assignBreak(breakId: UUID, assignee: String): ReconciliationBreakView {
+        if (assignee.isBlank()) throw ValidationException("An assignee is required")
+        val current = locked(breakId)
+        if (current.status != BreakStatus.OPEN && current.status != BreakStatus.INVESTIGATING) {
+            throw IllegalStateTransitionException("ReconciliationBreak", current.status.name, BreakStatus.INVESTIGATING.name)
+        }
+        if (current.status == BreakStatus.INVESTIGATING && current.assignee == assignee) return current
+        val next = current.copy(status = BreakStatus.INVESTIGATING, assignee = assignee)
+        repository.updateBreak(next)
+        events.publishEvent(ReconciliationBreakAssigned(next))
+        return next
     }
+
+    override fun resolveBreak(breakId: UUID, action: BreakAction, resolution: String): ReconciliationBreakView {
+        if (resolution.isBlank()) throw ValidationException("A resolution note is required")
+        val current = locked(breakId)
+        if (!current.status.open) throw IllegalStateTransitionException("ReconciliationBreak", current.status.name, BreakStatus.RESOLVED.name)
+        return close(current.copy(status = BreakStatus.RESOLVED, resolutionAction = action, resolution = resolution, acceptanceRequestedBy = null))
+    }
+
+    override fun requestAcceptance(breakId: UUID, reason: String): ReconciliationBreakView {
+        if (reason.isBlank()) throw ValidationException("A reason is required to accept a break")
+        val current = locked(breakId)
+        if (current.status != BreakStatus.OPEN && current.status != BreakStatus.INVESTIGATING) {
+            throw IllegalStateTransitionException("ReconciliationBreak", current.status.name, BreakStatus.PENDING_ACCEPTANCE.name)
+        }
+        val next = current.copy(status = BreakStatus.PENDING_ACCEPTANCE, resolution = reason, acceptanceRequestedBy = actorProvider.current().userId)
+        repository.updateBreak(next)
+        events.publishEvent(ReconciliationBreakAcceptanceRequested(next))
+        return next
+    }
+
+    override fun decideAcceptance(breakId: UUID, accept: Boolean, by: String, note: String?): ReconciliationBreakView {
+        val current = locked(breakId)
+        if (current.status != BreakStatus.PENDING_ACCEPTANCE) {
+            throw IllegalStateTransitionException("ReconciliationBreak", current.status.name, if (accept) "ACCEPTED" else "INVESTIGATING")
+        }
+        if (current.acceptanceRequestedBy == by) throw SegregationOfDutiesException("The person asking to accept a break may not approve it")
+        if (accept) {
+            val resolution = listOfNotNull(current.resolution, note?.takeIf { it.isNotBlank() }?.let { "approved: $it" }).joinToString("; ")
+            return close(current.copy(status = BreakStatus.ACCEPTED, resolution = resolution), by)
+        }
+        val next = current.copy(status = BreakStatus.INVESTIGATING, acceptanceRequestedBy = null, resolution = null)
+        repository.updateBreak(next)
+        events.publishEvent(ReconciliationBreakAcceptanceRejected(next, by, note))
+        return next
+    }
+
+    private fun close(next: ReconciliationBreakView, by: String = actorProvider.current().userId): ReconciliationBreakView {
+        val closed = next.copy(resolvedBy = by, resolvedAt = clock.instant())
+        repository.updateBreak(closed)
+        events.publishEvent(ReconciliationBreakResolved(closed, by))
+        return closed
+    }
+
+    private fun locked(id: UUID): ReconciliationBreakView = repository.findBreak(id, forUpdate = true) ?: throw NotFoundException("ReconciliationBreak", id)
 
     private fun reconcileBalances(statement: StatementView): StatementView {
         val account = referenceData.requireRegistryAccount(statement.registryAccountId)
@@ -171,6 +232,7 @@ class ReconciliationService(
             ReconciliationBreakView(
                 id = Ids.newId(),
                 statementId = statement.id,
+                registryAccountId = account.id,
                 type = BreakType.BALANCE_MISMATCH,
                 issuanceRef = null,
                 range = null,
@@ -186,14 +248,56 @@ class ReconciliationService(
         return finish(statement, breaks)
     }
 
-    private fun finish(statement: StatementView, breaks: List<ReconciliationBreakView>): StatementView {
-        breaks.forEach {
-            repository.insertBreak(it)
-            events.publishEvent(ReconciliationBreakDetected(it))
+    /**
+     * Records what [statement] shows: new discrepancies open breaks, known ones get a sighting, and open breaks of the
+     * same kind on the account that the statement no longer shows are cleared (unless seen in a later statement).
+     */
+    private fun finish(statement: StatementView, candidates: List<ReconciliationBreakView>): StatementView {
+        val seen = candidates.map { withIdentity(it, statement) }.distinctBy { it.fingerprint }.map { candidate ->
+            val known = repository.currentByFingerprint(candidate.fingerprint)
+            if (known == null) {
+                repository.insertBreak(candidate)
+                repository.addSighting(candidate.id, statement.id)
+                events.publishEvent(ReconciliationBreakDetected(candidate))
+                candidate
+            } else {
+                val updated = known.copy(
+                    lastSeenOn = maxOf(known.lastSeenOn ?: statement.statementDate, statement.statementDate),
+                    details = candidate.details,
+                    registryQuantity = candidate.registryQuantity,
+                    internalQuantity = candidate.internalQuantity,
+                )
+                repository.updateBreak(updated)
+                repository.addSighting(known.id, statement.id)
+                updated
+            }
         }
-        val status = if (breaks.isEmpty()) StatementStatus.RECONCILED else StatementStatus.BREAKS
+        val fingerprints = seen.map { it.fingerprint }.toSet()
+        val kindTypes = if (statement.kind == StatementKind.ALLOWANCE) setOf(BreakType.BALANCE_MISMATCH) else CERTIFICATE_BREAKS
+        repository.openForAccount(statement.registryAccountId)
+            .filter { it.type in kindTypes && it.fingerprint !in fingerprints && (it.lastSeenOn ?: LocalDate.MIN) <= statement.statementDate }
+            .forEach { gone ->
+                close(
+                    gone.copy(status = BreakStatus.AUTO_CLEARED, resolution = "Not in statement ${statement.source} of ${statement.statementDate}"),
+                    "system",
+                )
+            }
+        val status = if (seen.isEmpty()) StatementStatus.RECONCILED else StatementStatus.BREAKS
         repository.updateStatementStatus(statement.id, status)
-        return statement.copy(status = status, breaks = breaks)
+        return statement.copy(status = status, breaks = seen)
+    }
+
+    private fun withIdentity(candidate: ReconciliationBreakView, statement: StatementView): ReconciliationBreakView {
+        val identity = when (candidate.type) {
+            BreakType.BALANCE_MISMATCH -> "${candidate.productCode}|-|${candidate.registryQuantity!! - candidate.internalQuantity!!}"
+            else -> "${candidate.issuanceRef}|${candidate.range!!.start}-${candidate.range.end}"
+        }
+        return candidate.copy(
+            registryAccountId = statement.registryAccountId,
+            fingerprint = "${statement.registryAccountId}|${candidate.type}|$identity",
+            firstSeenOn = statement.statementDate,
+            lastSeenOn = statement.statementDate,
+        )
     }
 
     private fun statementAccount(accountId: UUID, registryCode: String, type: RegistryType): RegistryAccountView {
@@ -211,7 +315,16 @@ class ReconciliationService(
     override fun statement(id: UUID): StatementView? = repository.statement(id)
 
     @Transactional(readOnly = true)
-    override fun openBreaks(registryAccountId: UUID?): List<ReconciliationBreakView> = repository.openBreaks(registryAccountId)
+    override fun openBreaks(registryAccountId: UUID?): List<ReconciliationBreakView> = repository.breaks(BreakFilter(registryAccountId))
+
+    @Transactional(readOnly = true)
+    override fun breaks(filter: BreakFilter): List<ReconciliationBreakView> = repository.breaks(filter)
+
+    @Transactional(readOnly = true)
+    override fun requireBreak(id: UUID): ReconciliationBreakView = repository.findBreak(id) ?: throw NotFoundException("ReconciliationBreak", id)
+
+    @Transactional(readOnly = true)
+    override fun ageing(): BreakAgeing = repository.ageing(LocalDate.now(clock))
 
     private fun attributeMismatch(line: StatementLine, lot: LotView): Map<String, Any?>? {
         val mismatches = mutableMapOf<String, Any?>()
@@ -229,4 +342,8 @@ class ReconciliationService(
 
     private fun newBreak(statementId: UUID, type: BreakType, issuanceRef: String, range: CertificateRange, lotId: UUID?, details: Map<String, Any?>) =
         ReconciliationBreakView(Ids.newId(), statementId, type, issuanceRef, range, lotId, details, BreakStatus.OPEN, null)
+
+    private companion object {
+        val CERTIFICATE_BREAKS = setOf(BreakType.MISSING_INTERNALLY, BreakType.MISSING_IN_REGISTRY, BreakType.ATTRIBUTE_MISMATCH)
+    }
 }

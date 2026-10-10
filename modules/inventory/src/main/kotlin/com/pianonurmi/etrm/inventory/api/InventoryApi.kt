@@ -244,10 +244,28 @@ enum class StatementKind { GOO, ALLOWANCE }
 
 enum class BreakType { MISSING_INTERNALLY, MISSING_IN_REGISTRY, ATTRIBUTE_MISMATCH, BALANCE_MISMATCH }
 
-enum class BreakStatus { OPEN, RESOLVED, ACCEPTED }
+/**
+ * OPEN → INVESTIGATING (assigned) → RESOLVED (by a correcting action), ACCEPTED (four eyes, via PENDING_ACCEPTANCE)
+ * or AUTO_CLEARED (a later statement no longer shows it).
+ */
+enum class BreakStatus {
+    OPEN,
+    INVESTIGATING,
+    PENDING_ACCEPTANCE,
+    RESOLVED,
+    ACCEPTED,
+    AUTO_CLEARED,
+    ;
+
+    val open: Boolean get() = this == OPEN || this == INVESTIGATING || this == PENDING_ACCEPTANCE
+}
+
+/** What closed a break; correcting actions are orchestrated by the registry module. */
+enum class BreakAction { CONFIRM_INSTRUCTION, RECORD_RECEIPT, WITHDRAW_LOT, REPLACE_LOT, CORRECT_LOT, CORRECT_HOLDING }
 
 data class ReconciliationBreakView(
     val id: UUID,
+    /** The statement that first showed the break. */
     val statementId: UUID,
     val type: BreakType,
     /** Certificate breaks: the issuance and range concerned. */
@@ -261,7 +279,28 @@ data class ReconciliationBreakView(
     val productCode: String? = null,
     val registryQuantity: Long? = null,
     val internalQuantity: Long? = null,
+    val registryAccountId: UUID? = null,
+    /** Same discrepancy, same fingerprint: account, type, issuance or product, range (and difference for balances). */
+    val fingerprint: String = "",
+    val firstSeenOn: LocalDate? = null,
+    val lastSeenOn: LocalDate? = null,
+    val assignee: String? = null,
+    val resolutionAction: BreakAction? = null,
+    val acceptanceRequestedBy: String? = null,
+    val resolvedBy: String? = null,
+    val resolvedAt: Instant? = null,
+    val detectedAt: Instant? = null,
 )
+
+data class BreakFilter(
+    val registryAccountId: UUID? = null,
+    val statuses: Set<BreakStatus> = BreakStatus.entries.filter { it.open }.toSet(),
+    val type: BreakType? = null,
+    val limit: Int = 500,
+)
+
+/** Open breaks by age (days since first seen), for monitoring. */
+data class BreakAgeing(val upToOneDay: Int, val upToOneWeek: Int, val upToOneMonth: Int, val older: Int)
 
 enum class StatementStatus { IMPORTED, RECONCILED, BREAKS }
 
@@ -285,13 +324,29 @@ interface ReconciliationCommand {
     /** Compares statement lines with live lots (or allowance balances) of the account and records breaks. */
     fun reconcile(statementId: UUID): StatementView
 
-    fun resolveBreak(breakId: UUID, status: BreakStatus, resolution: String): ReconciliationBreakView
+    /** Takes the break into investigation by [assignee]. */
+    fun assignBreak(breakId: UUID, assignee: String): ReconciliationBreakView
+
+    /** Closes the break after a correcting [action] (applied by the caller in the same transaction). */
+    fun resolveBreak(breakId: UUID, action: BreakAction, resolution: String): ReconciliationBreakView
+
+    /** Asks a second person to accept the break as it is (PENDING_ACCEPTANCE). */
+    fun requestAcceptance(breakId: UUID, reason: String): ReconciliationBreakView
+
+    /** The second person's decision: ACCEPTED, or back to INVESTIGATING. */
+    fun decideAcceptance(breakId: UUID, accept: Boolean, by: String, note: String?): ReconciliationBreakView
 }
 
 interface ReconciliationQuery {
     fun statement(id: UUID): StatementView?
 
     fun openBreaks(registryAccountId: UUID? = null): List<ReconciliationBreakView>
+
+    fun breaks(filter: BreakFilter): List<ReconciliationBreakView>
+
+    fun requireBreak(id: UUID): ReconciliationBreakView
+
+    fun ageing(): BreakAgeing
 }
 
 data class ReconciliationBreakDetected(val breakView: ReconciliationBreakView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata
@@ -309,8 +364,22 @@ data class InTransferLotLeftAccount(
     val metadata: EventMetadata = EventMetadata(),
 ) : DomainEvent by metadata
 
+/** The break left the open states: RESOLVED, ACCEPTED or AUTO_CLEARED. */
 data class ReconciliationBreakResolved(
     val breakView: ReconciliationBreakView,
     val resolvedBy: String,
+    val metadata: EventMetadata = EventMetadata(),
+) : DomainEvent by metadata
+
+data class ReconciliationBreakAssigned(val breakView: ReconciliationBreakView, val metadata: EventMetadata = EventMetadata()) :
+    DomainEvent by metadata
+
+data class ReconciliationBreakAcceptanceRequested(val breakView: ReconciliationBreakView, val metadata: EventMetadata = EventMetadata()) :
+    DomainEvent by metadata
+
+data class ReconciliationBreakAcceptanceRejected(
+    val breakView: ReconciliationBreakView,
+    val rejectedBy: String,
+    val note: String?,
     val metadata: EventMetadata = EventMetadata(),
 ) : DomainEvent by metadata

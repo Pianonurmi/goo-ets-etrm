@@ -60,6 +60,37 @@ days; otherwise infeasible. Overrides in `etrm_registry.transfer_route`.
 - The AIB Hub has no account-holder interface: cross-border transfers are instructed in the exporting registry.
 - The Union Registry has no account-holder API: instructions are MANUAL (trusted account list, 26-hour delay to non-trusted accounts, registry four-eyes); holdings statements are imported as files.
 
+## Reconciliation breaks
+
+A discrepancy between a statement and our records is one break, whatever the number of statements that show it. The
+break's fingerprint is the account, the break type and the issuance and certificate range (for allowances: product
+and difference). A later statement that shows the same discrepancy adds a sighting (`lastSeenOn`, and the statement
+lists the break); one that no longer shows it clears the break (`AUTO_CLEARED`, by `system`). An accepted break absorbs
+later sightings of the same discrepancy instead of reopening it; a changed balance difference is a new break.
+
+States: `OPEN → INVESTIGATING → RESOLVED | ACCEPTED | AUTO_CLEARED`, with `PENDING_ACCEPTANCE` while a second person
+decides. Every new break opens a `RECONCILIATION_BREAK` task for registry operators and back office; claiming or being
+assigned the task puts the break under investigation by that person. The task closes when the break closes; it cannot
+be decided in the inbox.
+
+Resolution corrects our records to the registry in the same transaction as closing the break
+(`POST /api/v1/registry/breaks/{id}/<action>`, registry operator or back office):
+
+| Action | Break | Effect |
+|---|---|---|
+| `assign` | any open | investigation by the given user (default: the caller) |
+| `record-receipt` | `MISSING_INTERNALLY` | receives a lot with exactly the break's account, issuance and range |
+| `withdraw-lot` | `MISSING_IN_REGISTRY` on a held lot | splits the lot so the missing range is its own lot and withdraws it |
+| `confirm-instruction` | `MISSING_IN_REGISTRY` on a lot in transfer | confirms the instruction after the operator checked the registry (a lot wholly gone confirms itself) |
+| `replace-lot` | `ATTRIBUTE_MISMATCH` on a held lot | withdraws the lot and receives the same range with the registry's attributes |
+| `correct-lot` | any lot break | corrects labels, support, expiry or cost |
+| `correct-holding` | `BALANCE_MISMATCH` | books a `CORRECTION` movement of the difference |
+| `accept` | any open | asks a second person to accept the break as it is (`BREAK_ACCEPTANCE` task; the requester cannot approve, and the database refuses a self-accepted break) |
+
+Breaks are listed with `GET /api/v1/inventory/breaks?registryAccountId=&status=&type=` (open ones by default) and
+`GET /api/v1/inventory/breaks/{id}`; `GET /api/v1/inventory/breaks/ageing` and the gauge
+`etrm.reconciliation.breaks.open{age=1d|7d|30d|older}` count open breaks by days since first seen.
+
 ## Union Registry allowance instructions
 
 Allowance instructions carry `assetKind = ALLOWANCE`, a product code, a quantity in `TCO2E` and the holding they

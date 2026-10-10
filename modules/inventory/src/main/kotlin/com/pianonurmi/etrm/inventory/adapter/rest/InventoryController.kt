@@ -4,7 +4,10 @@ import com.pianonurmi.etrm.inventory.api.AllowanceHoldingCommand
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingQuery
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingView
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementView
+import com.pianonurmi.etrm.inventory.api.BreakAgeing
+import com.pianonurmi.etrm.inventory.api.BreakFilter
 import com.pianonurmi.etrm.inventory.api.BreakStatus
+import com.pianonurmi.etrm.inventory.api.BreakType
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.ImportStatement
 import com.pianonurmi.etrm.inventory.api.LotCommand
@@ -179,16 +182,20 @@ class InventoryController(
     ): StatementView? = reconciliationQuery.statement(id)
 
     @GetMapping("/breaks")
-    fun openBreaks(
+    fun breaks(
         @RequestParam(required = false) registryAccountId: UUID?,
-    ): List<ReconciliationBreakView> = reconciliationQuery.openBreaks(registryAccountId)
+        @RequestParam(required = false) status: Set<BreakStatus>?,
+        @RequestParam(required = false) type: BreakType?,
+    ): List<ReconciliationBreakView> =
+        reconciliationQuery.breaks(BreakFilter(registryAccountId, status ?: BreakStatus.entries.filter { it.open }.toSet(), type))
 
-    @PostMapping("/breaks/{id}/resolve")
-    fun resolveBreak(
+    @GetMapping("/breaks/{id}")
+    fun reconciliationBreak(
         @PathVariable id: UUID,
-        @RequestBody body: ResolveBreakRequest,
-    ): ReconciliationBreakView =
-        reconciliationCommand.resolveBreak(id, body.status, body.resolution)
+    ): ReconciliationBreakView = reconciliationQuery.requireBreak(id)
+
+    @GetMapping("/breaks/ageing")
+    fun ageing(): BreakAgeing = reconciliationQuery.ageing()
 }
 
 data class LotSearchRequest(
@@ -206,5 +213,3 @@ data class ReservationRequest(val reservationRef: UUID, val quantity: Long? = nu
 data class CancelRequest(val quantity: Long? = null, val details: CancellationDetails)
 
 data class ReasonRequest(val reason: String)
-
-data class ResolveBreakRequest(val status: BreakStatus, val resolution: String)

@@ -20,7 +20,7 @@ GL interface format, market data vendor for bucket marks.
 | M2 | Registry framework: outbox dispatch outside the transaction, statement formats, confirmation by statement, four-eyes on manual instructions, four-eyes master data changes | done |
 | M3 | Counterparty registry accounts with Union Registry trusted-list status | done |
 | M4 | Union Registry allowance instructions, EUA sell delivery, purchase receipt matching, allowance reconciliation | done |
-| M5 | Reconciliation break workflow | planned |
+| M5 | Reconciliation break workflow | done |
 | M6 | Trade confirmation matching | planned |
 | M7 | Settlement: invoices, VAT rules, payments, netting, ledger postings | planned |
 | M8 | Registry API adapters (G-REX, NECS) | planned |

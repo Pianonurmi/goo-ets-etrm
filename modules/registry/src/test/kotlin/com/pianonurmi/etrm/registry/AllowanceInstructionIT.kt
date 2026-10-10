@@ -167,6 +167,11 @@ class AllowanceInstructionIT {
 
     private fun eua() = allowances.holding(ourAccount, "EUA")!!
 
+    @org.junit.jupiter.api.BeforeEach
+    fun operator() {
+        user = "registry-op"
+    }
+
     @Test
     fun `a sale to an untrusted account waits 26 hours, needs a second approver and books the sale on confirmation`() {
         val before = eua()
@@ -297,6 +302,5 @@ class AllowanceInstructionIT {
             it.range shouldBe null
         }
         off.breaks.first { it.productCode == "EUAA" }.internalQuantity shouldBe 0
-        user = "registry-op"
     }
 }
