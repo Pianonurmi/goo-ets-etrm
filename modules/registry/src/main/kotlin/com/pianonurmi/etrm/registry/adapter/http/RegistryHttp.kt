@@ -37,9 +37,23 @@ data class AdapterSettings(
     /** Attempts for idempotent reads; commands are never retried blindly (see the registry dispatcher). */
     val maxAttempts: Int = 3,
     val retryBackoff: Duration = Duration.ofMillis(500),
+    /** The request mapping (`GENERIC_REST`, or a registry-specific one once its specification is in hand). */
+    val mapping: String = "GENERIC_REST",
+    /** OAuth 2 token endpoint; without it requests are sent without a token. */
+    val tokenUrl: String? = null,
+    val scope: String? = null,
+    val grantType: GrantType = GrantType.CLIENT_CREDENTIALS,
+    /** For REFRESH_TOKEN: the environment variable with the refresh token obtained by an interactive (PKCE) login. */
+    val refreshTokenEnv: String? = null,
+    /** Mappings not yet checked against the registry's published specification run only when this is set. */
+    val allowUnverified: Boolean = false,
 ) {
     fun credential(environment: (String) -> String? = System::getenv): String? = credentialEnv?.let(environment)
+
+    fun refreshToken(environment: (String) -> String? = System::getenv): String? = refreshTokenEnv?.let(environment)
 }
+
+enum class GrantType { CLIENT_CREDENTIALS, REFRESH_TOKEN }
 
 /** Builds HTTP clients for registry adapters with explicit timeouts, and retries idempotent reads. */
 @Component

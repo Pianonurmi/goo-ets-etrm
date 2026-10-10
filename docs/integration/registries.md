@@ -56,7 +56,7 @@ days; otherwise infeasible. Overrides in `etrm_registry.transfer_route`.
 
 ## Status of registry-specific integrations (October 2026)
 
-- Grexel's G-REX platform offers account holders a REST API under contract; NECS (Statnett) runs Unicorn Certigy with a machine-to-machine API. Adapters follow in M8 once the manuals are in hand; until then these registries use FILE.
+- Grexel's G-REX platform offers account holders a REST API under contract; NECS (Statnett) runs Unicorn Certigy with a machine-to-machine API. See [API adapters](#api-adapters): the framework is in place, the registry-specific mappings wait for the specifications; until then these registries use FILE.
 - The AIB Hub has no account-holder interface: cross-border transfers are instructed in the exporting registry.
 - The Union Registry has no account-holder API: instructions are MANUAL (trusted account list, 26-hour delay to non-trusted accounts, registry four-eyes); holdings statements are imported as files.
 
@@ -136,3 +136,34 @@ Trade legs reference the account by id (`counterpartyAccountId`); `counterpartyA
 is filled from it. A textual reference that matches a registered account of the counterparty is linked
 automatically; one that matches nothing stays free text. Intercompany mirror trades point at the original entity's
 own delivery account.
+
+## API adapters
+
+The `API` channel (`ApiRegistryGateway`) separates what every registry API needs from what differs per registry.
+
+**Common to every registry API:**
+- OAuth 2 tokens (client credentials, or a refresh token from an interactive PKCE login), cached and renewed on `401`;
+- the instruction key as `Idempotency-Key`;
+- explicit timeouts;
+- outcome classification for the outbox dispatcher (ADR 0012): refusal, not taken, possibly processed;
+- status queries by instruction key.
+
+**Per registry:** a `RegistryApiMapping` translates instructions into requests and answers into outcomes. It holds
+no HTTP or security code. A mapping is `verified` only once it has been checked against the registry's published
+specification and test environment. An unverified mapping runs only where `allow-unverified: true` is configured.
+
+Adapters are configured per registry under `etrm.registry.adapters.<CODE>` and are disabled by default. The
+registry's integration mode must also be `API`.
+
+| Mapping | Status |
+|---|---|
+| `GENERIC_REST` | ETRM's own contract ([registry API contract](registry-api-contract.md)); verified by contract tests against a stub; usable with middleware that implements it |
+| G-REX (Grexel, now EEX) | **not built yet.** EEX publishes the G-REX API manual (version 3.1, 31 Jan 2025) at `https://www.eex.com/fileadmin/EEX/Downloads/Registry_Services/Grexel_Merger/API_manual_GREX.pdf`, but this development environment's network policy blocked the download, so no mapping was written from guesses. Known from EEX's December 2025 migration webinar: separate Certificate Creation, Management, Master Data, Private and Public Reports and Transaction APIs, each in demo and production; authentication by PKCE login with token refresh (manual section 3.2), which corresponds to `grant-type: REFRESH_TOKEN`. |
+| NECS (Statnett, Unicorn Certigy) | **not built yet.** No public API documentation; access to the machine-to-machine API documentation is through Statnett or Unicorn Systems. |
+
+**To add a registry API:**
+1. Obtain the specification and test credentials.
+2. Write `<Registry>Mapping : RegistryApiMapping` with `verified = false`.
+3. Add contract tests from the specification's examples (the stub pattern of `ApiRegistryGatewayTest`).
+4. Run against the registry's demo environment with `allow-unverified: true`.
+5. Set `verified = true` once it passes there.

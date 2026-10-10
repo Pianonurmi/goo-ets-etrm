@@ -23,5 +23,5 @@ GL interface format, market data vendor for bucket marks.
 | M5 | Reconciliation break workflow | done |
 | M6 | Trade confirmation matching, obligations-open policy per entity | done |
 | M7 | Settlement: invoices, VAT rules, payments, netting, ledger postings | done |
-| M8 | Registry API adapters (G-REX, NECS) | planned |
+| M8 | Registry API adapters: API channel framework and generic REST contract done; G-REX and NECS mappings wait for the specifications | done (framework) |
 | M9 | Documentation consolidation | planned |
