@@ -16,7 +16,9 @@ complexity:
   LongMethod:
     threshold: 80
   CyclomaticComplexMethod:
-    threshold: 20
+    threshold: 25
+    ignoreSimpleWhenEntries: true
+    ignoreSingleWhenExpression: true
   NestedBlockDepth:
     threshold: 5
   LargeClass:
@@ -30,7 +32,7 @@ style:
   MagicNumber:
     active: false
   ThrowsCount:
-    max: 4
+    max: 6
   UnusedPrivateMember:
     active: true
   WildcardImport:

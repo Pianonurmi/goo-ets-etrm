@@ -57,7 +57,6 @@ enum class AttributeKind { STRING, BOOLEAN, NUMERIC, DATE, TAXONOMY, LABEL_SET, 
     JsonSubTypes.Type(Criterion.MatchAll::class, name = "matchAll"),
 )
 sealed interface Criterion {
-
     /** `attribute = value` for STRING and BOOLEAN attributes (booleans as "true"/"false"). NULL never matches. */
     data class Equals(val attribute: LotAttribute, val value: String) : Criterion {
         init {
