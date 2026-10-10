@@ -45,6 +45,7 @@ import com.pianonurmi.etrm.settlement.adapter.jooq.JooqNettingRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqNumberSeriesRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqPaymentRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqSettlementItemRepository
+import com.pianonurmi.etrm.settlement.adapter.jooq.JooqStandardRateRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqVatRuleRepository
 import com.pianonurmi.etrm.settlement.api.AllocatePayment
 import com.pianonurmi.etrm.settlement.api.FixPrice
@@ -173,6 +174,7 @@ class SettlementIT {
             bus,
             clock,
             settlement,
+            JooqStandardRateRepository(dsl),
         )
         payments = PaymentService(JooqPaymentRepository(dsl), JooqInvoiceRepository(dsl), settlement, referenceData, actor, bus)
         netting = NettingService(

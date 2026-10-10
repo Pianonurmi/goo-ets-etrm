@@ -158,4 +158,65 @@ class AllowanceDeliveryIT {
         s.asUser("backoffice").get("/api/v1/trades/$tradeId").then().body("status", equalTo("DELIVERED"))
             .body("legs[0].deliveries[0].deliveredQuantity", equalTo(300))
     }
+
+    @Test
+    fun `a delivered EUA sale is invoiced with four eyes, paid, settled, and the books clear`() {
+        val s = ApiScenario(port).referenceData()
+        val ours = s.ownUnionAccount()
+        val buyer = s.buyerUnionAccount()
+        s.asUser("backoffice").body(
+            """{"holderEntityId":"${s.entityId}","registryAccountId":"$ours","productCode":"EUA","type":"PURCHASE","quantity":500,
+               "effectiveDate":"2026-10-01","costPerUnit":65.00,"costCurrency":"EUR","reference":"OPENING"}""",
+        ).post("/api/v1/inventory/holdings/movements").then().statusCode(201)
+        // Cross-border reverse charge needs the buyer's VAT number; we are paid into a bank account registered with four eyes.
+        s.asUser("admin").body("""{"country":"DE","vatNumber":"DE811569869","validFrom":"2020-01-01"}""")
+            .put("/api/v1/reference/parties/COUNTERPARTY/${s.counterpartyId}/vat-registrations").then().statusCode(200)
+        val bankRequest: String = s.asUser("treasury", "BACK_OFFICE").body(
+            """{"action":"CREATE","reason":"collection account","currency":"EUR","iban":"FI2112345600000785","bic":"NDEAFIHH","accountName":"Entity"}""",
+        ).post("/api/v1/reference/parties/LEGAL_ENTITY/${s.entityId}/bank-accounts/change-requests").then().statusCode(201).extract().path("id")
+        val bankTask: String = s.asUser("risk", "RISK").get("/api/v1/workflow/tasks?subjectRef=$bankRequest").then().extract().path("items[0].id")
+        s.asUser("risk", "RISK").post("/api/v1/workflow/tasks/$bankTask/approve").then().statusCode(200)
+
+        val tradeId = s.confirmedEuaTrade("SELL", 100, "70.00", ours, buyer)
+        val scheduleId: String = s.asUser("backoffice").get("/api/v1/trades/$tradeId").then().extract().path("legs[0].deliveries[0].id")
+        val instructionId: String = s.asUser("operator-a").body("""{"scheduleId":"$scheduleId"}""").post("/api/v1/deliveries/allowances").then()
+            .statusCode(201).extract().path("id")
+        val approval: String = s.asUser("operator-b").get("/api/v1/workflow/tasks?subjectRef=$instructionId").then().extract().path("items[0].id")
+        s.asUser("operator-b").post("/api/v1/workflow/tasks/$approval/approve").then().statusCode(200)
+        s.asUser(
+            "operator-b",
+        ).body("""{"externalRef":"EU-TX-S-$tradeId"}""").post("/api/v1/registry/instructions/$instructionId/confirm").then().statusCode(200)
+
+        s.asUser("billing").get("/api/v1/settlement/items?tradeId=$tradeId").then().statusCode(200)
+            .body("[0].status", equalTo("OPEN")).body("[0].vatTreatment", equalTo("REVERSE_CHARGE_CROSS_BORDER")).body("[0].netAmount", equalTo(7000.0f))
+        val today = java.time.LocalDate.now()
+        val invoiceId: String = s.asUser("billing").body("""{"legalEntityId":"${s.entityId}","upTo":"$today","counterpartyId":"${s.counterpartyId}"}""")
+            .post("/api/v1/settlement/invoice-runs").then().statusCode(201).body("size()", equalTo(1)).extract().path("[0].id")
+        s.asUser("billing").post("/api/v1/settlement/invoices/$invoiceId/submit").then().statusCode(200)
+        val invoiceTask: String = s.asUser("controller").get("/api/v1/workflow/tasks?subjectRef=$invoiceId&type=INVOICE_APPROVAL").then()
+            .extract().path("items[0].id")
+        s.asUser("billing").post("/api/v1/workflow/tasks/$invoiceTask/approve").then().statusCode(403)
+        s.asUser("controller").post("/api/v1/workflow/tasks/$invoiceTask/approve").then().statusCode(200)
+        val number: String = s.asUser("billing").get("/api/v1/settlement/invoices/$invoiceId").then()
+            .body("status", equalTo("ISSUED")).body("grossTotal", equalTo(7000.0f)).extract().path("number")
+
+        s.asUser("billing").body(
+            """{"legalEntityId":"${s.entityId}","direction":"INCOMING","amount":7000.00,"currency":"EUR","valueDate":"$today",
+               "bankReference":"BANK-$tradeId","remittanceInfo":"Invoice $number"}""",
+        ).post("/api/v1/settlement/payments").then().statusCode(201).body("unappliedAmount", equalTo(0.0f))
+        s.asUser("billing").get("/api/v1/settlement/invoices/$invoiceId").then().body("paymentStatus", equalTo("PAID"))
+        s.asUser("billing").get("/api/v1/trades/$tradeId").then().body("status", equalTo("SETTLED"))
+
+        val balances = s.asUser("accountant").get("/api/v1/ledger/trial-balance?legalEntityId=${s.entityId}&period=${java.time.YearMonth.now()}").then()
+            .statusCode(200).extract().jsonPath()
+
+        fun balance(code: String): Double = balances.getList<Map<String, Any>>("").filter { it["accountCode"] == code }
+            .sumOf { (it["debit"] as Number).toDouble() - (it["credit"] as Number).toDouble() }
+        balance("1500") shouldBe 0.0
+        balance("1510") shouldBe 0.0
+        balance("2600") shouldBe 0.0
+        balance("9000") shouldBe 0.0
+        balance("1900") shouldBe 7000.0
+        balance("3010") shouldBe -7000.0
+    }
 }

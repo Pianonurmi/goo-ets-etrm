@@ -179,6 +179,8 @@ data class InvoiceLineView(
     val vatTreatment: VatTreatment,
     val vatRate: BigDecimal,
     val vatAmount: BigDecimal,
+    /** Reverse-charged purchases: the VAT we account for ourselves (output and input) at our standard rate. */
+    val selfAssessedVat: BigDecimal = BigDecimal.ZERO,
 )
 
 data class InvoiceView(

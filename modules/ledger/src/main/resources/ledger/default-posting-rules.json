@@ -68,5 +68,95 @@
     "ruleCode": "EUA_SALE_PROCEEDS", "eventType": "HoldingChanged", "description": "Allowances sold: proceeds",
     "conditions": {"movementType": "SALE", "hasProceeds": true},
     "lines": [{"side": "DEBIT", "account": "1500", "amount": "proceeds"}, {"side": "CREDIT", "account": "3010", "amount": "proceeds"}]
+  },
+  {
+    "ruleCode": "TRADE_SALE_COMMITMENT_RELEASE", "eventType": "DeliveryRecorded", "description": "Sale delivered: commitment memo released",
+    "conditions": {"side": "SELL"},
+    "lines": [{"side": "DEBIT", "account": "9009", "amount": "deliveredValue"}, {"side": "CREDIT", "account": "9000", "amount": "deliveredValue"}]
+  },
+  {
+    "ruleCode": "TRADE_PURCHASE_COMMITMENT_RELEASE", "eventType": "DeliveryRecorded", "description": "Purchase received: commitment memo released",
+    "conditions": {"side": "BUY"},
+    "lines": [{"side": "DEBIT", "account": "9009", "amount": "deliveredValue"}, {"side": "CREDIT", "account": "9001", "amount": "deliveredValue"}]
+  },
+  {
+    "ruleCode": "INVOICE_RECEIVABLE", "eventType": "InvoiceIssued", "description": "Sales invoice: accrued receivable invoiced, output VAT",
+    "conditions": {"direction": "RECEIVABLE", "credit": "false"},
+    "lines": [{"side": "DEBIT", "account": "1510", "amount": "gross"}, {"side": "CREDIT", "account": "1500", "amount": "net"}, {"side": "CREDIT", "account": "2500", "amount": "vat"}]
+  },
+  {
+    "ruleCode": "INVOICE_RECEIVABLE_CREDIT", "eventType": "InvoiceIssued", "description": "Credit note: invoiced receivable and output VAT reversed",
+    "conditions": {"direction": "RECEIVABLE", "credit": "true"},
+    "lines": [{"side": "DEBIT", "account": "1500", "amount": "net"}, {"side": "DEBIT", "account": "2500", "amount": "vat"}, {"side": "CREDIT", "account": "1510", "amount": "gross"}]
+  },
+  {
+    "ruleCode": "INVOICE_PAYABLE", "eventType": "InvoiceIssued", "description": "Purchase or self-billed invoice: accrued payable invoiced, input VAT",
+    "conditions": {"direction": "PAYABLE", "credit": "false"},
+    "lines": [{"side": "DEBIT", "account": "2200", "amount": "net"}, {"side": "DEBIT", "account": "1700", "amount": "vat"}, {"side": "CREDIT", "account": "2210", "amount": "gross"}]
+  },
+  {
+    "ruleCode": "INVOICE_PAYABLE_CREDIT", "eventType": "InvoiceIssued", "description": "Purchase credit: invoiced payable and input VAT reversed",
+    "conditions": {"direction": "PAYABLE", "credit": "true"},
+    "lines": [{"side": "DEBIT", "account": "2210", "amount": "gross"}, {"side": "CREDIT", "account": "2200", "amount": "net"}, {"side": "CREDIT", "account": "1700", "amount": "vat"}]
+  },
+  {
+    "ruleCode": "VAT_REVERSE_CHARGE", "eventType": "InvoiceIssued", "description": "Reverse-charged purchase: VAT self-assessed as output and input",
+    "conditions": {"direction": "PAYABLE", "credit": "false"},
+    "lines": [{"side": "DEBIT", "account": "1700", "amount": "selfAssessedVat"}, {"side": "CREDIT", "account": "2500", "amount": "selfAssessedVat"}]
+  },
+  {
+    "ruleCode": "VAT_REVERSE_CHARGE_CREDIT", "eventType": "InvoiceIssued", "description": "Reverse-charged purchase credited: self-assessed VAT reversed",
+    "conditions": {"direction": "PAYABLE", "credit": "true"},
+    "lines": [{"side": "DEBIT", "account": "2500", "amount": "selfAssessedVat"}, {"side": "CREDIT", "account": "1700", "amount": "selfAssessedVat"}]
+  },
+  {
+    "ruleCode": "PAYMENT_RECEIVED", "eventType": "PaymentRecorded", "description": "Cash received, not yet applied",
+    "conditions": {"direction": "INCOMING"},
+    "lines": [{"side": "DEBIT", "account": "1900", "amount": "amount"}, {"side": "CREDIT", "account": "2600", "amount": "amount"}]
+  },
+  {
+    "ruleCode": "PAYMENT_MADE", "eventType": "PaymentRecorded", "description": "Cash paid, not yet applied",
+    "conditions": {"direction": "OUTGOING"},
+    "lines": [{"side": "DEBIT", "account": "1520", "amount": "amount"}, {"side": "CREDIT", "account": "1900", "amount": "amount"}]
+  },
+  {
+    "ruleCode": "RECEIVABLE_PAID", "eventType": "InvoiceSettled", "description": "Receipt applied to an invoice",
+    "conditions": {"kind": "PAYMENT", "direction": "RECEIVABLE"},
+    "lines": [{"side": "DEBIT", "account": "2600", "amount": "amount"}, {"side": "CREDIT", "account": "1510", "amount": "amount"}]
+  },
+  {
+    "ruleCode": "PAYABLE_PAID", "eventType": "InvoiceSettled", "description": "Payment applied to an invoice",
+    "conditions": {"kind": "PAYMENT", "direction": "PAYABLE"},
+    "lines": [{"side": "DEBIT", "account": "2210", "amount": "amount"}, {"side": "CREDIT", "account": "1520", "amount": "amount"}]
+  },
+  {
+    "ruleCode": "RECEIVABLE_NETTED", "eventType": "InvoiceSettled", "description": "Receivable settled by netting",
+    "conditions": {"kind": "NETTING", "direction": "RECEIVABLE"},
+    "lines": [{"side": "DEBIT", "account": "1950", "amount": "amount"}, {"side": "CREDIT", "account": "1510", "amount": "amount"}]
+  },
+  {
+    "ruleCode": "PAYABLE_NETTED", "eventType": "InvoiceSettled", "description": "Payable settled by netting",
+    "conditions": {"kind": "NETTING", "direction": "PAYABLE"},
+    "lines": [{"side": "DEBIT", "account": "2210", "amount": "amount"}, {"side": "CREDIT", "account": "1950", "amount": "amount"}]
+  },
+  {
+    "ruleCode": "FX_GAIN_RECEIVABLE", "eventType": "RealisedFx", "description": "Realised FX gain on a receipt",
+    "conditions": {"direction": "RECEIVABLE"},
+    "lines": [{"side": "DEBIT", "account": "1510", "amount": "fxGain"}, {"side": "CREDIT", "account": "3900", "amount": "fxGain"}]
+  },
+  {
+    "ruleCode": "FX_LOSS_RECEIVABLE", "eventType": "RealisedFx", "description": "Realised FX loss on a receipt",
+    "conditions": {"direction": "RECEIVABLE"},
+    "lines": [{"side": "DEBIT", "account": "4900", "amount": "fxLoss"}, {"side": "CREDIT", "account": "1510", "amount": "fxLoss"}]
+  },
+  {
+    "ruleCode": "FX_GAIN_PAYABLE", "eventType": "RealisedFx", "description": "Realised FX gain on a payment",
+    "conditions": {"direction": "PAYABLE"},
+    "lines": [{"side": "DEBIT", "account": "2210", "amount": "fxGain"}, {"side": "CREDIT", "account": "3900", "amount": "fxGain"}]
+  },
+  {
+    "ruleCode": "FX_LOSS_PAYABLE", "eventType": "RealisedFx", "description": "Realised FX loss on a payment",
+    "conditions": {"direction": "PAYABLE"},
+    "lines": [{"side": "DEBIT", "account": "4900", "amount": "fxLoss"}, {"side": "CREDIT", "account": "2210", "amount": "fxLoss"}]
   }
 ]

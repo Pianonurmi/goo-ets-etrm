@@ -39,6 +39,7 @@ import com.pianonurmi.etrm.settlement.domain.Amounts
 import com.pianonurmi.etrm.settlement.domain.InvoiceRepository
 import com.pianonurmi.etrm.settlement.domain.NumberSeriesRepository
 import com.pianonurmi.etrm.settlement.domain.SettlementItemRepository
+import com.pianonurmi.etrm.settlement.domain.StandardRateRepository
 import com.pianonurmi.etrm.settlement.domain.VatRuleRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -66,6 +67,7 @@ class InvoiceService(
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
     private val settlement: InvoiceSettlement,
+    private val standardRates: StandardRateRepository,
 ) : InvoiceCommand, InvoiceQuery {
     override fun run(command: InvoiceRun): List<InvoiceView> {
         actor(Role.BACK_OFFICE, Role.ACCOUNTANT)
@@ -271,7 +273,14 @@ class InvoiceService(
             InvoiceKind.PURCHASE -> InvoiceKind.PURCHASE_CREDIT_NOTE
             else -> throw ValidationException("${original.kind} cannot be credited")
         }
-        val lines = original.lines.map { it.copy(netAmount = it.netAmount.negate(), vatAmount = it.vatAmount.negate(), quantity = it.quantity?.negate()) }
+        val lines = original.lines.map {
+            it.copy(
+                netAmount = it.netAmount.negate(),
+                vatAmount = it.vatAmount.negate(),
+                selfAssessedVat = it.selfAssessedVat.negate(),
+                quantity = it.quantity?.negate(),
+            )
+        }
         val creditNote = original.copy(
             id = Ids.newId(),
             kind = kind,
@@ -345,6 +354,7 @@ class InvoiceService(
         extraLines: List<InvoiceLineView>,
     ): InvoiceView {
         val id = Ids.newId()
+        val ourCountry = referenceData.requireLegalEntity(legalEntityId).country
         val lines = source.mapIndexed { i, item ->
             InvoiceLineView(
                 lineNo = i + 1,
@@ -359,6 +369,7 @@ class InvoiceService(
                 vatTreatment = item.vatTreatment!!,
                 vatRate = item.vatRate!!,
                 vatAmount = item.vatAmount!!,
+                selfAssessedVat = selfAssessed(kind, item, ourCountry),
             )
         } + extraLines.mapIndexed { i, l -> l.copy(lineNo = source.size + i + 1) }
         val net = lines.sumOf { it.netAmount }
@@ -394,6 +405,14 @@ class InvoiceService(
         repository.insert(invoice)
         source.forEach { items.update(it.copy(status = SettlementItemStatus.INVOICED, invoiceId = id, version = it.version + 1)) }
         return invoice
+    }
+
+    /** We are the customer on payables: a reverse-charged line makes us account for VAT at our standard rate. */
+    private fun selfAssessed(kind: InvoiceKind, item: SettlementItemView, ourCountry: String): BigDecimal {
+        if (kind.direction != SettlementDirection.PAYABLE || item.vatTreatment?.reverseCharge != true) return BigDecimal.ZERO
+        val rate = standardRates.rate(ourCountry, item.deliveredOn)
+            ?: throw ValidationException("No standard VAT rate for $ourCountry on ${item.deliveredOn}; reverse-charged purchases need it")
+        return Amounts.vat(item.netAmount!!, rate)
     }
 
     private fun snapshot(type: PartyType, id: UUID, name: String, country: String, vatNumber: String?, lei: String?, date: LocalDate) = PartySnapshot(

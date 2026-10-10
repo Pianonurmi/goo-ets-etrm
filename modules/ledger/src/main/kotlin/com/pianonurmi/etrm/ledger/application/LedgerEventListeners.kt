@@ -126,7 +126,7 @@ class LedgerEventListeners(
         val amounts = buildMap {
             put("quantity", quantity)
             lotCost(lot)?.let { put("cost", it) }
-            tradeObligation?.let { put("proceeds", (it.price * quantity).setScale(2, RoundingMode.HALF_EVEN)) }
+            tradeObligation?.let { put("proceeds", (it.price * quantity).setScale(2, RoundingMode.HALF_UP)) }
         }
         ledger.post(
             facts(
@@ -180,7 +180,7 @@ class LedgerEventListeners(
                 if (consumption.cost.signum() > 0) amounts["cost"] = consumption.cost
                 if (movement.type == AllowanceMovementType.SALE) {
                     movement.costPerUnit?.let {
-                        amounts["proceeds"] = (it * quantity).setScale(2, RoundingMode.HALF_EVEN)
+                        amounts["proceeds"] = (it * quantity).setScale(2, RoundingMode.HALF_UP)
                     }
                 }
             }

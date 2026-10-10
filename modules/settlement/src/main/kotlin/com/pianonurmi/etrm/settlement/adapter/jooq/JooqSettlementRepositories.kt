@@ -9,6 +9,7 @@ import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.NumberSeries
 import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.PriceFixing.PRICE_FIXING
 import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.SettlementItem.SETTLEMENT_ITEM
 import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.VatRule.VAT_RULE
+import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.VatStandardRate.VAT_STANDARD_RATE
 import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.records.InvoiceRecord
 import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.records.SettlementItemRecord
 import com.pianonurmi.etrm.settlement.adapter.jooq.generated.tables.records.VatRuleRecord
@@ -33,6 +34,7 @@ import com.pianonurmi.etrm.settlement.domain.InvoiceRepository
 import com.pianonurmi.etrm.settlement.domain.NumberSeriesRepository
 import com.pianonurmi.etrm.settlement.domain.PriceFixingView
 import com.pianonurmi.etrm.settlement.domain.SettlementItemRepository
+import com.pianonurmi.etrm.settlement.domain.StandardRateRepository
 import com.pianonurmi.etrm.settlement.domain.VatRuleRepository
 import org.jooq.DSLContext
 import org.jooq.JSONB
@@ -225,6 +227,18 @@ class JooqSettlementItemRepository(private val dsl: DSLContext) : SettlementItem
 }
 
 @Repository
+class JooqStandardRateRepository(private val dsl: DSLContext) : StandardRateRepository {
+    override fun rate(country: String, date: java.time.LocalDate): java.math.BigDecimal? = dsl.select(VAT_STANDARD_RATE.RATE)
+        .from(VAT_STANDARD_RATE)
+        .where(
+            VAT_STANDARD_RATE.COUNTRY.eq(country.uppercase()),
+            VAT_STANDARD_RATE.VALID_FROM.le(date),
+            VAT_STANDARD_RATE.VALID_TO.isNull.or(VAT_STANDARD_RATE.VALID_TO.gt(date)),
+        )
+        .fetchOne(VAT_STANDARD_RATE.RATE)
+}
+
+@Repository
 class JooqNumberSeriesRepository(private val dsl: DSLContext) : NumberSeriesRepository {
     override fun next(legalEntityId: UUID, series: String, fiscalYear: Int): Long {
         dsl.insertInto(NUMBER_SERIES)
@@ -333,6 +347,7 @@ class JooqInvoiceRepository(private val dsl: DSLContext) : InvoiceRepository {
                 .set(INVOICE_LINE.VAT_TREATMENT, l.vatTreatment.name)
                 .set(INVOICE_LINE.VAT_RATE, l.vatRate)
                 .set(INVOICE_LINE.VAT_AMOUNT, l.vatAmount)
+                .set(INVOICE_LINE.SELF_ASSESSED_VAT, l.selfAssessedVat)
                 .execute()
         }
     }
@@ -352,6 +367,7 @@ class JooqInvoiceRepository(private val dsl: DSLContext) : InvoiceRepository {
                 vatTreatment = VatTreatment.valueOf(l.vatTreatment),
                 vatRate = l.vatRate,
                 vatAmount = l.vatAmount,
+                selfAssessedVat = l.selfAssessedVat,
             )
         }
         return InvoiceView(

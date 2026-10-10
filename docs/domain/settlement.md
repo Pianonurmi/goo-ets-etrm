@@ -96,3 +96,12 @@ Netting is only allowed with counterparties that have `nettingAgreed`.
 | `GET /reports/cash-forecast?legalEntityId=&from=&to=` | open invoices by due date, plus delivered but uninvoiced items expected after payment terms |
 | `GET /reports/vat?legalEntityId=&period=YYYY-MM` | issued invoices by tax point: net and VAT by direction, treatment and rate |
 | `GET /reports/ec-sales-list?legalEntityId=&period=YYYY-MM` | intra-EU B2B sales (cross-border reverse charge) by customer VAT number |
+
+## In the ledger
+
+See [posting rules](ledger-posting-rules.md):
+- Invoices move accrued to invoiced receivables and payables with VAT, and self-assess VAT on reverse-charged
+  purchases at our country's standard rate (`vat_standard_rate`, tax sign-off required).
+- Payments go through unapplied cash. Netting goes through a clearing account.
+- Receipts and payments of foreign-currency invoices realise FX.
+- Deliveries release the trade's commitment memo.

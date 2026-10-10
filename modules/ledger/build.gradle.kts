@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":modules:trade"))
     implementation(project(":modules:registry"))
     implementation(project(":modules:allocation"))
+    implementation(project(":modules:settlement"))
     implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))

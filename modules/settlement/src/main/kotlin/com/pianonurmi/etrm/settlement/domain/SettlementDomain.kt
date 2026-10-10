@@ -126,6 +126,11 @@ interface SettlementItemRepository {
     fun upsertPriceFixing(fixing: PriceFixingView)
 }
 
+interface StandardRateRepository {
+    /** The country's standard VAT rate on [date], if known. */
+    fun rate(country: String, date: LocalDate): BigDecimal?
+}
+
 interface NumberSeriesRepository {
     /** Takes the next number of the series in the current transaction (row lock until commit). */
     fun next(legalEntityId: UUID, series: String, fiscalYear: Int): Long

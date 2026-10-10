@@ -64,7 +64,9 @@ class LedgerService(
     // Posting
     // ----------------------------------------------------------------------------------------------------------
 
-    override fun post(facts: PostingFacts): List<JournalEntryView> {
+    override fun post(facts: PostingFacts): List<JournalEntryView> = postInOpenPeriod(intoOpenPeriod(facts))
+
+    private fun postInOpenPeriod(facts: PostingFacts): List<JournalEntryView> {
         val applicable = RuleSelector.select(rules.all(), facts)
         if (applicable.isEmpty()) return emptyList()
         val chart = ensureChartOfAccounts(facts.legalEntityId).associateBy { it.code }
@@ -251,6 +253,30 @@ class LedgerService(
 
     private fun money(value: BigDecimal): String = value.setScale(2, RoundingMode.HALF_EVEN).toPlainString()
 
+    /**
+     * Automatic postings dated in a closed (or soft-closed) period go to the first day of the next open period, with
+     * the original date kept as a dimension and in the description; manual adjustments are the way into closed periods.
+     */
+    private fun intoOpenPeriod(facts: PostingFacts): PostingFacts {
+        var month = YearMonth.from(facts.postingDate)
+        repeat(MAX_PERIODS_AHEAD) {
+            val status = periods.find(facts.legalEntityId, month.toString())?.status ?: PeriodStatus.OPEN
+            if (status == PeriodStatus.OPEN) {
+                if (month == YearMonth.from(facts.postingDate)) return facts
+                return facts.copy(
+                    postingDate = month.atDay(1),
+                    description = "${facts.description} (dated ${facts.postingDate}; period ${YearMonth.from(facts.postingDate)} is closed)",
+                    dimensions = facts.dimensions + mapOf("originalDate" to facts.postingDate.toString()),
+                )
+            }
+            month = month.plusMonths(1)
+        }
+        throw ValidationException("No open period within $MAX_PERIODS_AHEAD months after ${facts.postingDate}")
+    }
+
+    /** The rate converting [from] into [to] on [date] (latest on or before). */
+    fun rateOn(date: LocalDate, from: String, to: String): BigDecimal = fxRateFor(date, from, to)
+
     private fun fxRateFor(date: LocalDate, from: String, to: String): BigDecimal {
         if (from.equals(to, ignoreCase = true)) return BigDecimal.ONE
         return fxRates.rateOn(date, from.uppercase(), to.uppercase()) ?: throw ValidationException("No FX rate $from/$to on or before $date")
@@ -309,11 +335,14 @@ class LedgerService(
         fxRates.upsert(date, from.uppercase(), to.uppercase(), rate, source)
     }
 
+    /** Creates the default chart for a new entity, and adds default accounts introduced later to existing charts. */
     override fun ensureChartOfAccounts(legalEntityId: UUID): List<GlAccountView> {
         val existing = accounts.accounts(legalEntityId)
-        if (existing.isNotEmpty()) return existing
+        val codes = existing.map { it.code }.toSet()
+        val missing = DefaultLedgerData.chartOfAccounts().filter { it.code !in codes }
+        if (missing.isEmpty()) return existing
         referenceData.requireLegalEntity(legalEntityId)
-        DefaultLedgerData.chartOfAccounts().forEach { template ->
+        missing.forEach { template ->
             accounts.insert(GlAccountView(Ids.newId(), legalEntityId, template.code, template.name, template.type, template.glMapping, true))
         }
         return accounts.accounts(legalEntityId)
@@ -378,16 +407,21 @@ class LedgerService(
         }
         return broken
     }
+
+    private companion object {
+        const val MAX_PERIODS_AHEAD = 24
+    }
 }
 
 /** Default chart of accounts and posting rules shipped as resources. */
 object DefaultLedgerData {
     data class AccountTemplate(val code: String, val name: String, val type: AccountType, val glMapping: String?)
 
-    fun chartOfAccounts(): List<AccountTemplate> = Json.mapper.readValue(
-        resource("ledger/default-chart-of-accounts.json"),
-        object : TypeReference<List<AccountTemplate>>() {},
-    )
+    private val chart: List<AccountTemplate> by lazy {
+        Json.mapper.readValue(resource("ledger/default-chart-of-accounts.json"), object : TypeReference<List<AccountTemplate>>() {})
+    }
+
+    fun chartOfAccounts(): List<AccountTemplate> = chart
 
     fun postingRules(): List<UpsertPostingRule> = Json.mapper.readValue(
         resource("ledger/default-posting-rules.json"),

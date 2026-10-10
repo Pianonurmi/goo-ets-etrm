@@ -30,14 +30,18 @@ object RuleSelector {
     }
 }
 
-/** Builds a balanced entry from a rule and facts; returns null when an amount fact is missing or zero. */
+/**
+ * Builds a balanced entry from a rule and facts. Returns null when an amount fact is missing or negative, or when all
+ * amounts are zero; zero lines are left out (e.g. no VAT line on a reverse-charged invoice).
+ */
 object EntryBuilder {
     data class Draft(val accountCode: String, val side: PostingSide, val amount: BigDecimal, val memo: String?)
 
     fun draft(rule: PostingRuleView, facts: PostingFacts): List<Draft>? {
-        val lines = rule.lines.map { line ->
+        val lines = rule.lines.mapNotNull { line ->
             val amount = facts.amounts[line.amount] ?: return null
-            if (amount.signum() <= 0) return null
+            if (amount.signum() < 0) return null
+            if (amount.signum() == 0) return@mapNotNull null
             Draft(line.account, line.side, amount.setScale(2, RoundingMode.HALF_EVEN), rule.description)
         }
         return lines.takeIf { it.isNotEmpty() }

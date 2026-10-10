@@ -7,6 +7,14 @@ import org.springframework.modulith.PackageInfo
 @PackageInfo
 @ApplicationModule(
     displayName = "Ledger",
-    allowedDependencies = ["referencedata :: api", "product :: api", "inventory :: api", "trade :: api", "registry :: api", "allocation :: api"],
+    allowedDependencies = [
+        "referencedata :: api",
+        "product :: api",
+        "inventory :: api",
+        "trade :: api",
+        "registry :: api",
+        "allocation :: api",
+        "settlement :: api",
+    ],
 )
 class LedgerModule
