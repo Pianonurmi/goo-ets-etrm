@@ -7,6 +7,14 @@ import org.springframework.modulith.PackageInfo
 @PackageInfo
 @ApplicationModule(
     displayName = "Allocation",
-    allowedDependencies = ["referencedata :: api", "product :: api", "product :: criteria", "inventory :: api", "trade :: api", "registry :: api"],
+    allowedDependencies = [
+        "referencedata :: api",
+        "product :: api",
+        "product :: criteria",
+        "inventory :: api",
+        "trade :: api",
+        "registry :: api",
+        "workflow :: api",
+    ],
 )
 class AllocationModule

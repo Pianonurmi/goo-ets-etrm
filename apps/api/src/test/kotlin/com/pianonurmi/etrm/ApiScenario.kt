@@ -52,19 +52,25 @@ class ApiScenario(private val port: Int, private val tag: String = "S${COUNTER.i
 
     /** Captures a Nordic hydro sale, approves it through the workflow inbox as a second user and confirms it; returns the trade id. */
     fun confirmedHydroSale(quantity: Long, price: String = "1.95"): String {
-        val tradeId: String = asUser("trader-$tag").body(
-            """{"legalEntityId":"$entityId","bookId":"$bookId","counterpartyId":"$counterpartyId","productFamily":"GUARANTEE_OF_ORIGIN",
+        val tradeId = capturedHydroSale(quantity, price)
+        val task: String = asUser("middle-$tag").get("/api/v1/workflow/tasks?legalEntityId=$entityId").then().statusCode(200)
+            .extract().path("items.find { it.subjectRef == '$tradeId' }.id")
+        asUser("middle-$tag").post("/api/v1/workflow/tasks/$task/approve").then().statusCode(200)
+        asUser("backoffice").body("""{"confirmationRef":"CONF-$tag"}""").post("/api/v1/trades/$tradeId/confirm").then().statusCode(200)
+            .body("status", equalTo("CONFIRMED"))
+        return tradeId
+    }
+
+    /** Captures a Nordic hydro sale (pending approval); [capturedBy] may capture on behalf of [trader]. Returns the trade id. */
+    fun capturedHydroSale(quantity: Long, price: String = "1.95", trader: String = "trader-$tag", capturedBy: String = trader): String {
+        val tradeId: String = asUser(capturedBy).body(
+            """{"legalEntityId":"$entityId","bookId":"$bookId","counterpartyId":"$counterpartyId","productFamily":"GUARANTEE_OF_ORIGIN","trader":"$trader",
                "instrumentType":"FORWARD","tradeDate":"2026-05-04","legs":[{"side":"SELL","criterion":{"type":"all","of":[
                  {"type":"countryInRegion","region":"NORDIC"},{"type":"descendantOf","attribute":"ENERGY_SOURCE","code":"HYDRO"}]},
                "quantity":$quantity,"unit":"MWH","price":$price,"priceCurrency":"EUR","deliveryAccountId":"$gooAccountId",
                "counterpartyAccountRef":"SIMULATOR:SIM-EXT-$tag",
                "deliveries":[{"deliveryWindow":{"start":"2026-10-01","endExclusive":"2027-01-01"},"deliveryDate":"2026-12-15","quantity":$quantity}]}]}""",
         ).post("/api/v1/trades").then().statusCode(201).extract().path("id")
-        val task: String = asUser("middle-$tag").get("/api/v1/workflow/tasks?legalEntityId=$entityId").then().statusCode(200)
-            .extract().path("find { it.subjectRef == '$tradeId' }.id")
-        asUser("middle-$tag").post("/api/v1/workflow/tasks/$task/approve").then().statusCode(200)
-        asUser("backoffice").body("""{"confirmationRef":"CONF-$tag"}""").post("/api/v1/trades/$tradeId/confirm").then().statusCode(200)
-            .body("status", equalTo("CONFIRMED"))
         return tradeId
     }
 

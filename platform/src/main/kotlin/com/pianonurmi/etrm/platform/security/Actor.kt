@@ -9,8 +9,20 @@ data class Actor(
     val displayName: String,
     val roles: Set<Role>,
     val legalEntityScope: Set<java.util.UUID> = emptySet(),
+    /** Access to every legal entity (granted explicitly, e.g. a `*` scope claim, or implied by ADMIN, AUDITOR and SYSTEM). */
+    val allEntities: Boolean = false,
 ) {
     fun has(role: Role): Boolean = role in roles || Role.ADMIN in roles
+
+    /** Whether the actor may see or act on data of [legalEntityId]; data without an entity is visible to everyone. */
+    fun canAccess(legalEntityId: java.util.UUID?): Boolean =
+        legalEntityId == null || allEntities || has(Role.AUDITOR) || Role.SYSTEM in roles || legalEntityId in legalEntityScope
+
+    fun requireEntity(legalEntityId: java.util.UUID?) {
+        if (!canAccess(legalEntityId)) {
+            throw com.pianonurmi.etrm.platform.errors.ForbiddenException("User $userId has no access to legal entity $legalEntityId")
+        }
+    }
 
     fun requireRole(vararg allowed: Role) {
         if (allowed.none { has(it) }) {
@@ -21,7 +33,7 @@ data class Actor(
     }
 
     companion object {
-        val SYSTEM: Actor = Actor("system", "System", setOf(Role.SYSTEM))
+        val SYSTEM: Actor = Actor("system", "System", setOf(Role.SYSTEM), allEntities = true)
     }
 }
 

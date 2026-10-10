@@ -8,13 +8,14 @@ flowchart TB
   taxonomy --> platform
   referencedata --> taxonomy
   product --> taxonomy
-  trade --> referencedata & product
+  trade --> referencedata & product & workflow
   inventory --> referencedata & taxonomy & product
   registry --> referencedata & inventory
-  allocation --> product & inventory & trade & registry & referencedata
+  allocation --> product & inventory & trade & registry & referencedata & workflow
   position --> inventory & trade & allocation & product & referencedata
   ledger --> inventory & trade & allocation & referencedata & product
-  workflow --> trade & allocation
+  workflow --> platform
+  document --> platform
   audit --> platform
 ```
 
@@ -23,7 +24,7 @@ Arrows are compile-time dependencies on another module's `api` (or `criteria`) n
 
 | Module | Responsibility | Key types |
 |---|---|---|
-| `platform` | Money, Quantity, LocalDateRange, bitemporal types, DomainEvent, errors, Actor/Role, JSON, hash chain | `Money`, `Quantity`, `LocalDateRange`, `DomainEvent`, `HashChain` |
+| `platform` | Money, Quantity, LocalDateRange, bitemporal types, DomainEvent, errors, Actor/Role and entity scope, JSON, CSV, hash chain, savepoints | `Money`, `Quantity`, `LocalDateRange`, `DomainEvent`, `HashChain` |
 | `taxonomy` | ltree-backed code hierarchies and region sets | `TaxonomyQuery`, `TaxonomySnapshot` |
 | `referencedata` | Legal entities and accounting policies, books, counterparties, registries and accounts, production devices, calendars, history | `ReferenceDataQuery`, `ReferenceDataCommand` |
 | `product` | Product families, allowance catalogue, criteria language, product buckets | `Criterion`, `BoundCriterion`, `CriteriaService`, `ProductBucketQuery` |
@@ -33,7 +34,8 @@ Arrows are compile-time dependencies on another module's `api` (or `criteria`) n
 | `allocation` | Obligations, coverage analysis, allocation plans | `AllocationCommand`, `AllocationQuery`, `ObligationCommand` |
 | `position` | GoO and ETS position reports, snapshots | `PositionQuery`, `PositionCommand` |
 | `ledger` | Chart of accounts, posting rules, journal, costing, periods, GL export | `LedgerCommand`, `LedgerQuery`, `PostingFacts` |
-| `workflow` | Approval inbox, segregation of duties | `WorkflowCommand`, `WorkflowQuery` |
+| `workflow` | Generic approval inbox: task types registered by owning modules, four-eyes, roles, scope, assignment, SLA, escalation (ADR 0011) | `WorkflowCommand`, `WorkflowQuery`, `TaskHandler` |
+| `document` | Rendered (Mustache to PDF) and stored documents, immutable and hashed (ADR 0013) | `DocumentCommand`, `DocumentQuery` |
 | `audit` | Event and command audit trail | `AuditQuery`, `AuditCommand` |
 
 ## Level 2: inside a module

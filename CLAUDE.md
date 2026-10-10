@@ -39,7 +39,9 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 - Deliveries are idempotent: pass `RecordDelivery.idempotencyKey` (e.g. `instruction:<id>`); `DeliveryRecorded.deliveryId` is the key downstream modules use.
 - CSV in and out goes through `platform.text.Csv` (RFC 4180). PDFs and other issued documents go through the `document` module; templates live in `src/main/resources/documents/templates/`.
 - Scheduled jobs use `@SchedulerLock`; the lock provider is configured in `apps/api` (`SchedulingConfiguration`).
-- Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers in the `dev` and `test` profiles.
+- Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers (and optionally `X-Entities`, default all entities) in the `dev` and `test` profiles.
+- Approval and work tasks: the owning module implements `workflow.api.TaskHandler` (definition plus `onDecision`), opens tasks from its own events and closes them with `closeFor`. Workflow depends on no other module (ADR 0011).
+- Legal-entity scope: use `Actor.canAccess` / `requireEntity` in queries and commands that touch one entity's data.
 
 ## Lint
 

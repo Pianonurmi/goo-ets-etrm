@@ -4,9 +4,8 @@ plugins {
 
 dependencies {
     implementation(project(":platform"))
-    implementation(project(":modules:trade"))
-    implementation(project(":modules:allocation"))
     implementation(libs.springdoc.openapi)
+    implementation(libs.shedlock.spring)
 
     testImplementation(testFixtures(project(":platform")))
 }

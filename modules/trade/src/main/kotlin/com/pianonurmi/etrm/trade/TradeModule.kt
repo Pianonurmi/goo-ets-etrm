@@ -5,5 +5,5 @@ import org.springframework.modulith.PackageInfo
 
 /** Deal capture and trade lifecycle. */
 @PackageInfo
-@ApplicationModule(displayName = "Trade", allowedDependencies = ["referencedata :: api", "product :: api", "product :: criteria"])
+@ApplicationModule(displayName = "Trade", allowedDependencies = ["referencedata :: api", "product :: api", "product :: criteria", "workflow :: api"])
 class TradeModule

@@ -111,8 +111,9 @@ class GoldenPathIT {
         scheduleId = response.path("legs[0].deliveries[0].id")
 
         asUser("trader1").post("/api/v1/trades/$tradeId/approve").then().statusCode(403)
-        val task: String = asUser("middle").get("/api/v1/workflow/tasks?legalEntityId=$entityId").then().statusCode(200)
-            .body("size()", org.hamcrest.Matchers.equalTo(1)).extract().path("[0].id")
+        val task: String = asUser("middle").get("/api/v1/workflow/tasks?legalEntityId=$entityId&actionable=true").then().statusCode(200)
+            .body("items.size()", org.hamcrest.Matchers.equalTo(1)).body("items[0].type", org.hamcrest.Matchers.equalTo("TRADE_APPROVAL"))
+            .extract().path("items[0].id")
         asUser("middle").post("/api/v1/workflow/tasks/$task/approve").then().statusCode(200).body("status", org.hamcrest.Matchers.equalTo("APPROVED"))
         asUser("backoffice").body("""{"confirmationRef":"CONF-DEMO-1"}""").post("/api/v1/trades/$tradeId/confirm").then().statusCode(200)
             .body("status", org.hamcrest.Matchers.equalTo("CONFIRMED"))

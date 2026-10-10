@@ -94,11 +94,18 @@ class SpringSecurityActorProvider(private val properties: SecurityProperties) : 
                 userId = subject,
                 displayName = jwt.claims[properties.displayNameClaim]?.toString() ?: subject,
                 roles = SecurityConfiguration.rolesOf(jwt, properties.rolesClaim).mapNotNull { parseRole(it) }.toSet(),
-                legalEntityScope = (jwt.claims[properties.legalEntitiesClaim] as? Collection<*>)
-                    ?.mapNotNull { runCatching { UUID.fromString(it.toString()) }.getOrNull() }?.toSet() ?: emptySet(),
+                legalEntityScope = entityClaim(jwt).mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }.toSet(),
+                // A missing claim grants no entity; "*" must be granted explicitly by the identity provider.
+                allEntities = "*" in entityClaim(jwt),
             )
         }
         return HeaderActorResolver.resolve() ?: Actor.SYSTEM
+    }
+
+    private fun entityClaim(jwt: Jwt): Set<String> = when (val raw = jwt.claims[properties.legalEntitiesClaim]) {
+        is Collection<*> -> raw.mapNotNull { it?.toString() }.toSet()
+        is String -> raw.split(" ", ",").filter { it.isNotBlank() }.toSet()
+        else -> emptySet()
     }
 
     private fun parseRole(name: String): Role? = runCatching { Role.valueOf(name.removePrefix("ROLE_").uppercase()) }.getOrNull()
@@ -108,6 +115,9 @@ class SpringSecurityActorProvider(private val properties: SecurityProperties) : 
 object HeaderActorResolver {
     const val ACTOR_HEADER = "X-Actor"
     const val ROLES_HEADER = "X-Roles"
+
+    /** Comma-separated legal entity ids; absent or `*` means all entities (development convenience only). */
+    const val ENTITIES_HEADER = "X-Entities"
 
     fun resolve(): Actor? {
         val attributes = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes()
@@ -119,6 +129,13 @@ object HeaderActorResolver {
             ?.mapNotNull { runCatching { Role.valueOf(it.trim().uppercase()) }.getOrNull() }
             ?.toSet()
             ?: setOf(Role.ADMIN)
-        return Actor(userId = userId, displayName = userId, roles = roles)
+        val entities = request.getHeader(ENTITIES_HEADER)?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: listOf("*")
+        return Actor(
+            userId = userId,
+            displayName = userId,
+            roles = roles,
+            legalEntityScope = entities.mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }.toSet(),
+            allEntities = "*" in entities,
+        )
     }
 }

@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     implementation(project(":platform"))
+    implementation(project(":modules:workflow"))
     implementation(project(":modules:referencedata"))
     implementation(project(":modules:product"))
     implementation(libs.springdoc.openapi)
