@@ -137,8 +137,8 @@ function TradeForm({ existing }: { existing?: TradeView }) {
               </Text>
               <SegmentedControl
                 data={[
-                  { value: 'GUARANTEE_OF_ORIGIN', label: t('trades.families.GUARANTEE_OF_ORIGIN') },
-                  { value: 'EMISSION_ALLOWANCE', label: t('trades.families.EMISSION_ALLOWANCE') },
+                  { value: 'GUARANTEE_OF_ORIGIN', label: t('trades.familiesShort.GUARANTEE_OF_ORIGIN') },
+                  { value: 'EMISSION_ALLOWANCE', label: t('trades.familiesShort.EMISSION_ALLOWANCE') },
                 ]}
                 value={family}
                 onChange={(value) => setFamily(value)}

@@ -6,6 +6,8 @@ test.describe('inventory explorer', () => {
     await actAs(page, 'backoffice');
     await page.goto('/inventory?tab=search');
     await expect(page.getByTestId('criteria-summary')).not.toHaveText('…');
+    // Pickers resolve taxonomy codes to names.
+    await expect(page.getByRole('combobox', { name: 'Region' })).toHaveValue(/Nordic|NORDIC/);
     await page.getByTestId('run-search').click();
     await expect(page.getByTestId('lot-totals')).toContainText('lots');
     await page.getByRole('gridcell', { name: 'HYDRO_RESERVOIR' }).first().click();

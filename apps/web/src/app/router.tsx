@@ -4,7 +4,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { registerSubjectScreens } from '@/features/inbox/model/subjects';
 
-registerSubjectScreens('TRADE', 'ALLOCATION_PLAN');
+registerSubjectScreens('TRADE', 'ALLOCATION_PLAN', 'CURVE_SNAPSHOT', 'VALUATION_RUN');
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
 export const router = createBrowserRouter([
@@ -51,6 +51,26 @@ export const router = createBrowserRouter([
       {
         path: 'positions',
         lazy: async () => ({ Component: (await import('@/features/positions/PositionsPage')).PositionsPage }),
+      },
+      {
+        path: 'market-data',
+        lazy: async () => ({ Component: (await import('@/features/marketdata/MarketDataPage')).MarketDataPage }),
+      },
+      {
+        path: 'market-data/curves',
+        lazy: async () => ({ Component: (await import('@/features/marketdata/CurvesPage')).CurvesPage }),
+      },
+      {
+        path: 'market-data/snapshots/:snapshotId',
+        lazy: async () => ({ Component: (await import('@/features/marketdata/CurvesPage')).SnapshotPage }),
+      },
+      {
+        path: 'valuation',
+        lazy: async () => ({ Component: (await import('@/features/valuation/ValuationPage')).ValuationPage }),
+      },
+      {
+        path: 'valuation/runs/:runId',
+        lazy: async () => ({ Component: (await import('@/features/valuation/ValuationPage')).RunDetailPage }),
       },
       {
         path: 'inventory',

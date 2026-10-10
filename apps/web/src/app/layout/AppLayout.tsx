@@ -38,8 +38,14 @@ export function AppLayout() {
   const location = useLocation();
   const sections = visibleSections(me.roles);
   const banner = config.authMode === 'DEV_HEADERS' ? 24 : 0;
-  const isActive = (path: string) =>
+  const matches = (path: string) =>
     path === '/' ? location.pathname === '/' : location.pathname === path || location.pathname.startsWith(path + '/');
+  // The most specific matching item is active (/market-data/curves, not also /market-data).
+  const activePath = sections
+    .flatMap((section) => section.items.map((item) => item.path))
+    .filter(matches)
+    .sort((a, b) => b.length - a.length)[0];
+  const isActive = (path: string) => path === activePath;
 
   return (
     <AppShell

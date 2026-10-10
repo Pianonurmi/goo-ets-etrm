@@ -27,12 +27,14 @@ import java.time.LocalDate
 @RequestMapping("/api/v1/taxonomy")
 @Tag(name = "Taxonomy", description = "Hierarchical code sets: energy sources, technologies, labels, regions, support schemes")
 class TaxonomyController(private val query: TaxonomyQuery, private val command: TaxonomyCommand) {
+    /** Children of [parent] (roots without it); `all=true` returns every node of the scheme in path order, for pickers. */
     @GetMapping("/{scheme}")
     fun list(
         @PathVariable scheme: TaxonomyScheme,
         @RequestParam(required = false) parent: String?,
+        @RequestParam(defaultValue = "false") all: Boolean,
     ): List<TaxonomyNodeView> =
-        query.children(scheme, parent)
+        if (all) query.children(scheme, null).flatMap { root -> query.subtree(scheme, root.code) } else query.children(scheme, parent)
 
     @GetMapping("/{scheme}/{code}")
     fun get(

@@ -62,7 +62,7 @@ export function useTaxonomyOptions(scheme: string | null | undefined): Option[] 
   const { data } = $api.useQuery(
     'get',
     '/api/v1/taxonomy/{scheme}',
-    { params: { path: { scheme: (scheme ?? 'REGION') as TaxonomyScheme } } },
+    { params: { path: { scheme: (scheme ?? 'REGION') as TaxonomyScheme }, query: { all: true } } },
     { enabled: Boolean(scheme), staleTime: 5 * 60_000 },
   );
   return useMemo(

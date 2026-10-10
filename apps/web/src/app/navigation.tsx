@@ -2,9 +2,12 @@ import {
   IconArrowsExchange,
   IconCertificate,
   IconChartBar,
+  IconChartLine,
   IconHome,
   IconInbox,
   IconPuzzle,
+  IconScale,
+  IconTimeline,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { Role } from '@/shared/api/types';
@@ -29,6 +32,8 @@ export interface NavSection {
 const ICON = 18;
 
 /** Navigation; each milestone of increment 4 adds its screens here. */
+const VALUATION_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'AUDITOR', 'TRADER'];
+
 export const NAVIGATION: NavSection[] = [
   {
     items: [
@@ -38,7 +43,11 @@ export const NAVIGATION: NavSection[] = [
   },
   {
     title: 'nav.sectionTrading',
-    items: [{ path: '/trades', label: 'nav.trades', icon: <IconArrowsExchange size={ICON} /> }],
+    items: [
+      { path: '/trades', label: 'nav.trades', icon: <IconArrowsExchange size={ICON} /> },
+      { path: '/market-data', label: 'nav.marketData', icon: <IconChartLine size={ICON} /> },
+      { path: '/market-data/curves', label: 'nav.curves', icon: <IconTimeline size={ICON} /> },
+    ],
   },
   {
     title: 'nav.sectionOperations',
@@ -47,6 +56,10 @@ export const NAVIGATION: NavSection[] = [
       { path: '/allocation', label: 'nav.allocation', icon: <IconPuzzle size={ICON} /> },
       { path: '/positions', label: 'nav.positions', icon: <IconChartBar size={ICON} /> },
     ],
+  },
+  {
+    title: 'nav.sectionFinance',
+    items: [{ path: '/valuation', label: 'nav.valuation', icon: <IconScale size={ICON} />, roles: VALUATION_READERS }],
   },
 ];
 
