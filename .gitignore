@@ -1,6 +1,8 @@
 # Gradle
 .gradle/
 build/
+# ...but not source packages that happen to be named build (com.pianonurmi.build in build-logic)
+!**/src/**/build/
 !gradle/wrapper/gradle-wrapper.jar
 out/
 *.class
