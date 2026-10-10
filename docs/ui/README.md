@@ -8,12 +8,21 @@ client is generated from the committed OpenAPI document (ADR 0027).
 
 ```bash
 # Backend with dev personas (PostgreSQL as in the main README), then the Vite dev server with hot reload:
-SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun
+SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun
 cd apps/web && npm ci && npm run gen:api && npm run dev     # http://localhost:5173, proxies /api to :8080
 
 # Or the bundled build: the jar serves the UI at http://localhost:8080/
-./gradlew :apps:api:bootJar && java -jar apps/api/build/libs/api.jar --spring.profiles.active=dev
+./gradlew :apps:api:bootJar && java -jar apps/api/build/libs/api.jar --spring.profiles.active=dev,demo
 ```
+
+With the `demo` profile as well (`dev,demo`), the first start fills an empty database with demo data through the
+REST API (`DemoDataSeeder`):
+- the legal entities `DEMO-FI` and `DEMO-SE` with books, fictitious counterparties, simulator accounts and devices;
+- certificates across vintages, the oldest expiring within weeks;
+- confirmed GoO and EUA forwards, and two trades waiting in the middle office inbox;
+- signed-off curves (one more waiting for `risk2`), official valuations and last month's period end.
+
+It does nothing when `DEMO-FI` exists. Drop the database to start over.
 
 `ETRM_API_URL` points the Vite proxy elsewhere. `./gradlew build -Petrm.skipWeb` builds the backend without the UI.
 
@@ -25,7 +34,7 @@ cd apps/web && npm ci && npm run gen:api && npm run dev     # http://localhost:5
 | `npm run typecheck` | `tsc` in strict mode |
 | `npm run lint` / `npm run format:check` | ESLint (type-checked, React hooks, accessibility) and Prettier |
 | `npm test` | Vitest with Testing Library and msw (`npm run test:coverage` for coverage) |
-| `npm run e2e` | Playwright journeys against the jar (`../api/build/libs/api.jar`, dev profile, database `etrm_e2e`) |
+| `npm run e2e` | Playwright journeys against the jar (`../api/build/libs/api.jar`, `dev,demo` profiles, database `etrm_e2e`) |
 
 `./gradlew :apps:web:check` runs the first four. `./gradlew build` runs them and puts the bundle into the jar.
 

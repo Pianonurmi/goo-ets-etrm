@@ -9,7 +9,7 @@ increment status.
 The build needs PostgreSQL even before tests: jOOQ sources are generated from a Flyway-migrated database.
 
 ```bash
-docker compose -f ops/docker-compose.yml up -d postgres   # creates etrm, etrm_codegen, etrm_test (user etrm/etrm)
+docker compose -f ops/docker-compose.yml up -d postgres   # creates etrm, etrm_codegen, etrm_test, etrm_e2e (user etrm/etrm)
 export ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:5432/etrm_codegen
 export ETRM_TEST_DB_URL=jdbc:postgresql://localhost:5432/etrm_test
 export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
@@ -19,7 +19,7 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 ./gradlew :modules:allocation:test --tests '*AllocationEngineTest*'
 ./gradlew :apps:api:test --tests '*GoldenPathIT*' # end-to-end REST scenario
 ./gradlew :apps:api:test --tests '*MonthEndIT*'   # increment 3: market data to hard close
-SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagger-ui, web UI at /
+SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun   # Swagger UI at /swagger-ui, web UI at /, demo data
 ./gradlew build -Petrm.skipWeb                    # backend only, without the web UI
 ./gradlew :apps:web:check                         # web: lint, format, typecheck, Vitest
 cd apps/web && npm run dev                        # Vite on :5173, proxies /api to :8080
@@ -75,6 +75,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Offer actions through `<Can op=...>` / `useCan` keyed by operation id (`shared/auth/permissions.ts`); the API still checks.
 - All visible text goes through `src/locales/en.json`. Dev personas (`shared/auth/personas.ts`) have two users per approving role for four-eyes paths.
 - `npm run format` (Prettier) and `npm run lint` before committing web changes.
+- Demo data (`demo` profile, `apps/api/.../demo`) goes through the REST API as the dev personas; extend it when a screen needs data to show. Its test runs on a sibling database (`SiblingDatabase`) because its market data would clash with `MonthEndIT`.
 
 ## Lint
 

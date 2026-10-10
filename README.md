@@ -31,10 +31,10 @@ positions and a double-entry sub-ledger, for a European company group with sever
 
 ## Build and run
 
-Prerequisites: JDK 21, Docker (for PostgreSQL and Keycloak).
+Prerequisites: JDK 21, Node.js 22 with npm (for the web UI), Docker (for PostgreSQL and Keycloak).
 
 ```bash
-# 1. Infrastructure: PostgreSQL 17 (databases etrm, etrm_codegen, etrm_test) and Keycloak
+# 1. Infrastructure: PostgreSQL 17 (databases etrm, etrm_codegen, etrm_test, etrm_e2e) and Keycloak
 docker compose -f ops/docker-compose.yml up -d postgres keycloak
 
 # 2. Build: lint, jOOQ code generation against etrm_codegen, unit and integration tests, coverage gate
@@ -43,11 +43,13 @@ export ETRM_TEST_DB_URL=jdbc:postgresql://localhost:5432/etrm_test
 export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 ./gradlew build
 
-# 3. Run the API (dev profile: no token needed, pass X-Actor / X-Roles headers)
-SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun
-open http://localhost:8080/swagger-ui
+# 3. Run (dev profile: no token needed, persona headers; demo profile: demo data on first start)
+SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun
+open http://localhost:8080/              # web UI: pick a persona in the header ("act as")
+open http://localhost:8080/swagger-ui    # API
 ```
 
+The web UI lives in `apps/web` (see `docs/ui/README.md`); `./gradlew build -Petrm.skipWeb` builds without it.
 Without `ETRM_TEST_DB_URL`, integration tests start a Testcontainers PostgreSQL. The jOOQ code generation always
 needs a reachable database (`ETRM_CODEGEN_DB_URL`).
 
@@ -69,7 +71,7 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 ./gradlew build
 ```
 
-- You need JDK 21 and Docker. The Gradle wrapper downloads Gradle itself.
+- You need JDK 21, Node.js 22 and Docker. The Gradle wrapper downloads Gradle itself.
 - `ops/postgres-init.sql` creates the code-generation and test databases on the first start of the PostgreSQL container. If the volume already exists, create them by hand.
 - Work happens on `main`, the default branch.
 - `CLAUDE.md` summarises commands and conventions for working on the code with Claude Code.
@@ -103,7 +105,8 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 build-logic/     Gradle convention plugins (Kotlin, module with jOOQ codegen, application)
 platform/        shared kernel (value types, events, errors, security context, test fixtures)
 modules/<name>/  bounded contexts: api / domain / application / adapter, own schema and migrations
-apps/api/        Spring Boot application: migrations runner, security, problem details, end-to-end tests
+apps/api/        Spring Boot application: migrations runner, security, problem details, demo data, end-to-end tests
+apps/web/        web UI (React, TypeScript, Vite), bundled into the API jar
 docs/            arc42, ADRs, domain and integration notes, roadmap, glossary
 ops/             docker-compose, Dockerfile, Keycloak realm
 config/detekt/   static analysis configuration

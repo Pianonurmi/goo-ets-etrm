@@ -14,6 +14,12 @@ test.describe('application shell', () => {
     await expect(page.getByTestId('my-roles')).toContainText('ACCOUNTANT');
   });
 
+  test('offers the demo legal entities', async ({ page }) => {
+    await actAs(page, 'trader');
+    await page.goto('/');
+    await expect(page.getByTestId('entity-select')).toHaveValue(/DEMO-(FI|SE)/);
+  });
+
   test('serves client routes on reload and shows its own not-found page', async ({ page }) => {
     await page.goto('/no/such/screen');
     await expectShell(page);

@@ -49,7 +49,7 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 |---|---|---|
 | M0 | Backend for the UI: `ui-config` and `me`, SPA serving with cache headers and CSP, framework errors as problems, OpenAPI contract (operation ids, required, discriminated unions, problems) with a committed snapshot, entity scope on trade and lot reads, Keycloak web client (ADRs 0025–0027) | done |
 | M1 | `apps/web` scaffold, Gradle and CI integration, shell, sign-in and personas, generated client, data grid, Playwright smoke test | done |
-| M2 | Demo data profile | planned |
+| M2 | Demo data profile (`dev,demo`): two entities, inventory, trades in several states, signed-off curves, official valuations, a period end, open approvals | done |
 | M3 | Approval inbox and home | planned |
 | M4 | Criteria catalogue, criteria builder, inventory explorer | planned |
 | M5 | Trade search, blotter, detail, capture and lifecycle | planned |

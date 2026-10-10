@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * End-to-end journeys against the real application jar (dev profile, persona headers). Set E2E_BASE_URL to test a
+ * End-to-end journeys against the real application jar (dev and demo profiles: persona headers and demo data). Set E2E_BASE_URL to test a
  * running server instead. Locally, PW_CHROMIUM_PATH can point at an installed Chromium.
  */
 const port = Number(process.env.E2E_PORT ?? 18080);
@@ -31,7 +31,7 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: `java -jar ../api/build/libs/api.jar --spring.profiles.active=${process.env.E2E_PROFILES ?? 'dev'} --server.port=${port}`,
+        command: `java -jar ../api/build/libs/api.jar --spring.profiles.active=${process.env.E2E_PROFILES ?? 'dev,demo'} --server.port=${port}`,
         url: `${baseURL}/actuator/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,
