@@ -30,3 +30,19 @@
 | Confirmation break | A counterparty confirmation that differs from ours; overridden or disputed by a second person |
 | Obligations-open policy | Whether an entity's trades oblige delivery from approval or only from confirmation |
 | Gap-free numbering | Invoice numbers taken in the issuing transaction so that a rollback leaves no hole |
+| Curve snapshot | A curve's prices for one date; official once a second person signs it off, superseded by a later official one |
+| MtM | Mark-to-market: remaining quantity × (market price − contract price), signed by side |
+| P&L explain | The change in MtM between two official valuations split into new, cancelled, delivered, amended, price, FX and unexplained |
+| Valuation run | MtM of an entity's open trades on a date; official once signed off by risk |
+| NRV | Net realisable value: what inventory would sell for less cost to sell; inventory is carried at the lower of cost and NRV |
+| Emission provision | Liability for emissions incurred but not yet surrendered (IAS 37 net liability approach) |
+| Installation | An installation or aircraft operator under the EU ETS, with its operator holding account |
+| Surrender attribution | The compliance year a surrender counts for: as stated, else the earliest year still owed |
+| PFE | Potential future exposure: an add-on for how much a trade's value could move before delivery |
+| Credit support | Collateral or guarantees that reduce (received) or add to (posted) credit exposure |
+| Pre-trade check | Findings a module (risk) reports on a trade before approval; some require risk's approval |
+| UTI / UPI | Unique transaction identifier (ISO 23897) / unique product identifier (ISO 4914) under EMIR |
+| NEWT / MODI / TERM / EROR / VALU | EMIR action types: new, modification, termination, error, valuation |
+| Ancillary activity | MiFID II test of whether trading allowances is ancillary to the main business |
+| Delta export | A GL export carrying only entries posted after the period's earlier exports |
+| Hard-close gate | A condition a period must meet before it is closed for good |

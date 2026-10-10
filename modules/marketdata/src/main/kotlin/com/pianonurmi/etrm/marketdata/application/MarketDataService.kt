@@ -133,6 +133,7 @@ class MarketDataService(
     override fun createInstrument(command: CreateInstrument): InstrumentView {
         actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.RISK)
         val code = command.code.trim().uppercase()
+        if (!code.matches(Regex("[A-Z0-9_]+"))) throw ValidationException("Instrument codes use letters, digits and underscores: $code")
         if (instruments.byCode(code) != null) throw ConflictException("Instrument $code already exists")
         val product = command.allowanceProductCode?.let { catalogue.allowanceProduct(it) ?: throw NotFoundException("AllowanceProduct", it) }
         val contract = command.futuresContractCode?.let { futures.futuresContract(it) ?: throw NotFoundException("FuturesContract", it) }

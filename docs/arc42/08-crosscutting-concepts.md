@@ -18,3 +18,9 @@
 - **Outbox**: registry calls happen outside database transactions and are claimed with `SKIP LOCKED` and a lease (ADR 0012); ShedLock serialises jobs across instances.
 - **Legal documents**: confirmations, invoices and netting statements are rendered once to PDF and stored immutable with a SHA-256 (ADR 0013); issued invoices and their lines are frozen by triggers; invoice numbers are gap-free per entity, series and year.
 - **Data with sign-off**: VAT rules and standard rates are effective-dated rows approved by a second person; seeds are marked as needing tax sign-off.
+- **Measure and post the difference**: period-end postings, risk utilisation and the emission provision are computed as the balance required now; the posting is the difference to what is booked, so re-runs are idempotent and late changes post only themselves.
+- **Official numbers under four eyes**: curve snapshots and valuation runs become official only when a second person signs them off. Consumers (valuation, period end, risk, EMIR) read official data only, and a later official version supersedes an earlier one without deleting it.
+- **SPIs instead of cycles**: a module that must take part in another's decision implements an interface the owner publishes in its `api` (`trade.api.TradeApprovalCheck`). The owner resolves it lazily.
+- **Unverified external layouts**: EMIR field rules, the SAP GL layout, registry API mappings and PFE add-ons carry `verified = false` until checked against their specification.
+- **Exports are evidence**: GL exports and reports are numbered and stored with their content and SHA-256, and each publishes an audited event.
+

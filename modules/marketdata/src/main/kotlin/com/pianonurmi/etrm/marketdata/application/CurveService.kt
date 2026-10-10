@@ -65,6 +65,7 @@ class CurveService(
     override fun createCurve(command: CreateCurve): CurveView {
         actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.RISK)
         val code = command.code.trim().uppercase()
+        if (!code.matches(Regex("[A-Z0-9_]+"))) throw ValidationException("Curve codes use letters, digits and underscores: $code")
         if (curves.curve(code) != null) throw ConflictException("Curve $code already exists")
         if (command.quoteTypes.isEmpty()) throw ValidationException("A curve needs at least one quote type")
         when (command.kind) {

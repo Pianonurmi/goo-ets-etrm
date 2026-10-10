@@ -96,3 +96,29 @@ sequenceDiagram
    - a match confirms the trade as `system`;
    - a mismatch opens `CONFIRMATION_BREAK`, where a second person overrides it (the trade is confirmed) or disputes it.
 3. Amending the trade re-matches open confirmations against the next issue.
+
+## Month end (increment 3)
+
+1. **Market data.** Quotes and FX rates are imported (or entered), and suspect quotes are flagged. Each curve's
+   snapshot for the date is built, submitted and signed off by a second person (`CURVE_SIGN_OFF`).
+2. **Valuation.** The end-of-day job values every open trade per delivery schedule and submits the run. Risk signs it
+   off (`VALUATION_SIGN_OFF`). Sign-off then triggers:
+   - risk re-measures exposures and limits;
+   - reporting records EMIR valuations for FC and NFC+ entities;
+   - the P&L explain against the previous official run is stored.
+3. **Period end.** On the first working days of the next month the accountant runs the period end. It is gated on
+   the official valuation of the last business day. It posts MtM per book type policy (reversed on day one), NRV
+   write-downs, the emission provision, the free allocation grant release and FX revaluation, each as the difference
+   to what is booked.
+4. **Close.** Soft close, then the GL export: each entry once, in the GL's layout. Then delivery and the GL's
+   acknowledgement, import of the GL closing balances, and reconciliation. The hard close is refused until
+   everything is exported, the last export is acknowledged and the period end has run.
+
+## Trade over a credit limit (increment 3)
+
+1. Capture runs risk's pre-trade check. The last measured exposure plus the trade's PFE exceeds the counterparty's
+   credit limit, so the trade carries a `CREDIT_LIMIT` finding that requires risk approval.
+2. The trade goes to the inbox even below the approval threshold. Middle office cannot approve it; a RISK user can.
+3. Approval re-measures the entity. The limit is breached, so a `LIMIT_BREACH` task opens.
+4. Risk approves a higher limit (`LIMIT_CHANGE`, four eyes). The old limit retires, its breach closes, and the task
+   completes itself.

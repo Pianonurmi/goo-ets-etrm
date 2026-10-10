@@ -18,6 +18,7 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 ./gradlew ktlintFormat                            # fix formatting before committing
 ./gradlew :modules:allocation:test --tests '*AllocationEngineTest*'
 ./gradlew :apps:api:test --tests '*GoldenPathIT*' # end-to-end REST scenario
+./gradlew :apps:api:test --tests '*MonthEndIT*'   # increment 3: market data to hard close
 SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagger-ui
 ```
 
@@ -50,6 +51,12 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 - Registry calls never run inside a database transaction: gateways declare `inline` (no external I/O) or go through the outbox dispatcher (ADR 0012). A timeout is `GatewayResult.Unknown`, never a resend.
 - FX conversion goes through `marketdata.api.FxRates` (direct, inverse or cross via EUR, with a staleness limit); prices are read from market data, never typed into another module.
 - Sensitive master data (registry integration modes; later counterparty registry and bank accounts) changes through `ChangeRequestCommand` and a second person's approval in the inbox.
+- Things that need a second person: curve snapshots, valuation runs, verified emissions, risk limits and credit support, accounting policies and posting rule changes. Each goes through its own `TaskHandler`; the service also refuses requester = approver.
+- A module that must influence another without depending on it offers an SPI in the owner's `api`, for example `trade.api.TradeApprovalCheck`, implemented by risk. The owner resolves it lazily (`ObjectProvider`) so no cycle forms.
+- Market data: rates go through `FxRates` and prices through `CurveQuery` / `GooMarks` / `IndexFixings`. Nothing else stores prices.
+- Period end (`PeriodEndService`) and similar measurements post the difference between the required balance and what is booked, so a re-run is idempotent. Use the adjustment path (`LedgerService.postAdjustment`).
+- Reports are entries in `ReportCatalogue`. Every run is logged with its content hash. Add a report there, with its roles.
+- External layouts not checked against their specification are marked `verified = false`: EMIR field rules, the SAP GL layout, PFE add-ons and registry API mappings.
 
 ## Lint
 

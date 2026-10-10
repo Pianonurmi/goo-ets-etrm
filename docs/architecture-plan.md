@@ -39,6 +39,22 @@ are still open:
 | Commitment memos reversed on amendment and cancellation | Released on delivery only | Memo accounts are informational; to be completed with valuation in increment 3 |
 | VAT and standard rate seeds | Seeded and marked as needing tax sign-off | Not tax advice; the user's tax adviser signs them off before production |
 
+## Status after increment 3
+
+Increment 3 is delivered in milestones M0–M10 (see the [roadmap](roadmap.md), ADRs 0016–0024). These points differ
+from the plan or are still open:
+
+| Plan | Built | Why |
+|---|---|---|
+| Market data feeds from EEX/ICE and GoO platforms | File imports with formats stored as data (exchange settlement CSV, broker GoO CSV, ECB files), manual entry with plausibility checks, and an ECB reference rate adapter (disabled by default) | Exchange and platform data are licensed and `www.eex.com` and `www.ecb.europa.eu` are blocked from the build environment. The ECB adapter is tested against a local stub; allow `www.ecb.europa.eu` to test it live |
+| Curves per bucket and delivery period | EUA forward curve from futures settlements and spot; GoO vintage curves per bucket; linear between pillars, flat beyond, proxies and earlier vintages flagged; official snapshots under four eyes | Seasonality and smoothing wait for real data |
+| MtM and P&L explain (price, volume, new, FX, time) | Undiscounted MtM per delivery schedule; explain by new, cancelled, delivered, amended, price, FX and unexplained (exact by construction) | Time decay shows inside price for undiscounted forwards; options and futures margining are out of scope |
+| MtM accounting under IFRS 9 | Per book type policy as data (P&L, OCI or disclose only) posted at period end and reversed on day one; NRV on inventory; IAS 37 provision (net liability); IAS 20 grant release | Seeded policies are flagged until accounting signs them off; hedge accounting is not modelled |
+| Limits and credit exposure | Credit, position, tenor, stop loss and compliance short limits under four eyes; exposure from MtM, receivables, PFE and collateral; pre-trade check through a trade SPI | PFE add-ons are uncalibrated placeholders; concentration and expiry limits are left for later |
+| Installations, emissions, free allocation, surrender | As planned; deadlines as data with reminders | CBAM-linked phase-out of free allocation and ETS2 are not modelled |
+| EMIR / MiFID reporting | EMIR lifecycle events captured, completeness checked, exported; MiFID ancillary activity figures | No trade repository connection and no ISO 20022 XML; the Refit field layout is unverified; the ancillary test needs market-size data |
+| GL interface hardening | Exactly-once exports, layouts as data (generic, SAP-style unverified), acknowledgement, reconciliation with imported GL balances, hard-close gates | The receiving GL's specification is needed to verify the SAP layout |
+
 ---
 ## Context
 

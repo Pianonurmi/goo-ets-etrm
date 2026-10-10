@@ -4,12 +4,13 @@
 |---|---|---|
 | 1 | Foundation, core domain, ledger, API (no UI): reference data, taxonomy, product and criteria language, trade, inventory, registry ports and simulator, allocation engine, position, ledger, workflow, audit, CI, docs | delivered |
 | 2 | Registry integrations (outbox, statement formats, Union Registry, API channel), reconciliation break workflow, settlement and invoicing with VAT and netting, counterparty confirmation matching, full approval inbox | delivered (G-REX and NECS mappings wait for their specifications; see the milestone list below) |
-| 3 | Valuation and market data (EEX/ICE, GoO platforms, ECB FX), curves, MtM and P&L explain, risk limits and credit exposure, ETS compliance (installations, verified emissions, free allocation, surrender), EMIR/MiFID data, reporting | in progress (see the milestone list below) |
+| 3 | Valuation and market data (file imports, ECB FX), curves, MtM and P&L explain, period-end accounting, risk limits and credit exposure, ETS compliance (installations, verified emissions, free allocation, surrender), EMIR/MiFID data, reporting, GL interface | delivered (vendor feeds, EMIR layout and SAP layout wait for specifications; see the architecture plan's status) |
 | 4 | Web UI (React + TypeScript): blotter, inventory explorer with criteria builder, allocation workbench, coverage and expiry dashboards, ledger browser, approval inbox, admin | planned |
 | 5 | Scale and operations: Kafka externalisation of events, Helm/Kubernetes, HA PostgreSQL, partitioning of version and event tables, exact (CP-SAT) solver, performance and DR drills, penetration test | planned |
 
-Known gaps to close before production: AIB and registry external code lists, entity accounting policy sign-off,
-GL interface format, market data vendor for bucket marks.
+Known gaps to close before production: AIB and registry external code lists; sign-off of accounting policies (MtM by
+book type, NRV, provision), VAT rules and PFE add-ons; the receiving GL's file specification; market data vendors for
+EUA futures and GoO marks; EMIR field layout and trade repository delegation; ETS deadline rules checked by compliance.
 
 ## Increment 2 milestones
 
@@ -40,4 +41,4 @@ GL interface format, market data vendor for bucket marks.
 | M7 | `risk` module: limits under four eyes, credit exposure (MtM, receivables, PFE, collateral), breaches, pre-trade check SPI; credit limits leave reference data | done |
 | M8 | `reporting` module: report catalogue with logged, hashed and audited exports; EMIR events (NEWT/MODI/TERM/EROR/VALU) and completeness; MiFID ancillary activity | done |
 | M9 | GL interface: exactly-once exports (period and delta), formats as data (generic CSV, SAP-style flat file, unverified), delivery, acknowledgement and rejection, GL balance reconciliation, hard-close gates, posting rule changes under four eyes | done |
-| M10 | Documentation and end-to-end tests | planned |
+| M10 | Documentation and end-to-end tests (`MonthEndIT`: market data to hard close) | done |

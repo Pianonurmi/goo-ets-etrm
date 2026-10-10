@@ -25,7 +25,7 @@ positions and a double-entry sub-ledger, for a European company group with sever
 | `etscompliance` | EU ETS installations and aircraft operators, emissions (verified with four eyes), free allocation, surrender attribution and requests, deadline reminders |
 | `allocation` | Matching engine: lot classes, scoring, greedy solver with share constraints, **max-flow coverage**, plans with soft and hard reservations |
 | `position` | GoO coverage position by bucket and vintage, expiry ladder, EU ETS compliance ladder, snapshots |
-| `ledger` | Posting rules as data, immutable journal, FIFO / weighted-average costing, periods, FX, GL export |
+| `ledger` | Posting rules as data (changes under four eyes), immutable journal, FIFO / weighted-average costing, periods, FX, period end (MtM by book type, NRV, emission provision, grant release, FX revaluation), GL interface (exactly-once exports, acknowledgement, reconciliation, gated hard close) |
 | `workflow`, `audit` | Approval inbox (task types registered by modules, SLA, escalation) with segregation of duties; append-only audit trail |
 | `document` | Rendered and stored PDFs (confirmations, invoices, netting statements), immutable and hashed |
 
@@ -82,6 +82,20 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 4. Check coverage (`GET /api/v1/allocation/coverage`), propose a plan, approve it as a second user – lots are reserved, the registry transfer executes, the trade is delivered, revenue and cost of goods sold are posted.
 5. Inspect positions (`/api/v1/positions/goo`, `/api/v1/positions/ets`), the ledger (`/api/v1/ledger/entries`, `trial-balance`, `journal/verify`) and the audit trail (`/api/v1/audit/events`).
 6. From delivery to cash (`AllowanceDeliveryIT`): an EUA sale is delivered through a four-eyes Union Registry instruction, invoiced (`/api/v1/settlement/invoice-runs`, approval in the inbox), paid (`/api/v1/settlement/payments`), and the trade becomes SETTLED with the receivable cleared in the ledger.
+7. A month end (`MonthEndIT`), all through REST:
+   - FX rates and quotes (`/api/v1/market-data`) and curves signed off by a second person (`/api/v1/market-data/curves`);
+   - an EUA forward and a GoO forward;
+   - two end-of-day valuations signed off by risk (`/api/v1/valuation/runs`), with a P&L explain that adds up;
+   - EMIR events and an export (`/api/v1/reports`);
+   - the period end (`/api/v1/ledger/period-end/runs`): trading MtM posted and reversed, own use disclosed, certificates
+     written down to NRV;
+   - soft close, GL export in the SAP-style layout, acknowledgement, reconciliation with GL balances, and a gated hard
+     close.
+8. ETS compliance (`GoldenPathIT` step 6): register an installation (`/api/v1/ets/installations`), record free
+   allocation and emissions, approve verified emissions in the inbox, surrender. The ladder (`/api/v1/positions/ets`)
+   shows the installation COMPLIANT.
+9. Credit (`CreditLimitBreachIT`): a credit limit approved by a second risk user. A trade over it needs risk's approval;
+   the breach opens a task that closes when the limit is raised.
 
 ## Repository layout
 
