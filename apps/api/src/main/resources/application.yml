@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: goo-ets-etrm
+  main:
+    banner-mode: off
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${ETRM_DB_URL:jdbc:postgresql://localhost:5432/etrm}
+    username: ${ETRM_DB_USER:etrm}
+    password: ${ETRM_DB_PASSWORD:etrm}
+    hikari:
+      maximum-pool-size: 20
+      pool-name: etrm
+  flyway:
+    enabled: false   # migrations run per module schema, see ModularMigrations
+  jooq:
+    sql-dialect: postgres
+  modulith:
+    events:
+      jdbc:
+        schema: etrm_platform
+        schema-initialization:
+          enabled: false
+      republish-outstanding-events-on-restart: true
+      completion-mode: update
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${ETRM_OIDC_ISSUER:http://localhost:8081/realms/etrm}
+
+etrm:
+  migrations:
+    enabled: true
+  security:
+    roles-claim: roles
+    legal-entities-claim: legal_entities
+
+server:
+  port: 8080
+  error:
+    include-message: never
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,modulith
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  tracing:
+    sampling:
+      probability: 0.1
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+logging:
+  level:
+    root: INFO
+    com.pianonurmi.etrm: INFO
+    org.jooq.Constants: WARN
