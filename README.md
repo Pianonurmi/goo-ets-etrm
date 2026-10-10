@@ -64,7 +64,7 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 
 - You need JDK 21 and Docker. The Gradle wrapper downloads Gradle itself.
 - `ops/postgres-init.sql` creates the code-generation and test databases on the first start of the PostgreSQL container. If the volume already exists, create them by hand.
-- The repository's default branch is currently `ccr-c2c9258a-sd2hhq`. Renaming it to `main` is a one-time step in the GitHub repository settings.
+- Work happens on `main`, the default branch.
 - `CLAUDE.md` summarises commands and conventions for working on the code with Claude Code.
 
 ## Golden path (see `apps/api/src/test/kotlin/com/pianonurmi/etrm/GoldenPathIT.kt`)
