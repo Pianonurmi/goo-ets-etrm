@@ -23,6 +23,22 @@ Increment 1 is delivered. These points deliberately differ from the plan below:
 | Benchmark 100 k lots × 5 k obligations | Benchmark test defaults to 20 k × 1 k; full size via system properties | Keeps CI fast; see the README for the full-size command |
 | File paths in section 7 | Actual layout uses `api`, `domain`, `application`, `adapter/rest`, `adapter/jooq` per module | See `CLAUDE.md` and arc42 section 5 |
 
+## Status after increment 2
+
+Increment 2 is delivered in milestones M0–M9 (see the [roadmap](roadmap.md)). These points differ from the plan or
+are still open:
+
+| Plan | Built | Why |
+|---|---|---|
+| G-REX and NECS API adapters with contract tests from the manuals | The API channel, its security and outcome handling, and ETRM's generic REST contract; no G-REX or NECS mapping | The G-REX manual could not be downloaded from the build environment; NECS has no public API documentation. Steps in `docs/integration/registries.md` |
+| `StatementSource` pulling statements over APIs | Statements are uploaded (CSV, profile-driven) | Needs the registry API specifications above |
+| EUA and purchase obligations in allocation | EUA deliveries and purchase receipts work from trade schedules (`DeliveryService`); allocation obligations stay GoO sales | No allocation choice exists for fungible allowances or for receipts |
+| Partial credit notes | Credit notes reverse an invoice in full; deliveries are re-invoiced | Partial corrections are rare; full reversal keeps the audit trail simple |
+| Realised FX from market data | Realised FX from the ledger's FX rate table (manual or imported rates) | Market data feeds arrive in increment 3 |
+| Intercompany allowance receipts matched automatically | The selling entity's sale and the buying entity's receipt are recorded; the mirror purchase trade is matched by hand | Rare; listed in `docs/domain/ets-compliance.md` |
+| Commitment memos reversed on amendment and cancellation | Released on delivery only | Memo accounts are informational; to be completed with valuation in increment 3 |
+| VAT and standard rate seeds | Seeded and marked as needing tax sign-off | Not tax advice; the user's tax adviser signs them off before production |
+
 ---
 ## Context
 

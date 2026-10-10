@@ -22,6 +22,8 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 ```
 
 - Without `ETRM_TEST_DB_URL`, integration tests start a Testcontainers PostgreSQL instead.
+- `TestDatabase.dsl` joins a Spring transaction when a test runs one (e.g. with `DataSourceTransactionManager`), and is autocommit otherwise.
+- Full-context tests each cache a context with a small connection pool (`application-test.yml`); keep the pool small so they fit PostgreSQL's connection limit.
 - All test tasks share one test database and reset schemas. A Gradle build service (`SharedTestDatabase` in `build-logic`) runs them one at a time; keep it that way.
 - Allocation benchmark at full size: `-Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000`.
 
@@ -40,6 +42,9 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 - CSV in and out goes through `platform.text.Csv` (RFC 4180). PDFs and other issued documents go through the `document` module; templates live in `src/main/resources/documents/templates/`.
 - Scheduled jobs use `@SchedulerLock`; the lock provider is configured in `apps/api` (`SchedulingConfiguration`).
 - Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers (and optionally `X-Entities`, default all entities) in the `dev` and `test` profiles.
+- Approvals go through the workflow inbox: the owning module registers a `TaskHandler` and applies the decision in the same transaction.
+- Listeners triggered by deliveries or receipts must not fail the transaction that published the event: park the problem (`NEEDS_ATTENTION`, unmatched) or call through `Savepoints.attempt`.
+- Registry calls never run inside a database transaction (outbox, ADR 0012). Registry API mappings stay `verified = false` until checked against the registry's own specification.
 - Approval and work tasks: the owning module implements `workflow.api.TaskHandler` (definition plus `onDecision`), opens tasks from its own events and closes them with `closeFor`. Workflow depends on no other module (ADR 0011).
 - Legal-entity scope: use `Actor.canAccess` / `requireEntity` in queries and commands that touch one entity's data.
 - Registry calls never run inside a database transaction: gateways declare `inline` (no external I/O) or go through the outbox dispatcher (ADR 0012). A timeout is `GatewayResult.Unknown`, never a resend.
