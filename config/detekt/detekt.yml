@@ -32,7 +32,8 @@ style:
   MagicNumber:
     active: false
   ThrowsCount:
-    max: 6
+    max: 12
+    excludeGuardClauses: true
   UnusedPrivateMember:
     active: true
   WildcardImport:

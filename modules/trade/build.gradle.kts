@@ -4,6 +4,10 @@ plugins {
 
 dependencies {
     implementation(project(":platform"))
+    implementation(project(":modules:referencedata"))
+    implementation(project(":modules:product"))
+    implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(project(":modules:taxonomy"))
 }

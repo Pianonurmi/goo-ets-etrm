@@ -1,0 +1,37 @@
+package com.pianonurmi.etrm.trade.domain
+
+import com.pianonurmi.etrm.product.api.ProductFamily
+import com.pianonurmi.etrm.trade.api.DeliveryObligationView
+import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeFilter
+import com.pianonurmi.etrm.trade.api.TradeVersionView
+import com.pianonurmi.etrm.trade.api.TradeView
+import java.math.BigDecimal
+import java.time.LocalDate
+import java.util.UUID
+
+interface TradeRepository {
+    fun nextTradeNumber(year: Int): String
+
+    fun find(id: UUID): TradeView?
+
+    fun lock(id: UUID): TradeView?
+
+    fun byNumber(tradeNumber: String): TradeView?
+
+    fun list(filter: TradeFilter): List<TradeView>
+
+    /** Inserts the trade with version 1 and its first version row. */
+    fun insert(trade: TradeView, recordedBy: String, reason: String?)
+
+    /** Stores the new version (header, legs, deliveries) and closes the previous version row; optimistic on version. */
+    fun saveVersion(trade: TradeView, recordedBy: String, reason: String?): Boolean
+
+    fun versions(tradeId: UUID): List<TradeVersionView>
+
+    fun appendDeliveryRecord(scheduleId: UUID, quantity: BigDecimal, deliveredOn: LocalDate, reference: String?, recordedBy: String)
+
+    fun openObligations(legalEntityId: UUID, side: Side?, productFamily: ProductFamily?): List<DeliveryObligationView>
+
+    fun obligation(scheduleId: UUID): DeliveryObligationView?
+}

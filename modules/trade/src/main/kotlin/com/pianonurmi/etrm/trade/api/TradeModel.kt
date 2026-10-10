@@ -1,0 +1,295 @@
+package com.pianonurmi.etrm.trade.api
+
+import com.pianonurmi.etrm.platform.events.DomainEvent
+import com.pianonurmi.etrm.platform.events.EventMetadata
+import com.pianonurmi.etrm.platform.money.QuantityUnit
+import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.EnergyCarrier
+import com.pianonurmi.etrm.product.api.InstrumentType
+import com.pianonurmi.etrm.product.api.ProductFamily
+import com.pianonurmi.etrm.product.api.criteria.Criterion
+import java.math.BigDecimal
+import java.time.Instant
+import java.time.LocalDate
+import java.util.Currency
+import java.util.UUID
+
+enum class Side {
+    BUY,
+    SELL,
+    ;
+
+    fun opposite(): Side = if (this == BUY) SELL else BUY
+}
+
+enum class PriceType { FIXED, INDEX, FORMULA }
+
+enum class TradeStatus {
+    DRAFT,
+    PENDING_APPROVAL,
+    APPROVED,
+    CONFIRMED,
+    PARTIALLY_DELIVERED,
+    DELIVERED,
+    SETTLED,
+    CLOSED,
+    CANCELLED,
+    DISPUTED,
+    ;
+
+    /** Statuses in which the trade is a firm commitment that creates positions and obligations. */
+    val firm: Boolean get() = this in setOf(CONFIRMED, PARTIALLY_DELIVERED, DELIVERED, SETTLED, CLOSED)
+
+    val open: Boolean get() = this !in setOf(CLOSED, CANCELLED)
+}
+
+enum class DeliveryStatus { PENDING, PARTIALLY_DELIVERED, DELIVERED, CANCELLED }
+
+data class DeliveryScheduleView(
+    val id: UUID,
+    val scheduleNo: Int,
+    val deliveryWindow: LocalDateRange,
+    val deliveryDate: LocalDate,
+    val quantity: BigDecimal,
+    val deliveredQuantity: BigDecimal,
+    val paymentDate: LocalDate?,
+    val status: DeliveryStatus,
+) {
+    val remainingQuantity: BigDecimal get() = quantity - deliveredQuantity
+}
+
+data class TradeLegView(
+    val id: UUID,
+    val legNo: Int,
+    val side: Side,
+    val energyCarrier: EnergyCarrier?,
+    val allowanceProductCode: String?,
+    val criteriaId: UUID?,
+    val criterion: Criterion?,
+    val criteriaSummary: String?,
+    val bucketCode: String?,
+    val quantity: BigDecimal,
+    val unit: QuantityUnit,
+    val price: BigDecimal,
+    val priceCurrency: Currency,
+    val priceType: PriceType,
+    val priceIndex: String?,
+    val deliveryAccountId: UUID?,
+    val counterpartyAccountRef: String?,
+    val deliveries: List<DeliveryScheduleView>,
+) {
+    val notional: BigDecimal get() = quantity * price
+}
+
+data class TradeView(
+    val id: UUID,
+    val tradeNumber: String,
+    val legalEntityId: UUID,
+    val bookId: UUID,
+    val counterpartyId: UUID,
+    val productFamily: ProductFamily,
+    val instrumentType: InstrumentType,
+    val tradeDate: LocalDate,
+    val trader: String,
+    val brokerId: UUID?,
+    val masterAgreementRef: String?,
+    val externalRef: String?,
+    val status: TradeStatus,
+    val version: Int,
+    val intercompanyLinkId: UUID?,
+    val approvedBy: String?,
+    val approvedAt: Instant?,
+    val confirmedAt: Instant?,
+    val confirmationRef: String?,
+    val createdBy: String,
+    val legs: List<TradeLegView>,
+) {
+    val notional: BigDecimal get() = legs.sumOf { it.notional }
+}
+
+data class TradeVersionView(
+    val version: Int,
+    val recordedAt: Instant,
+    val supersededAt: Instant?,
+    val recordedBy: String,
+    val reason: String?,
+    val status: TradeStatus,
+    val trade: TradeView,
+)
+
+// --------------------------------------------------------------------------------------------------------------
+// Commands
+// --------------------------------------------------------------------------------------------------------------
+
+data class CaptureDelivery(
+    val deliveryWindow: LocalDateRange,
+    /** Contractual delivery date (transfer cut-off) within the window. */
+    val deliveryDate: LocalDate,
+    val quantity: BigDecimal,
+    val paymentDate: LocalDate? = null,
+)
+
+data class CaptureLeg(
+    val side: Side,
+    val energyCarrier: EnergyCarrier? = null,
+    val allowanceProductCode: String? = null,
+    /** Required for GoO legs: the delivery terms. */
+    val criterion: Criterion? = null,
+    val quantity: BigDecimal,
+    val unit: QuantityUnit,
+    val price: BigDecimal,
+    val priceCurrency: String = "EUR",
+    val priceType: PriceType = PriceType.FIXED,
+    val priceIndex: String? = null,
+    /** Our registry account for delivery or receipt. */
+    val deliveryAccountId: UUID? = null,
+    val counterpartyAccountRef: String? = null,
+    val deliveries: List<CaptureDelivery>,
+)
+
+data class CaptureTrade(
+    val legalEntityId: UUID,
+    val bookId: UUID,
+    val counterpartyId: UUID,
+    val productFamily: ProductFamily,
+    val instrumentType: InstrumentType,
+    val tradeDate: LocalDate,
+    val trader: String? = null,
+    val brokerId: UUID? = null,
+    val masterAgreementRef: String? = null,
+    val externalRef: String? = null,
+    val legs: List<CaptureLeg>,
+    /** For intercompany trades: the book in the counterparty legal entity that receives the mirrored trade. */
+    val mirrorBookId: UUID? = null,
+    val reason: String? = null,
+)
+
+data class AmendTrade(
+    val expectedVersion: Int,
+    val reason: String,
+    val tradeDate: LocalDate? = null,
+    val brokerId: UUID? = null,
+    val masterAgreementRef: String? = null,
+    val externalRef: String? = null,
+    val legs: List<CaptureLeg>? = null,
+)
+
+data class ConfirmTrade(val confirmationRef: String, val method: String = "EMAIL", val confirmedAt: Instant? = null)
+
+data class RecordDelivery(val scheduleId: UUID, val quantity: BigDecimal, val deliveredOn: LocalDate, val reference: String? = null)
+
+interface TradeCommand {
+    fun capture(command: CaptureTrade): TradeView
+
+    fun amend(tradeId: UUID, command: AmendTrade): TradeView
+
+    /** Four-eyes approval; the approver must differ from the trader and the person who captured the trade. */
+    fun approve(tradeId: UUID): TradeView
+
+    fun reject(tradeId: UUID, reason: String): TradeView
+
+    fun confirm(tradeId: UUID, command: ConfirmTrade): TradeView
+
+    fun cancel(tradeId: UUID, reason: String): TradeView
+
+    fun recordDelivery(tradeId: UUID, command: RecordDelivery): TradeView
+
+    fun markSettled(tradeId: UUID): TradeView
+}
+
+data class TradeFilter(
+    val legalEntityId: UUID? = null,
+    val bookId: UUID? = null,
+    val counterpartyId: UUID? = null,
+    val statuses: Set<TradeStatus>? = null,
+    val productFamily: ProductFamily? = null,
+    val tradeDateFrom: LocalDate? = null,
+    val tradeDateTo: LocalDate? = null,
+    val limit: Int = 200,
+)
+
+/** A firm sell-side (or buy-side) delivery that other modules act on; sourced from confirmed trades. */
+data class DeliveryObligationView(
+    val scheduleId: UUID,
+    val tradeId: UUID,
+    val tradeNumber: String,
+    val legId: UUID,
+    val legalEntityId: UUID,
+    val bookId: UUID,
+    val counterpartyId: UUID,
+    val side: Side,
+    val productFamily: ProductFamily,
+    val energyCarrier: EnergyCarrier?,
+    val allowanceProductCode: String?,
+    val criteriaId: UUID?,
+    val criterion: Criterion?,
+    val quantity: BigDecimal,
+    val deliveredQuantity: BigDecimal,
+    val deliveryWindow: LocalDateRange,
+    val deliveryDate: LocalDate,
+    val deliveryAccountId: UUID?,
+    val counterpartyAccountRef: String?,
+    val price: BigDecimal,
+    val priceCurrency: Currency,
+    val priceType: PriceType,
+    val status: DeliveryStatus,
+) {
+    val remainingQuantity: BigDecimal get() = quantity - deliveredQuantity
+}
+
+interface TradeQuery {
+    fun trade(id: UUID): TradeView?
+
+    fun requireTrade(id: UUID): TradeView
+
+    fun byNumber(tradeNumber: String): TradeView?
+
+    fun trades(filter: TradeFilter): List<TradeView>
+
+    fun versions(tradeId: UUID): List<TradeVersionView>
+
+    /** Open delivery obligations from firm trades. */
+    fun openObligations(legalEntityId: UUID, side: Side? = null, productFamily: ProductFamily? = null): List<DeliveryObligationView>
+
+    fun obligation(scheduleId: UUID): DeliveryObligationView?
+}
+
+// --------------------------------------------------------------------------------------------------------------
+// Events
+// --------------------------------------------------------------------------------------------------------------
+
+sealed interface TradeEvent : DomainEvent {
+    val trade: TradeView
+}
+
+data class TradeCaptured(override val trade: TradeView, val metadata: EventMetadata = EventMetadata()) : TradeEvent, DomainEvent by metadata
+
+data class TradeAmended(override val trade: TradeView, val previousVersion: Int, val metadata: EventMetadata = EventMetadata()) :
+    TradeEvent, DomainEvent by metadata
+
+data class TradeApproved(override val trade: TradeView, val metadata: EventMetadata = EventMetadata()) : TradeEvent, DomainEvent by metadata
+
+/** The trade became firm: positions, obligations and commitment postings start here. */
+data class TradeConfirmed(override val trade: TradeView, val metadata: EventMetadata = EventMetadata()) : TradeEvent, DomainEvent by metadata
+
+data class TradeCancelled(override val trade: TradeView, val reason: String, val metadata: EventMetadata = EventMetadata()) :
+    TradeEvent, DomainEvent by metadata
+
+data class DeliveryRecorded(
+    override val trade: TradeView,
+    val obligation: DeliveryObligationView,
+    val quantity: BigDecimal,
+    val deliveredOn: LocalDate,
+    val reference: String?,
+    val metadata: EventMetadata = EventMetadata(),
+) : TradeEvent, DomainEvent by metadata
+
+data class TradeSettled(override val trade: TradeView, val metadata: EventMetadata = EventMetadata()) : TradeEvent, DomainEvent by metadata
+
+/** Obligations open when a trade is confirmed, change on amendment or partial delivery and close when fulfilled or cancelled. */
+data class DeliveryObligationOpened(val obligation: DeliveryObligationView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata
+
+data class DeliveryObligationChanged(val obligation: DeliveryObligationView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata
+
+data class DeliveryObligationClosed(val obligation: DeliveryObligationView, val reason: String, val metadata: EventMetadata = EventMetadata()) :
+    DomainEvent by metadata
