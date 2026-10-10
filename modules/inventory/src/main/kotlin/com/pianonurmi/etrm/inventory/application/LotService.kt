@@ -34,6 +34,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
@@ -140,6 +141,12 @@ class LotService(
         lots.insert(lot, LotChange(seq, actorProvider.current().userId, effectiveAt))
         events.publishEvent(LotReceived(lot))
         return lot
+    }
+
+    override fun requireLotOperator(holderEntityId: UUID) {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
+        actor.requireEntity(holderEntityId)
     }
 
     override fun split(lotId: UUID, quantity: Long): SplitResult {

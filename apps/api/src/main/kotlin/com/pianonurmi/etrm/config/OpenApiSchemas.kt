@@ -17,9 +17,9 @@ import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
 
 /**
- * Marks Kotlin properties as `required` so generated clients see `id: string` rather than `id?: string`:
- * constructor properties that are neither nullable nor defaulted, and non-null computed properties (they are
- * always serialised and never sent).
+ * Marks Kotlin constructor properties that are neither nullable nor defaulted as `required`, so generated clients
+ * see `id: string` rather than `id?: string`. Computed properties (serialised, never read) are marked `readOnly`;
+ * they stay optional so request bodies do not have to carry them.
  */
 class KotlinRequiredProperties : ModelConverter {
     override fun resolve(type: AnnotatedType, context: ModelConverterContext, chain: Iterator<ModelConverter>): Schema<*>? {
@@ -28,17 +28,16 @@ class KotlinRequiredProperties : ModelConverter {
         val cls = rawClass(type.type)?.takeIf { !it.isEnum && it.isAnnotationPresent(Metadata::class.java) }
         if (target == null || cls == null) return schema
         val holder = target.takeIf { it.properties != null } ?: target.allOf?.lastOrNull { it.properties != null } ?: return schema
-        val required = runCatching { requiredProperties(cls) }.getOrDefault(emptyList()).filter { holder.properties.containsKey(it) }
+        val parameters = runCatching { cls.kotlin.primaryConstructor?.parameters.orEmpty() }.getOrDefault(emptyList())
+        val required = parameters.filter { !it.isOptional && !it.type.isMarkedNullable }.mapNotNull { it.name }.filter { holder.properties.containsKey(it) }
         if (required.isNotEmpty()) holder.required = (holder.required.orEmpty() + required).distinct()
+        val constructorNames = parameters.mapNotNull { it.name }.toSet()
+        runCatching { cls.kotlin.memberProperties }.getOrDefault(emptyList())
+            .filter { it.name !in constructorNames }
+            .mapNotNull { holder.properties[it.name] }
+            .filter { it.`$ref` == null }
+            .forEach { it.readOnly = true }
         return schema
-    }
-
-    private fun requiredProperties(cls: Class<*>): List<String> {
-        val parameters = cls.kotlin.primaryConstructor?.parameters.orEmpty()
-        val fromConstructor = parameters.filter { !it.isOptional && !it.type.isMarkedNullable }.mapNotNull { it.name }
-        val names = parameters.mapNotNull { it.name }.toSet()
-        val computed = cls.kotlin.memberProperties.filter { it.name !in names && !it.returnType.isMarkedNullable }.map { it.name }
-        return fromConstructor + computed
     }
 
     private fun rawClass(type: Type?): Class<*>? = when (type) {

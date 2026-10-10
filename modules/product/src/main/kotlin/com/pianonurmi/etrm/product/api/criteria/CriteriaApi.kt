@@ -27,6 +27,9 @@ interface CriteriaService {
     /** Human readable one-line summary for blotters and confirmations. */
     fun describe(criterion: Criterion): String
 
+    /** The fields and operators of the criteria language, for criteria builders. */
+    fun catalogue(): CriteriaCatalogue
+
     fun store(criterion: Criterion, createdBy: String? = null): CriteriaRef
 
     fun load(id: UUID): Criterion

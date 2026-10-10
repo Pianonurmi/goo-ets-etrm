@@ -50,6 +50,11 @@ class EntityScopeIT {
             .body("type", equalTo("urn:etrm:problem:forbidden"))
         scoped().get("/api/v1/inventory/expiry-ladder?holderEntityId=${mine.entityId}").then().statusCode(200)
 
+        // Manual lot operations need back office (or registry operator) rights on the holder.
+        mine.asUser("a-trader", "TRADER").body("{\"reason\":\"test\"}").post("/api/v1/inventory/lots/$myLot/withdraw").then().statusCode(403)
+        scoped().body("{\"reason\":\"test\"}").post("/api/v1/inventory/lots/$theirLot/withdraw").then().statusCode(403)
+        scoped().body("{\"reason\":\"registry correction\"}").post("/api/v1/inventory/lots/$myLot/withdraw").then().statusCode(200)
+
         // Without X-Entities the dev/test actor sees every entity.
         mine.asUser("everyone").get("/api/v1/trades/$theirTrade").then().statusCode(200)
     }

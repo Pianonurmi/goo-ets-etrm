@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductBucketView
 import com.pianonurmi.etrm.product.api.ProductCatalogueQuery
 import com.pianonurmi.etrm.product.api.UpdateProductBucket
+import com.pianonurmi.etrm.product.api.criteria.CriteriaCatalogue
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -81,6 +82,10 @@ class ProductController(
     fun deactivateFuturesContract(
         @PathVariable code: String,
     ): FuturesContractView = futuresCommand.deactivate(code)
+
+    /** Fields, operators and value sources of the criteria language, for criteria builders. */
+    @GetMapping("/criteria/catalogue")
+    fun criteriaCatalogue(): CriteriaCatalogue = criteria.catalogue()
 
     /** Validates a criterion, returning its canonical JSON, description and specificity. */
     @PostMapping("/criteria/validate")

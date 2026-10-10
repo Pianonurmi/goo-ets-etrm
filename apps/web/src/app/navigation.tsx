@@ -1,4 +1,4 @@
-import { IconHome, IconInbox } from '@tabler/icons-react';
+import { IconCertificate, IconHome, IconInbox } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { Role } from '@/shared/api/types';
 
@@ -28,6 +28,10 @@ export const NAVIGATION: NavSection[] = [
       { path: '/', label: 'nav.home', icon: <IconHome size={ICON} /> },
       { path: '/inbox', label: 'nav.inbox', icon: <IconInbox size={ICON} />, badge: 'inbox' },
     ],
+  },
+  {
+    title: 'nav.sectionOperations',
+    items: [{ path: '/inventory', label: 'nav.inventory', icon: <IconCertificate size={ICON} /> }],
   },
 ];
 

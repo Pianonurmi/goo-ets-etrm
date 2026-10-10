@@ -21,6 +21,14 @@ export const router = createBrowserRouter([
         path: 'inbox/:taskId',
         lazy: async () => ({ Component: (await import('@/features/inbox/TaskDetailPage')).TaskDetailPage }),
       },
+      {
+        path: 'inventory',
+        lazy: async () => ({ Component: (await import('@/features/inventory/InventoryPage')).InventoryPage }),
+      },
+      {
+        path: 'inventory/lots/:lotId',
+        lazy: async () => ({ Component: (await import('@/features/inventory/LotDetailPage')).LotDetailPage }),
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

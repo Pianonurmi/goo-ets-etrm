@@ -8,6 +8,10 @@ legal-entity scope; the UI only mirrors them.
 |---|---|---|---|
 | Home | `/` | `ui_me`, `referenceData_legalEntities`, `workflow_inbox` (actionable, first five), `workflow_counts` | everyone |
 | Approval inbox | `/inbox` | `workflow_inbox` (cursor paging, filters in the URL), `workflow_taskTypes`, `workflow_counts`, `workflow_bulk` | candidates of each task type |
+| Inventory: certificates | `/inventory` | `inventory_lots` (selected entity; status and expiry filters in the URL) | everyone in scope |
+| Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
+| Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |
+| Lot detail | `/inventory/lots/:lotId` | `inventory_lot`, `inventory_history`, `inventory_asOf`, `inventory_split`, `inventory_cancel`, `inventory_withdraw` | operations: BACK_OFFICE, REGISTRY_OPERATOR |
 | Task detail | `/inbox/:taskId` | `workflow_task`, `workflow_approve`, `workflow_reject`, `workflow_acknowledge`, `workflow_claim`, `workflow_release`, `workflow_assign`, `workflow_comment` | candidates; never the requester when the type is four-eyes |
 
 ## Inbox rules mirrored in the UI (`features/inbox/model/decisions.ts`)
@@ -18,3 +22,13 @@ legal-entity scope; the UI only mirrors them.
 - The task type's `reasonRequiredFor` decides when a reason is mandatory.
 - Bulk decisions apply to the selected tasks the user may decide. The server reports each refusal.
 - Subjects link to their screens once those exist (`model/subjects.ts`).
+
+## Criteria builder (`features/criteria`)
+
+- Built from `GET /api/v1/products/criteria/catalogue`: one entry per lot attribute with its operators and value
+  source (taxonomy scheme, country, registry, device, enum, boolean, number, date, text).
+- The tree is edited through the pure functions in `model/tree.ts` (add, replace, remove, wrap, negate, toggle).
+- The server describes the criterion and scores its specificity as you type, once every condition has a value.
+- The JSON tab edits the same value. The criterion travels exactly as the API defines it, a discriminated union on
+  `type`.
+- Totals on the inventory screens add whole certificate counts (MWh). No money is summed in the browser.

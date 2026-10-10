@@ -51,7 +51,7 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M1 | `apps/web` scaffold, Gradle and CI integration, shell, sign-in and personas, generated client, data grid, Playwright smoke test | done |
 | M2 | Demo data profile (`dev,demo`): two entities, inventory, trades in several states, signed-off curves, official valuations, a period end, open approvals | done |
 | M3 | Approval inbox (filters in the URL, cursor paging, bulk decisions, four-eyes cues, claim/assign, comments, history) and home | done |
-| M4 | Criteria catalogue, criteria builder, inventory explorer | planned |
+| M4 | Criteria catalogue endpoint, criteria builder, inventory explorer (certificates, criteria search, allowances), lot detail with as-of and operations; manual lot operations now need back office or registry operator rights | done |
 | M5 | Trade search, blotter, detail, capture and lifecycle | planned |
 | M6 | Allocation what-if and workbench; coverage, expiry and ETS dashboards | planned |
 | M7 | Market data, curves, valuation | planned |

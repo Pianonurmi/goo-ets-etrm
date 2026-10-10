@@ -63,6 +63,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Period end (`PeriodEndService`) and similar measurements post the difference between the required balance and what is booked, so a re-run is idempotent. Use the adjustment path (`LedgerService.postAdjustment`).
 - Reports are entries in `ReportCatalogue`. Every run is logged with its content hash. Add a report there, with its roles.
 - The OpenAPI document is a contract (ADR 0027): after changing a controller or a view, run `./gradlew :apps:api:updateOpenApiSnapshot` and commit `apps/api/openapi/etrm-api.json`. Operation ids are `<controller>_<method>`, so keep handler names unique per controller and stable.
+- Manual lot operations over REST (receive, split, reserve, release, cancel, withdraw, correct) need BACK_OFFICE or REGISTRY_OPERATOR on the holder (`LotCommand.requireLotOperator`); module flows call the commands directly.
 - Read endpoints respect entity scope: unfiltered lists use `Actor.entityFilter` (see `TradeQuery.visibleTrades`, `LotQuery.visibleLots`), single records call `requireEntity`, and `EntityScopeInterceptor` refuses a `legalEntityId`/`holderEntityId` parameter outside the user's scope.
 - External layouts not checked against their specification are marked `verified = false`: EMIR field rules, the SAP GL layout, PFE add-ons and registry API mappings.
 

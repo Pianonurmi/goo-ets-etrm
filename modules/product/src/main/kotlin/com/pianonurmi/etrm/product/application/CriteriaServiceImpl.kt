@@ -5,12 +5,14 @@ import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.product.api.criteria.BindContext
 import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
+import com.pianonurmi.etrm.product.api.criteria.CriteriaCatalogue
 import com.pianonurmi.etrm.product.api.criteria.CriteriaColumns
 import com.pianonurmi.etrm.product.api.criteria.CriteriaRef
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.CriteriaSubject
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.domain.CriteriaBinder
+import com.pianonurmi.etrm.product.domain.CriteriaCatalogueBuilder
 import com.pianonurmi.etrm.product.domain.CriteriaCodec
 import com.pianonurmi.etrm.product.domain.CriteriaDescriber
 import com.pianonurmi.etrm.product.domain.CriteriaEvaluator
@@ -57,6 +59,8 @@ class CriteriaServiceImpl(
     override fun specificity(criterion: Criterion): BigDecimal = specificity.score(criterion)
 
     override fun describe(criterion: Criterion): String = CriteriaDescriber.describe(criterion)
+
+    override fun catalogue(): CriteriaCatalogue = CriteriaCatalogueBuilder.catalogue
 
     @Transactional
     override fun store(criterion: Criterion, createdBy: String?): CriteriaRef {

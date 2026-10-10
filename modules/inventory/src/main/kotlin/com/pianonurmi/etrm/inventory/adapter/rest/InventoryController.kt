@@ -84,7 +84,7 @@ class InventoryController(
     @ResponseStatus(HttpStatus.CREATED)
     fun receive(
         @Valid @RequestBody body: ReceiveLots,
-    ): LotView = lotCommand.receive(body)
+    ): LotView = lotCommand.requireLotOperator(body.holderEntityId).let { lotCommand.receive(body) }
 
     @PostMapping("/lots/search")
     fun search(
@@ -101,37 +101,43 @@ class InventoryController(
     fun split(
         @PathVariable id: UUID,
         @RequestBody body: QuantityRequest,
-    ): SplitResult = lotCommand.split(id, body.quantity)
+    ): SplitResult = operate(id) { lotCommand.split(id, body.quantity) }
 
     @PostMapping("/lots/{id}/reserve")
     fun reserve(
         @PathVariable id: UUID,
         @RequestBody body: ReservationRequest,
-    ): LotView = lotCommand.reserve(id, body.quantity, body.reservationRef)
+    ): LotView = operate(id) { lotCommand.reserve(id, body.quantity, body.reservationRef) }
 
     @PostMapping("/lots/{id}/release")
     fun release(
         @PathVariable id: UUID,
         @RequestBody body: ReservationRequest,
-    ): LotView = lotCommand.release(id, body.reservationRef)
+    ): LotView = operate(id) { lotCommand.release(id, body.reservationRef) }
 
     @PostMapping("/lots/{id}/cancel")
     fun cancel(
         @PathVariable id: UUID,
         @RequestBody body: LotCancelRequest,
-    ): LotView = lotCommand.cancel(id, body.quantity, body.details)
+    ): LotView = operate(id) { lotCommand.cancel(id, body.quantity, body.details) }
 
     @PostMapping("/lots/{id}/withdraw")
     fun withdraw(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
-    ): LotView = lotCommand.withdraw(id, body.reason)
+    ): LotView = operate(id) { lotCommand.withdraw(id, body.reason) }
 
     @PostMapping("/lots/{id}/correct")
     fun correct(
         @PathVariable id: UUID,
         @RequestBody body: LotCorrection,
-    ): LotView = lotCommand.correct(id, body)
+    ): LotView = operate(id) { lotCommand.correct(id, body) }
+
+    /** Manual lot operations need back office or registry operator rights on the holder (module flows do not). */
+    private fun <T> operate(lotId: UUID, operation: () -> T): T {
+        lotCommand.requireLotOperator(lotQuery.requireVisibleLot(lotId).holderEntityId)
+        return operation()
+    }
 
     @PostMapping("/jobs/expire")
     fun expire(

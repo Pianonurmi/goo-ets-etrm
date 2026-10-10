@@ -16,7 +16,8 @@ generated client needs a document that is stable and precise. Before this change
   (`OpenApiConfiguration`). Handler names are unique within a controller.
 - **Required properties** (`KotlinRequiredProperties`):
   - a constructor property that is neither nullable nor defaulted is `required`;
-  - so is a non-null computed property;
+  - a computed property (serialised, never read) is `readOnly` and stays optional, so request bodies need not carry
+    it;
   - nullability travels as `type: [x, "null"]`.
 - **Polymorphic types** (`PolymorphicSchemas`): every `@JsonTypeInfo`/`@JsonSubTypes` root (`Criterion`,
   `VintageRule`, `AllocationConstraint`) becomes a `oneOf` with a discriminator mapping. Each subtype carries a

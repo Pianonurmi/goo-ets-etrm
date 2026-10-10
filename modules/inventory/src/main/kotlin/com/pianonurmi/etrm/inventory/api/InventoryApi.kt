@@ -66,6 +66,12 @@ data class LotCorrection(
 interface LotCommand {
     fun receive(command: ReceiveLots): LotView
 
+    /**
+     * Refuses a manual lot operation (REST) unless the current user is back office or registry operator with access to
+     * [holderEntityId]. Module flows (allocation, registry, break resolution) call the commands directly.
+     */
+    fun requireLotOperator(holderEntityId: UUID)
+
     /** Carves [quantity] certificates off the head of the lot into a new lot; the parent becomes SPLIT. */
     fun split(lotId: UUID, quantity: Long): SplitResult
 
