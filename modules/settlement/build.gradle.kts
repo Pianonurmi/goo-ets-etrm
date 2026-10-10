@@ -12,5 +12,6 @@ dependencies {
     implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(project(":modules:marketdata"))
     testImplementation(project(":modules:taxonomy"))
 }

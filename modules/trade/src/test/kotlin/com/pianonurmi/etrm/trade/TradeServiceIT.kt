@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.trade
 
+import com.pianonurmi.etrm.marketdata.api.FxRateView
+import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
@@ -57,6 +59,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldStartWith
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -72,6 +76,7 @@ class TradeServiceIT {
     private val publisher = ApplicationEventPublisher { published += it }
     private var currentUser = "trader1"
     private var override: Actor? = null
+    private lateinit var tradeService: (BigDecimal, FxRates) -> TradeService
     private val actor = ActorProvider { override ?: Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE), allEntities = true) }
 
     private lateinit var trades: TradeService
@@ -98,7 +103,10 @@ class TradeServiceIT {
         val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
         ProductBucketSeeder(buckets, buckets).seed()
         val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
-        trades = TradeService(JooqTradeRepository(dsl), referenceData, criteria, buckets, catalogue, actor, publisher, Clock.systemUTC(), BigDecimal.ZERO)
+        tradeService = { threshold, fx ->
+            TradeService(JooqTradeRepository(dsl), referenceData, criteria, buckets, catalogue, actor, publisher, Clock.systemUTC(), threshold, fx, "EUR")
+        }
+        trades = tradeService(BigDecimal.ZERO, mockk<FxRates>(relaxed = true))
 
         entityA = referenceData.createLegalEntity(CreateLegalEntity("ENTITY-A", "Entity A Oy", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
         entityB = referenceData.createLegalEntity(CreateLegalEntity("ENTITY-B", "Entity B AB", "SE", validFrom = LocalDate.of(2026, 1, 1))).id
@@ -275,6 +283,28 @@ class TradeServiceIT {
             it.status shouldBe TradeStatus.CONFIRMED
             it.confirmationRef shouldBe "CONF-2B"
         }
+    }
+
+    @Test
+    fun `the approval threshold applies to the notional converted at the trade date's rate`() {
+        val fx = mockk<FxRates> {
+            every {
+                rate(LocalDate.of(2026, 3, 2), "SEK", "EUR")
+            } returns FxRateView(LocalDate.of(2026, 3, 2), "SEK", "EUR", BigDecimal("0.09"), "SEK/EUR", LocalDate.of(2026, 3, 2))
+            every { rate(any(), "USD", "EUR") } returns null
+        }
+        val thresholded = tradeService(BigDecimal(100_000), fx)
+
+        fun sale(quantity: Long, price: String, currency: String) = gooSale(quantity).let { c ->
+            c.copy(legs = c.legs.map { it.copy(price = BigDecimal(price), priceCurrency = currency) })
+        }
+        currentUser = "trader1"
+        // 50 000 MWh at SEK 20 = SEK 1 000 000 = EUR 90 000: below the threshold.
+        thresholded.capture(sale(50_000, "20", "SEK")).status shouldBe TradeStatus.APPROVED
+        // SEK 1 500 000 = EUR 135 000: four eyes.
+        thresholded.capture(sale(50_000, "30", "SEK")).status shouldBe TradeStatus.PENDING_APPROVAL
+        // A currency without a rate cannot be shown to be below the threshold.
+        thresholded.capture(sale(10, "1", "USD")).status shouldBe TradeStatus.PENDING_APPROVAL
     }
 
     @Test

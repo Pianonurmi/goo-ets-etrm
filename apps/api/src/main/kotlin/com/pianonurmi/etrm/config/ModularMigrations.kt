@@ -62,6 +62,7 @@ data class MigrationProperties(
             "referencedata",
             "taxonomy",
             "product",
+            "marketdata",
             "trade",
             "inventory",
             "allocation",

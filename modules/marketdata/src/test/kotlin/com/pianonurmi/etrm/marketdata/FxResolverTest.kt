@@ -1,7 +1,7 @@
-package com.pianonurmi.etrm.ledger
+package com.pianonurmi.etrm.marketdata
 
-import com.pianonurmi.etrm.ledger.domain.DatedRate
-import com.pianonurmi.etrm.ledger.domain.FxResolver
+import com.pianonurmi.etrm.marketdata.domain.DatedRate
+import com.pianonurmi.etrm.marketdata.domain.FxResolver
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal

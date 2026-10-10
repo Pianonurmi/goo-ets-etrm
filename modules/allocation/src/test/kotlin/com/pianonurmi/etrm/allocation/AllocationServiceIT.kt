@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.ReceiveLots
 import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
 import com.pianonurmi.etrm.inventory.application.LotService
+import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -63,6 +64,7 @@ import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -98,6 +100,7 @@ class AllocationServiceIT {
     }
 
     @BeforeAll
+    @Suppress("LongMethod") // wires the module graph by hand
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "product", "inventory", "trade", "registry", "allocation")
         val dsl = TestDatabase.dsl
@@ -124,7 +127,20 @@ class AllocationServiceIT {
             allowanceHoldings,
             allowanceHoldings,
         )
-        val trades = TradeService(JooqTradeRepository(dsl), referenceData, criteria, buckets, catalogue, actor, bus, clock, BigDecimal.ZERO)
+        val trades =
+            TradeService(
+                JooqTradeRepository(dsl),
+                referenceData,
+                criteria,
+                buckets,
+                catalogue,
+                actor,
+                bus,
+                clock,
+                BigDecimal.ZERO,
+                mockk<FxRates>(relaxed = true),
+                "EUR",
+            )
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, referenceData, bus)
         allocation = AllocationService(

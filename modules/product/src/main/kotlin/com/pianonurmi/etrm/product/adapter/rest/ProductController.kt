@@ -1,7 +1,11 @@
 package com.pianonurmi.etrm.product.adapter.rest
 
 import com.pianonurmi.etrm.product.api.AllowanceProductView
+import com.pianonurmi.etrm.product.api.CreateFuturesContract
 import com.pianonurmi.etrm.product.api.CreateProductBucket
+import com.pianonurmi.etrm.product.api.FuturesContractCommand
+import com.pianonurmi.etrm.product.api.FuturesContractQuery
+import com.pianonurmi.etrm.product.api.FuturesContractView
 import com.pianonurmi.etrm.product.api.ProductBucketCommand
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductBucketView
@@ -31,6 +35,8 @@ class ProductController(
     private val bucketCommand: ProductBucketCommand,
     private val catalogue: ProductCatalogueQuery,
     private val criteria: CriteriaService,
+    private val futures: FuturesContractQuery,
+    private val futuresCommand: FuturesContractCommand,
 ) {
     @GetMapping("/buckets")
     fun buckets(
@@ -58,6 +64,23 @@ class ProductController(
     fun allowances(
         @RequestParam(defaultValue = "true") activeOnly: Boolean,
     ): List<AllowanceProductView> = catalogue.allowanceProducts(activeOnly)
+
+    @GetMapping("/futures-contracts")
+    fun futuresContracts(
+        @RequestParam(required = false) allowanceProductCode: String?,
+        @RequestParam(defaultValue = "true") activeOnly: Boolean,
+    ): List<FuturesContractView> = futures.futuresContracts(allowanceProductCode, activeOnly)
+
+    @PostMapping("/futures-contracts")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createFuturesContract(
+        @RequestBody body: CreateFuturesContract,
+    ): FuturesContractView = futuresCommand.create(body)
+
+    @PostMapping("/futures-contracts/{code}/deactivate")
+    fun deactivateFuturesContract(
+        @PathVariable code: String,
+    ): FuturesContractView = futuresCommand.deactivate(code)
 
     /** Validates a criterion, returning its canonical JSON, description and specificity. */
     @PostMapping("/criteria/validate")

@@ -15,6 +15,7 @@ import org.springframework.modulith.PackageInfo
         "registry :: api",
         "allocation :: api",
         "settlement :: api",
+        "marketdata :: api",
     ],
 )
 class LedgerModule

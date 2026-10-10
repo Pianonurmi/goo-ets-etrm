@@ -5,8 +5,8 @@
 | `architecture-plan.md` | Approved architecture and delivery plan: target architecture, domain model, non-functional targets, increments 1–5, open questions, and how increment 1 deviates |
 | `arc42/` | Architecture documentation following the arc42 template (sections 1–8, increments 1 and 2) |
 | `adr/` | Architecture decision records (MADR format) |
-| `domain/` | Domain model notes: GoO attribute schema, criteria language, allocation engine, posting rules, EU ETS, trade confirmations, settlement, VAT |
-| `integration/` | Registry integration (outbox, statement formats, Union Registry, breaks, API adapters), the generic registry REST contract, GL export, security |
+| `domain/` | Domain model notes: GoO attribute schema, criteria language, allocation engine, posting rules, EU ETS, trade confirmations, settlement, VAT, market data |
+| `integration/` | Registry integration (outbox, statement formats, Union Registry, breaks, API adapters), the generic registry REST contract, ECB reference rates, GL export, security |
 | `roadmap.md` | Increment plan |
 | `glossary.md` | Terms used across code and documents |
 

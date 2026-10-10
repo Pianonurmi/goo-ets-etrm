@@ -3,14 +3,18 @@ package com.pianonurmi.etrm.product.adapter.jooq
 import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.product.adapter.jooq.generated.tables.AllowanceProduct.ALLOWANCE_PRODUCT
 import com.pianonurmi.etrm.product.adapter.jooq.generated.tables.Criteria.CRITERIA
+import com.pianonurmi.etrm.product.adapter.jooq.generated.tables.FuturesContract.FUTURES_CONTRACT
 import com.pianonurmi.etrm.product.adapter.jooq.generated.tables.ProductBucket.PRODUCT_BUCKET
 import com.pianonurmi.etrm.product.adapter.jooq.generated.tables.SpecificityWeight.SPECIFICITY_WEIGHT
 import com.pianonurmi.etrm.product.adapter.jooq.generated.tables.records.CriteriaRecord
+import com.pianonurmi.etrm.product.adapter.jooq.generated.tables.records.FuturesContractRecord
 import com.pianonurmi.etrm.product.api.AllowanceProductView
 import com.pianonurmi.etrm.product.api.EnergyCarrier
+import com.pianonurmi.etrm.product.api.FuturesContractView
 import com.pianonurmi.etrm.product.domain.AllowanceProductRepository
 import com.pianonurmi.etrm.product.domain.CriteriaCodec
 import com.pianonurmi.etrm.product.domain.CriteriaRepository
+import com.pianonurmi.etrm.product.domain.FuturesContractRepository
 import com.pianonurmi.etrm.product.domain.ProductBucket
 import com.pianonurmi.etrm.product.domain.ProductBucketRepository
 import com.pianonurmi.etrm.product.domain.SpecificityWeights
@@ -21,6 +25,7 @@ import org.jooq.Record
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.Instant
+import java.time.YearMonth
 import java.util.UUID
 
 @Repository
@@ -114,4 +119,45 @@ class JooqAllowanceProductRepository(private val dsl: DSLContext) : AllowancePro
 
     override fun byCode(code: String): AllowanceProductView? = dsl.selectFrom(ALLOWANCE_PRODUCT).where(ALLOWANCE_PRODUCT.CODE.eq(code)).fetchOne()
         ?.let { AllowanceProductView(it.code, it.name, it.jurisdiction, it.phase, QuantityUnit.valueOf(it.unit), it.registryCode, it.active) }
+}
+
+@Repository
+class JooqFuturesContractRepository(private val dsl: DSLContext) : FuturesContractRepository {
+    override fun all(allowanceProductCode: String?, activeOnly: Boolean): List<FuturesContractView> = dsl.selectFrom(FUTURES_CONTRACT)
+        .where(allowanceProductCode?.let { FUTURES_CONTRACT.ALLOWANCE_PRODUCT_CODE.eq(it) } ?: DSL.noCondition())
+        .and(if (activeOnly) FUTURES_CONTRACT.ACTIVE.isTrue else DSL.noCondition())
+        .orderBy(FUTURES_CONTRACT.DELIVERY_DATE, FUTURES_CONTRACT.CODE)
+        .fetch(::toView)
+
+    override fun byCode(code: String): FuturesContractView? = dsl.selectFrom(FUTURES_CONTRACT).where(FUTURES_CONTRACT.CODE.eq(code)).fetchOne()?.let(::toView)
+
+    override fun insert(contract: FuturesContractView) {
+        dsl.insertInto(FUTURES_CONTRACT)
+            .set(FUTURES_CONTRACT.CODE, contract.code)
+            .set(FUTURES_CONTRACT.ALLOWANCE_PRODUCT_CODE, contract.allowanceProductCode)
+            .set(FUTURES_CONTRACT.VENUE_MIC, contract.venueMic)
+            .set(FUTURES_CONTRACT.DELIVERY_MONTH, contract.deliveryMonth.toString())
+            .set(FUTURES_CONTRACT.DELIVERY_DATE, contract.deliveryDate)
+            .set(FUTURES_CONTRACT.LAST_TRADING_DAY, contract.lastTradingDay)
+            .set(FUTURES_CONTRACT.CONTRACT_SIZE, contract.contractSize)
+            .set(FUTURES_CONTRACT.CURRENCY, contract.currency)
+            .set(FUTURES_CONTRACT.ACTIVE, contract.active)
+            .execute()
+    }
+
+    override fun setActive(code: String, active: Boolean) {
+        dsl.update(FUTURES_CONTRACT).set(FUTURES_CONTRACT.ACTIVE, active).where(FUTURES_CONTRACT.CODE.eq(code)).execute()
+    }
+
+    private fun toView(r: FuturesContractRecord) = FuturesContractView(
+        r.code,
+        r.allowanceProductCode,
+        r.venueMic,
+        YearMonth.parse(r.deliveryMonth),
+        r.deliveryDate,
+        r.lastTradingDay,
+        r.contractSize,
+        r.currency,
+        r.active,
+    )
 }

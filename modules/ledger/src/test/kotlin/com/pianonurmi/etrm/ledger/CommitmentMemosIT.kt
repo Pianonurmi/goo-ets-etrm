@@ -1,7 +1,6 @@
 package com.pianonurmi.etrm.ledger
 
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqCommitmentMemoRepository
-import com.pianonurmi.etrm.ledger.adapter.jooq.JooqFxRateRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
@@ -53,6 +52,7 @@ import java.util.UUID
 class CommitmentMemosIT {
     private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-10-15T10:00:00Z"), ZoneOffset.UTC)
+    private val fx = MapFxRates()
     private lateinit var ledger: LedgerService
     private lateinit var memos: CommitmentMemos
     private lateinit var referenceData: ReferenceDataService
@@ -68,7 +68,7 @@ class CommitmentMemosIT {
             JooqPostingRuleRepository(dsl),
             JooqJournalRepository(dsl),
             JooqPeriodRepository(dsl),
-            JooqFxRateRepository(dsl),
+            fx,
             JooqGlExportRepository(dsl),
             referenceData,
             actor,

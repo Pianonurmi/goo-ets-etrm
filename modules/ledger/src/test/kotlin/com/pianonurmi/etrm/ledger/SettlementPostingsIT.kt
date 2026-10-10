@@ -1,6 +1,5 @@
 package com.pianonurmi.etrm.ledger
 
-import com.pianonurmi.etrm.ledger.adapter.jooq.JooqFxRateRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
@@ -54,6 +53,7 @@ import java.util.UUID
 class SettlementPostingsIT {
     private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-10-15T10:00:00Z"), ZoneOffset.UTC)
+    private val fx = MapFxRates()
     private lateinit var ledger: LedgerService
     private lateinit var postings: SettlementPostings
     private lateinit var referenceData: ReferenceDataService
@@ -70,7 +70,7 @@ class SettlementPostingsIT {
             JooqPostingRuleRepository(dsl),
             JooqJournalRepository(dsl),
             JooqPeriodRepository(dsl),
-            JooqFxRateRepository(dsl),
+            fx,
             JooqGlExportRepository(dsl),
             referenceData,
             actor,
@@ -260,8 +260,8 @@ class SettlementPostingsIT {
     @Test
     fun `a receipt at a stronger rate than the invoice realises an FX gain`() {
         val e = entity("SP-FX")
-        ledger.upsertFxRate(LocalDate.of(2026, 10, 1), "SEK", "EUR", BigDecimal("0.0880"))
-        ledger.upsertFxRate(LocalDate.of(2026, 10, 19), "SEK", "EUR", BigDecimal("0.0900"))
+        fx.put(LocalDate.of(2026, 10, 1), "SEK", "EUR", BigDecimal("0.0880"))
+        fx.put(LocalDate.of(2026, 10, 19), "SEK", "EUR", BigDecimal("0.0900"))
         val inv = invoice(e, InvoiceKind.SALES, "10000.00", "0", currency = "SEK")
         postings.on(InvoiceIssued(inv))
         val pay = payment(e, PaymentDirection.INCOMING, "10000.00", currency = "SEK")

@@ -31,7 +31,7 @@ GL interface format, market data vendor for bucket marks.
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | Fixes: final hard close, commitment memos per schedule (released and reversed), FX inverse and cross rates, bucket mapping by criteria implication, compliance ladder netting, role and entity checks, GL export correctness, versioned default rules | done |
-| M1 | `marketdata` module: instruments, quotes, FX, import formats as data, ECB reference rate adapter (disabled by default) | planned |
+| M1 | `marketdata` module: instruments, quotes, FX, import formats as data, ECB reference rate adapter (disabled by default), futures contract catalogue | done |
 | M2 | Curves with official snapshots and sign-off; marks and index fixings from curves | planned |
 | M3 | Regulatory trade data (UTI, UPI/ISIN, venue, execution time, clearing) and futures contracts | planned |
 | M4 | `valuation` module: MtM, end-of-day runs with sign-off, P&L explain | planned |

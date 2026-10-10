@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.trade.application
 
+import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.StaleVersionException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -64,8 +65,10 @@ class TradeService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
-    /** Trades with notional at or above this EUR amount need four-eyes approval; 0 means every trade. */
+    /** Trades with notional at or above this amount (in [thresholdCurrency]) need four-eyes approval; 0 means every trade. */
     @Value("\${etrm.trade.approval-threshold:0}") private val approvalThreshold: BigDecimal,
+    private val fxRates: FxRates,
+    @Value("\${etrm.trade.approval-threshold-currency:EUR}") private val thresholdCurrency: String,
 ) : TradeCommand, TradeQuery {
     // ----------------------------------------------------------------------------------------------------------
     // Capture and amendment
@@ -383,7 +386,17 @@ class TradeService(
 
     // ----------------------------------------------------------------------------------------------------------
 
-    private fun requiresApproval(trade: TradeView): Boolean = approvalThreshold.signum() == 0 || trade.notional >= approvalThreshold
+    /**
+     * Whether a trade needs a second person's approval: its notional, converted at the trade date's rate, against the
+     * threshold. A trade whose currency cannot be converted is treated as above it.
+     */
+    private fun requiresApproval(trade: TradeView): Boolean {
+        if (approvalThreshold.signum() == 0) return true
+        val converted = trade.legs.map { leg ->
+            fxRates.rate(trade.tradeDate, leg.priceCurrency.currencyCode, thresholdCurrency)?.let { leg.notional * it.rate } ?: return true
+        }
+        return converted.fold(BigDecimal.ZERO, BigDecimal::add) >= approvalThreshold
+    }
 
     private fun locked(id: UUID): TradeView = repository.lock(id) ?: throw NotFoundException("Trade", id)
 

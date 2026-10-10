@@ -7,6 +7,6 @@ import org.springframework.modulith.PackageInfo
 @PackageInfo
 @ApplicationModule(
     displayName = "Trade",
-    allowedDependencies = ["referencedata :: api", "product :: api", "product :: criteria", "workflow :: api", "document :: api"],
+    allowedDependencies = ["referencedata :: api", "product :: api", "product :: criteria", "workflow :: api", "document :: api", "marketdata :: api"],
 )
 class TradeModule

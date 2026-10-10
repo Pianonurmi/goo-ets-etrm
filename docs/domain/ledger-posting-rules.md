@@ -47,8 +47,8 @@ Periods move `OPEN` → `SOFT_CLOSED` → `CLOSED`; a soft close can be reopened
 trigger refuses any change to a closed period). `OPEN` accepts all postings, `SOFT_CLOSED` accepts manual adjustments
 and reversals, `CLOSED` accepts nothing. Reversals of entries in closed periods post on the current date.
 
-FX: a rate is the direct quote, else the inverse of the opposite quote, else a cross through EUR, each the latest
-on or before the date and at most `etrm.fx.max-staleness-days` (default 10) old.
+FX: postings convert to the entity's base currency with market data's `FxRates` (direct, inverse, or crossed through
+EUR; see [market data](market-data.md#fx)). Rates are maintained in market data, no longer in the ledger.
 
 Settlement (ADR 0014) books no revenue: invoices move accrued receivables and payables (from deliveries and receipts)
 to invoiced ones and add VAT; a lot's cost basis that differs from the supplier's invoice leaves a variance in 2200.

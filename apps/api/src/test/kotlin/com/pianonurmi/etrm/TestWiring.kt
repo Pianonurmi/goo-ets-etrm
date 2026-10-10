@@ -11,6 +11,7 @@ object TestWiring {
         "referencedata",
         "taxonomy",
         "product",
+        "marketdata",
         "trade",
         "inventory",
         "allocation",

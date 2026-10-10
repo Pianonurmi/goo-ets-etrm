@@ -176,8 +176,6 @@ interface LedgerCommand {
 
     fun exportGl(legalEntityId: UUID, period: YearMonth): GlExportView
 
-    fun upsertFxRate(date: LocalDate, from: String, to: String, rate: BigDecimal, source: String = "MANUAL")
-
     fun ensureChartOfAccounts(legalEntityId: UUID): List<GlAccountView>
 
     fun upsertRule(command: UpsertPostingRule): PostingRuleView
@@ -196,6 +194,7 @@ interface LedgerQuery {
 
     fun periods(legalEntityId: UUID): List<AccountingPeriodView>
 
+    /** The rate used for postings (from market data). */
     fun fxRate(date: LocalDate, from: String, to: String): BigDecimal?
 
     /** Ids of entries whose hash chain is broken, per entity. */

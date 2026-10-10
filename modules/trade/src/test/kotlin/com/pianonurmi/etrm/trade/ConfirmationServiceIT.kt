@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.trade
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
+import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.security.Actor
@@ -57,6 +58,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -107,6 +109,8 @@ class ConfirmationServiceIT {
             bus,
             clock,
             BigDecimal.ZERO,
+            mockk<FxRates>(relaxed = true),
+            "EUR",
         )
         documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
         confirmations = ConfirmationService(JooqConfirmationRepository(dsl), trades, referenceData, documents, actor, bus, clock)

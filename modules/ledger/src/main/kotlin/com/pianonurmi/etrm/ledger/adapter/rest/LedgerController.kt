@@ -110,14 +110,6 @@ class LedgerController(private val command: LedgerCommand, private val query: Le
         @PathVariable period: YearMonth,
     ): String = command.exportGl(legalEntityId, period).content
 
-    @PutMapping("/fx-rates")
-    fun upsertFxRate(
-        @RequestBody body: FxRateRequest,
-    ): FxRateRequest {
-        command.upsertFxRate(body.date, body.from, body.to, body.rate, body.source)
-        return body
-    }
-
     @GetMapping("/journal/verify")
     fun verify(
         @RequestParam legalEntityId: UUID,
@@ -125,5 +117,3 @@ class LedgerController(private val command: LedgerCommand, private val query: Le
 }
 
 data class ReasonRequest(val reason: String)
-
-data class FxRateRequest(val date: LocalDate, val from: String, val to: String, val rate: BigDecimal, val source: String = "MANUAL")

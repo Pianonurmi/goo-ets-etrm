@@ -5,7 +5,6 @@ import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.AccountingPeriod
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.CommitmentMemo.COMMITMENT_MEMO
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.CommitmentMemoMovement.COMMITMENT_MEMO_MOVEMENT
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.CostLayer.COST_LAYER
-import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.FxRate.FX_RATE
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.GlAccount.GL_ACCOUNT
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.GlExport.GL_EXPORT
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.JournalEntry.JOURNAL_ENTRY
@@ -27,8 +26,6 @@ import com.pianonurmi.etrm.ledger.domain.CommitmentMemo
 import com.pianonurmi.etrm.ledger.domain.CommitmentMemoRepository
 import com.pianonurmi.etrm.ledger.domain.CostLayer
 import com.pianonurmi.etrm.ledger.domain.CostLayerRepository
-import com.pianonurmi.etrm.ledger.domain.DatedRate
-import com.pianonurmi.etrm.ledger.domain.FxRateRepository
 import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
 import com.pianonurmi.etrm.ledger.domain.JournalRepository
@@ -278,37 +275,6 @@ class JooqPeriodRepository(private val dsl: DSLContext) : PeriodRepository {
         .where(ACCOUNTING_PERIOD.LEGAL_ENTITY_ID.eq(legalEntityId))
         .orderBy(ACCOUNTING_PERIOD.PERIOD)
         .fetch { AccountingPeriodView(it.legalEntityId, it.period, PeriodStatus.valueOf(it.status), it.closedBy, it.closedAt) }
-}
-
-@Repository
-class JooqFxRateRepository(private val dsl: DSLContext) : FxRateRepository {
-    override fun rateOn(date: LocalDate, from: String, to: String): BigDecimal? = dsl.select(FX_RATE.RATE)
-        .from(FX_RATE)
-        .where(FX_RATE.FROM_CURRENCY.eq(from), FX_RATE.TO_CURRENCY.eq(to), FX_RATE.RATE_DATE.le(date))
-        .orderBy(FX_RATE.RATE_DATE.desc())
-        .limit(1)
-        .fetchOne(FX_RATE.RATE)
-
-    override fun latest(date: LocalDate, from: String, to: String): DatedRate? = dsl.select(FX_RATE.RATE_DATE, FX_RATE.RATE)
-        .from(FX_RATE)
-        .where(FX_RATE.FROM_CURRENCY.eq(from), FX_RATE.TO_CURRENCY.eq(to), FX_RATE.RATE_DATE.le(date))
-        .orderBy(FX_RATE.RATE_DATE.desc())
-        .limit(1)
-        .fetchOne { DatedRate(it.value1(), it.value2()) }
-
-    override fun upsert(date: LocalDate, from: String, to: String, rate: BigDecimal, source: String) {
-        dsl.insertInto(FX_RATE)
-            .set(FX_RATE.RATE_DATE, date)
-            .set(FX_RATE.FROM_CURRENCY, from)
-            .set(FX_RATE.TO_CURRENCY, to)
-            .set(FX_RATE.RATE, rate)
-            .set(FX_RATE.SOURCE, source)
-            .onConflict(FX_RATE.RATE_DATE, FX_RATE.FROM_CURRENCY, FX_RATE.TO_CURRENCY)
-            .doUpdate()
-            .set(FX_RATE.RATE, rate)
-            .set(FX_RATE.SOURCE, source)
-            .execute()
-    }
 }
 
 @Repository

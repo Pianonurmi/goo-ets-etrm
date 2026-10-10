@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":modules:workflow"))
     implementation(project(":modules:referencedata"))
     implementation(project(":modules:product"))
+    implementation(project(":modules:marketdata"))
     implementation(project(":modules:document"))
     implementation(libs.springdoc.openapi)
 

@@ -14,7 +14,6 @@ import com.pianonurmi.etrm.inventory.api.LotReceived
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqCostLayerRepository
-import com.pianonurmi.etrm.ledger.adapter.jooq.JooqFxRateRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
@@ -72,6 +71,7 @@ import java.util.UUID
 class LedgerServiceIT {
     private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-09-15T10:00:00Z"), ZoneOffset.UTC)
+    private val fx = MapFxRates()
     private lateinit var ledger: LedgerService
     private lateinit var listeners: LedgerEventListeners
     private lateinit var entityId: UUID
@@ -92,7 +92,7 @@ class LedgerServiceIT {
             JooqPostingRuleRepository(dsl),
             JooqJournalRepository(dsl),
             JooqPeriodRepository(dsl),
-            JooqFxRateRepository(dsl),
+            fx,
             JooqGlExportRepository(dsl),
             referenceData,
             actor,
@@ -260,7 +260,7 @@ class LedgerServiceIT {
                 ),
             )
         }
-        ledger.upsertFxRate(LocalDate.of(2026, 8, 31), "EUR", "SEK", BigDecimal("11.20"))
+        fx.put(LocalDate.of(2026, 8, 31), "EUR", "SEK", BigDecimal("11.20"))
         val entry = ledger.postManual(
             ManualJournal(
                 wacEntityId,

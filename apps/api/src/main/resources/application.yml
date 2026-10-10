@@ -37,6 +37,12 @@ etrm:
   security:
     roles-claim: roles
     legal-entities-claim: legal_entities
+  marketdata:
+    max-move-pct: 25
+    fx-max-staleness-days: 10
+    ecb:
+      # Pulls the ECB euro reference rates on working days; needs outbound access to www.ecb.europa.eu.
+      enabled: ${ETRM_ECB_ENABLED:false}
 
 server:
   port: 8080

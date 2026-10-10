@@ -19,8 +19,6 @@ import com.pianonurmi.etrm.ledger.api.PostingSide
 import com.pianonurmi.etrm.ledger.api.TrialBalanceRow
 import com.pianonurmi.etrm.ledger.api.UpsertPostingRule
 import com.pianonurmi.etrm.ledger.domain.EntryBuilder
-import com.pianonurmi.etrm.ledger.domain.FxRateRepository
-import com.pianonurmi.etrm.ledger.domain.FxResolver
 import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
 import com.pianonurmi.etrm.ledger.domain.GlExportFormat
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
@@ -29,6 +27,7 @@ import com.pianonurmi.etrm.ledger.domain.PeriodRepository
 import com.pianonurmi.etrm.ledger.domain.PostingRuleRepository
 import com.pianonurmi.etrm.ledger.domain.RuleSelector
 import com.pianonurmi.etrm.ledger.domain.TrialBalance
+import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.crypto.HashChain
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -37,7 +36,6 @@ import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -56,16 +54,13 @@ class LedgerService(
     private val rules: PostingRuleRepository,
     private val journal: JournalRepository,
     private val periods: PeriodRepository,
-    private val fxRates: FxRateRepository,
+    private val fxRates: FxRates,
     private val exports: GlExportRepository,
     private val referenceData: ReferenceDataQuery,
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
-    @Value("\${etrm.fx.max-staleness-days:10}") maxFxStalenessDays: Long = 10,
 ) : LedgerCommand, LedgerQuery {
-    private val fxResolver = FxResolver({ date, from, to -> fxRates.latest(date, from, to) }, maxFxStalenessDays)
-
     // ----------------------------------------------------------------------------------------------------------
     // Posting
     // ----------------------------------------------------------------------------------------------------------
@@ -283,8 +278,7 @@ class LedgerService(
     /** The rate converting [from] into [to] on [date] (latest on or before). */
     fun rateOn(date: LocalDate, from: String, to: String): BigDecimal = fxRateFor(date, from, to)
 
-    private fun fxRateFor(date: LocalDate, from: String, to: String): BigDecimal =
-        fxResolver.resolve(date, from.uppercase(), to.uppercase())?.rate ?: throw ValidationException("No FX rate $from/$to on or before $date")
+    private fun fxRateFor(date: LocalDate, from: String, to: String): BigDecimal = fxRates.require(date, from, to).rate
 
     // ----------------------------------------------------------------------------------------------------------
     // Periods, export, master data
@@ -351,12 +345,6 @@ class LedgerService(
         exports.insert(export)
         events.publishEvent(GlExported(export.id, legalEntityId, export.exportSeq, export.period, export.entryCount, export.contentHash))
         return export
-    }
-
-    override fun upsertFxRate(date: LocalDate, from: String, to: String, rate: BigDecimal, source: String) {
-        actorProvider.current().requireRole(Role.ACCOUNTANT, Role.MIDDLE_OFFICE)
-        if (rate.signum() <= 0) throw ValidationException("FX rate must be positive")
-        fxRates.upsert(date, from.uppercase(), to.uppercase(), rate, source)
     }
 
     /** Creates the default chart for a new entity, and adds default accounts introduced later to existing charts. */
@@ -430,7 +418,7 @@ class LedgerService(
     }
 
     @Transactional(readOnly = true)
-    override fun fxRate(date: LocalDate, from: String, to: String): BigDecimal? = fxResolver.resolve(date, from.uppercase(), to.uppercase())?.rate
+    override fun fxRate(date: LocalDate, from: String, to: String): BigDecimal? = fxRates.rate(date, from, to)?.rate
 
     @Transactional(readOnly = true)
     override fun verifyJournal(legalEntityId: UUID): List<UUID> {

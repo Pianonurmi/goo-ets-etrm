@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.settlement
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
+import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -90,6 +91,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldStartWith
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -148,6 +150,8 @@ class SettlementIT {
             bus,
             clock,
             BigDecimal.ZERO,
+            mockk<FxRates>(relaxed = true),
+            "EUR",
         )
         vat = VatRuleService(JooqVatRuleRepository(dsl), actor, bus)
         items = SettlementItemService(JooqSettlementItemRepository(dsl), vat, referenceData, parties, actor, bus)
