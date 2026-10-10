@@ -1,0 +1,5 @@
+node_modules/
+build/
+src/shared/api/schema.d.ts
+playwright-report/
+test-results/

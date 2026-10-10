@@ -1,0 +1,62 @@
+# Web UI
+
+React and TypeScript single-page application in `apps/web`, served by the API jar from the same origin (ADR 0025).
+Sign-in uses OIDC with PKCE in production and dev personas in the `dev` and `test` profiles (ADR 0026). The API
+client is generated from the committed OpenAPI document (ADR 0027).
+
+## Run it
+
+```bash
+# Backend with dev personas (PostgreSQL as in the main README), then the Vite dev server with hot reload:
+SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun
+cd apps/web && npm ci && npm run gen:api && npm run dev     # http://localhost:5173, proxies /api to :8080
+
+# Or the bundled build: the jar serves the UI at http://localhost:8080/
+./gradlew :apps:api:bootJar && java -jar apps/api/build/libs/api.jar --spring.profiles.active=dev
+```
+
+`ETRM_API_URL` points the Vite proxy elsewhere. `./gradlew build -Petrm.skipWeb` builds the backend without the UI.
+
+## Checks
+
+| Command | What |
+|---|---|
+| `npm run gen:api` | TypeScript types from `apps/api/openapi/etrm-api.json` into `src/shared/api/schema.d.ts` (git-ignored) |
+| `npm run typecheck` | `tsc` in strict mode |
+| `npm run lint` / `npm run format:check` | ESLint (type-checked, React hooks, accessibility) and Prettier |
+| `npm test` | Vitest with Testing Library and msw (`npm run test:coverage` for coverage) |
+| `npm run e2e` | Playwright journeys against the jar (`../api/build/libs/api.jar`, dev profile, database `etrm_e2e`) |
+
+`./gradlew :apps:web:check` runs the first four. `./gradlew build` runs them and puts the bundle into the jar.
+
+For end-to-end tests:
+- `E2E_DB_URL`, `ETRM_DB_USER` and `ETRM_DB_PASSWORD` choose the database.
+- `E2E_BASE_URL` reuses a running server.
+- `PW_CHROMIUM_PATH` uses an installed Chromium instead of `npx playwright install chromium`.
+
+## Layout
+
+```
+src/app        entry, providers, router (lazy screens), shell layout, navigation, theme, i18n
+src/shared     api (client, problems, downloads, generated schema), auth (OIDC, personas, permissions),
+               context (legal entity), grid (AG Grid wrapper), format, forms, components
+src/features   one folder per area: pages, components, model (pure logic with unit tests)
+src/locales    translations (English)
+e2e/           Playwright specs
+```
+
+## Conventions
+
+- **API calls:** go through `$api` (TanStack Query) or `api` (openapi-fetch); paths and bodies are typed from the
+  document. A failed call throws `ProblemError` with the server's problem.
+  - Queries render their error with `QueryState`.
+  - Mutations notify, unless they set `meta: { notify: false }` and map violations onto form fields with
+    `applyProblemToForm`.
+- **Amounts:** the server computes every amount. The UI formats numbers (`shared/format`) and sends decimals back as
+  strings (`decimal()`), so nothing is rounded in the browser.
+- **Permissions:** actions are shown or hidden with `<Can op="trade_approve">` and `useCan()`, keyed by operation
+  id (`shared/auth/permissions.ts`). The API checks again.
+- **Legal entity:** the entity selected in the header (`useEntity()`) scopes the screens. Lists on the server are
+  limited to the user's entities.
+- **Text:** all visible text comes from `src/locales/en.json` through `useTranslation()`.
+- **Large tables:** use `DataGrid` (AG Grid Community with the application theme). Small ones use Mantine `Table`.

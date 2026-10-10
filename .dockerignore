@@ -1,0 +1,3 @@
+# The image only needs the assembled jar (ops/Dockerfile).
+**
+!apps/api/build/libs/api.jar

@@ -2,6 +2,15 @@ plugins {
     id("etrm.application-conventions")
 }
 
+/** `-Petrm.skipWeb` builds the backend without the web UI (faster local loops). */
+val skipWeb = providers.gradleProperty("etrm.skipWeb").isPresent
+
+/** The web UI bundle from :apps:web, served from `static/` (ADR 0025). */
+val web by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
 dependencies {
     implementation(project(":platform"))
     rootProject.subprojects
@@ -9,6 +18,13 @@ dependencies {
         .forEach { implementation(project(it.path)) }
 
     testImplementation(testFixtures(project(":platform")))
+    if (!skipWeb) web(project(path = ":apps:web", configuration = "webDist"))
+}
+
+tasks.named<ProcessResources>("processResources") {
+    if (!skipWeb) {
+        from(web) { into("static") }
+    }
 }
 
 // The committed OpenAPI document the web client is generated from (ADR 0027); OpenApiSnapshotIT checks it.

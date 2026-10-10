@@ -1,0 +1,50 @@
+{
+  "app": {
+    "title": "ETRM",
+    "subtitle": "GoO and EU ETS",
+    "loading": "Loading…",
+    "startFailed": "The application could not start",
+    "retry": "Retry"
+  },
+  "nav": {
+    "home": "Home",
+    "sectionTrading": "Trading",
+    "sectionOperations": "Operations",
+    "sectionFinance": "Finance and risk",
+    "sectionAdmin": "Administration"
+  },
+  "header": {
+    "entity": "Legal entity",
+    "noEntity": "No legal entity",
+    "actAs": "Act as",
+    "devBanner": "{{env}} environment: you act as a chosen persona; nothing here is authenticated.",
+    "signOut": "Sign out",
+    "toggleColorScheme": "Toggle colour scheme",
+    "toggleNavigation": "Toggle navigation",
+    "roles": "Roles"
+  },
+  "home": {
+    "welcome": "Welcome, {{name}}",
+    "intro": "Pick an area from the navigation. Actions you may not take are hidden or disabled; the server checks every action again.",
+    "yourRoles": "Your roles",
+    "yourEntities": "Legal entities",
+    "allEntities": "All legal entities",
+    "selectedEntity": "Working on"
+  },
+  "errors": {
+    "notFoundTitle": "Page not found",
+    "notFoundText": "There is no page at this address.",
+    "backHome": "Back to home",
+    "unexpectedTitle": "Something went wrong",
+    "requestFailed": "Request failed",
+    "forbidden": "You are not allowed to do this",
+    "conflict": "Someone changed this in the meantime",
+    "reload": "Reload",
+    "validation": "Please check the highlighted fields"
+  },
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "empty": "Nothing to show"
+  }
+}

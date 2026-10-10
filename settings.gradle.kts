@@ -20,6 +20,7 @@ plugins {
 
 include("platform")
 include("apps:api")
+include("apps:web")
 
 listOf(
     "referencedata",

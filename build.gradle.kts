@@ -8,5 +8,6 @@ allprojects {
 }
 
 dependencies {
-    subprojects.filter { it.path != ":apps" && it.path != ":modules" }.forEach { kover(it) }
+    // The web UI is TypeScript with its own coverage (Vitest); Kover covers the JVM projects.
+    subprojects.filter { it.path !in setOf(":apps", ":modules", ":apps:web") }.forEach { kover(it) }
 }

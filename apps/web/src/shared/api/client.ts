@@ -1,0 +1,50 @@
+import createFetchClient, { type Middleware } from 'openapi-fetch';
+import createQueryClient from 'openapi-react-query';
+import { problemFromResponse } from './problem';
+import type { paths } from './schema';
+
+/** Adds credentials to every request: a bearer token (OIDC) or the dev persona headers. */
+export type RequestAuthenticator = (request: Request) => Promise<void> | void;
+
+let authenticate: RequestAuthenticator = () => undefined;
+let onUnauthorized: () => void = () => undefined;
+
+export function configureApiAuth(authenticator: RequestAuthenticator, unauthorized: () => void): void {
+  authenticate = authenticator;
+  onUnauthorized = unauthorized;
+}
+
+const auth: Middleware = {
+  async onRequest({ request }) {
+    await authenticate(request);
+    return request;
+  },
+  async onResponse({ response }) {
+    if (response.ok) return response;
+    if (response.status === 401) onUnauthorized();
+    throw await problemFromResponse(response);
+  },
+};
+
+/** Typed fetch client for the API; failures throw `ProblemError`. */
+export const api = createFetchClient<paths>({
+  baseUrl: window.location.origin,
+  // Resolved per call, so test doubles installed later are picked up.
+  fetch: (request) => globalThis.fetch(request),
+});
+api.use(auth);
+
+/** TanStack Query bindings: `$api.useQuery('get', '/api/v1/me')`. */
+export const $api = createQueryClient(api);
+
+/** Plain fetch with the same credentials, for downloads and other non-JSON calls. */
+export async function authorisedFetch(input: string, init?: RequestInit): Promise<Response> {
+  const request = new Request(new URL(input, window.location.origin), init);
+  await authenticate(request);
+  const response = await fetch(request);
+  if (!response.ok) {
+    if (response.status === 401) onUnauthorized();
+    throw await problemFromResponse(response);
+  }
+  return response;
+}

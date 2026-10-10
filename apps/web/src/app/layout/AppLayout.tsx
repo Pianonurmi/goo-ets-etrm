@@ -1,0 +1,83 @@
+import { AppShell, Box, NavLink, ScrollArea, Text } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Outlet, NavLink as RouterLink, useLocation } from 'react-router';
+import { useSession } from '@/shared/auth/SessionContext';
+import { QueryState } from '@/shared/components/QueryState';
+import { visibleSections } from '../navigation';
+import { Header } from './Header';
+
+function DevBanner() {
+  const { t } = useTranslation();
+  const { config } = useSession();
+  if (config.authMode !== 'DEV_HEADERS') return null;
+  return (
+    <Box bg="orange.7" c="white" px="md" h={24} data-testid="dev-banner">
+      <Text size="xs" fw={500} lh="24px" truncate>
+        {t('header.devBanner', { env: config.environment || 'DEV' })}
+      </Text>
+    </Box>
+  );
+}
+
+export function AppLayout() {
+  const { t } = useTranslation();
+  const { me, config } = useSession();
+  const [opened, { toggle, close }] = useDisclosure();
+  const location = useLocation();
+  const sections = visibleSections(me.roles);
+  const banner = config.authMode === 'DEV_HEADERS' ? 24 : 0;
+  const isActive = (path: string) =>
+    path === '/' ? location.pathname === '/' : location.pathname === path || location.pathname.startsWith(path + '/');
+
+  return (
+    <AppShell
+      header={{ height: 56 + banner }}
+      navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      padding="md"
+    >
+      <AppShell.Header>
+        <DevBanner />
+        <Box h={56}>
+          <Header opened={opened} toggle={toggle} />
+        </Box>
+      </AppShell.Header>
+      <AppShell.Navbar p="xs" aria-label={t('nav.home')}>
+        <ScrollArea>
+          {sections.map((section, index) => (
+            <Box key={section.title ?? index} mb="sm">
+              {section.title && (
+                <Text size="xs" fw={700} c="dimmed" tt="uppercase" px="sm" pt="xs" pb={4}>
+                  {t(section.title)}
+                </Text>
+              )}
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.path}
+                  component={RouterLink}
+                  to={item.path}
+                  label={t(item.label)}
+                  leftSection={item.icon}
+                  active={isActive(item.path)}
+                  onClick={close}
+                />
+              ))}
+            </Box>
+          ))}
+        </ScrollArea>
+      </AppShell.Navbar>
+      <AppShell.Main>
+        <Suspense
+          fallback={
+            <QueryState isPending error={null}>
+              {null}
+            </QueryState>
+          }
+        >
+          <Outlet />
+        </Suspense>
+      </AppShell.Main>
+    </AppShell>
+  );
+}

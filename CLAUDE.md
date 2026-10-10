@@ -19,8 +19,14 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 ./gradlew :modules:allocation:test --tests '*AllocationEngineTest*'
 ./gradlew :apps:api:test --tests '*GoldenPathIT*' # end-to-end REST scenario
 ./gradlew :apps:api:test --tests '*MonthEndIT*'   # increment 3: market data to hard close
-SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagger-ui
+SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagger-ui, web UI at /
+./gradlew build -Petrm.skipWeb                    # backend only, without the web UI
+./gradlew :apps:web:check                         # web: lint, format, typecheck, Vitest
+cd apps/web && npm run dev                        # Vite on :5173, proxies /api to :8080
+cd apps/web && npm run e2e                        # Playwright against apps/api/build/libs/api.jar (database etrm_e2e)
 ```
+
+The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 
 - Without `ETRM_TEST_DB_URL`, integration tests start a Testcontainers PostgreSQL instead.
 - `TestDatabase.dsl` joins a Spring transaction when a test runs one (e.g. with `DataSourceTransactionManager`), and is autocommit otherwise.
@@ -59,6 +65,16 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 - The OpenAPI document is a contract (ADR 0027): after changing a controller or a view, run `./gradlew :apps:api:updateOpenApiSnapshot` and commit `apps/api/openapi/etrm-api.json`. Operation ids are `<controller>_<method>`, so keep handler names unique per controller and stable.
 - Read endpoints respect entity scope: unfiltered lists use `Actor.entityFilter` (see `TradeQuery.visibleTrades`, `LotQuery.visibleLots`), single records call `requireEntity`, and `EntityScopeInterceptor` refuses a `legalEntityId`/`holderEntityId` parameter outside the user's scope.
 - External layouts not checked against their specification are marked `verified = false`: EMIR field rules, the SAP GL layout, PFE add-ons and registry API mappings.
+
+## Web UI (`apps/web`, see `docs/ui/README.md`)
+
+- React, TypeScript (strict), Vite, Mantine, AG Grid Community, TanStack Query, React Router. The jar serves the bundle (ADR 0025).
+- API types are generated from `apps/api/openapi/etrm-api.json` (`npm run gen:api`); never hand-write request or response types. Update the snapshot first when the API changes.
+- Calls go through `$api` / `api` in `shared/api/client.ts`; failures are `ProblemError`. Map 422 violations onto forms with `applyProblemToForm`.
+- No money arithmetic in the browser: format with `shared/format`, send decimals back with `decimal()` (strings).
+- Offer actions through `<Can op=...>` / `useCan` keyed by operation id (`shared/auth/permissions.ts`); the API still checks.
+- All visible text goes through `src/locales/en.json`. Dev personas (`shared/auth/personas.ts`) have two users per approving role for four-eyes paths.
+- `npm run format` (Prettier) and `npm run lint` before committing web changes.
 
 ## Lint
 
