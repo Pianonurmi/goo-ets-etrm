@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.platform.json
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.SerializationFeature
+import tools.jackson.databind.cfg.EnumFeature
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.kotlinModule
 
@@ -16,6 +17,9 @@ object Json {
     fun configure(builder: JsonMapper.Builder): JsonMapper.Builder = builder
         .addModule(kotlinModule())
         .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+        // Enums travel by constant name, never by display string.
+        .disable(EnumFeature.WRITE_ENUMS_USING_TO_STRING)
+        .disable(EnumFeature.READ_ENUMS_USING_TO_STRING)
         .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
         .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
 

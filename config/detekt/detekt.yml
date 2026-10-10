@@ -56,3 +56,7 @@ exceptions:
 potential-bugs:
   UnsafeCallOnNullableType:
     active: false
+
+performance:
+  SpreadOperator:
+    active: false

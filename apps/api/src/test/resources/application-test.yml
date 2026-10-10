@@ -1,0 +1,14 @@
+spring:
+  task:
+    scheduling:
+      pool:
+        size: 1
+etrm:
+  trade:
+    approval-threshold: 0
+  registry:
+    outbox-dir: build/test-registry-outbox
+logging:
+  level:
+    com.pianonurmi.etrm: INFO
+    org.springframework.modulith: WARN

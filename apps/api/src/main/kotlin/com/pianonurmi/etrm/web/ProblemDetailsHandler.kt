@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -47,6 +48,14 @@ class ProblemDetailsHandler {
             "violations",
             ex.bindingResult.fieldErrors.map { mapOf("field" to it.field, "message" to (it.defaultMessage ?: "invalid")) },
         )
+        return problem
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun handleUnreadable(ex: HttpMessageNotReadableException): ProblemDetail {
+        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.mostSpecificCause.message ?: "Malformed request body")
+        problem.type = URI.create("urn:etrm:problem:bad-request")
+        problem.title = "bad-request"
         return problem
     }
 

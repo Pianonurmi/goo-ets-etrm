@@ -46,10 +46,8 @@ class AllocationProblem(
     val eligible: List<BitSet>,
     private val scoring: (LotClass, ObligationModel) -> ScoreBreakdown,
 ) {
-    private val scoreCache = HashMap<Long, ScoreBreakdown>()
-
-    fun score(cls: LotClass, obl: ObligationModel): ScoreBreakdown =
-        scoreCache.getOrPut(cls.index.toLong() shl 32 or obl.index.toLong()) { scoring(cls, obl) }
+    /** Scores are not cached here: classes x obligations can reach tens of millions of pairs. Callers score per obligation. */
+    fun score(cls: LotClass, obl: ObligationModel): ScoreBreakdown = scoring(cls, obl)
 
     fun eligibleClasses(obl: ObligationModel): List<LotClass> = eligible[obl.index].stream().mapToObj { classes[it] }.toList()
 

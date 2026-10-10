@@ -46,8 +46,14 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
+val sharedTestDatabase = gradle.sharedServices.registerIfAbsent("sharedTestDatabase", com.pianonurmi.build.SharedTestDatabase::class) {
+    maxParallelUsages.set(1)
+}
+
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // All modules reset and migrate the same test database: serialise test tasks across the build.
+    usesService(sharedTestDatabase)
     maxHeapSize = "1g"
     systemProperty("junit.jupiter.execution.parallel.enabled", "false")
     // Integration tests pick the database up from the environment (see TestDatabase in platform test fixtures).

@@ -7,9 +7,6 @@ enum class QuantityUnit(val symbol: String, val wholeOnly: Boolean) {
     MWH("MWh", wholeOnly = false),
     CERTIFICATE("cert", wholeOnly = true),
     TCO2E("tCO2e", wholeOnly = true),
-    ;
-
-    override fun toString(): String = symbol
 }
 
 /** A quantity in a unit. Mixed-unit arithmetic is rejected at the type level by construction and at runtime. */

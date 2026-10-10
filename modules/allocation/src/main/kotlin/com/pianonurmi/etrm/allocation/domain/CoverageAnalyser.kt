@@ -10,9 +10,11 @@ import java.util.UUID
 
 /**
  * Coverage: a max-flow between lot classes (supply) and obligations (demand) over the eligibility graph.
- * Obligations are attached to the sink in priority order and the flow is augmented after each, so flow already
- * granted to a higher-priority obligation is never taken away. Shortage groups are the connected components of
- * obligations left short together with the (exhausted) classes they compete for; they explain the shortfall.
+ * Obligations are attached to the sink one priority tier at a time and the flow is augmented after each tier, so
+ * flow already granted to a higher-priority tier is never taken away (augmenting paths can reroute it but never
+ * reduce it) while the final flow is still a global maximum. Within a tier the flow is distributed without
+ * preference. Shortage groups are the connected components of obligations left short together with the
+ * (exhausted) classes they compete for; they explain the shortfall.
  *
  * Side constraints (share caps) are not part of the flow, so coverage is an upper bound on what a plan achieves.
  */
@@ -22,16 +24,18 @@ class CoverageAnalyser(private val bucketOf: (LotClass) -> String?) {
         val o = problem.obligations.size
         val source = 0
         val sink = 1 + c + o
-        val graph = FlowGraph(sink + 1)
+        val expectedEdges = c + o + problem.eligible.sumOf { it.cardinality() }
+        val graph = FlowGraph(sink + 1, expectedEdges)
         val supplyEdges = IntArray(c)
         problem.classes.forEach { cls -> supplyEdges[cls.index] = graph.addEdge(source, 1 + cls.index, cls.quantity) }
         problem.obligations.forEach { obl ->
             problem.eligible[obl.index].stream().forEach { ci -> graph.addEdge(1 + ci, 1 + c + obl.index, Long.MAX_VALUE / 4) }
         }
         val demandEdges = IntArray(o) { -1 }
-        val ordered = problem.obligations.sortedWith(compareBy<ObligationModel> { it.priority }.thenBy { it.obligation.deliveryDate }.thenBy { it.id })
-        ordered.forEach { obl ->
-            demandEdges[obl.index] = graph.addEdge(1 + c + obl.index, sink, obl.demand)
+        problem.obligations.groupBy { it.priority }.toSortedMap().values.forEach { tier ->
+            tier.sortedWith(compareBy<ObligationModel> { it.obligation.deliveryDate }.thenBy { it.id }).forEach { obl ->
+                demandEdges[obl.index] = graph.addEdge(1 + c + obl.index, sink, obl.demand)
+            }
             graph.augment(source, sink)
         }
 
@@ -104,23 +108,32 @@ class CoverageAnalyser(private val bucketOf: (LotClass) -> String?) {
     }
 }
 
-/** Dinic max-flow on an adjacency-list graph with paired reverse edges. */
-class FlowGraph(private val n: Int) {
-    private val to = ArrayList<Int>()
-    private val cap = ArrayList<Long>()
-    private val adj = Array(n) { ArrayList<Int>() }
+/**
+ * Dinic max-flow with paired reverse edges (edge `e` and `e xor 1`). Edges live in primitive arrays with
+ * linked-list adjacency (`head`/`next`) so a graph with tens of millions of eligibility edges stays compact.
+ */
+class FlowGraph(private val n: Int, expectedEdges: Int = 16) {
+    private var to = IntArray(maxOf(2, expectedEdges * 2))
+    private var cap = LongArray(to.size)
+    private var next = IntArray(to.size)
+    private val head = IntArray(n) { -1 }
     private val level = IntArray(n)
     private val iter = IntArray(n)
+    private var edgeCount = 0
 
     /** Adds a directed edge and its reverse; returns the edge index (reverse is index + 1). */
     fun addEdge(from: Int, target: Int, capacity: Long): Int {
-        val id = to.size
-        to += target
-        cap += capacity
-        adj[from] += id
-        to += from
-        cap += 0L
-        adj[target] += id + 1
+        ensureCapacity(edgeCount + 2)
+        val id = edgeCount
+        to[id] = target
+        cap[id] = capacity
+        next[id] = head[from]
+        head[from] = id
+        to[id + 1] = from
+        cap[id + 1] = 0L
+        next[id + 1] = head[target]
+        head[target] = id + 1
+        edgeCount += 2
         return id
     }
 
@@ -131,7 +144,7 @@ class FlowGraph(private val n: Int) {
     fun augment(source: Int, sink: Int): Long {
         var total = 0L
         while (bfs(source, sink)) {
-            iter.fill(0)
+            System.arraycopy(head, 0, iter, 0, n)
             while (true) {
                 val f = dfs(source, sink, Long.MAX_VALUE)
                 if (f == 0L) break
@@ -147,14 +160,24 @@ class FlowGraph(private val n: Int) {
         seen[source] = true
         while (queue.isNotEmpty()) {
             val v = queue.poll()
-            adj[v].forEach { e ->
+            var e = head[v]
+            while (e >= 0) {
                 if (cap[e] > 0 && !seen[to[e]]) {
                     seen[to[e]] = true
                     queue.add(to[e])
                 }
+                e = next[e]
             }
         }
         return seen
+    }
+
+    private fun ensureCapacity(required: Int) {
+        if (required <= to.size) return
+        val size = maxOf(required, to.size * 2)
+        to = to.copyOf(size)
+        cap = cap.copyOf(size)
+        next = next.copyOf(size)
     }
 
     private fun bfs(source: Int, sink: Int): Boolean {
@@ -163,11 +186,13 @@ class FlowGraph(private val n: Int) {
         val queue = ArrayDeque<Int>().apply { add(source) }
         while (queue.isNotEmpty()) {
             val v = queue.poll()
-            adj[v].forEach { e ->
+            var e = head[v]
+            while (e >= 0) {
                 if (cap[e] > 0 && level[to[e]] < 0) {
                     level[to[e]] = level[v] + 1
                     queue.add(to[e])
                 }
+                e = next[e]
             }
         }
         return level[sink] >= 0
@@ -175,8 +200,8 @@ class FlowGraph(private val n: Int) {
 
     private fun dfs(v: Int, sink: Int, pushed: Long): Long {
         if (v == sink) return pushed
-        while (iter[v] < adj[v].size) {
-            val e = adj[v][iter[v]]
+        while (iter[v] >= 0) {
+            val e = iter[v]
             val w = to[e]
             if (cap[e] > 0 && level[w] == level[v] + 1) {
                 val d = dfs(w, sink, minOf(pushed, cap[e]))
@@ -186,7 +211,7 @@ class FlowGraph(private val n: Int) {
                     return d
                 }
             }
-            iter[v]++
+            iter[v] = next[e]
         }
         return 0
     }

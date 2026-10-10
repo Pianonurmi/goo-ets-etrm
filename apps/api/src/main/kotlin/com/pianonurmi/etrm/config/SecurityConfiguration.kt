@@ -89,9 +89,10 @@ class SpringSecurityActorProvider(private val properties: SecurityProperties) : 
         val authentication: Authentication? = SecurityContextHolder.getContext().authentication
         if (authentication is JwtAuthenticationToken) {
             val jwt = authentication.token
+            val subject = jwt.subject ?: "unknown"
             return Actor(
-                userId = jwt.subject,
-                displayName = jwt.claims[properties.displayNameClaim]?.toString() ?: jwt.subject,
+                userId = subject,
+                displayName = jwt.claims[properties.displayNameClaim]?.toString() ?: subject,
                 roles = SecurityConfiguration.rolesOf(jwt, properties.rolesClaim).mapNotNull { parseRole(it) }.toSet(),
                 legalEntityScope = (jwt.claims[properties.legalEntitiesClaim] as? Collection<*>)
                     ?.mapNotNull { runCatching { UUID.fromString(it.toString()) }.getOrNull() }?.toSet() ?: emptySet(),

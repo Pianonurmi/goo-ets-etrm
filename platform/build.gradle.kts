@@ -8,6 +8,7 @@ dependencies {
     implementation(libs.spring.context)
     implementation(libs.spring.tx)
     implementation(libs.spring.modulith.events.api)
+    implementation(libs.spring.modulith.core)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.uuid.generator)
     implementation(libs.slf4j.api)
