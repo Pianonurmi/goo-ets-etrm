@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.registry.api
 
+import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.ImportStatement
@@ -41,7 +42,21 @@ interface TransferRouteCommand {
     fun upsert(command: UpsertTransferRoute): TransferRoute
 }
 
-enum class InstructionType { TRANSFER, CANCELLATION }
+enum class InstructionType {
+    /** Certificate lot transfer to another account. */
+    TRANSFER,
+
+    /** Certificate lot cancellation (disclosure, own consumption). */
+    CANCELLATION,
+
+    /** Quantity of an allowance product to another account. */
+    ALLOWANCE_TRANSFER,
+
+    /** Allowances surrendered for an installation's compliance year. */
+    SURRENDER,
+}
+
+enum class AssetKind { GOO_LOT, ALLOWANCE }
 
 enum class InstructionStatus {
     /** Waiting for a second person's approval (instructions that do not come from an approved allocation plan). */
@@ -77,9 +92,11 @@ data class RegistryInstructionView(
     val fromAccountId: UUID,
     val toRegistryCode: String?,
     val toAccountRef: String?,
-    val lotId: UUID,
-    val range: CertificateRange,
-    val quantityMwh: Long,
+    /** Certificate lot (GOO_LOT instructions only). */
+    val lotId: UUID?,
+    val range: CertificateRange?,
+    /** MWh for certificate lots, tCO2e for allowances. */
+    val quantity: Long,
     val cancellation: CancellationDetails?,
     val planRef: UUID?,
     val lineRef: UUID?,
@@ -99,7 +116,23 @@ data class RegistryInstructionView(
     val nextAttemptAt: Instant? = null,
     val approvedBy: String? = null,
     val approvedAt: Instant? = null,
-)
+    val assetKind: AssetKind = AssetKind.GOO_LOT,
+    /** Allowance product and holding (ALLOWANCE instructions only). */
+    val productCode: String? = null,
+    val holdingRef: UUID? = null,
+    /** What confirmation records on the holding, with the trade price for sales. */
+    val movementType: AllowanceMovementType? = null,
+    val unitPrice: java.math.BigDecimal? = null,
+    val priceCurrency: String? = null,
+    val complianceYear: Int? = null,
+    /** When the registry is expected to execute; later than now for Union Registry transfers to untrusted accounts. */
+    val expectedEffectiveAt: Instant? = null,
+) {
+    val unit: String get() = if (assetKind == AssetKind.ALLOWANCE) "TCO2E" else "MWH"
+
+    /** The certificate lot of a GOO_LOT instruction. */
+    fun requireLot(): UUID = lotId ?: error("Instruction $instructionKey is not a certificate lot instruction")
+}
 
 /** Transfer of a lot (or part of it) to another account; a partial quantity splits the lot first. */
 data class SubmitTransfer(
@@ -123,10 +156,38 @@ data class SubmitCancellation(
     val obligationRef: UUID? = null,
 )
 
+/** Transfer of allowances from one of our Union Registry accounts; needs a second person's approval. */
+data class SubmitAllowanceTransfer(
+    val fromAccountId: UUID,
+    val productCode: String,
+    val quantity: Long,
+    /** The receiving account (a registered counterparty or own account). */
+    val toAccountId: UUID,
+    val idempotencyKey: String,
+    /** SALE (with [unitPrice]) for a sale to a third party, TRANSFER_OUT otherwise. */
+    val movementType: AllowanceMovementType = AllowanceMovementType.TRANSFER_OUT,
+    val unitPrice: java.math.BigDecimal? = null,
+    val priceCurrency: String? = null,
+    val obligationRef: UUID? = null,
+)
+
+/** Surrender of allowances for a compliance year; needs a second person's approval. */
+data class SubmitSurrender(
+    val fromAccountId: UUID,
+    val productCode: String,
+    val quantity: Long,
+    val complianceYear: Int,
+    val idempotencyKey: String,
+)
+
 interface RegistryInstructionCommand {
     fun submitTransfer(command: SubmitTransfer): RegistryInstructionView
 
     fun submitCancellation(command: SubmitCancellation): RegistryInstructionView
+
+    fun submitAllowanceTransfer(command: SubmitAllowanceTransfer): RegistryInstructionView
+
+    fun submitSurrender(command: SubmitSurrender): RegistryInstructionView
 
     /** Operator or adapter confirmation of an instruction executed in the registry. */
     fun confirm(instructionId: UUID, externalRef: String?): RegistryInstructionView
@@ -228,7 +289,10 @@ data class TransactionImportReport(
 )
 
 interface RegistryStatementCommand {
-    /** Parses a holdings export with the account's format profile, stores it in inventory and reconciles it. */
+    /**
+     * Parses a holdings export (certificates, or balances for an allowance registry) with the registry's format
+     * profile, stores it in inventory and reconciles it.
+     */
     fun importHoldings(
         registryAccountId: UUID,
         statementDate: java.time.LocalDate,
@@ -263,8 +327,10 @@ data class InstructionSubmitted(override val instruction: RegistryInstructionVie
 
 data class InstructionConfirmed(
     override val instruction: RegistryInstructionView,
-    /** The lot after confirmation (TRANSFERRED_OUT or CANCELLED). */
-    val lot: LotView,
+    /** The lot after confirmation (TRANSFERRED_OUT or CANCELLED); null for allowance instructions. */
+    val lot: LotView?,
+    /** The allowance holding after confirmation; null for certificate instructions. */
+    val holding: com.pianonurmi.etrm.inventory.api.AllowanceHoldingView? = null,
     val metadata: EventMetadata = EventMetadata(),
 ) : InstructionEvent, DomainEvent by metadata
 

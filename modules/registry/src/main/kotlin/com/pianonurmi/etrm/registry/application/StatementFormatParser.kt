@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.registry.application
 
+import com.pianonurmi.etrm.inventory.api.AllowanceStatementLine
 import com.pianonurmi.etrm.inventory.api.CertificateRange
+import com.pianonurmi.etrm.inventory.api.ImportAllowanceStatement
 import com.pianonurmi.etrm.inventory.api.ImportStatement
 import com.pianonurmi.etrm.inventory.api.StatementLine
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -31,6 +33,7 @@ object StatementFormatParser {
         "status",
         "transactionDate",
     )
+    private val ALLOWANCE_HOLDING_FIELDS = setOf("productCode", "quantity")
     private val COMPLETED_WORDS = setOf("COMPLETED", "CONFIRMED", "DONE", "EXECUTED", "SETTLED", "ACCEPTED")
     private val FAILED_WORDS = setOf("FAILED", "REJECTED", "CANCELLED", "ERROR")
     private val TRANSFER_WORDS = setOf("TRANSFER", "TRANSFER_OUT", "EXPORT", "TRANSFER-OUT")
@@ -42,7 +45,8 @@ object StatementFormatParser {
         val allowed = when (format.kind) {
             StatementKind.GOO_HOLDINGS -> HOLDING_FIELDS
             StatementKind.GOO_TRANSACTIONS -> TRANSACTION_FIELDS
-            StatementKind.ALLOWANCE_HOLDINGS, StatementKind.ALLOWANCE_TRANSACTIONS -> mapped
+            StatementKind.ALLOWANCE_HOLDINGS -> ALLOWANCE_HOLDING_FIELDS
+            StatementKind.ALLOWANCE_TRANSACTIONS -> mapped
         }
         val problems = mutableListOf<String>()
         (mapped - allowed).takeIf { it.isNotEmpty() }?.let { problems += "unknown fields $it for ${format.kind}" }
@@ -56,6 +60,8 @@ object StatementFormatParser {
                 if ("externalRef" !in mapped && "instructionKey" !in mapped && !hasRange) {
                     problems += "map externalRef, instructionKey or the certificate range so lines can be matched"
                 }
+            StatementKind.ALLOWANCE_HOLDINGS ->
+                if ("productCode" !in mapped || "quantity" !in mapped) problems += "productCode and quantity must be mapped"
             else -> Unit
         }
         runCatching { DateTimeFormatter.ofPattern(format.dateFormat) }.onFailure { problems += "invalid date format ${format.dateFormat}" }
@@ -77,6 +83,42 @@ object StatementFormatParser {
             )
         }
         return ImportStatement(registryCode = "", registryAccountId = registryAccountId, statementDate = statementDate, source = source, lines = lines)
+    }
+
+    /**
+     * Balances per allowance product. Several lines for one product (e.g. per unit type or vintage the registry
+     * reports separately) are added up; `product.<word>` constants map registry unit names to product codes.
+     */
+    fun allowanceHoldings(
+        format: StatementFormatView,
+        registryAccountId: UUID,
+        statementDate: LocalDate,
+        source: String,
+        content: String,
+    ): ImportAllowanceStatement {
+        requireKind(format, StatementKind.ALLOWANCE_HOLDINGS)
+        val rows = rows(format, content).map { (lineNo, row) ->
+            val word = row.required("productCode", lineNo).trim().uppercase()
+            val product = format.constants["product.$word"] ?: word
+            Triple(lineNo, product, quantity(row.required("quantity", lineNo), lineNo))
+        }
+        val lines = rows.groupBy { it.second }.entries.mapIndexed { i, (product, group) ->
+            AllowanceStatementLine(
+                lineNo = i + 1,
+                productCode = product,
+                quantity = group.sumOf { it.third },
+                raw = mapOf("lines" to group.map { it.first }),
+            )
+        }
+        return ImportAllowanceStatement("", registryAccountId, statementDate, source, lines)
+    }
+
+    private fun quantity(text: String, lineNo: Int): Long = try {
+        java.math.BigDecimal(text.replace(" ", "").replace("\u00A0", "").replace("_", "")).longValueExact()
+    } catch (_: NumberFormatException) {
+        throw ValidationException("Line $lineNo: quantity '$text' is not a whole number")
+    } catch (_: ArithmeticException) {
+        throw ValidationException("Line $lineNo: quantity '$text' is not a whole number")
     }
 
     fun transactions(format: StatementFormatView, content: String): List<RegistryTransactionLine> {

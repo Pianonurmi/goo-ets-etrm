@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
+import com.pianonurmi.etrm.referencedata.api.RegistryType
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.registry.api.RegistryStatementCommand
@@ -103,8 +104,14 @@ class RegistryStatementService(
 ) : RegistryStatementCommand {
     override fun importHoldings(registryAccountId: UUID, statementDate: LocalDate, source: String, content: String, profileCode: String?): StatementView {
         actorProvider.current().requireRole(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
-        val statement = parseHoldings(registryAccountId, statementDate, source, content, profileCode)
-        val imported = reconciliation.importStatement(statement)
+        val account = referenceData.requireRegistryAccount(registryAccountId)
+        val imported = if (referenceData.requireRegistry(account.registryCode).registryType == RegistryType.EMISSION_ALLOWANCE) {
+            val format = formats.resolve(account.registryCode, StatementKind.ALLOWANCE_HOLDINGS, profileCode)
+            val statement = StatementFormatParser.allowanceHoldings(format, registryAccountId, statementDate, source, content)
+            reconciliation.importAllowanceStatement(statement.copy(registryCode = account.registryCode))
+        } else {
+            reconciliation.importStatement(parseHoldings(registryAccountId, statementDate, source, content, profileCode))
+        }
         return reconciliation.reconcile(imported.id)
     }
 

@@ -33,7 +33,8 @@ class ManualRegistryGateway : RegistryGateway {
 
     override val inline = true
 
-    override fun execute(instruction: RegistryInstructionView): GatewayResult = GatewayResult.Sent(null, mapOf("mode" to "manual"))
+    override fun execute(instruction: RegistryInstructionView): GatewayResult =
+        GatewayResult.Sent(null, mapOf("mode" to "manual", "expectedEffectiveAt" to instruction.expectedEffectiveAt?.toString()))
 }
 
 /**
@@ -77,13 +78,17 @@ object InstructionPack {
         "to_account",
         "cert_no_start",
         "cert_no_end",
-        "quantity_mwh",
+        "product",
+        "quantity",
+        "unit",
         "cancellation_purpose",
         "beneficiary_name",
         "beneficiary_id",
         "consumption_country",
         "consumption_period_start",
         "consumption_period_end",
+        "compliance_year",
+        "expected_effective_at",
     )
 
     fun csv(i: RegistryInstructionView, fromAccountNumber: String): String {
@@ -98,15 +103,19 @@ object InstructionPack {
                     fromAccountNumber,
                     i.toRegistryCode,
                     i.toAccountRef,
-                    i.range.start,
-                    i.range.end,
-                    i.quantityMwh,
+                    i.range?.start,
+                    i.range?.end,
+                    i.productCode,
+                    i.quantity,
+                    i.unit,
                     c?.purpose?.name,
                     c?.beneficiaryName,
                     c?.beneficiaryId,
                     c?.consumptionCountry,
                     c?.consumptionPeriod?.start,
                     c?.consumptionPeriod?.endExclusive,
+                    i.complianceYear,
+                    i.expectedEffectiveAt,
                 ),
             ),
         )

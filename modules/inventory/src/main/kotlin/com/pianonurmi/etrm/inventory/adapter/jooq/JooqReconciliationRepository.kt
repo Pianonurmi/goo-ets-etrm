@@ -1,13 +1,16 @@
 package com.pianonurmi.etrm.inventory.adapter.jooq
 
+import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.AllowanceStatementLine.ALLOWANCE_STATEMENT_LINE
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.ReconciliationBreak.RECONCILIATION_BREAK
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.RegistryStatement.REGISTRY_STATEMENT
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.RegistryStatementLine.REGISTRY_STATEMENT_LINE
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.records.ReconciliationBreakRecord
+import com.pianonurmi.etrm.inventory.api.AllowanceStatementLine
 import com.pianonurmi.etrm.inventory.api.BreakStatus
 import com.pianonurmi.etrm.inventory.api.BreakType
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakView
+import com.pianonurmi.etrm.inventory.api.StatementKind
 import com.pianonurmi.etrm.inventory.api.StatementLine
 import com.pianonurmi.etrm.inventory.api.StatementStatus
 import com.pianonurmi.etrm.inventory.api.StatementView
@@ -28,16 +31,7 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
     private val mapType = object : TypeReference<Map<String, Any?>>() {}
 
     override fun insertStatement(view: StatementView, importedBy: String, lines: List<StatementLine>) {
-        dsl.insertInto(REGISTRY_STATEMENT)
-            .set(REGISTRY_STATEMENT.ID, view.id)
-            .set(REGISTRY_STATEMENT.REGISTRY_CODE, view.registryCode)
-            .set(REGISTRY_STATEMENT.REGISTRY_ACCOUNT_ID, view.registryAccountId)
-            .set(REGISTRY_STATEMENT.STATEMENT_DATE, view.statementDate)
-            .set(REGISTRY_STATEMENT.SOURCE, view.source)
-            .set(REGISTRY_STATEMENT.IMPORTED_BY, importedBy)
-            .set(REGISTRY_STATEMENT.LINE_COUNT, view.lineCount)
-            .set(REGISTRY_STATEMENT.STATUS, view.status.name)
-            .execute()
+        insertHeader(view, importedBy)
         if (lines.isEmpty()) return
         val insert = dsl.insertInto(
             REGISTRY_STATEMENT_LINE,
@@ -69,6 +63,39 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
         insert.execute()
     }
 
+    override fun insertAllowanceStatement(view: StatementView, importedBy: String, lines: List<AllowanceStatementLine>) {
+        insertHeader(view, importedBy)
+        lines.forEach { l ->
+            dsl.insertInto(ALLOWANCE_STATEMENT_LINE)
+                .set(ALLOWANCE_STATEMENT_LINE.ID, Ids.newId())
+                .set(ALLOWANCE_STATEMENT_LINE.STATEMENT_ID, view.id)
+                .set(ALLOWANCE_STATEMENT_LINE.LINE_NO, l.lineNo)
+                .set(ALLOWANCE_STATEMENT_LINE.PRODUCT_CODE, l.productCode)
+                .set(ALLOWANCE_STATEMENT_LINE.QUANTITY, l.quantity)
+                .set(ALLOWANCE_STATEMENT_LINE.RAW, JSONB.jsonb(Json.mapper.writeValueAsString(l.raw)))
+                .execute()
+        }
+    }
+
+    override fun allowanceLines(statementId: UUID): List<AllowanceStatementLine> = dsl.selectFrom(ALLOWANCE_STATEMENT_LINE)
+        .where(ALLOWANCE_STATEMENT_LINE.STATEMENT_ID.eq(statementId))
+        .orderBy(ALLOWANCE_STATEMENT_LINE.LINE_NO)
+        .fetch { AllowanceStatementLine(it.lineNo, it.productCode, it.quantity, Json.mapper.readValue(it.raw.data(), mapType)) }
+
+    private fun insertHeader(view: StatementView, importedBy: String) {
+        dsl.insertInto(REGISTRY_STATEMENT)
+            .set(REGISTRY_STATEMENT.ID, view.id)
+            .set(REGISTRY_STATEMENT.REGISTRY_CODE, view.registryCode)
+            .set(REGISTRY_STATEMENT.REGISTRY_ACCOUNT_ID, view.registryAccountId)
+            .set(REGISTRY_STATEMENT.STATEMENT_DATE, view.statementDate)
+            .set(REGISTRY_STATEMENT.SOURCE, view.source)
+            .set(REGISTRY_STATEMENT.IMPORTED_BY, importedBy)
+            .set(REGISTRY_STATEMENT.LINE_COUNT, view.lineCount)
+            .set(REGISTRY_STATEMENT.STATUS, view.status.name)
+            .set(REGISTRY_STATEMENT.KIND, view.kind.name)
+            .execute()
+    }
+
     override fun statement(id: UUID): StatementView? = dsl.selectFrom(REGISTRY_STATEMENT).where(REGISTRY_STATEMENT.ID.eq(id)).fetchOne()?.let { r ->
         StatementView(
             r.id,
@@ -79,6 +106,7 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
             r.lineCount,
             StatementStatus.valueOf(r.status),
             dsl.selectFrom(RECONCILIATION_BREAK).where(RECONCILIATION_BREAK.STATEMENT_ID.eq(id)).orderBy(RECONCILIATION_BREAK.DETECTED_AT).fetch(::toBreak),
+            StatementKind.valueOf(r.kind),
         )
     }
 
@@ -102,8 +130,11 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
             .set(RECONCILIATION_BREAK.STATEMENT_ID, view.statementId)
             .set(RECONCILIATION_BREAK.BREAK_TYPE, view.type.name)
             .set(RECONCILIATION_BREAK.ISSUANCE_REF, view.issuanceRef)
-            .set(RECONCILIATION_BREAK.CERT_NO_START, view.range.start)
-            .set(RECONCILIATION_BREAK.CERT_NO_END, view.range.end)
+            .set(RECONCILIATION_BREAK.CERT_NO_START, view.range?.start)
+            .set(RECONCILIATION_BREAK.CERT_NO_END, view.range?.end)
+            .set(RECONCILIATION_BREAK.PRODUCT_CODE, view.productCode)
+            .set(RECONCILIATION_BREAK.REGISTRY_QUANTITY, view.registryQuantity)
+            .set(RECONCILIATION_BREAK.INTERNAL_QUANTITY, view.internalQuantity)
             .set(RECONCILIATION_BREAK.LOT_ID, view.lotId)
             .set(RECONCILIATION_BREAK.DETAILS, JSONB.jsonb(Json.mapper.writeValueAsString(view.details)))
             .set(RECONCILIATION_BREAK.STATUS, view.status.name)
@@ -145,10 +176,13 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
         r.statementId,
         BreakType.valueOf(r.breakType),
         r.issuanceRef,
-        CertificateRange(r.certNoStart, r.certNoEnd),
+        r.certNoStart?.let { start -> r.certNoEnd?.let { end -> CertificateRange(start, end) } },
         r.lotId,
         Json.mapper.readValue(r.details.data(), mapType),
         BreakStatus.valueOf(r.status),
         r.resolution,
+        r.productCode,
+        r.registryQuantity,
+        r.internalQuantity,
     )
 }

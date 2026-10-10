@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.registry.adapter.jooq
 
+import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.platform.json.Json
@@ -8,6 +9,7 @@ import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.StatementForma
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.TransferRoute.TRANSFER_ROUTE
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.records.RegistryInstructionRecord
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.records.StatementFormatRecord
+import com.pianonurmi.etrm.registry.api.AssetKind
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.api.InstructionType
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
@@ -48,9 +50,18 @@ class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryI
             .set(REGISTRY_INSTRUCTION.TO_REGISTRY_CODE, instruction.toRegistryCode)
             .set(REGISTRY_INSTRUCTION.TO_ACCOUNT_REF, instruction.toAccountRef)
             .set(REGISTRY_INSTRUCTION.LOT_ID, instruction.lotId)
-            .set(REGISTRY_INSTRUCTION.CERT_NO_START, instruction.range.start)
-            .set(REGISTRY_INSTRUCTION.CERT_NO_END, instruction.range.end)
-            .set(REGISTRY_INSTRUCTION.QUANTITY_MWH, instruction.quantityMwh)
+            .set(REGISTRY_INSTRUCTION.CERT_NO_START, instruction.range?.start)
+            .set(REGISTRY_INSTRUCTION.CERT_NO_END, instruction.range?.end)
+            .set(REGISTRY_INSTRUCTION.QUANTITY, instruction.quantity)
+            .set(REGISTRY_INSTRUCTION.ASSET_KIND, instruction.assetKind.name)
+            .set(REGISTRY_INSTRUCTION.UNIT, instruction.unit)
+            .set(REGISTRY_INSTRUCTION.PRODUCT_CODE, instruction.productCode)
+            .set(REGISTRY_INSTRUCTION.HOLDING_REF, instruction.holdingRef)
+            .set(REGISTRY_INSTRUCTION.MOVEMENT_TYPE, instruction.movementType?.name)
+            .set(REGISTRY_INSTRUCTION.UNIT_PRICE, instruction.unitPrice)
+            .set(REGISTRY_INSTRUCTION.PRICE_CURRENCY, instruction.priceCurrency)
+            .set(REGISTRY_INSTRUCTION.COMPLIANCE_YEAR, instruction.complianceYear)
+            .set(REGISTRY_INSTRUCTION.EXPECTED_EFFECTIVE_AT, instruction.expectedEffectiveAt)
             .set(REGISTRY_INSTRUCTION.CANCELLATION, instruction.cancellation?.let { JSONB.jsonb(Json.mapper.writeValueAsString(it)) })
             .set(REGISTRY_INSTRUCTION.PLAN_REF, instruction.planRef)
             .set(REGISTRY_INSTRUCTION.LINE_REF, instruction.lineRef)
@@ -172,8 +183,8 @@ class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryI
         toRegistryCode = r.toRegistryCode,
         toAccountRef = r.toAccountRef,
         lotId = r.lotId,
-        range = CertificateRange(r.certNoStart, r.certNoEnd),
-        quantityMwh = r.quantityMwh,
+        range = r.certNoStart?.let { start -> r.certNoEnd?.let { end -> CertificateRange(start, end) } },
+        quantity = r.quantity,
         cancellation = r.cancellation?.let { Json.mapper.readValue(it.data(), CancellationDetails::class.java) },
         planRef = r.planRef,
         lineRef = r.lineRef,
@@ -192,6 +203,14 @@ class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryI
         nextAttemptAt = r.nextAttemptAt,
         approvedBy = r.approvedBy,
         approvedAt = r.approvedAt,
+        assetKind = AssetKind.valueOf(r.assetKind),
+        productCode = r.productCode,
+        holdingRef = r.holdingRef,
+        movementType = r.movementType?.let(AllowanceMovementType::valueOf),
+        unitPrice = r.unitPrice,
+        priceCurrency = r.priceCurrency,
+        complianceYear = r.complianceYear,
+        expectedEffectiveAt = r.expectedEffectiveAt,
     )
 }
 

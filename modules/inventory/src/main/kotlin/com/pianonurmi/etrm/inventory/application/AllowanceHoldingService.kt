@@ -92,6 +92,8 @@ class AllowanceHoldingService(
     @Transactional(readOnly = true)
     override fun holding(registryAccountId: UUID, productCode: String): AllowanceHoldingView? = repository.find(registryAccountId, productCode.uppercase())
 
+    override fun holdingById(holdingId: UUID): AllowanceHoldingView? = repository.findById(holdingId)
+
     @Transactional(readOnly = true)
     override fun movements(holdingId: UUID): List<AllowanceMovementView> = repository.movements(holdingId)
 }

@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.inventory.domain
 
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingView
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementView
+import com.pianonurmi.etrm.inventory.api.AllowanceStatementLine
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.LotEventView
 import com.pianonurmi.etrm.inventory.api.LotFilter
@@ -100,6 +101,10 @@ interface ReconciliationRepository {
     fun statement(id: UUID): StatementView?
 
     fun lines(statementId: UUID): List<StatementLine>
+
+    fun insertAllowanceStatement(view: StatementView, importedBy: String, lines: List<AllowanceStatementLine>)
+
+    fun allowanceLines(statementId: UUID): List<AllowanceStatementLine>
 
     fun insertBreak(view: ReconciliationBreakView)
 

@@ -88,7 +88,14 @@ class InventoryServiceIT {
             actor,
             publisher,
         )
-        reconciliation = ReconciliationService(JooqReconciliationRepository(dsl), JooqLotRepository(dsl), referenceData, actor, publisher)
+        reconciliation = ReconciliationService(
+            JooqReconciliationRepository(dsl),
+            JooqLotRepository(dsl),
+            JooqAllowanceHoldingRepository(dsl),
+            referenceData,
+            actor,
+            publisher,
+        )
 
         entityId = referenceData.createLegalEntity(CreateLegalEntity("INV-CO", "Inventory Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
         gooAccountId = referenceData.createRegistryAccount(

@@ -8,7 +8,9 @@ import com.pianonurmi.etrm.registry.api.RegistryStatementCommand
 import com.pianonurmi.etrm.registry.api.StatementFormatCommand
 import com.pianonurmi.etrm.registry.api.StatementFormatQuery
 import com.pianonurmi.etrm.registry.api.StatementFormatView
+import com.pianonurmi.etrm.registry.api.SubmitAllowanceTransfer
 import com.pianonurmi.etrm.registry.api.SubmitCancellation
+import com.pianonurmi.etrm.registry.api.SubmitSurrender
 import com.pianonurmi.etrm.registry.api.SubmitTransfer
 import com.pianonurmi.etrm.registry.api.TransactionImportReport
 import com.pianonurmi.etrm.registry.api.TransferRoute
@@ -73,6 +75,19 @@ class RegistryController(
     fun cancellation(
         @RequestBody body: SubmitCancellation,
     ): RegistryInstructionView = instructionCommand.submitCancellation(body)
+
+    /** Transfer of allowances from one of our Union Registry accounts; executed manually after a second approval. */
+    @PostMapping("/instructions/allowance-transfers")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun allowanceTransfer(
+        @RequestBody body: SubmitAllowanceTransfer,
+    ): RegistryInstructionView = instructionCommand.submitAllowanceTransfer(body)
+
+    @PostMapping("/instructions/surrenders")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun surrender(
+        @RequestBody body: SubmitSurrender,
+    ): RegistryInstructionView = instructionCommand.submitSurrender(body)
 
     @PostMapping("/instructions/{id}/confirm")
     fun confirm(

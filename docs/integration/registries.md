@@ -37,11 +37,17 @@ and the separator of a combined range column (`rangeSeparator`). Manage them wit
 
 | Endpoint | Effect |
 |---|---|
-| `POST /api/v1/registry/statements/csv?registryAccountId=&statementDate=&profile=` | Holdings: parsed, stored in inventory and reconciled. Breaks: `MISSING_INTERNALLY`, `MISSING_IN_REGISTRY`, `ATTRIBUTE_MISMATCH`. An in-flight lot that is gone from the account confirms its instruction. |
+| `POST /api/v1/registry/statements/csv?registryAccountId=&statementDate=&profile=` | Holdings: parsed, stored in inventory and reconciled. Breaks: `MISSING_INTERNALLY`, `MISSING_IN_REGISTRY`, `ATTRIBUTE_MISMATCH`. An in-flight lot that is gone from the account confirms its instruction. For an account in an emission allowance registry the `ALLOWANCE_HOLDINGS` profile is used and balances are reconciled (below). |
 | `POST /api/v1/registry/statements/transactions?registryCode=&profile=` | Transactions: lines matched to open instructions by client reference (our instruction key), registry reference or certificate range; completed lines confirm, failed lines fail. The file is kept as a document; unmatched lines are reported. |
 
 Generic holdings columns: `issuance_ref,cert_no_start,cert_no_end,device_gsrn,production_start,production_end[,extra]`.
 Generic transaction columns: `transaction_id,type,issuance_ref,cert_no_start,cert_no_end,status,date,client_reference`.
+Generic allowance holdings columns: `product_code,quantity`. Lines for the same product are added up; constants
+`product.<WORD>` map registry unit names to product codes (for example `product.GENERAL ALLOWANCES = EUA`).
+
+Allowance balances are compared per product with the holding of the account. A registry balance between the free
+quantity (held minus reserved) and the held quantity agrees, because reserved allowances may already have left in the
+registry. Anything else, including a product only one side knows, is a `BALANCE_MISMATCH` break with both quantities.
 
 ## Routes
 
@@ -53,6 +59,38 @@ days; otherwise infeasible. Overrides in `etrm_registry.transfer_route`.
 - Grexel's G-REX platform offers account holders a REST API under contract; NECS (Statnett) runs Unicorn Certigy with a machine-to-machine API. Adapters follow in M8 once the manuals are in hand; until then these registries use FILE.
 - The AIB Hub has no account-holder interface: cross-border transfers are instructed in the exporting registry.
 - The Union Registry has no account-holder API: instructions are MANUAL (trusted account list, 26-hour delay to non-trusted accounts, registry four-eyes); holdings statements are imported as files.
+
+## Union Registry allowance instructions
+
+Allowance instructions carry `assetKind = ALLOWANCE`, a product code, a quantity in `TCO2E` and the holding they
+reserve; certificate lot instructions carry `GOO_LOT`, the lot and its range.
+
+| Endpoint | Instruction |
+|---|---|
+| `POST /api/v1/registry/instructions/allowance-transfers` | `ALLOWANCE_TRANSFER` from one of our accounts to a registered account in the same registry. `movementType` `SALE` (with `unitPrice`) or `TRANSFER_OUT`. |
+| `POST /api/v1/registry/instructions/surrenders` | `SURRENDER` for a compliance year. |
+| `POST /api/v1/deliveries/allowances` | The transfer for an allowance sale schedule of a confirmed trade: from the leg's delivery account to the counterparty's registered account, as a `SALE` at the trade price. |
+
+Submission reserves the allowances. Both kinds need a second person (`INSTRUCTION_APPROVAL`), then go to the MANUAL
+gateway: the instruction pack (`InstructionPack`) carries the product, quantity, unit, receiving account, compliance
+year and `expectedEffectiveAt`. That is the approval time for our own accounts and for counterparty accounts trusted
+on that day, and 26 hours later otherwise. The operator executes it in the Union Registry (which applies its own
+four-eyes) and confirms with the registry transaction id.
+
+Confirmation releases the reservation and records the movement on the holding: `SALE` with the unit price (the ledger
+books proceeds and cost of sale), `TRANSFER_OUT` or `SURRENDER` with the compliance year. A transfer to another of our
+accounts also records the receipt there (`PURCHASE` at the sale price, or `TRANSFER_IN`). A confirmed delivery
+instruction records the trade delivery, keyed by the instruction id. Failure or cancellation releases the reservation.
+
+## Purchase receipts
+
+A purchase is delivered when what we receive is matched to its delivery schedule. A lot received with
+`acquisitionSource = TRANSFER_IN`, or an allowance `PURCHASE` / `TRANSFER_IN` movement, whose reference is a
+purchase trade number is matched automatically to the earliest open schedule of that trade that fits: same legal
+entity, product, receiving account when the leg names one, and no more than the remaining quantity. Anything else
+stays unmatched (logged) and is matched by hand with `POST /api/v1/deliveries/receipts` (`scheduleId` plus `lotId`,
+or `holdingId` and `movementSeq`). Each receipt is recorded at most once (idempotency key per lot or movement), and a
+refused match never fails the receipt itself.
 
 ## Counterparty registry accounts
 

@@ -19,7 +19,7 @@ GL interface format, market data vendor for bucket marks.
 | M1 | Approval inbox: workflow handler SPI, assignment, comments, SLA and escalation, filters, bulk decisions, scope enforcement | done |
 | M2 | Registry framework: outbox dispatch outside the transaction, statement formats, confirmation by statement, four-eyes on manual instructions, four-eyes master data changes | done |
 | M3 | Counterparty registry accounts with Union Registry trusted-list status | done |
-| M4 | Union Registry allowance instructions, EUA sell delivery, purchase receipt matching, allowance reconciliation | planned |
+| M4 | Union Registry allowance instructions, EUA sell delivery, purchase receipt matching, allowance reconciliation | done |
 | M5 | Reconciliation break workflow | planned |
 | M6 | Trade confirmation matching | planned |
 | M7 | Settlement: invoices, VAT rules, payments, netting, ledger postings | planned |

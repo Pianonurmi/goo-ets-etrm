@@ -1,4 +1,10 @@
 spring:
+  datasource:
+    # Every full-context test class caches its own context and pool; keep them small so they fit max_connections.
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 10000
   task:
     scheduling:
       pool:

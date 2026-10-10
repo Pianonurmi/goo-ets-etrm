@@ -1,16 +1,25 @@
 package com.pianonurmi.etrm.registry.application
 
+import com.pianonurmi.etrm.inventory.api.AllowanceHoldingCommand
+import com.pianonurmi.etrm.inventory.api.AllowanceHoldingQuery
+import com.pianonurmi.etrm.inventory.api.AllowanceHoldingView
+import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
 import com.pianonurmi.etrm.inventory.api.InTransferLotLeftAccount
 import com.pianonurmi.etrm.inventory.api.LotCommand
 import com.pianonurmi.etrm.inventory.api.LotQuery
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
+import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
+import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
+import com.pianonurmi.etrm.referencedata.api.RegistryType
+import com.pianonurmi.etrm.registry.api.AssetKind
 import com.pianonurmi.etrm.registry.api.InstructionCancelled
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
@@ -22,7 +31,9 @@ import com.pianonurmi.etrm.registry.api.InstructionType
 import com.pianonurmi.etrm.registry.api.RegistryInstructionCommand
 import com.pianonurmi.etrm.registry.api.RegistryInstructionQuery
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
+import com.pianonurmi.etrm.registry.api.SubmitAllowanceTransfer
 import com.pianonurmi.etrm.registry.api.SubmitCancellation
+import com.pianonurmi.etrm.registry.api.SubmitSurrender
 import com.pianonurmi.etrm.registry.api.SubmitTransfer
 import com.pianonurmi.etrm.registry.domain.GatewayResult
 import com.pianonurmi.etrm.registry.domain.RegistryGateway
@@ -35,6 +46,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
@@ -58,6 +70,8 @@ class RegistryInstructionService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    private val allowances: AllowanceHoldingCommand,
+    private val allowanceQuery: AllowanceHoldingQuery,
     private val settings: RegistryDispatchSettings = RegistryDispatchSettings(),
     private val nudge: DispatchNudge = DispatchNudge.NONE,
 ) : RegistryInstructionCommand, RegistryInstructionQuery {
@@ -83,6 +97,51 @@ class RegistryInstructionService(
         return submit(instruction, lot, mapOf("cancellation" to command.details))
     }
 
+    override fun submitAllowanceTransfer(command: SubmitAllowanceTransfer): RegistryInstructionView {
+        repository.byKey(command.idempotencyKey)?.let { return it }
+        if (command.quantity <= 0) throw ValidationException("Quantity must be positive")
+        if (command.movementType != AllowanceMovementType.SALE && command.movementType != AllowanceMovementType.TRANSFER_OUT) {
+            throw ValidationException("Allowance transfers record SALE or TRANSFER_OUT, not ${command.movementType}")
+        }
+        if (command.movementType == AllowanceMovementType.SALE && command.unitPrice == null) throw ValidationException("A sale needs the unit price")
+        val from = allowanceAccount(command.fromAccountId)
+        val to = referenceData.requireRegistryAccount(command.toAccountId)
+        if (!to.active) throw ValidationException("Receiving account ${to.accountNumber} is inactive")
+        if (to.registryCode != from.registryCode) {
+            throw ValidationException(
+                "Allowances move within ${from.registryCode}; ${to.accountNumber} is in ${to.registryCode}",
+            )
+        }
+        if (to.id == from.id) throw ValidationException("Source and receiving account are the same")
+        val holding = reserveAllowances(from.id, command.productCode, command.quantity)
+        val now = now()
+        // Own accounts and trusted counterparty accounts settle at once; others wait the registry's 26-hour delay.
+        val trusted = to.holderType == HolderType.LEGAL_ENTITY || to.trustedOn(LocalDate.ofInstant(now, clock.zone))
+        val instruction = allowanceInstruction(InstructionType.ALLOWANCE_TRANSFER, holding, command.idempotencyKey, command.quantity).copy(
+            toRegistryCode = to.registryCode,
+            toAccountRef = to.accountNumber,
+            movementType = command.movementType,
+            unitPrice = command.unitPrice,
+            priceCurrency = command.priceCurrency?.uppercase(),
+            obligationRef = command.obligationRef,
+            expectedEffectiveAt = if (trusted) now else now.plus(UNTRUSTED_DELAY),
+        )
+        return submitInstruction(instruction, mapOf("toAccountId" to to.id.toString(), "trusted" to trusted))
+    }
+
+    override fun submitSurrender(command: SubmitSurrender): RegistryInstructionView {
+        repository.byKey(command.idempotencyKey)?.let { return it }
+        if (command.quantity <= 0) throw ValidationException("Quantity must be positive")
+        val from = allowanceAccount(command.fromAccountId)
+        val holding = reserveAllowances(from.id, command.productCode, command.quantity)
+        val instruction = allowanceInstruction(InstructionType.SURRENDER, holding, command.idempotencyKey, command.quantity).copy(
+            movementType = AllowanceMovementType.SURRENDER,
+            complianceYear = command.complianceYear,
+            expectedEffectiveAt = now(),
+        )
+        return submitInstruction(instruction, mapOf("complianceYear" to command.complianceYear))
+    }
+
     /** Second-person approval of a manual instruction (from the inbox). */
     fun approve(instructionId: UUID, by: String): RegistryInstructionView {
         val current = locked(instructionId)
@@ -98,10 +157,17 @@ class RegistryInstructionService(
     override fun fail(instructionId: UUID, reason: String): RegistryInstructionView = applyFailure(locked(instructionId), reason, null)
 
     override fun cancel(instructionId: UUID, reason: String): RegistryInstructionView {
-        val next = RegistryInstruction(locked(instructionId)).cancelled(reason)
+        val current = locked(instructionId)
+        val next = RegistryInstruction(current).cancelled(reason)
         save(next, null)
-        val lot = lotQuery.requireLot(next.lotId)
-        if (lot.status == LotStatus.IN_TRANSFER && lot.instructionRef == next.id) lots.failTransfer(next.lotId, next.id, "instruction cancelled: $reason")
+        when (next.assetKind) {
+            AssetKind.GOO_LOT -> {
+                val lot = lotQuery.requireLot(next.requireLot())
+                if (lot.status == LotStatus.IN_TRANSFER && lot.instructionRef == next.id) lots.failTransfer(lot.id, next.id, "instruction cancelled: $reason")
+            }
+            // A FAILED allowance instruction has already given its reservation back.
+            AssetKind.ALLOWANCE -> if (current.status != InstructionStatus.FAILED) allowances.release(next.holdingRef!!, next.quantity)
+        }
         events.publishEvent(InstructionCancelled(next, reason))
         return next
     }
@@ -110,8 +176,13 @@ class RegistryInstructionService(
         val current = locked(instructionId)
         val next = RegistryInstruction(current).resubmitted(settings.unplannedNeedsApproval, now())
         save(next, null)
-        val lot = lotQuery.requireLot(next.lotId)
-        if (lot.status != LotStatus.IN_TRANSFER) lots.startTransfer(lot.id, next.id)
+        when (next.assetKind) {
+            AssetKind.GOO_LOT -> {
+                val lot = lotQuery.requireLot(next.requireLot())
+                if (lot.status != LotStatus.IN_TRANSFER) lots.startTransfer(lot.id, next.id)
+            }
+            AssetKind.ALLOWANCE -> if (current.status == InstructionStatus.FAILED) allowances.reserve(next.holdingRef!!, next.quantity)
+        }
         events.publishEvent(InstructionSubmitted(next))
         return if (next.status == InstructionStatus.PENDING_APPROVAL) next else proceed(next)
     }
@@ -205,7 +276,17 @@ class RegistryInstructionService(
     // ----------------------------------------------------------------------------------------------------------
 
     private fun submit(instruction: RegistryInstructionView, lot: LotView, request: Map<String, Any?>): RegistryInstructionView {
-        val registry = referenceData.requireRegistry(lot.registryCode)
+        val created = submitInstruction(instruction, request) { lots.startTransfer(lot.id, it.id) }
+        return created
+    }
+
+    /** Persists a new instruction (after [beforeExecution] took hold of the asset) and approves or executes it. */
+    private fun submitInstruction(
+        instruction: RegistryInstructionView,
+        request: Map<String, Any?>,
+        beforeExecution: (RegistryInstructionView) -> Unit = {},
+    ): RegistryInstructionView {
+        val registry = referenceData.requireRegistry(instruction.registryCode)
         if (!registry.active) throw ValidationException("Registry ${registry.code} is not active")
         val channel = registry.integration.name
         gatewayFor(channel, registry.code)
@@ -216,7 +297,7 @@ class RegistryInstructionService(
             nextAttemptAt = if (needsApproval) null else now(),
         )
         repository.insert(created, request)
-        lots.startTransfer(lot.id, created.id)
+        beforeExecution(created)
         events.publishEvent(InstructionSubmitted(created))
         return if (needsApproval) created else proceed(created)
     }
@@ -250,10 +331,61 @@ class RegistryInstructionService(
     }
 
     /** The source account must be active and, for transfers, allowed to export. */
-    private fun requireUsableAccount(accountId: UUID, export: Boolean) {
+    private fun requireUsableAccount(accountId: UUID, export: Boolean): RegistryAccountView {
         val account = referenceData.requireRegistryAccount(accountId)
         if (!account.active) throw ValidationException("Registry account ${account.accountNumber} is inactive")
         if (export && !account.canExport) throw ValidationException("Registry account ${account.accountNumber} may not export")
+        return account
+    }
+
+    /** One of our accounts in an emission allowance registry. */
+    private fun allowanceAccount(accountId: UUID): RegistryAccountView {
+        val account = requireUsableAccount(accountId, export = true)
+        if (account.holderType != HolderType.LEGAL_ENTITY) throw ValidationException("Account ${account.accountNumber} is not one of ours")
+        if (referenceData.requireRegistry(account.registryCode).registryType != RegistryType.EMISSION_ALLOWANCE) {
+            throw ValidationException("Account ${account.accountNumber} is not an emission allowance account")
+        }
+        return account
+    }
+
+    private fun reserveAllowances(accountId: UUID, productCode: String, quantity: Long): AllowanceHoldingView {
+        val holding = allowanceQuery.holding(accountId, productCode.uppercase())
+            ?: throw ValidationException("No ${productCode.uppercase()} holding on account $accountId")
+        return allowances.reserve(holding.id, quantity)
+    }
+
+    private fun allowanceInstruction(type: InstructionType, holding: AllowanceHoldingView, key: String, quantity: Long): RegistryInstructionView {
+        val account = referenceData.requireRegistryAccount(holding.registryAccountId)
+        return RegistryInstructionView(
+            id = Ids.newId(),
+            instructionKey = key,
+            type = type,
+            registryCode = account.registryCode,
+            holderEntityId = holding.holderEntityId,
+            fromAccountId = holding.registryAccountId,
+            toRegistryCode = null,
+            toAccountRef = null,
+            lotId = null,
+            range = null,
+            quantity = quantity,
+            cancellation = null,
+            planRef = null,
+            lineRef = null,
+            obligationRef = null,
+            status = InstructionStatus.PENDING,
+            externalRef = null,
+            attempts = 0,
+            lastError = null,
+            submittedBy = actorProvider.current().userId,
+            confirmedBy = null,
+            createdAt = now(),
+            sentAt = null,
+            confirmedAt = null,
+            version = 1,
+            assetKind = AssetKind.ALLOWANCE,
+            productCode = holding.productCode,
+            holdingRef = holding.id,
+        )
     }
 
     private fun prepareLot(lotId: UUID, quantity: Long?): LotView {
@@ -277,7 +409,7 @@ class RegistryInstructionService(
             toAccountRef = null,
             lotId = lot.id,
             range = lot.range,
-            quantityMwh = lot.quantityMwh,
+            quantity = lot.quantityMwh,
             cancellation = null,
             planRef = planRef,
             lineRef = lineRef,
@@ -301,18 +433,61 @@ class RegistryInstructionService(
     private fun applyConfirmation(current: RegistryInstructionView, externalRef: String?, by: String, response: Map<String, Any?>?): RegistryInstructionView {
         val next = RegistryInstruction(current).confirmed(externalRef, by, now())
         save(next, response)
-        val lot = when (next.type) {
-            InstructionType.TRANSFER -> lots.confirmTransferOut(next.lotId, next.id, next.externalRef)
-            InstructionType.CANCELLATION -> lots.cancel(next.lotId, null, next.cancellation!!.copy(registryCancellationRef = next.externalRef))
+        when (next.type) {
+            InstructionType.TRANSFER -> events.publishEvent(InstructionConfirmed(next, lots.confirmTransferOut(next.requireLot(), next.id, next.externalRef)))
+            InstructionType.CANCELLATION -> events.publishEvent(
+                InstructionConfirmed(next, lots.cancel(next.requireLot(), null, next.cancellation!!.copy(registryCancellationRef = next.externalRef))),
+            )
+            InstructionType.ALLOWANCE_TRANSFER, InstructionType.SURRENDER -> {
+                allowances.release(next.holdingRef!!, next.quantity)
+                val holding = allowances.record(
+                    RecordAllowanceMovement(
+                        holderEntityId = next.holderEntityId,
+                        registryAccountId = next.fromAccountId,
+                        productCode = next.productCode!!,
+                        type = next.movementType ?: AllowanceMovementType.TRANSFER_OUT,
+                        quantity = next.quantity,
+                        effectiveDate = LocalDate.ofInstant(next.confirmedAt ?: now(), clock.zone),
+                        reference = next.externalRef ?: next.instructionKey,
+                        costPerUnit = next.unitPrice,
+                        costCurrency = next.priceCurrency,
+                        complianceYear = next.complianceYear,
+                    ),
+                )
+                if (next.type == InstructionType.ALLOWANCE_TRANSFER) receiveInternally(next)
+                events.publishEvent(InstructionConfirmed(next, null, holding))
+            }
         }
-        events.publishEvent(InstructionConfirmed(next, lot))
         return next
+    }
+
+    /** A transfer to another of our accounts lands there too: a purchase at the sale price, or a plain transfer in. */
+    private fun receiveInternally(instruction: RegistryInstructionView) {
+        val target = referenceData.registryAccountByNumber(instruction.toRegistryCode!!, instruction.toAccountRef!!) ?: return
+        if (target.holderType != HolderType.LEGAL_ENTITY) return
+        val sale = instruction.movementType == AllowanceMovementType.SALE
+        allowances.record(
+            RecordAllowanceMovement(
+                holderEntityId = target.holderId,
+                registryAccountId = target.id,
+                productCode = instruction.productCode!!,
+                type = if (sale) AllowanceMovementType.PURCHASE else AllowanceMovementType.TRANSFER_IN,
+                quantity = instruction.quantity,
+                effectiveDate = LocalDate.ofInstant(instruction.confirmedAt ?: now(), clock.zone),
+                reference = instruction.externalRef ?: instruction.instructionKey,
+                costPerUnit = instruction.unitPrice,
+                costCurrency = instruction.priceCurrency,
+            ),
+        )
     }
 
     private fun applyFailure(current: RegistryInstructionView, reason: String, response: Map<String, Any?>?): RegistryInstructionView {
         val next = RegistryInstruction(current).failed(reason)
         save(next, response)
-        lots.failTransfer(next.lotId, next.id, reason)
+        when (next.assetKind) {
+            AssetKind.GOO_LOT -> lots.failTransfer(next.requireLot(), next.id, reason)
+            AssetKind.ALLOWANCE -> allowances.release(next.holdingRef!!, next.quantity)
+        }
         events.publishEvent(InstructionFailed(next, reason))
         return next
     }
@@ -328,5 +503,8 @@ class RegistryInstructionService(
 
     companion object {
         const val OVERDUE_BATCH = 200
+
+        /** Union Registry: transfers to accounts not on the trusted account list execute 26 hours later. */
+        val UNTRUSTED_DELAY: java.time.Duration = java.time.Duration.ofHours(26)
     }
 }

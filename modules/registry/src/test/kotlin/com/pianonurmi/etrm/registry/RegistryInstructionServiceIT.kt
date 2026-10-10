@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.registry
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqReconciliationRepository
@@ -13,6 +14,7 @@ import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.InTransferLotLeftAccount
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.ReceiveLots
+import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.inventory.application.ReconciliationService
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
@@ -22,8 +24,10 @@ import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.application.CriteriaServiceImpl
+import com.pianonurmi.etrm.product.application.ProductCatalogueService
 import com.pianonurmi.etrm.product.application.TaxonomySnapshots
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
@@ -117,6 +121,7 @@ class RegistryInstructionServiceIT {
     private val outbox = Path.of("build/test-outbox")
     private val settings = RegistryDispatchSettings(unplannedNeedsApproval = false, retryBackoff = Duration.ofMinutes(2))
     private lateinit var lots: LotService
+    private lateinit var allowances: AllowanceHoldingService
     private lateinit var routes: TransferRouteService
     private lateinit var instructions: RegistryInstructionService
     private lateinit var fourEyes: RegistryInstructionService
@@ -140,7 +145,27 @@ class RegistryInstructionServiceIT {
         routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
         val gateways = listOf(SimulatorRegistryGateway(), ManualRegistryGateway(), FileRegistryGateway(outbox.toString(), referenceData), api)
         val repository = JooqRegistryInstructionRepository(dsl)
-        instructions = RegistryInstructionService(repository, gateways, lots, lots, referenceData, routes, actor, publisher, clock, settings)
+        allowances = AllowanceHoldingService(
+            JooqAllowanceHoldingRepository(dsl),
+            referenceData,
+            ProductCatalogueService(JooqAllowanceProductRepository(dsl)),
+            actor,
+            publisher,
+        )
+        instructions = RegistryInstructionService(
+            repository,
+            gateways,
+            lots,
+            lots,
+            referenceData,
+            routes,
+            actor,
+            publisher,
+            clock,
+            allowances,
+            allowances,
+            settings,
+        )
         fourEyes = RegistryInstructionService(
             repository,
             gateways,
@@ -151,12 +176,22 @@ class RegistryInstructionServiceIT {
             actor,
             publisher,
             clock,
+            allowances,
+            allowances,
             settings.copy(unplannedNeedsApproval = true),
         )
         dispatcher = RegistryDispatcher(repository, gateways, instructions, DataSourceTransactionManager(TestDatabase.dataSource), settings, clock)
         formats = StatementFormatService(JooqStatementFormatRepository(dsl), referenceData, actor, clock)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, publisher, clock)
-        val reconciliation = ReconciliationService(JooqReconciliationRepository(dsl), JooqLotRepository(dsl), referenceData, actor, publisher)
+        val reconciliation =
+            ReconciliationService(
+                JooqReconciliationRepository(dsl),
+                JooqLotRepository(dsl),
+                JooqAllowanceHoldingRepository(dsl),
+                referenceData,
+                actor,
+                publisher,
+            )
         statements = RegistryStatementService(formats, repository, instructions, reconciliation, referenceData, documents, actor)
 
         entityId = referenceData.createLegalEntity(CreateLegalEntity("REG-CO", "Registry Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
@@ -217,11 +252,11 @@ class RegistryInstructionServiceIT {
         val instruction = instructions.submitTransfer(SubmitTransfer(lot.id, 400, "SIMULATOR", "SIM-CP-1", idempotencyKey = "transfer-1"))
         instruction.status shouldBe InstructionStatus.CONFIRMED
         instruction.channel shouldBe "SIMULATOR"
-        instruction.quantityMwh shouldBe 400
+        instruction.quantity shouldBe 400
         instruction.externalRef?.startsWith("SIM-") shouldBe true
-        lots.requireLot(instruction.lotId).status shouldBe LotStatus.TRANSFERRED_OUT
+        lots.requireLot(instruction.requireLot()).status shouldBe LotStatus.TRANSFERRED_OUT
         lots.requireLot(lot.id).status shouldBe LotStatus.SPLIT
-        published.filterIsInstance<InstructionConfirmed>().single { it.instruction.id == instruction.id }.lot.quantityMwh shouldBe 400
+        published.filterIsInstance<InstructionConfirmed>().single { it.instruction.id == instruction.id }.lot!!.quantityMwh shouldBe 400
         instructions.submitTransfer(SubmitTransfer(lot.id, 400, "SIMULATOR", "SIM-CP-1", idempotencyKey = "transfer-1")).id shouldBe instruction.id
         val another = receive(simulatorAccount, "SIM-0002", 1, 10)
         shouldThrow<ValidationException> {
@@ -263,7 +298,7 @@ class RegistryInstructionServiceIT {
         dispatcher.dispatchDue() shouldBe 1
         instructions.requireInstruction(cancellation.id).status shouldBe InstructionStatus.SENT
         instructions.confirm(cancellation.id, "CXL-1")
-        val cancelledLot = lots.requireLot(cancellation.lotId)
+        val cancelledLot = lots.requireLot(cancellation.requireLot())
         cancelledLot.status shouldBe LotStatus.CANCELLED
         cancelledLot.cancellation?.registryCancellationRef shouldBe "CXL-1"
         cancelledLot.quantityMwh shouldBe 40
@@ -303,7 +338,7 @@ class RegistryInstructionServiceIT {
         now = now.plus(Duration.ofMinutes(6))
         dispatcher.recoverExpiredLeases() shouldBe 1
         instructions.requireInstruction(second.id).status shouldBe InstructionStatus.UNKNOWN
-        lots.requireLot(second.lotId).status shouldBe LotStatus.IN_TRANSFER
+        lots.requireLot(second.requireLot()).status shouldBe LotStatus.IN_TRANSFER
     }
 
     @Test
@@ -321,7 +356,7 @@ class RegistryInstructionServiceIT {
             SubmitTransfer(receive(simulatorAccount, "SIM-0101", 1, 10).id, null, "SIMULATOR", "X", idempotencyKey = "four-eyes-2"),
         )
         fourEyes.cancel(rejected.id, "rejected: wrong account").status shouldBe InstructionStatus.CANCELLED
-        lots.requireLot(rejected.lotId).status shouldBe LotStatus.HELD
+        lots.requireLot(rejected.requireLot()).status shouldBe LotStatus.HELD
 
         val manual = instructions.submitTransfer(
             SubmitTransfer(receive(fingridAccount, "FI-0200", 1, 20).id, null, "FINGRID", "FI-CP-9", idempotencyKey = "overdue-1"),

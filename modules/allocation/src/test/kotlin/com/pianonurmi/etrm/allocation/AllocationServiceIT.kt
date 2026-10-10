@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.allocation.api.ProposeAllocation
 import com.pianonurmi.etrm.allocation.application.AllocationService
 import com.pianonurmi.etrm.allocation.application.ObligationService
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
@@ -20,6 +21,7 @@ import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.ReceiveLots
+import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.security.Actor
@@ -107,6 +109,7 @@ class AllocationServiceIT {
         ProductBucketSeeder(buckets, buckets).seed()
         val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
         lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, bus, clock)
+        val allowanceHoldings = AllowanceHoldingService(JooqAllowanceHoldingRepository(dsl), referenceData, catalogue, actor, bus)
         val routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
         val instructions = RegistryInstructionService(
             JooqRegistryInstructionRepository(dsl),
@@ -118,6 +121,8 @@ class AllocationServiceIT {
             actor,
             bus,
             clock,
+            allowanceHoldings,
+            allowanceHoldings,
         )
         val trades = TradeService(JooqTradeRepository(dsl), referenceData, criteria, buckets, catalogue, actor, bus, clock, BigDecimal.ZERO)
         val planRepository = JooqAllocationPlanRepository(dsl)

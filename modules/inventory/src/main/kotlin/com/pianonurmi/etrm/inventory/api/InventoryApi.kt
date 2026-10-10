@@ -192,6 +192,8 @@ interface AllowanceHoldingQuery {
 
     fun holding(registryAccountId: UUID, productCode: String): AllowanceHoldingView?
 
+    fun holdingById(holdingId: UUID): AllowanceHoldingView?
+
     fun movements(holdingId: UUID): List<AllowanceMovementView>
 }
 
@@ -222,7 +224,25 @@ data class ImportStatement(
     val lines: List<StatementLine>,
 )
 
-enum class BreakType { MISSING_INTERNALLY, MISSING_IN_REGISTRY, ATTRIBUTE_MISMATCH }
+/** One balance per allowance product on an allowance holdings statement. */
+data class AllowanceStatementLine(
+    val lineNo: Int,
+    val productCode: String,
+    val quantity: Long,
+    val raw: Map<String, Any?> = emptyMap(),
+)
+
+data class ImportAllowanceStatement(
+    val registryCode: String,
+    val registryAccountId: UUID,
+    val statementDate: LocalDate,
+    val source: String,
+    val lines: List<AllowanceStatementLine>,
+)
+
+enum class StatementKind { GOO, ALLOWANCE }
+
+enum class BreakType { MISSING_INTERNALLY, MISSING_IN_REGISTRY, ATTRIBUTE_MISMATCH, BALANCE_MISMATCH }
 
 enum class BreakStatus { OPEN, RESOLVED, ACCEPTED }
 
@@ -230,12 +250,17 @@ data class ReconciliationBreakView(
     val id: UUID,
     val statementId: UUID,
     val type: BreakType,
-    val issuanceRef: String,
-    val range: CertificateRange,
+    /** Certificate breaks: the issuance and range concerned. */
+    val issuanceRef: String?,
+    val range: CertificateRange?,
     val lotId: UUID?,
     val details: Map<String, Any?>,
     val status: BreakStatus,
     val resolution: String?,
+    /** BALANCE_MISMATCH: the allowance product and both balances. */
+    val productCode: String? = null,
+    val registryQuantity: Long? = null,
+    val internalQuantity: Long? = null,
 )
 
 enum class StatementStatus { IMPORTED, RECONCILED, BREAKS }
@@ -249,12 +274,15 @@ data class StatementView(
     val lineCount: Int,
     val status: StatementStatus,
     val breaks: List<ReconciliationBreakView>,
+    val kind: StatementKind = StatementKind.GOO,
 )
 
 interface ReconciliationCommand {
     fun importStatement(command: ImportStatement): StatementView
 
-    /** Compares statement lines with live lots of the account and records breaks. */
+    fun importAllowanceStatement(command: ImportAllowanceStatement): StatementView
+
+    /** Compares statement lines with live lots (or allowance balances) of the account and records breaks. */
     fun reconcile(statementId: UUID): StatementView
 
     fun resolveBreak(breakId: UUID, status: BreakStatus, resolution: String): ReconciliationBreakView

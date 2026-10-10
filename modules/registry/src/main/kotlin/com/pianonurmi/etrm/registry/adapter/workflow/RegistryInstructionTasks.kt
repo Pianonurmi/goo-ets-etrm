@@ -27,7 +27,8 @@ import java.time.Duration
 private const val SUBJECT = "REGISTRY_INSTRUCTION"
 
 private fun describe(i: RegistryInstructionView): String =
-    "${i.type} ${i.quantityMwh} MWh ${i.registryCode} ${i.range.start}-${i.range.end}" + (i.toAccountRef?.let { " to ${i.toRegistryCode}:$it" } ?: "")
+    "${i.type} ${i.quantity} ${i.unit} ${i.productCode ?: ""} ${i.registryCode}" + (i.range?.let { " ${it.start}-${it.end}" } ?: "") +
+        (i.toAccountRef?.let { " to ${i.toRegistryCode}:$it" } ?: "") + (i.complianceYear?.let { " for $it" } ?: "")
 
 /** Four-eyes on registry instructions that do not come from an approved allocation plan. */
 @Component
