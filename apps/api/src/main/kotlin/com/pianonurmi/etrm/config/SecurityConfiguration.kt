@@ -28,7 +28,6 @@ import java.util.UUID
 @EnableWebSecurity
 @EnableConfigurationProperties(SecurityProperties::class)
 class SecurityConfiguration {
-
     @Bean
     @Profile("!dev & !test")
     fun resourceServerChain(http: HttpSecurity, properties: SecurityProperties): SecurityFilterChain = http
@@ -86,7 +85,6 @@ data class SecurityProperties(
 )
 
 class SpringSecurityActorProvider(private val properties: SecurityProperties) : ActorProvider {
-
     override fun current(): Actor {
         val authentication: Authentication? = SecurityContextHolder.getContext().authentication
         if (authentication is JwtAuthenticationToken) {

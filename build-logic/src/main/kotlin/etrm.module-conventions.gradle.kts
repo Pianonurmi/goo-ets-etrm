@@ -113,7 +113,7 @@ if (migrationsDir.asFile.exists()) {
                             isIndexes = false
                         }
                         target.apply {
-                            packageName = "com.pianonurmi.etrm.$moduleName.adapter.out.jooq.generated"
+                            packageName = "com.pianonurmi.etrm.$moduleName.adapter.jooq.generated"
                             directory = "build/generated-src/jooq/main"
                         }
                         strategy.name = "org.jooq.codegen.DefaultGeneratorStrategy"
@@ -127,9 +127,5 @@ if (migrationsDir.asFile.exists()) {
         dependsOn(migrateCodegenSchema)
         // The codegen database is external state; never cache or skip this task.
         outputs.upToDateWhen { false }
-    }
-
-    tasks.named<org.jlleitschuh.gradle.ktlint.tasks.BaseKtLintCheckTask>("ktlintMainSourceSetCheck") {
-        setSource(fileTree("src/main/kotlin"))
     }
 }

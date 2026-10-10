@@ -25,7 +25,7 @@ kover {
         total {
             filters {
                 excludes {
-                    packages("*.adapter.out.jooq.generated*")
+                    packages("*.adapter.jooq.generated*")
                     classes("*Application*", "*Kt")
                 }
             }

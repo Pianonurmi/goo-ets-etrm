@@ -21,7 +21,6 @@ import javax.sql.DataSource
 @Configuration
 @EnableConfigurationProperties(MigrationProperties::class)
 class ModularMigrationsConfiguration {
-
     @Bean
     fun modularMigrations(dataSource: DataSource, properties: MigrationProperties): ModularMigrations =
         ModularMigrations(dataSource, properties)
