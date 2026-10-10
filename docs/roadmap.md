@@ -22,6 +22,6 @@ GL interface format, market data vendor for bucket marks.
 | M4 | Union Registry allowance instructions, EUA sell delivery, purchase receipt matching, allowance reconciliation | done |
 | M5 | Reconciliation break workflow | done |
 | M6 | Trade confirmation matching, obligations-open policy per entity | done |
-| M7 | Settlement: invoices, VAT rules, payments, netting, ledger postings | planned |
+| M7 | Settlement: invoices, VAT rules, payments, netting, ledger postings | in progress (7a invoices and VAT done) |
 | M8 | Registry API adapters (G-REX, NECS) | planned |
 | M9 | Documentation consolidation | planned |

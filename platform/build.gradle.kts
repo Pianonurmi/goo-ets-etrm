@@ -23,6 +23,7 @@ dependencies {
     testFixturesApi(libs.jooq.core)
     testFixturesApi(libs.junit.jupiter)
     testFixturesImplementation(libs.slf4j.api)
+    testFixturesImplementation(libs.spring.jdbc)
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.testcontainers.junit)
 }

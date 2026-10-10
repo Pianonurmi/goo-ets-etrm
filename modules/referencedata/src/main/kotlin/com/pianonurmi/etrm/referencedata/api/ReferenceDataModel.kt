@@ -76,6 +76,11 @@ data class CounterpartyView(
     val creditLimit: BigDecimal?,
     val active: Boolean,
     val version: Int,
+    /** Payments with this counterparty may be netted (a netting agreement is in place). */
+    val nettingAgreed: Boolean = false,
+    /** We invoice our purchases from this counterparty ourselves (self-billing agreement). */
+    val selfBilling: Boolean = false,
+    val invoiceEmail: String? = null,
 )
 
 enum class RegistryType { GOO, EMISSION_ALLOWANCE }
@@ -204,6 +209,9 @@ data class CreateCounterparty(
     val paymentTermsDays: Int = 14,
     val settlementCurrency: String = "EUR",
     val creditLimit: BigDecimal? = null,
+    val nettingAgreed: Boolean = false,
+    val selfBilling: Boolean = false,
+    val invoiceEmail: String? = null,
 )
 
 data class UpdateCounterparty(
@@ -215,6 +223,9 @@ data class UpdateCounterparty(
     val creditLimit: BigDecimal? = null,
     val active: Boolean? = null,
     val expectedVersion: Int,
+    val nettingAgreed: Boolean? = null,
+    val selfBilling: Boolean? = null,
+    val invoiceEmail: String? = null,
 )
 
 data class CreateRegistryAccount(

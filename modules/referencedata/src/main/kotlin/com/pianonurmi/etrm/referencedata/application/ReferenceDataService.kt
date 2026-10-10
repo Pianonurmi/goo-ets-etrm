@@ -223,6 +223,9 @@ class ReferenceDataService(
             creditLimit = command.creditLimit,
             active = true,
             version = 1,
+            nettingAgreed = command.nettingAgreed,
+            selfBilling = command.selfBilling,
+            invoiceEmail = command.invoiceEmail?.trim(),
         )
         repository.insertCounterparty(counterparty)
         events.publishEvent(CounterpartyChanged(counterparty.id))
@@ -241,6 +244,9 @@ class ReferenceDataService(
             paymentTermsDays = command.paymentTermsDays ?: current.paymentTermsDays,
             creditLimit = command.creditLimit ?: current.creditLimit,
             active = command.active ?: current.active,
+            nettingAgreed = command.nettingAgreed ?: current.nettingAgreed,
+            selfBilling = command.selfBilling ?: current.selfBilling,
+            invoiceEmail = command.invoiceEmail?.trim() ?: current.invoiceEmail,
             version = current.version + 1,
         )
         if (!repository.updateCounterparty(updated, command.expectedVersion)) {

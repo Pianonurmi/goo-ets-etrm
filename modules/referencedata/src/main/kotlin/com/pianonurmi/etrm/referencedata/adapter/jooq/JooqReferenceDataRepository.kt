@@ -189,6 +189,9 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         paymentTermsDays = c.paymentTermsDays
         creditLimitAmount = c.creditLimit
         active = c.active
+        nettingAgreed = c.nettingAgreed
+        selfBilling = c.selfBilling
+        invoiceEmail = c.invoiceEmail
     }
 
     private fun toCounterparty(r: CounterpartyRecord) = CounterpartyView(
@@ -206,6 +209,9 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         creditLimit = r.creditLimitAmount,
         active = r.active,
         version = r.version,
+        nettingAgreed = r.nettingAgreed,
+        selfBilling = r.selfBilling,
+        invoiceEmail = r.invoiceEmail,
     )
 
     // ----------------------------------------------------------------------------------------------------------

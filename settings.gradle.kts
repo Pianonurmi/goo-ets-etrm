@@ -34,6 +34,7 @@ listOf(
     "workflow",
     "audit",
     "document",
+    "settlement",
 ).forEach { module ->
     include("modules:$module")
 }

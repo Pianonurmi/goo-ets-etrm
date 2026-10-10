@@ -1,8 +1,12 @@
 package com.pianonurmi.etrm.referencedata.domain
 
+import com.pianonurmi.etrm.referencedata.api.AddressView
+import com.pianonurmi.etrm.referencedata.api.BankAccountView
 import com.pianonurmi.etrm.referencedata.api.ChangeEntityType
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestStatus
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestView
+import com.pianonurmi.etrm.referencedata.api.PartyType
+import com.pianonurmi.etrm.referencedata.api.VatRegistrationView
 import java.util.UUID
 
 interface ChangeRequestRepository {
@@ -30,4 +34,31 @@ interface ChangeApplier {
     fun legalEntityOf(entityKey: String): UUID? = null
 
     fun apply(request: ChangeRequestView)
+}
+
+interface PartyDetailsRepository {
+    fun addresses(partyType: PartyType, partyId: UUID): List<AddressView>
+
+    fun upsertAddress(address: AddressView)
+
+    fun vatRegistrations(
+        partyType: PartyType,
+        partyId: UUID,
+    ): List<VatRegistrationView>
+
+    fun upsertVatRegistration(registration: VatRegistrationView)
+
+    fun bankAccounts(partyType: PartyType, partyId: UUID): List<BankAccountView>
+
+    fun bankAccount(id: UUID): BankAccountView?
+
+    fun bankAccountByIban(
+        partyType: PartyType,
+        partyId: UUID,
+        iban: String,
+    ): BankAccountView?
+
+    fun insertBankAccount(account: BankAccountView)
+
+    fun updateBankAccount(account: BankAccountView, expectedVersion: Int): Boolean
 }

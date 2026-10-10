@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>{{title}}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Helvetica, sans-serif; font-size: 9.5pt; color: #111; }
+    h1 { font-size: 16pt; margin: 0 0 5mm 0; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { padding: 1.2mm 2mm; vertical-align: top; text-align: left; }
+    .parties td { width: 50%; }
+    .lines th { border-bottom: 0.6pt solid #333; }
+    .lines td { border-bottom: 0.3pt solid #ccc; }
+    .num { text-align: right; }
+    .totals td { text-align: right; }
+    .note { margin-top: 4mm; font-weight: bold; }
+    .muted { color: #555; font-size: 8.5pt; }
+  </style>
+</head>
+<body>
+  <h1>{{title}}</h1>
+  <table class="parties">
+    <tr>
+      <td><b>Supplier</b><br/>{{supplier.name}}<br/>{{supplier.address}}<br/>VAT {{supplier.vatNumber}}<br/>LEI {{supplier.lei}}</td>
+      <td><b>Customer</b><br/>{{customer.name}}<br/>{{customer.address}}<br/>VAT {{customer.vatNumber}}<br/>LEI {{customer.lei}}</td>
+    </tr>
+  </table>
+  <table>
+    <tr><td>Invoice number</td><td>{{number}}</td><td>Invoice date</td><td>{{invoiceDate}}</td></tr>
+    <tr><td>Date of supply</td><td>{{taxPointDate}}</td><td>Due date</td><td>{{dueDate}}</td></tr>
+  </table>
+  <table class="lines">
+    <tr><th>#</th><th>Description</th><th class="num">Quantity</th><th class="num">Unit price</th><th class="num">Net</th><th class="num">VAT %</th><th class="num">VAT</th></tr>
+    {{#lines}}<tr><td>{{lineNo}}</td><td>{{description}}</td><td class="num">{{quantity}} {{unit}}</td><td class="num">{{unitPrice}}</td><td class="num">{{net}}</td><td class="num">{{vatRate}}</td><td class="num">{{vat}}</td></tr>{{/lines}}
+  </table>
+  <table class="totals">
+    <tr><td>Net total</td><td>{{net}} {{currency}}</td></tr>
+    <tr><td>VAT</td><td>{{vat}} {{currency}}</td></tr>
+    <tr><td><b>Total</b></td><td><b>{{gross}} {{currency}}</b></td></tr>
+  </table>
+  {{#notes}}<p class="note">{{.}}</p>{{/notes}}
+  {{#bank}}<p>Payment to {{bank}}, reference {{number}}.</p>{{/bank}}
+</body>
+</html>

@@ -58,6 +58,7 @@ spring-boot-starter-restclient = { module = "org.springframework.boot:spring-boo
 spring-boot-starter-micrometer-tracing = { module = "org.springframework.boot:spring-boot-starter-micrometer-tracing" }
 spring-boot-starter-opentelemetry = { module = "org.springframework.boot:spring-boot-starter-opentelemetry" }
 spring-tx = { module = "org.springframework:spring-tx" }
+spring-jdbc = { module = "org.springframework:spring-jdbc" }
 spring-context = { module = "org.springframework:spring-context" }
 spring-web = { module = "org.springframework:spring-web" }
 

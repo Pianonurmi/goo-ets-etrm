@@ -7,6 +7,7 @@ import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.slf4j.LoggerFactory
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy
 import javax.sql.DataSource
 
 /**
@@ -56,7 +57,8 @@ object TestDatabase {
         )
     }
 
-    val dsl: DSLContext by lazy { DSL.using(dataSource, SQLDialect.POSTGRES) }
+    /** Joins a Spring transaction when a test runs one (e.g. with DataSourceTransactionManager); autocommit otherwise. */
+    val dsl: DSLContext by lazy { DSL.using(TransactionAwareDataSourceProxy(dataSource), SQLDialect.POSTGRES) }
 
     /** Properties for Spring Boot slices / full-context tests. */
     fun springProperties(): Map<String, String> = mapOf(

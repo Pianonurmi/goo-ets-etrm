@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.referencedata.application
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -124,6 +125,7 @@ class ChangeRequestService(
     /** Applies an approved request (called from the inbox decision, inside the deciding transaction). */
     fun approve(id: UUID, by: String, note: String?): ChangeRequestView {
         val request = pending(id)
+        if (request.requestedBy == by) throw SegregationOfDutiesException("A change request cannot be approved by its requester ($by)")
         val applier = applier(request.entityType)
         applier.validate(request.entityKey, request.change, request.expectedVersion)
         applier.apply(request)

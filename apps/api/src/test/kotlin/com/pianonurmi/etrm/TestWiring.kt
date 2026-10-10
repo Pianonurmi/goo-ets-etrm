@@ -16,6 +16,7 @@ object TestWiring {
         "allocation",
         "registry",
         "position",
+        "settlement",
         "ledger",
         "workflow",
         "audit",

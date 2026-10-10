@@ -8,7 +8,7 @@ import java.util.UUID
 enum class ChangeRequestStatus { PENDING, APPLIED, REJECTED, CANCELLED }
 
 /** Sensitive master data that only changes with a second person's approval. */
-enum class ChangeEntityType { REGISTRY, COUNTERPARTY_REGISTRY_ACCOUNT }
+enum class ChangeEntityType { REGISTRY, COUNTERPARTY_REGISTRY_ACCOUNT, BANK_ACCOUNT }
 
 /**
  * A requested change to sensitive master data. [change] holds the new values (only the fields that change);
