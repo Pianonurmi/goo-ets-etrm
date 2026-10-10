@@ -35,7 +35,7 @@ class DemoDataSeederIT {
         RestAssured.given().baseUri("http://localhost").port(port).header("X-Actor", user).header("X-Roles", roles)
 
     @Test
-    fun `seeds entities, inventory, trades, approvals and accounting once`() {
+    fun `seeds entities, inventory, trades, approvals, accounting, risk and ETS once`() {
         val entities = asUser("admin", "ADMIN").get("/api/v1/reference/legal-entities").then().statusCode(200)
             .extract().jsonPath().getList<String>("code")
         entities shouldContainAll listOf("DEMO-FI", "DEMO-SE")
@@ -56,6 +56,15 @@ class DemoDataSeederIT {
             .body("size()", equalTo(1))
         asUser("risk", "RISK").get("/api/v1/valuation/runs?legalEntityId=$finland&from=2000-01-01&to=2100-01-01").then().statusCode(200)
             .body("findAll { it.status == 'OFFICIAL' }.size()", greaterThan(1))
+        asUser("risk", "RISK").get("/api/v1/risk/limits?legalEntityId=$finland&activeOnly=false").then().statusCode(200)
+            .body("findAll { it.status == 'ACTIVE' }.size()", equalTo(4))
+            .body("findAll { it.status == 'PENDING_APPROVAL' }.size()", equalTo(1))
+        asUser("risk2", "RISK").get("/api/v1/workflow/tasks?type=LIMIT_CHANGE&actionable=true").then().statusCode(200)
+            .body("items.size()", equalTo(1))
+        asUser("risk", "RISK").get("/api/v1/risk/exposures?legalEntityId=$finland").then().statusCode(200)
+            .body("size()", greaterThan(0))
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/ets/installations?legalEntityId=$finland").then().statusCode(200)
+            .body("size()", equalTo(1))
 
         seeder.seed() shouldBe false
         asUser("trader", "TRADER").get("/api/v1/trades?legalEntityId=$finland").then().body("size()", equalTo(4))

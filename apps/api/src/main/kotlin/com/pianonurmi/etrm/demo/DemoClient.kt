@@ -47,7 +47,7 @@ class DemoClient(baseUrl: String) {
         spec.headers { it.actAs(user) }
         if (json != null) spec.contentType(MediaType.APPLICATION_JSON).body(json)
         @Suppress("UNCHECKED_CAST")
-        return spec.retrieve().body(Map::class.java) as? Map<String, Any?> ?: emptyMap()
+        return spec.retrieve().body(Any::class.java) as? Map<String, Any?> ?: emptyMap()
     }
 
     /** Approves the open workflow task of [type] for [subject] as [user] (the second pair of eyes). */

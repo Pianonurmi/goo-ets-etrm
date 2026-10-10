@@ -55,7 +55,7 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M5 | Trade search endpoint (single query, keyset cursor), blotter, detail with versions diff, confirmations and MtM, capture and amendment with the criteria builder, confirm and cancel; REST guards for deliveries, settlement and confirmation issue | done |
 | M6 | Allocation what-if endpoint (shared computation with propose, stores nothing), role and entity checks on allocation commands, workbench, plan detail, GoO and ETS position dashboards with the expiry ladder | done |
 | M7 | Market data (quotes, suspect review, FX, ECB pull, imports, instruments), curves and snapshots with overrides and sign-off, valuation runs, results and P&L explain; taxonomy `all=true` for pickers | done |
-| M8 | Risk and ETS compliance | planned |
+| M8 | Risk (limits with utilisation, request and change under four eyes, measure, exposures, breaches, credit support, PFE add-ons) and EU ETS compliance (entity view by year, deadline calendar, installations with emissions, verified emissions, free allocation and surrenders); demo risk limits and an ETS installation | done |
 | M9 | Ledger browser, month end, reports (ADR 0028) | planned |
 | M10 | Admin, reference data, taxonomy, change requests, audit | planned |
 | M11 | Hardening: accessibility, performance budget, documentation | planned |

@@ -17,6 +17,11 @@ legal-entity scope; the UI only mirrors them.
 | Market data | `/market-data` (tabs: quotes, suspect, FX, instruments, imports) | `marketData_quotes`, `marketData_recordQuote`, `marketData_suspect`, `marketData_acknowledge`, `marketData_fxRates`, `marketData_recordFxRate`, `marketData_pullEcb`, `marketData_instruments`, `marketData_importFormats`, `marketData_importFile` (multipart) | writes: MIDDLE_OFFICE, RISK |
 | Curves | `/market-data/curves`, `/market-data/snapshots/:snapshotId` | `curve_curves`, `curve_snapshots`, `curve_build`, `curve_snapshot`, `curve_override`, `curve_submit`, link to the `CURVE_SIGN_OFF` task | build/submit: MIDDLE_OFFICE, RISK; sign-off (inbox) by another person |
 | Valuation | `/valuation`, `/valuation/runs/:runId` | `valuation_runs`, `valuation_run`, `valuation_runDetail`, `valuation_results`, `valuation_submit`, `valuation_explain` (defaults to the two latest official runs) | run/submit: MIDDLE_OFFICE, RISK; read: RISK, MIDDLE_OFFICE, ACCOUNTANT, AUDITOR, TRADER |
+| Risk: limits | `/risk` | `risk_limits` (active, or all), `risk_utilisation` per limit, `risk_measure`, `risk_requestLimit` | request: RISK (approval by another RISK user in the inbox); read: RISK, MIDDLE_OFFICE, TRADER, AUDITOR |
+| Risk: exposures, breaches, credit support, PFE | `/risk?tab=exposures`, `breaches`, `credit-support`, `pfe` | `risk_exposures` (bar chart and grid), `risk_breaches` joined with `risk_limits`, `risk_creditSupport`, `risk_requestCreditSupport`, `risk_pfeAddOns` | credit support: RISK, BACK_OFFICE (approval in the inbox) |
+| Limit detail | `/risk/limits/:limitId` | `risk_limit`, `risk_utilisation`, `risk_breaches`, link to the `LIMIT_CHANGE` task, `risk_requestLimit` with `replaces` | change: RISK |
+| EU ETS compliance | `/ets` | `etsCompliance_compliance` (year in the URL), `etsCompliance_deadlines` (calendar), `etsCompliance_register` | register: MIDDLE_OFFICE, BACK_OFFICE |
+| Installation | `/ets/installations/:installationId` | `etsCompliance_installation`, `etsCompliance_installationCompliance`, `etsCompliance_emissions`, `etsCompliance_recordEmissions`, `etsCompliance_recordVerifiedEmissions`, `etsCompliance_freeAllocation`, `etsCompliance_setFreeAllocation`, `etsCompliance_surrenders`, `etsCompliance_requestSurrender` | estimates and verified emissions: MIDDLE_OFFICE, BACK_OFFICE, RISK (verified ones approved in the inbox); free allocation: MIDDLE_OFFICE, BACK_OFFICE; surrender: BACK_OFFICE, REGISTRY_OPERATOR |
 | Inventory: certificates | `/inventory` | `inventory_lots` (selected entity; status and expiry filters in the URL) | everyone in scope |
 | Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
 | Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |
@@ -51,3 +56,16 @@ legal-entity scope; the UI only mirrors them.
 - A GoO sale needs the counterparty's registry account before it can be confirmed. The form says so.
 - The REST guards for recording deliveries, settling and issuing our confirmation require middle or back office.
   Module flows (allocation, registry) are unaffected.
+
+## Risk and EU ETS compliance (`features/risk`, `features/ets`)
+
+- Limit changes and credit support apply once a second risk analyst approves them in the inbox. The limit detail page
+  links to the open `LIMIT_CHANGE` task; a change of an active limit is a new request that `replaces` it.
+- The form shows the scope fields each limit type uses (`model/limits.ts`, mirroring the service's validation).
+- Utilisation is the latest measurement. A limit that was never measured shows "Not measured". "Measure now" runs
+  the same measurement as the scheduled job.
+- Breach tasks (`LIMIT_BREACH`) and credit support tasks link to the risk tabs. Verified emissions and deadline
+  alerts link to the compliance page.
+- Deadlines are grouped by month and coloured met, overdue, due within 30 days (the first reminder stage) or
+  upcoming (`model/deadlines.ts`).
+- Quantities of allowances are whole tonnes. Net and outstanding figures come from the server.

@@ -3,6 +3,8 @@ import {
   IconCertificate,
   IconChartBar,
   IconChartLine,
+  IconBuildingFactory2,
+  IconShieldCheck,
   IconHome,
   IconInbox,
   IconPuzzle,
@@ -33,6 +35,7 @@ const ICON = 18;
 
 /** Navigation; each milestone of increment 4 adds its screens here. */
 const VALUATION_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'AUDITOR', 'TRADER'];
+const RISK_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'TRADER', 'AUDITOR'];
 
 export const NAVIGATION: NavSection[] = [
   {
@@ -59,7 +62,11 @@ export const NAVIGATION: NavSection[] = [
   },
   {
     title: 'nav.sectionFinance',
-    items: [{ path: '/valuation', label: 'nav.valuation', icon: <IconScale size={ICON} />, roles: VALUATION_READERS }],
+    items: [
+      { path: '/valuation', label: 'nav.valuation', icon: <IconScale size={ICON} />, roles: VALUATION_READERS },
+      { path: '/risk', label: 'nav.risk', icon: <IconShieldCheck size={ICON} />, roles: RISK_READERS },
+      { path: '/ets', label: 'nav.ets', icon: <IconBuildingFactory2 size={ICON} /> },
+    ],
   },
 ];
 

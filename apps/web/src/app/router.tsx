@@ -4,7 +4,17 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { registerSubjectScreens } from '@/features/inbox/model/subjects';
 
-registerSubjectScreens('TRADE', 'ALLOCATION_PLAN', 'CURVE_SNAPSHOT', 'VALUATION_RUN');
+registerSubjectScreens(
+  'TRADE',
+  'ALLOCATION_PLAN',
+  'CURVE_SNAPSHOT',
+  'VALUATION_RUN',
+  'RISK_LIMIT',
+  'LIMIT_BREACH',
+  'CREDIT_SUPPORT',
+  'EMISSION_RECORD',
+  'COMPLIANCE_DEADLINE',
+);
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
 export const router = createBrowserRouter([
@@ -71,6 +81,22 @@ export const router = createBrowserRouter([
       {
         path: 'valuation/runs/:runId',
         lazy: async () => ({ Component: (await import('@/features/valuation/ValuationPage')).RunDetailPage }),
+      },
+      {
+        path: 'risk',
+        lazy: async () => ({ Component: (await import('@/features/risk/RiskPage')).RiskPage }),
+      },
+      {
+        path: 'risk/limits/:limitId',
+        lazy: async () => ({ Component: (await import('@/features/risk/LimitDetailPage')).LimitDetailPage }),
+      },
+      {
+        path: 'ets',
+        lazy: async () => ({ Component: (await import('@/features/ets/EtsPage')).EtsPage }),
+      },
+      {
+        path: 'ets/installations/:installationId',
+        lazy: async () => ({ Component: (await import('@/features/ets/InstallationPage')).InstallationPage }),
       },
       {
         path: 'inventory',

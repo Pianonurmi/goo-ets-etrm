@@ -47,7 +47,7 @@ data class DemoEntity(
 /**
  * The demo world: two legal entities (Finland and Sweden) with books, fictitious counterparties, simulator
  * accounts and own devices; certificates across vintages; trades in several states; signed-off curves, an official
- * valuation and last month's period end, plus open approvals in the personas' inboxes.
+ * valuation and last month's period end, risk limits and an ETS installation, plus open approvals in the personas' inboxes.
  */
 class DemoScenario(private val api: DemoClient, private val calendar: DemoCalendar) {
     fun run() {
@@ -59,6 +59,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
         DemoInventory(api, calendar).receive(sweden, issuanceSeed = 2)
         DemoTrades(api, calendar).book(finland, sweden, counterparties)
         accounting(finland)
+        DemoCompliance(api, calendar).seed(finland, counterparties)
     }
 
     private fun counterparties(): List<String> = listOf(
