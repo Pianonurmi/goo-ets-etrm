@@ -1,0 +1,316 @@
+package com.pianonurmi.etrm.allocation
+
+import com.pianonurmi.etrm.allocation.adapter.jooq.JooqAllocationPlanRepository
+import com.pianonurmi.etrm.allocation.adapter.jooq.JooqObligationRepository
+import com.pianonurmi.etrm.allocation.api.LineStatus
+import com.pianonurmi.etrm.allocation.api.ObligationKind
+import com.pianonurmi.etrm.allocation.api.ObligationStatus
+import com.pianonurmi.etrm.allocation.api.OpenObligation
+import com.pianonurmi.etrm.allocation.api.PlanStatus
+import com.pianonurmi.etrm.allocation.api.ProposeAllocation
+import com.pianonurmi.etrm.allocation.application.AllocationService
+import com.pianonurmi.etrm.allocation.application.ObligationService
+import com.pianonurmi.etrm.allocation.application.ProblemBuilder
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
+import com.pianonurmi.etrm.inventory.api.AcquisitionSource
+import com.pianonurmi.etrm.inventory.api.CancellationDetails
+import com.pianonurmi.etrm.inventory.api.CancellationPurpose
+import com.pianonurmi.etrm.inventory.api.CertificateRange
+import com.pianonurmi.etrm.inventory.api.LotFilter
+import com.pianonurmi.etrm.inventory.api.LotStatus
+import com.pianonurmi.etrm.inventory.api.ReceiveLots
+import com.pianonurmi.etrm.inventory.application.LotService
+import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
+import com.pianonurmi.etrm.platform.security.Actor
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
+import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
+import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
+import com.pianonurmi.etrm.product.api.criteria.Criterion
+import com.pianonurmi.etrm.product.api.criteria.VintageRule
+import com.pianonurmi.etrm.product.application.CriteriaServiceImpl
+import com.pianonurmi.etrm.product.application.ProductBucketSeeder
+import com.pianonurmi.etrm.product.application.ProductBucketService
+import com.pianonurmi.etrm.product.application.ProductCatalogueService
+import com.pianonurmi.etrm.product.application.TaxonomySnapshots
+import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
+import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
+import com.pianonurmi.etrm.referencedata.api.CreateProductionDevice
+import com.pianonurmi.etrm.referencedata.api.CreateRegistryAccount
+import com.pianonurmi.etrm.referencedata.api.HolderType
+import com.pianonurmi.etrm.referencedata.api.OwnerType
+import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
+import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
+import com.pianonurmi.etrm.registry.adapter.gateway.ManualRegistryGateway
+import com.pianonurmi.etrm.registry.adapter.gateway.SimulatorRegistryGateway
+import com.pianonurmi.etrm.registry.adapter.jooq.JooqRegistryInstructionRepository
+import com.pianonurmi.etrm.registry.adapter.jooq.JooqTransferRouteRepository
+import com.pianonurmi.etrm.registry.api.InstructionConfirmed
+import com.pianonurmi.etrm.registry.api.InstructionFailed
+import com.pianonurmi.etrm.registry.application.RegistryInstructionService
+import com.pianonurmi.etrm.registry.application.TransferRouteService
+import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
+import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
+import com.pianonurmi.etrm.trade.adapter.jooq.JooqTradeRepository
+import com.pianonurmi.etrm.trade.application.TradeService
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
+import org.springframework.context.ApplicationEventPublisher
+import java.math.BigDecimal
+import java.time.Clock
+import java.time.LocalDate
+import java.time.YearMonth
+import java.util.UUID
+
+/**
+ * Wires the real services together (no Spring context) with a synchronous event bus that routes registry events to
+ * the allocation listeners, and drives the plan lifecycle end to end against PostgreSQL.
+ */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class AllocationServiceIT {
+    private var currentUser = "trader"
+    private val actor = ActorProvider { Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE)) }
+    private val published = mutableListOf<Any>()
+    private lateinit var allocation: AllocationService
+    private lateinit var obligations: ObligationService
+    private lateinit var lots: LotService
+    private lateinit var entityId: UUID
+    private lateinit var simAccount: UUID
+    private lateinit var manualAccount: UUID
+
+    private val bus = ApplicationEventPublisher { event ->
+        published += event
+        when (event) {
+            is InstructionConfirmed -> allocation.on(event)
+            is InstructionFailed -> allocation.on(event)
+        }
+    }
+
+    @BeforeAll
+    fun setUp() {
+        TestDatabase.migrate("taxonomy", "referencedata", "product", "inventory", "trade", "registry", "allocation")
+        val dsl = TestDatabase.dsl
+        val clock = Clock.systemUTC()
+        val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
+        val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
+        val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
+        val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
+        ProductBucketSeeder(buckets, buckets).seed()
+        val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
+        lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, bus, clock)
+        val routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
+        val instructions = RegistryInstructionService(
+            JooqRegistryInstructionRepository(dsl),
+            listOf(SimulatorRegistryGateway(), ManualRegistryGateway()),
+            lots,
+            lots,
+            referenceData,
+            routes,
+            actor,
+            bus,
+            clock,
+        )
+        val trades = TradeService(JooqTradeRepository(dsl), referenceData, criteria, buckets, catalogue, actor, bus, clock, BigDecimal.ZERO)
+        val planRepository = JooqAllocationPlanRepository(dsl)
+        obligations = ObligationService(JooqObligationRepository(dsl), criteria, referenceData, bus)
+        allocation = AllocationService(
+            planRepository,
+            JooqObligationRepository(dsl),
+            obligations,
+            ProblemBuilder(criteria, buckets, routes, planRepository),
+            criteria,
+            lots,
+            lots,
+            instructions,
+            instructions,
+            trades,
+            trades,
+            actor,
+            bus,
+            clock,
+        )
+
+        entityId = referenceData.createLegalEntity(CreateLegalEntity("ALLOC-CO", "Allocation Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        simAccount = referenceData.createRegistryAccount(
+            CreateRegistryAccount("SIMULATOR", "SIM-ALLOC", "Simulator account", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityId),
+        ).id
+        manualAccount = referenceData.createRegistryAccount(
+            CreateRegistryAccount("UNION_REGISTRY", "EU-ALLOC", "Manual account", RegistryAccountType.TRADING, HolderType.LEGAL_ENTITY, entityId),
+        ).id
+        listOf("643000000000000016" to "HYDRO_RESERVOIR", "643000000000000023" to "WIND_ONSHORE").forEach { (gsrn, source) ->
+            referenceData.createProductionDevice(
+                CreateProductionDevice(
+                    gsrn = gsrn,
+                    name = "Device $gsrn",
+                    country = "FI",
+                    capacityKw = BigDecimal("50000"),
+                    commissioningDate = LocalDate.of(2018, 1, 1),
+                    energySourceCode = source,
+                    technologyCode = if (source == "WIND_ONSHORE") "WIND_TURBINE_ONSHORE" else "HYDRO_TURBINE_STORAGE",
+                    ownerType = OwnerType.LEGAL_ENTITY,
+                    ownerId = entityId,
+                    ownDevice = true,
+                ),
+            )
+        }
+    }
+
+    private fun receive(gsrn: String, issuance: String, quantity: Long, month: YearMonth = YearMonth.of(2026, 5), cost: String = "1.00") = lots.receive(
+        ReceiveLots(
+            holderEntityId = entityId,
+            registryAccountId = simAccount,
+            issuanceRef = issuance,
+            range = CertificateRange.of(1, quantity),
+            deviceGsrn = gsrn,
+            productionPeriod = LocalDateRange.ofMonth(month),
+            issueDate = month.plusMonths(1).atDay(10),
+            issuingBody = "SIM",
+            issuingCountry = "FI",
+            supportProduction = false,
+            supportInvestment = false,
+            acquisitionSource = AcquisitionSource.ISSUANCE,
+            costBasisPerMwh = BigDecimal(cost),
+            costCurrency = "EUR",
+        ),
+    )
+
+    @Test
+    fun `propose, four-eyes approve, instruct through the simulator and fulfil obligations`() {
+        currentUser = "trader"
+        val hydro = receive("643000000000000016", "H-1", 1_000, cost = "2.50")
+        val wind = receive("643000000000000023", "W-1", 1_000, cost = "0.80")
+        val hydroSale = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                entityId,
+                criterion = Criterion.all(Criterion.region("NORDIC"), Criterion.energySource("HYDRO"), Criterion.productionYear(2026)),
+                quantityMwh = 600,
+                deliveryWindow = LocalDateRange.ofQuarter(2026, 4),
+                deliveryDate = LocalDate.of(2026, 12, 15),
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-9",
+            ),
+        )
+        val disclosure = obligations.open(
+            OpenObligation(
+                ObligationKind.DISCLOSURE,
+                entityId,
+                criterion = Criterion.energySource("RENEWABLE"),
+                quantityMwh = 700,
+                deliveryWindow = LocalDateRange.ofQuarter(2027, 1),
+                deliveryDate = LocalDate.of(2027, 3, 31),
+                cancellation = CancellationDetails(CancellationPurpose.DISCLOSURE, "Retail customers", null, "FI", LocalDateRange.ofYear(2026)),
+            ),
+        )
+
+        val scope = setOf(hydroSale.id, disclosure.id)
+        val coverage = allocation.coverage(entityId, scope)
+        coverage.totalDemandMwh shouldBe 1_300
+        coverage.totalShortfallMwh shouldBe 0
+
+        val proposed = allocation.propose(ProposeAllocation(entityId, scope, idempotencyKey = "plan-1"))
+        proposed.status shouldBe PlanStatus.PROPOSED
+        proposed.allocatedMwh shouldBe 1_300
+        val hydroLine = proposed.lines.single { it.obligationId == hydroSale.id }
+        hydroLine.lotId shouldBe hydro.id
+        val disclosureLines = proposed.lines.filter { it.obligationId == disclosure.id }
+        disclosureLines.map { it.lotId }.toSet() shouldBe setOf(wind.id)
+        allocation.propose(ProposeAllocation(entityId, scope, idempotencyKey = "plan-1")).id shouldBe proposed.id
+
+        // A competing proposal only sees what the first one left (soft reservations).
+        val competing = allocation.propose(ProposeAllocation(entityId, scope, idempotencyKey = "plan-2"))
+        (competing.lines.filter { it.lotId == hydro.id }.sumOf { it.quantityMwh } <= 400) shouldBe true
+        (competing.lines.filter { it.lotId == wind.id }.sumOf { it.quantityMwh } <= 300) shouldBe true
+        allocation.reject(competing.id, "duplicate").status shouldBe PlanStatus.REJECTED
+
+        shouldThrow<SegregationOfDutiesException> { allocation.approve(proposed.id) }
+        currentUser = "middle-office"
+        val approved = allocation.approve(proposed.id)
+        approved.status shouldBe PlanStatus.CONFIRMED
+        approved.lines.all { it.status == LineStatus.CONFIRMED } shouldBe true
+        approved.lines.all { it.externalRef?.startsWith("SIM-") == true } shouldBe true
+
+        obligations.requireObligation(hydroSale.id).status shouldBe ObligationStatus.FULFILLED
+        obligations.requireObligation(disclosure.id).status shouldBe ObligationStatus.FULFILLED
+        lots.lots(LotFilter(holderEntityId = entityId, statuses = setOf(LotStatus.TRANSFERRED_OUT))).filter {
+            it.rootLotId == hydro.id
+        }.sumOf { it.quantityMwh } shouldBe 600
+        lots.lots(LotFilter(holderEntityId = entityId, statuses = setOf(LotStatus.CANCELLED))).filter {
+            it.rootLotId == wind.id
+        }.sumOf { it.quantityMwh } shouldBe 700
+        lots.lots(LotFilter(holderEntityId = entityId, statuses = setOf(LotStatus.HELD))).filter {
+            it.rootLotId in setOf(hydro.id, wind.id)
+        }.sumOf { it.quantityMwh } shouldBe 700
+        allocation.plans(entityId, activeOnly = true).shouldBeEmpty()
+        allocation.coverage(entityId, scope).totalDemandMwh shouldBe 0
+    }
+
+    @Test
+    fun `a plan goes stale when its lots were taken between proposal and approval`() {
+        currentUser = "trader"
+        val lot = receive("643000000000000023", "W-2", 300, month = YearMonth.of(2026, 7))
+        val sale = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                entityId,
+                criterion = Criterion.all(
+                    Criterion.energySource("WIND"),
+                    Criterion.Vintage(VintageRule.Explicit(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 8, 1))),
+                ),
+                quantityMwh = 300,
+                deliveryWindow = LocalDateRange.ofQuarter(2026, 4),
+                deliveryDate = LocalDate.of(2026, 11, 30),
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-2",
+            ),
+        )
+        val plan = allocation.propose(ProposeAllocation(entityId, setOf(sale.id), idempotencyKey = "plan-stale"))
+        plan.lines.single().lotId shouldBe lot.id
+        lots.reserve(lot.id, null, UUID.randomUUID())
+        currentUser = "approver"
+        val result = allocation.approve(plan.id)
+        result.status shouldBe PlanStatus.STALE
+        result.lines.all { it.status == LineStatus.CANCELLED } shouldBe true
+        obligations.requireObligation(sale.id).fulfilledMwh shouldBe 0
+    }
+
+    @Test
+    fun `partial reservation carves the needed quantity and confirms through the simulator`() {
+        currentUser = "trader"
+        val lot = receive("643000000000000016", "H-3", 500, month = YearMonth.of(2026, 8))
+        val sale = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                entityId,
+                criterion = Criterion.all(
+                    Criterion.energySource("HYDRO"),
+                    Criterion.Vintage(VintageRule.Explicit(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 9, 1))),
+                ),
+                quantityMwh = 200,
+                deliveryWindow = LocalDateRange.ofQuarter(2026, 4),
+                deliveryDate = LocalDate.of(2026, 12, 1),
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-3",
+            ),
+        )
+        val plan = allocation.propose(ProposeAllocation(entityId, setOf(sale.id), idempotencyKey = "plan-cancel"))
+        plan.lines.single().quantityMwh shouldBe 200
+        currentUser = "approver"
+        val approved = allocation.approve(plan.id)
+        approved.status shouldBe PlanStatus.CONFIRMED
+        val carved = approved.lines.single().reservedLotId!!
+        lots.requireLot(carved).quantityMwh shouldBe 200
+        lots.requireLot(carved).status shouldBe LotStatus.TRANSFERRED_OUT
+        lots.lots(LotFilter(holderEntityId = entityId, statuses = setOf(LotStatus.HELD))).filter {
+            it.rootLotId == lot.id
+        }.sumOf { it.quantityMwh } shouldBe 300
+    }
+}

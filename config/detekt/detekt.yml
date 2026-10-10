@@ -25,6 +25,8 @@ complexity:
     threshold: 800
 
 style:
+  LoopWithTooManyJumpStatements:
+    active: false
   MaxLineLength:
     maxLineLength: 160
   ReturnCount:
