@@ -12,6 +12,9 @@ dependencies {
     implementation(project(":modules:allocation"))
     implementation(project(":modules:settlement"))
     implementation(project(":modules:marketdata"))
+    implementation(project(":modules:valuation"))
+    implementation(project(":modules:etscompliance"))
+    implementation(project(":modules:workflow"))
     implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))

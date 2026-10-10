@@ -65,9 +65,18 @@ class LedgerService(
     // Posting
     // ----------------------------------------------------------------------------------------------------------
 
-    override fun post(facts: PostingFacts): List<JournalEntryView> = postInOpenPeriod(intoOpenPeriod(facts))
+    override fun post(facts: PostingFacts): List<JournalEntryView> = postByRules(intoOpenPeriod(facts), manual = false)
 
-    private fun postInOpenPeriod(facts: PostingFacts): List<JournalEntryView> {
+    /**
+     * Posts by rules on the facts' own date, as an adjustment: allowed in a soft-closed period, refused in a closed
+     * one. The caller checks the role (period end runs as ACCOUNTANT).
+     */
+    fun postAdjustment(facts: PostingFacts): List<JournalEntryView> = postByRules(facts, manual = true)
+
+    /** Serialises posting for an entity until the transaction ends. */
+    fun lockEntity(legalEntityId: UUID) = journal.lockEntity(legalEntityId)
+
+    private fun postByRules(facts: PostingFacts, manual: Boolean): List<JournalEntryView> {
         val applicable = RuleSelector.select(rules.all(), facts)
         if (applicable.isEmpty()) return emptyList()
         val chart = ensureChartOfAccounts(facts.legalEntityId).associateBy { it.code }
@@ -93,7 +102,7 @@ class LedgerService(
                 facts.description,
                 facts.currency,
                 lines,
-                manual = false,
+                manual = manual,
             )
         }
     }

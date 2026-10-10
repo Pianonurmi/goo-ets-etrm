@@ -10,6 +10,9 @@ import com.pianonurmi.etrm.ledger.adapter.jooq.JooqSeedRepository
 import com.pianonurmi.etrm.ledger.application.CommitmentMemos
 import com.pianonurmi.etrm.ledger.application.LedgerService
 import com.pianonurmi.etrm.ledger.application.PostingRuleSeeder
+import com.pianonurmi.etrm.marketdata.api.CurvePrice
+import com.pianonurmi.etrm.marketdata.api.CurveQuery
+import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -53,6 +56,11 @@ class CommitmentMemosIT {
     private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-10-15T10:00:00Z"), ZoneOffset.UTC)
     private val fx = MapFxRates()
+    private val curves = mockk<CurveQuery> {
+        every { vintagePrice(any(), any(), any(), any()) } returns null
+        every { vintagePrice("NORDIC_HYDRO", 2026, LocalDate.of(2026, 10, 1), null) } returns
+            CurvePrice(BigDecimal("1.20"), "EUR", PriceOrigin.POINT, "GOO-NORDIC_HYDRO", UUID.randomUUID(), LocalDate.of(2026, 9, 30))
+    }
     private lateinit var ledger: LedgerService
     private lateinit var memos: CommitmentMemos
     private lateinit var referenceData: ReferenceDataService
@@ -76,7 +84,7 @@ class CommitmentMemosIT {
             clock,
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
-        memos = CommitmentMemos(ledger, JooqCommitmentMemoRepository(dsl), clock)
+        memos = CommitmentMemos(ledger, JooqCommitmentMemoRepository(dsl), curves, fx, clock)
     }
 
     private fun entity(code: String) = referenceData.createLegalEntity(CreateLegalEntity(code, "$code Oy", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
@@ -86,9 +94,10 @@ class CommitmentMemosIT {
 
     private val scheduleId = UUID.randomUUID()
 
-    private fun trade(entity: UUID, priceType: PriceType = PriceType.FIXED, version: Int = 1, delivered: String = "0"): TradeView {
+    private fun trade(entity: UUID, priceType: PriceType = PriceType.FIXED, version: Int = 1, delivered: String = "0", bucket: String? = null): TradeView {
         val schedule = mockk<DeliveryScheduleView> {
             every { id } returns scheduleId
+            every { deliveryDate } returns LocalDate.of(2026, 12, 15)
             every { remainingQuantity } returns BigDecimal(300) - BigDecimal(delivered)
         }
         val leg = mockk<TradeLegView> {
@@ -98,7 +107,8 @@ class CommitmentMemosIT {
             every { price } returns BigDecimal("10.005")
             every { priceCurrency } returns Currency.getInstance("EUR")
             every { quantity } returns BigDecimal(300)
-            every { bucketCode } returns null
+            every { bucketCode } returns bucket
+            every { allowanceProductCode } returns null
             every { deliveries } returns listOf(schedule)
         }
         return mockk {
@@ -161,11 +171,21 @@ class CommitmentMemosIT {
     }
 
     @Test
-    fun `index-priced legs post no memo and their deliveries release nothing`() {
+    fun `index-priced legs without a curve price post no memo and their deliveries release nothing`() {
         val e = entity("MEMO-3")
         val t = trade(e, PriceType.INDEX)
         memos.on(TradeConfirmed(t))
         memos.on(delivery(t, 300, 0))
         ledger.entries(e, YearMonth.of(2026, 10)).size shouldBe 0
+    }
+
+    @Test
+    fun `index-priced legs are memoed at the curve price on the trade date plus the spread`() {
+        val e = entity("MEMO-4")
+        val t = trade(e, PriceType.INDEX, bucket = "NORDIC_HYDRO")
+        memos.on(TradeConfirmed(t))
+        memoBalance(e, "9000") shouldBe BigDecimal("3361.50") // 300 x (1.20 + 10.005)
+        memos.on(delivery(t, 300, 0))
+        memoBalance(e, "9000").signum() shouldBe 0
     }
 }

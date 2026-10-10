@@ -253,6 +253,22 @@ interface JournalRepository {
     fun allForEntity(legalEntityId: UUID): List<JournalEntryView>
 
     fun lockEntity(legalEntityId: UUID)
+
+    /**
+     * Balance of an account's lines dated on or before [upTo], optionally only of entries of [eventType], lines in
+     * [currency], and lines whose dimensions contain [dimensions].
+     */
+    fun balance(
+        legalEntityId: UUID,
+        accountCode: String,
+        upTo: LocalDate,
+        eventType: String? = null,
+        currency: String? = null,
+        dimensions: Map<String, String> = emptyMap(),
+    ): LineBalance
+
+    /** Currencies of an account's lines dated on or before [upTo]. */
+    fun currencies(legalEntityId: UUID, accountCode: String, upTo: LocalDate): Set<String>
 }
 
 interface PeriodRepository {
@@ -269,6 +285,9 @@ interface CostLayerRepository {
     fun insert(layer: CostLayer)
 
     fun reduce(layerId: UUID, quantity: BigDecimal)
+
+    /** Open layers of every asset key starting with [assetKeyPrefix], without locking (for measurement). */
+    fun openAll(legalEntityId: UUID, assetKeyPrefix: String): List<CostLayer>
 }
 
 interface GlExportRepository {

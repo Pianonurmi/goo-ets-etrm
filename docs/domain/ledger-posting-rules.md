@@ -28,15 +28,25 @@ Facts (`PostingFacts`): `amounts` (`cost`, `proceeds`, `notional`, `quantity`, s
 | RECEIVABLE_PAID / PAYABLE_PAID | InvoiceSettled | PAYMENT | 2600 / 2210 | 1510 / 1520 |
 | RECEIVABLE_NETTED / PAYABLE_NETTED | InvoiceSettled | NETTING | 1950 Netting clearing / 2210 | 1510 / 1950 |
 | FX_GAIN_* / FX_LOSS_* | RealisedFx | direction | 1510 or 2210 / 4900 FX losses | 3900 FX gains / 1510 or 2210 |
+| MTM_PL / MTM_OCI | PeriodEndMtm | treatment | 1800 derivative assets / 3500 or 2950 (losses: 4500 or 2950) | 3500 or 2950 / 2800 derivative liabilities |
+| NRV_GOO / NRV_ALLOWANCE | PeriodEndNrv | asset | 4310 NRV write-down | 1490 / 1491 valuation allowance |
+| EMISSION_PROVISION | PeriodEndProvision | | 4200 Emission costs | 2300 Emission provision |
+| FREE_ALLOCATION_GRANT_RELEASE | PeriodEndGrantRelease | | 2400 Deferred income | 4210 Grant released |
+| FX_REVALUATION_RECEIVABLE / _PAYABLE | PeriodEndFxRevaluation | account | 1510 or 2210 / 4910 unrealised FX losses | 3910 unrealised FX gains / 1510 or 2210 |
 
 Costing: certificates use specific identification (lot cost basis). Allowances use cost layers per account and
 product consumed FIFO or weighted average per the entity's `allowanceCostingMethod`; nominal free allocation creates a
 zero-cost layer, fair-value free allocation a layer at the fair value supplied with the movement.
 
+Period-end rules carry increase and decrease amounts (gain and loss for FX), so the same rule moves a balance up or
+down; see [ADR 0021](../adr/0021-period-end-accounting.md). They post through the adjustment path on the last day of
+the period, and MtM and FX revaluation are reversed on the first day of the next one.
+
 Commitment memos are kept per delivery schedule (`commitment_memo`). A confirmation posts the value of the quantity
 still to deliver at the fixed price; each delivery releases its share of what was posted, and the delivery that
 completes the schedule releases the remainder. An amendment or a cancellation reverses whatever is still open, and
-the re-confirmed trade posts a new memo. Legs without a fixed price get no memo yet. Releases and reversals are
+the re-confirmed trade posts a new memo. Index legs are memoed at the official curve price on the trade date plus the
+spread; formula legs, and schedules without a curve price, get no memo. Releases and reversals are
 recorded once per event, so replays change nothing.
 
 Default rules ship as a versioned set (`default-posting-rules.json`). When the shipped version is newer than the one

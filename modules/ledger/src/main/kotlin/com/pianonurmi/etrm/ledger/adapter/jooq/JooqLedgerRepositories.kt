@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.ledger.domain.CostLayerRepository
 import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
 import com.pianonurmi.etrm.ledger.domain.JournalRepository
+import com.pianonurmi.etrm.ledger.domain.LineBalance
 import com.pianonurmi.etrm.ledger.domain.MemoMovementKind
 import com.pianonurmi.etrm.ledger.domain.PeriodRepository
 import com.pianonurmi.etrm.ledger.domain.PostingRuleRepository
@@ -203,6 +204,45 @@ class JooqJournalRepository(private val dsl: DSLContext) : JournalRepository {
         dsl.execute("SELECT pg_advisory_xact_lock(hashtext({0}))", DSL.`val`("ledger:$legalEntityId"))
     }
 
+    override fun balance(
+        legalEntityId: UUID,
+        accountCode: String,
+        upTo: LocalDate,
+        eventType: String?,
+        currency: String?,
+        dimensions: Map<String, String>,
+    ): LineBalance {
+        val conditions = mutableListOf<Condition>(
+            JOURNAL_ENTRY.LEGAL_ENTITY_ID.eq(legalEntityId),
+            GL_ACCOUNT.CODE.eq(accountCode),
+            JOURNAL_ENTRY.POSTING_DATE.le(upTo),
+        )
+        eventType?.let { conditions += JOURNAL_ENTRY.EVENT_TYPE.eq(it) }
+        currency?.let { conditions += JOURNAL_LINE.CURRENCY.eq(it) }
+        if (dimensions.isNotEmpty()) {
+            conditions += DSL.condition("{0} @> {1}", JOURNAL_LINE.DIMENSIONS, DSL.`val`(JSONB.valueOf(Json.mapper.writeValueAsString(dimensions))))
+        }
+        val record = dsl.select(
+            DSL.coalesce(DSL.sum(JOURNAL_LINE.DEBIT), BigDecimal.ZERO),
+            DSL.coalesce(DSL.sum(JOURNAL_LINE.CREDIT), BigDecimal.ZERO),
+            DSL.coalesce(DSL.sum(JOURNAL_LINE.BASE_DEBIT), BigDecimal.ZERO),
+            DSL.coalesce(DSL.sum(JOURNAL_LINE.BASE_CREDIT), BigDecimal.ZERO),
+        )
+            .from(JOURNAL_LINE)
+            .join(JOURNAL_ENTRY).on(JOURNAL_ENTRY.ID.eq(JOURNAL_LINE.ENTRY_ID))
+            .join(GL_ACCOUNT).on(GL_ACCOUNT.ID.eq(JOURNAL_LINE.ACCOUNT_ID))
+            .where(conditions)
+            .fetchOne()!!
+        return LineBalance(record.value1(), record.value2(), record.value3(), record.value4())
+    }
+
+    override fun currencies(legalEntityId: UUID, accountCode: String, upTo: LocalDate): Set<String> = dsl.selectDistinct(JOURNAL_LINE.CURRENCY)
+        .from(JOURNAL_LINE)
+        .join(JOURNAL_ENTRY).on(JOURNAL_ENTRY.ID.eq(JOURNAL_LINE.ENTRY_ID))
+        .join(GL_ACCOUNT).on(GL_ACCOUNT.ID.eq(JOURNAL_LINE.ACCOUNT_ID))
+        .where(JOURNAL_ENTRY.LEGAL_ENTITY_ID.eq(legalEntityId), GL_ACCOUNT.CODE.eq(accountCode), JOURNAL_ENTRY.POSTING_DATE.le(upTo))
+        .fetchSet(JOURNAL_LINE.CURRENCY)
+
     private fun toView(r: JournalEntryRecord): JournalEntryView {
         val lines = dsl.select(JOURNAL_LINE.asterisk(), GL_ACCOUNT.CODE, GL_ACCOUNT.NAME)
             .from(JOURNAL_LINE)
@@ -305,6 +345,11 @@ class JooqCostLayerRepository(private val dsl: DSLContext) : CostLayerRepository
             .where(COST_LAYER.ID.eq(layerId))
             .execute()
     }
+
+    override fun openAll(legalEntityId: UUID, assetKeyPrefix: String): List<CostLayer> = dsl.selectFrom(COST_LAYER)
+        .where(COST_LAYER.LEGAL_ENTITY_ID.eq(legalEntityId), COST_LAYER.ASSET_KEY.startsWith(assetKeyPrefix), COST_LAYER.REMAINING_QUANTITY.gt(BigDecimal.ZERO))
+        .orderBy(COST_LAYER.ACQUIRED_ON, COST_LAYER.SEQ)
+        .fetch { CostLayer(it.id, it.legalEntityId, it.assetKey, it.acquiredOn, it.quantity, it.remainingQuantity, it.unitCost, it.currency, it.sourceRef) }
 }
 
 @Repository
