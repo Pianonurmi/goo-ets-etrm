@@ -268,6 +268,19 @@ interface ReconciliationQuery {
 
 data class ReconciliationBreakDetected(val breakView: ReconciliationBreakView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata
 
+/**
+ * A lot that was IN_TRANSFER no longer appears in its account's registry statement: the registry executed the
+ * instruction. The registry module confirms the instruction from this.
+ */
+data class InTransferLotLeftAccount(
+    val lotId: UUID,
+    val instructionRef: UUID,
+    val statementId: UUID,
+    val statementDate: java.time.LocalDate,
+    val registryCode: String,
+    val metadata: EventMetadata = EventMetadata(),
+) : DomainEvent by metadata
+
 data class ReconciliationBreakResolved(
     val breakView: ReconciliationBreakView,
     val resolvedBy: String,

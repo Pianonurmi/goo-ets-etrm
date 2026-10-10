@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.inventory.api.BreakStatus
 import com.pianonurmi.etrm.inventory.api.BreakType
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.ImportStatement
+import com.pianonurmi.etrm.inventory.api.InTransferLotLeftAccount
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakDetected
@@ -66,10 +67,12 @@ class ReconciliationService(
         // A statement is reconciled once; running it again returns the recorded result instead of duplicating breaks.
         if (statement.status != StatementStatus.IMPORTED) return statement
         val lines = repository.lines(statementId)
-        val liveLots = lots.liveInAccount(statement.registryAccountId).filter { it.status != LotStatus.IN_TRANSFER }
+        val accountLots = lots.liveInAccount(statement.registryAccountId)
+        val (inTransfer, liveLots) = accountLots.partition { it.status == LotStatus.IN_TRANSFER }
         val breaks = mutableListOf<ReconciliationBreakView>()
 
-        val lotsByIssuance = liveLots.groupBy { it.issuanceRef }
+        // In-flight lots still count as ours for statement lines (they leave only when the registry executes).
+        val lotsByIssuance = accountLots.groupBy { it.issuanceRef }
         lines.forEach { line ->
             val candidates = lotsByIssuance[line.issuanceRef].orEmpty().filter { it.range.overlaps(line.range) }
             RangeArithmetic.subtract(line.range, candidates.map { it.range }).forEach { gap ->
@@ -87,12 +90,37 @@ class ReconciliationService(
             }
         }
 
+        // An in-flight lot that is gone from the account has been executed by the registry; partly gone is a break.
+        val leftAccount = mutableListOf<LotView>()
+        inTransfer.forEach { lot ->
+            val covering = linesByIssuance[lot.issuanceRef].orEmpty().filter { it.range.overlaps(lot.range) }.map { it.range }
+            val gaps = RangeArithmetic.subtract(lot.range, covering)
+            when {
+                covering.isEmpty() -> leftAccount += lot
+                gaps.isNotEmpty() -> gaps.forEach { gap ->
+                    breaks += newBreak(
+                        statementId,
+                        BreakType.MISSING_IN_REGISTRY,
+                        lot.issuanceRef,
+                        gap,
+                        lot.id,
+                        mapOf("status" to lot.status.name, "partial" to true),
+                    )
+                }
+            }
+        }
+
         breaks.forEach {
             repository.insertBreak(it)
             events.publishEvent(ReconciliationBreakDetected(it))
         }
         val status = if (breaks.isEmpty()) StatementStatus.RECONCILED else StatementStatus.BREAKS
         repository.updateStatementStatus(statementId, status)
+        leftAccount.forEach { lot ->
+            lot.instructionRef?.let {
+                events.publishEvent(InTransferLotLeftAccount(lot.id, it, statementId, statement.statementDate, statement.registryCode))
+            }
+        }
         return statement.copy(status = status, breaks = breaks)
     }
 

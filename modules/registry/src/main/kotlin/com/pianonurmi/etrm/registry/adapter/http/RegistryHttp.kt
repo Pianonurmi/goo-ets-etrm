@@ -2,8 +2,6 @@ package com.pianonurmi.etrm.registry.adapter.http
 
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.context.annotation.Configuration
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpServerErrorException
@@ -42,10 +40,6 @@ data class AdapterSettings(
 ) {
     fun credential(environment: (String) -> String? = System::getenv): String? = credentialEnv?.let(environment)
 }
-
-@Configuration
-@EnableConfigurationProperties(RegistryAdapterProperties::class)
-class RegistryHttpConfiguration
 
 /** Builds HTTP clients for registry adapters with explicit timeouts, and retries idempotent reads. */
 @Component

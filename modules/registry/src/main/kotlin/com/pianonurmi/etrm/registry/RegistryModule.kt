@@ -5,5 +5,8 @@ import org.springframework.modulith.PackageInfo
 
 /** Registry integration: transfer routes, instructions and their execution through registry gateways. */
 @PackageInfo
-@ApplicationModule(displayName = "Registry", allowedDependencies = ["referencedata :: api", "inventory :: api", "product :: api"])
+@ApplicationModule(
+    displayName = "Registry",
+    allowedDependencies = ["referencedata :: api", "inventory :: api", "product :: api", "workflow :: api", "document :: api"],
+)
 class RegistryModule

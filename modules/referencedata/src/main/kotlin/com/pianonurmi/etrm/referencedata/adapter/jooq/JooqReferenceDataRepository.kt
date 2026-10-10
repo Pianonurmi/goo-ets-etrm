@@ -215,6 +215,14 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
 
     override fun allRegistries(): List<RegistryView> = dsl.selectFrom(REGISTRY).orderBy(REGISTRY.CODE).fetch(::toRegistry)
 
+    override fun updateRegistry(registry: RegistryView, expectedVersion: Int): Boolean = dsl.update(REGISTRY)
+        .set(REGISTRY.INTEGRATION, registry.integration.name)
+        .set(REGISTRY.ACTIVE, registry.active)
+        .set(REGISTRY.VERSION, registry.version)
+        .set(REGISTRY.UPDATED_AT, Instant.now())
+        .where(REGISTRY.ID.eq(registry.id), REGISTRY.VERSION.eq(expectedVersion))
+        .execute() == 1
+
     private fun toRegistry(r: RegistryRecord) = RegistryView(
         r.id,
         r.code,

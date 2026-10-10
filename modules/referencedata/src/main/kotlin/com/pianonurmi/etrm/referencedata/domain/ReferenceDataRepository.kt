@@ -49,6 +49,8 @@ interface ReferenceDataRepository {
 
     fun allRegistries(): List<RegistryView>
 
+    fun updateRegistry(registry: RegistryView, expectedVersion: Int): Boolean
+
     fun findRegistryAccount(id: UUID): RegistryAccountView?
 
     fun findRegistryAccountByNumber(registryId: UUID, accountNumber: String): RegistryAccountView?

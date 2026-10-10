@@ -44,8 +44,18 @@ interface TransferRouteCommand {
 enum class InstructionType { TRANSFER, CANCELLATION }
 
 enum class InstructionStatus {
+    /** Waiting for a second person's approval (instructions that do not come from an approved allocation plan). */
+    PENDING_APPROVAL,
+
+    /** Approved and waiting to be dispatched to the registry. */
     PENDING,
+
+    /** Claimed by a dispatcher; the registry call is in progress. */
+    DISPATCHING,
     SENT,
+
+    /** The registry call may or may not have taken effect (timeout, lost lease); resolved by status query or operator. */
+    UNKNOWN,
     ACKNOWLEDGED,
     CONFIRMED,
     FAILED,
@@ -53,6 +63,9 @@ enum class InstructionStatus {
     ;
 
     val terminal: Boolean get() = this == CONFIRMED || this == FAILED || this == CANCELLED
+
+    /** With the registry: the outcome is awaited from the registry or an operator. */
+    val awaitingRegistry: Boolean get() = this == SENT || this == ACKNOWLEDGED || this == UNKNOWN
 }
 
 data class RegistryInstructionView(
@@ -81,6 +94,11 @@ data class RegistryInstructionView(
     val sentAt: Instant?,
     val confirmedAt: Instant?,
     val version: Int,
+    /** Gateway channel (integration mode) fixed at creation. */
+    val channel: String = "MANUAL",
+    val nextAttemptAt: Instant? = null,
+    val approvedBy: String? = null,
+    val approvedAt: Instant? = null,
 )
 
 /** Transfer of a lot (or part of it) to another account; a partial quantity splits the lot first. */
@@ -117,7 +135,7 @@ interface RegistryInstructionCommand {
 
     fun cancel(instructionId: UUID, reason: String): RegistryInstructionView
 
-    /** Re-executes a PENDING or FAILED instruction through the gateway. */
+    /** Re-executes a FAILED or UNKNOWN instruction; needs a second person's approval like any manual instruction. */
     fun retry(instructionId: UUID): RegistryInstructionView
 }
 
@@ -133,11 +151,103 @@ interface RegistryInstructionQuery {
     fun forPlan(planRef: UUID): List<RegistryInstructionView>
 }
 
-/** Parses a registry's account statement export into the inventory module's structured statement. */
-interface StatementParser {
-    val registryCode: String
+// --------------------------------------------------------------------------------------------------------------
+// Statement formats and imports
+// --------------------------------------------------------------------------------------------------------------
 
-    fun parse(registryAccountId: UUID, statementDate: java.time.LocalDate, source: String, content: String): ImportStatement
+enum class StatementKind { GOO_HOLDINGS, GOO_TRANSACTIONS, ALLOWANCE_HOLDINGS, ALLOWANCE_TRANSACTIONS }
+
+/**
+ * How one registry export is laid out: which header carries which field. Fields for GoO holdings: issuanceRef,
+ * certStart, certEnd (or certRange with [constants] `rangeSeparator`), deviceGsrn, productionStart, productionEnd.
+ * Transactions add externalRef, instructionKey, transactionType, status, transactionDate. [constants] may also map
+ * registry status words to COMPLETED / FAILED (`status.<word>`) and type words to TRANSFER / CANCELLATION (`type.<word>`).
+ */
+data class StatementFormatView(
+    val id: UUID,
+    val registryCode: String,
+    val profileCode: String,
+    val kind: StatementKind,
+    val delimiter: Char,
+    val skipLines: Int,
+    val dateFormat: String,
+    val columnMapping: Map<String, String>,
+    val constants: Map<String, String>,
+    val active: Boolean,
+    val version: Int,
+    val updatedBy: String,
+    val updatedAt: Instant,
+)
+
+data class UpsertStatementFormat(
+    val registryCode: String,
+    val profileCode: String,
+    val kind: StatementKind,
+    val delimiter: Char = ',',
+    val skipLines: Int = 0,
+    val dateFormat: String = "yyyy-MM-dd",
+    val columnMapping: Map<String, String>,
+    val constants: Map<String, String> = emptyMap(),
+    val active: Boolean = true,
+)
+
+interface StatementFormatQuery {
+    fun formats(registryCode: String? = null): List<StatementFormatView>
+
+    /** The registry's own profile of that kind (or the named one), falling back to the generic `*` profile. */
+    fun resolve(registryCode: String, kind: StatementKind, profileCode: String? = null): StatementFormatView
+}
+
+interface StatementFormatCommand {
+    fun upsert(command: UpsertStatementFormat): StatementFormatView
+}
+
+/** One line of a registry transaction export. */
+data class RegistryTransactionLine(
+    val lineNo: Int,
+    val externalRef: String?,
+    val instructionKey: String?,
+    val transactionType: InstructionType?,
+    val issuanceRef: String?,
+    val range: CertificateRange?,
+    val status: TransactionLineStatus,
+    val transactionDate: java.time.LocalDate?,
+    val raw: Map<String, String>,
+)
+
+enum class TransactionLineStatus { COMPLETED, FAILED, OTHER }
+
+data class TransactionImportReport(
+    val registryCode: String,
+    val lines: Int,
+    val confirmed: List<UUID>,
+    val failed: List<UUID>,
+    val alreadyFinal: Int,
+    val unmatched: List<RegistryTransactionLine>,
+    val documentId: UUID?,
+)
+
+interface RegistryStatementCommand {
+    /** Parses a holdings export with the account's format profile, stores it in inventory and reconciles it. */
+    fun importHoldings(
+        registryAccountId: UUID,
+        statementDate: java.time.LocalDate,
+        source: String,
+        content: String,
+        profileCode: String? = null,
+    ): com.pianonurmi.etrm.inventory.api.StatementView
+
+    /** Confirms or fails open instructions from a registry transaction export (matched by reference or range). */
+    fun importTransactions(registryCode: String, source: String, content: String, profileCode: String? = null): TransactionImportReport
+
+    /** Parses without storing; for previews and tests. */
+    fun parseHoldings(
+        registryAccountId: UUID,
+        statementDate: java.time.LocalDate,
+        source: String,
+        content: String,
+        profileCode: String? = null,
+    ): ImportStatement
 }
 
 // --------------------------------------------------------------------------------------------------------------
@@ -163,6 +273,17 @@ data class InstructionCancelled(
     val reason: String,
     val metadata: EventMetadata = EventMetadata(),
 ) : InstructionEvent, DomainEvent by metadata
+
+/** The registry call's outcome is not known (timeout, lost lease); resolved by status query or operator. */
+data class InstructionOutcomeUnknown(
+    override val instruction: RegistryInstructionView,
+    val reason: String,
+    val metadata: EventMetadata = EventMetadata(),
+) : InstructionEvent, DomainEvent by metadata
+
+/** No confirmation arrived within the channel's confirmation SLA. */
+data class InstructionOverdue(override val instruction: RegistryInstructionView, val metadata: EventMetadata = EventMetadata()) :
+    InstructionEvent, DomainEvent by metadata
 
 data class InstructionFailed(
     override val instruction: RegistryInstructionView,

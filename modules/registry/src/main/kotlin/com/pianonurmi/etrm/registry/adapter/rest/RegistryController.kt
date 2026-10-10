@@ -1,17 +1,20 @@
 package com.pianonurmi.etrm.registry.adapter.rest
 
-import com.pianonurmi.etrm.inventory.api.ReconciliationCommand
 import com.pianonurmi.etrm.inventory.api.StatementView
-import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.registry.api.RegistryInstructionCommand
 import com.pianonurmi.etrm.registry.api.RegistryInstructionQuery
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
-import com.pianonurmi.etrm.registry.api.StatementParser
+import com.pianonurmi.etrm.registry.api.RegistryStatementCommand
+import com.pianonurmi.etrm.registry.api.StatementFormatCommand
+import com.pianonurmi.etrm.registry.api.StatementFormatQuery
+import com.pianonurmi.etrm.registry.api.StatementFormatView
 import com.pianonurmi.etrm.registry.api.SubmitCancellation
 import com.pianonurmi.etrm.registry.api.SubmitTransfer
+import com.pianonurmi.etrm.registry.api.TransactionImportReport
 import com.pianonurmi.etrm.registry.api.TransferRoute
 import com.pianonurmi.etrm.registry.api.TransferRouteCommand
 import com.pianonurmi.etrm.registry.api.TransferRouteQuery
+import com.pianonurmi.etrm.registry.api.UpsertStatementFormat
 import com.pianonurmi.etrm.registry.api.UpsertTransferRoute
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
@@ -35,9 +38,9 @@ class RegistryController(
     private val instructionQuery: RegistryInstructionQuery,
     private val routeQuery: TransferRouteQuery,
     private val routeCommand: TransferRouteCommand,
-    private val parsers: List<StatementParser>,
-    private val reconciliation: ReconciliationCommand,
-    private val referenceData: ReferenceDataQuery,
+    private val statements: RegistryStatementCommand,
+    private val formatQuery: StatementFormatQuery,
+    private val formatCommand: StatementFormatCommand,
 ) {
     @GetMapping("/routes")
     fun routes(
@@ -94,21 +97,35 @@ class RegistryController(
         @PathVariable id: UUID,
     ): RegistryInstructionView = instructionCommand.retry(id)
 
-    /** Uploads a CSV statement, imports it into inventory and runs reconciliation. */
+    /** Uploads a holdings statement, parses it with the account registry's format profile and reconciles it. */
     @PostMapping("/statements/csv")
     @ResponseStatus(HttpStatus.CREATED)
-    fun importCsv(
+    fun importHoldings(
         @RequestParam registryAccountId: UUID,
         @RequestParam statementDate: LocalDate,
         @RequestParam(defaultValue = "upload.csv") source: String,
+        @RequestParam(required = false) profile: String?,
         @RequestBody content: String,
-    ): StatementView {
-        val account = referenceData.requireRegistryAccount(registryAccountId)
-        val parser = parsers.firstOrNull { it.registryCode == account.registryCode } ?: parsers.first { it.registryCode == "*" }
-        val statement = parser.parse(registryAccountId, statementDate, source, content).copy(registryCode = account.registryCode)
-        val imported = reconciliation.importStatement(statement)
-        return reconciliation.reconcile(imported.id)
-    }
+    ): StatementView = statements.importHoldings(registryAccountId, statementDate, source, content, profile)
+
+    /** Uploads a registry transaction export; matching open instructions are confirmed or failed. */
+    @PostMapping("/statements/transactions")
+    fun importTransactions(
+        @RequestParam registryCode: String,
+        @RequestParam(defaultValue = "transactions.csv") source: String,
+        @RequestParam(required = false) profile: String?,
+        @RequestBody content: String,
+    ): TransactionImportReport = statements.importTransactions(registryCode, source, content, profile)
+
+    @GetMapping("/statement-formats")
+    fun formats(
+        @RequestParam(required = false) registryCode: String?,
+    ): List<StatementFormatView> = formatQuery.formats(registryCode)
+
+    @PutMapping("/statement-formats")
+    fun upsertFormat(
+        @RequestBody body: UpsertStatementFormat,
+    ): StatementFormatView = formatCommand.upsert(body)
 }
 
 data class ConfirmRequest(val externalRef: String? = null)

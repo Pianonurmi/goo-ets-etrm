@@ -7,23 +7,20 @@ import com.pianonurmi.etrm.registry.domain.GatewayResult
 import com.pianonurmi.etrm.registry.domain.RegistryGateway
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.core.annotation.Order
 import org.springframework.stereotype.Component
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.atomic.AtomicLong
 
 /** Test and demo gateway: every instruction is confirmed immediately with a synthetic reference. */
 @Component
-@Order(10)
 class SimulatorRegistryGateway : RegistryGateway {
-    private val counter = AtomicLong(1)
+    override val channel = "SIMULATOR"
 
-    override fun supports(registryCode: String, integration: String): Boolean = integration == "SIMULATOR"
+    override val inline = true
 
     override fun execute(instruction: RegistryInstructionView): GatewayResult =
-        GatewayResult.Confirmed("SIM-${"%08d".format(counter.getAndIncrement())}", mapOf("simulated" to true))
+        GatewayResult.Confirmed("SIM-${instruction.id.toString().takeLast(12).uppercase()}", mapOf("simulated" to true))
 }
 
 /**
@@ -31,9 +28,10 @@ class SimulatorRegistryGateway : RegistryGateway {
  * registry operator who executes it in the registry's own UI (with the registry's four-eyes) and confirms here.
  */
 @Component
-@Order(20)
 class ManualRegistryGateway : RegistryGateway {
-    override fun supports(registryCode: String, integration: String): Boolean = integration == "MANUAL"
+    override val channel = "MANUAL"
+
+    override val inline = true
 
     override fun execute(instruction: RegistryInstructionView): GatewayResult = GatewayResult.Sent(null, mapOf("mode" to "manual"))
 }
@@ -43,14 +41,16 @@ class ManualRegistryGateway : RegistryGateway {
  * arrives via statement import or operator confirmation.
  */
 @Component
-@Order(30)
 class FileRegistryGateway(
     @Value("\${etrm.registry.outbox-dir:build/registry-outbox}") private val outboxDir: String,
     private val referenceData: ReferenceDataQuery,
 ) : RegistryGateway {
     private val log = LoggerFactory.getLogger(FileRegistryGateway::class.java)
 
-    override fun supports(registryCode: String, integration: String): Boolean = integration == "FILE"
+    override val channel = "FILE"
+
+    /** Writing to a (possibly network) file system is external I/O: dispatched through the outbox. */
+    override val inline = false
 
     override fun execute(instruction: RegistryInstructionView): GatewayResult = runCatching {
         val dir = Path.of(outboxDir, instruction.registryCode)
@@ -60,7 +60,7 @@ class FileRegistryGateway(
         Files.writeString(file, InstructionPack.csv(instruction, fromAccount))
         log.info("Wrote registry instruction pack {}", file)
         GatewayResult.Sent(null, mapOf("file" to file.toString()))
-    }.getOrElse { GatewayResult.Failed("Could not write instruction pack: ${it.message}") }
+    }.getOrElse { GatewayResult.Retry("Could not write instruction pack: ${it.message}") }
 }
 
 /**

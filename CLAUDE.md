@@ -42,6 +42,8 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 - Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers (and optionally `X-Entities`, default all entities) in the `dev` and `test` profiles.
 - Approval and work tasks: the owning module implements `workflow.api.TaskHandler` (definition plus `onDecision`), opens tasks from its own events and closes them with `closeFor`. Workflow depends on no other module (ADR 0011).
 - Legal-entity scope: use `Actor.canAccess` / `requireEntity` in queries and commands that touch one entity's data.
+- Registry calls never run inside a database transaction: gateways declare `inline` (no external I/O) or go through the outbox dispatcher (ADR 0012). A timeout is `GatewayResult.Unknown`, never a resend.
+- Sensitive master data (registry integration modes; later counterparty registry and bank accounts) changes through `ChangeRequestCommand` and a second person's approval in the inbox.
 
 ## Lint
 
