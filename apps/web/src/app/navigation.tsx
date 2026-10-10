@@ -1,4 +1,11 @@
-import { IconArrowsExchange, IconCertificate, IconHome, IconInbox } from '@tabler/icons-react';
+import {
+  IconArrowsExchange,
+  IconCertificate,
+  IconChartBar,
+  IconHome,
+  IconInbox,
+  IconPuzzle,
+} from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { Role } from '@/shared/api/types';
 
@@ -35,7 +42,11 @@ export const NAVIGATION: NavSection[] = [
   },
   {
     title: 'nav.sectionOperations',
-    items: [{ path: '/inventory', label: 'nav.inventory', icon: <IconCertificate size={ICON} /> }],
+    items: [
+      { path: '/inventory', label: 'nav.inventory', icon: <IconCertificate size={ICON} /> },
+      { path: '/allocation', label: 'nav.allocation', icon: <IconPuzzle size={ICON} /> },
+      { path: '/positions', label: 'nav.positions', icon: <IconChartBar size={ICON} /> },
+    ],
   },
 ];
 

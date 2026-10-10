@@ -63,6 +63,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Period end (`PeriodEndService`) and similar measurements post the difference between the required balance and what is booked, so a re-run is idempotent. Use the adjustment path (`LedgerService.postAdjustment`).
 - Reports are entries in `ReportCatalogue`. Every run is logged with its content hash. Add a report there, with its roles.
 - The OpenAPI document is a contract (ADR 0027): after changing a controller or a view, run `./gradlew :apps:api:updateOpenApiSnapshot` and commit `apps/api/openapi/etrm-api.json`. Operation ids are `<controller>_<method>`, so keep handler names unique per controller and stable.
+- Allocation commands check roles and entity scope in the service: propose and what-if for TRADER, MIDDLE_OFFICE or BACK_OFFICE; approve and reject for MIDDLE_OFFICE or BACK_OFFICE (never the proposer); cancel for all three.
 - Manual trade operations over REST (recording deliveries, settling, issuing our confirmation) need MIDDLE_OFFICE or BACK_OFFICE (`TradeCommand.requireTradeOperator`).
 - Manual lot operations over REST (receive, split, reserve, release, cancel, withdraw, correct) need BACK_OFFICE or REGISTRY_OPERATOR on the holder (`LotCommand.requireLotOperator`); module flows call the commands directly.
 - Read endpoints respect entity scope: unfiltered lists use `Actor.entityFilter` (see `TradeQuery.visibleTrades`, `LotQuery.visibleLots`), single records call `requireEntity`, and `EntityScopeInterceptor` refuses a `legalEntityId`/`holderEntityId` parameter outside the user's scope.
@@ -71,7 +72,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 ## Web UI (`apps/web`, see `docs/ui/README.md`)
 
 - React, TypeScript (strict), Vite, Mantine, AG Grid Community, TanStack Query, React Router. The jar serves the bundle (ADR 0025).
-- API types are generated from `apps/api/openapi/etrm-api.json` (`npm run gen:api`); never hand-write request or response types. Update the snapshot first when the API changes.
+- API types are generated from `apps/api/openapi/etrm-api.json` (`npm run gen:api`, with read/write markers); never hand-write request or response types. Use `Schema<'X'>` for responses and `Body<'X'>` for request bodies. Update the snapshot first when the API changes.
 - Calls go through `$api` / `api` in `shared/api/client.ts`; failures are `ProblemError`. Map 422 violations onto forms with `applyProblemToForm`.
 - No money arithmetic in the browser: format with `shared/format`, send decimals back with `decimal()` (strings).
 - Offer actions through `<Can op=...>` / `useCan` keyed by operation id (`shared/auth/permissions.ts`); the API still checks.

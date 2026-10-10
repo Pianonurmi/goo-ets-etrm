@@ -53,7 +53,7 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M3 | Approval inbox (filters in the URL, cursor paging, bulk decisions, four-eyes cues, claim/assign, comments, history) and home | done |
 | M4 | Criteria catalogue endpoint, criteria builder, inventory explorer (certificates, criteria search, allowances), lot detail with as-of and operations; manual lot operations now need back office or registry operator rights | done |
 | M5 | Trade search endpoint (single query, keyset cursor), blotter, detail with versions diff, confirmations and MtM, capture and amendment with the criteria builder, confirm and cancel; REST guards for deliveries, settlement and confirmation issue | done |
-| M6 | Allocation what-if and workbench; coverage, expiry and ETS dashboards | planned |
+| M6 | Allocation what-if endpoint (shared computation with propose, stores nothing), role and entity checks on allocation commands, workbench, plan detail, GoO and ETS position dashboards with the expiry ladder | done |
 | M7 | Market data, curves, valuation | planned |
 | M8 | Risk and ETS compliance | planned |
 | M9 | Ledger browser, month end, reports (ADR 0028) | planned |

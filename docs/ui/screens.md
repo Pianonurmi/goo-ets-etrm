@@ -11,6 +11,9 @@ legal-entity scope; the UI only mirrors them.
 | Trade blotter | `/trades` | `trade_search` (one query per page, keyset cursor, filters and `q` in the URL), `referenceData_counterparties`, `referenceData_books` | everyone in scope |
 | Trade capture and amendment | `/trades/new`, `/trades/:tradeId/amend` | `trade_capture`, `trade_amend`, criteria builder, `referenceData_registryAccounts`, `product_allowances` | TRADER, MIDDLE_OFFICE |
 | Trade detail | `/trades/:tradeId` | `trade_trade`, `trade_versions` (diff per version), `confirmation_forTrade`, `valuation_tradeMtm`, `trade_confirm`, `trade_cancel`, link to the approval task | confirm: MIDDLE_OFFICE, BACK_OFFICE; amend/cancel: TRADER, MIDDLE_OFFICE |
+| Allocation workbench | `/allocation` | `allocation_obligations`, `allocation_coverage`, `allocation_plans`, `allocation_whatIf` (stores nothing), `allocation_propose` | propose and what-if: TRADER, MIDDLE_OFFICE, BACK_OFFICE |
+| Allocation plan | `/allocation/plans/:planId` | `allocation_plan`, link to the `ALLOCATION_APPROVAL` task, `allocation_cancel` | approve (inbox): MIDDLE_OFFICE, BACK_OFFICE, never the proposer |
+| Positions | `/positions` | `position_goo` (buckets, coverage, expiry ladder chart), `position_ets` (compliance ladder by year) | everyone in scope |
 | Inventory: certificates | `/inventory` | `inventory_lots` (selected entity; status and expiry filters in the URL) | everyone in scope |
 | Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
 | Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |

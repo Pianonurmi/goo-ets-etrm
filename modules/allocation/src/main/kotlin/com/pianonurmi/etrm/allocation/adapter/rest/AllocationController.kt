@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.allocation.api.AllocationCommand
 import com.pianonurmi.etrm.allocation.api.AllocationConstraint
 import com.pianonurmi.etrm.allocation.api.AllocationPlanView
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
+import com.pianonurmi.etrm.allocation.api.AllocationWhatIf
 import com.pianonurmi.etrm.allocation.api.CoverageReport
 import com.pianonurmi.etrm.allocation.api.ObligationCommand
 import com.pianonurmi.etrm.allocation.api.ObligationQuery
@@ -87,6 +88,12 @@ class AllocationController(
     fun propose(
         @Valid @RequestBody body: ProposeAllocation,
     ): AllocationPlanView = allocation.propose(body)
+
+    /** What proposing now would give; stores and reserves nothing. */
+    @PostMapping("/plans/what-if")
+    fun whatIf(
+        @RequestBody body: ProposeAllocation,
+    ): AllocationWhatIf = allocation.whatIf(body)
 
     @PostMapping("/plans/{id}/approve")
     fun approve(

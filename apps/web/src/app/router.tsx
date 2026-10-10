@@ -4,7 +4,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { registerSubjectScreens } from '@/features/inbox/model/subjects';
 
-registerSubjectScreens('TRADE');
+registerSubjectScreens('TRADE', 'ALLOCATION_PLAN');
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
 export const router = createBrowserRouter([
@@ -39,6 +39,18 @@ export const router = createBrowserRouter([
       {
         path: 'trades/:tradeId/amend',
         lazy: async () => ({ Component: (await import('@/features/trades/TradeFormPage')).TradeFormPage }),
+      },
+      {
+        path: 'allocation',
+        lazy: async () => ({ Component: (await import('@/features/allocation/AllocationPage')).AllocationPage }),
+      },
+      {
+        path: 'allocation/plans/:planId',
+        lazy: async () => ({ Component: (await import('@/features/allocation/PlanDetailPage')).PlanDetailPage }),
+      },
+      {
+        path: 'positions',
+        lazy: async () => ({ Component: (await import('@/features/positions/PositionsPage')).PositionsPage }),
       },
       {
         path: 'inventory',

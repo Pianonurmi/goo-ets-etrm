@@ -216,6 +216,9 @@ data class ProposeAllocation(
 interface AllocationCommand {
     fun propose(command: ProposeAllocation): AllocationPlanView
 
+    /** The plan [propose] would make now, without storing it or reserving anything (the idempotency key is ignored). */
+    fun whatIf(command: ProposeAllocation): AllocationWhatIf
+
     /** Four-eyes approval: hard-reserves lots, submits registry instructions. */
     fun approve(planId: UUID): AllocationPlanView
 
@@ -226,6 +229,17 @@ interface AllocationCommand {
     /** Expires PROPOSED plans whose soft reservation lapsed; returns the count. */
     fun expireStalePlans(now: Instant): Int
 }
+
+/** A computed but unsaved allocation: what proposing now would give. */
+data class AllocationWhatIf(
+    val holderEntityId: UUID,
+    val snapshotSeq: Long,
+    val solver: SolverKind,
+    val computedAt: Instant,
+    val objective: Map<String, Any?>,
+    val coverage: CoverageReport,
+    val lines: List<AllocationLineView>,
+)
 
 interface AllocationQuery {
     fun plan(id: UUID): AllocationPlanView?

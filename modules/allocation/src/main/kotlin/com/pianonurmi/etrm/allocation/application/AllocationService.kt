@@ -10,6 +10,7 @@ import com.pianonurmi.etrm.allocation.api.AllocationProposed
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.AllocationRejected
 import com.pianonurmi.etrm.allocation.api.AllocationStale
+import com.pianonurmi.etrm.allocation.api.AllocationWhatIf
 import com.pianonurmi.etrm.allocation.api.CoverageReport
 import com.pianonurmi.etrm.allocation.api.LineStatus
 import com.pianonurmi.etrm.allocation.api.ObligationKind
@@ -33,6 +34,7 @@ import com.pianonurmi.etrm.platform.errors.StaleVersionException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
@@ -89,9 +91,39 @@ class AllocationService(
     // ----------------------------------------------------------------------------------------------------------
 
     override fun propose(command: ProposeAllocation): AllocationPlanView {
+        authorise(command.holderEntityId, Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
         plans.byKey(command.idempotencyKey)?.let { return it }
+        val plan = compute(command, clock.instant())
+        plans.insert(plan)
+        plans.replaceSoftReservations(plan.id, plan.lines.groupBy { it.lotId }.mapValues { (_, ls) -> ls.sumOf { it.quantityMwh } }, plan.reservationExpiresAt)
+        events.publishEvent(AllocationProposed(plan))
+        return plan
+    }
+
+    @Transactional(readOnly = true)
+    override fun whatIf(command: ProposeAllocation): AllocationWhatIf {
+        authorise(command.holderEntityId, Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
+        val plan = compute(command, clock.instant())
+        return AllocationWhatIf(
+            plan.holderEntityId,
+            plan.snapshotSeq,
+            plan.solver,
+            plan.proposedAt,
+            plan.objective,
+            requireNotNull(plan.coverage) { "computed plans carry coverage" },
+            plan.lines,
+        )
+    }
+
+    private fun authorise(holderEntityId: UUID, vararg roles: Role) {
+        val actor = actorProvider.current()
+        actor.requireRole(*roles)
+        actor.requireEntity(holderEntityId)
+    }
+
+    /** Solves the allocation against the current snapshot; persists nothing (shared by propose and what-if). */
+    private fun compute(command: ProposeAllocation, now: Instant): AllocationPlanView {
         val actor = actorProvider.current().userId
-        val now = clock.instant()
         val open = obligations.open(command.holderEntityId).filter { command.obligationIds == null || it.id in command.obligationIds }
         if (open.isEmpty()) throw ValidationException("No open obligations to allocate for entity ${command.holderEntityId}")
         val snapshot = lotQuery.snapshot(command.holderEntityId)
@@ -101,11 +133,9 @@ class AllocationService(
         val solver = solverFor(command.solver)
         val assignments = solver.solve(problem)
         val coverage = CoverageAnalyser(built.scoring::bestBucketCode).analyse(problem, command.holderEntityId, snapshot.seq, now)
-
-        val planId = Ids.newId()
         val lines = disaggregate(problem, assignments)
-        val plan = AllocationPlanView(
-            id = planId,
+        return AllocationPlanView(
+            id = Ids.newId(),
             idempotencyKey = command.idempotencyKey,
             holderEntityId = command.holderEntityId,
             snapshotSeq = snapshot.seq,
@@ -130,10 +160,6 @@ class AllocationService(
             lines = lines,
             version = 1,
         )
-        plans.insert(plan)
-        plans.replaceSoftReservations(planId, lines.groupBy { it.lotId }.mapValues { (_, ls) -> ls.sumOf { it.quantityMwh } }, plan.reservationExpiresAt)
-        events.publishEvent(AllocationProposed(plan))
-        return plan
     }
 
     private fun solverFor(kind: SolverKind): Solver = when (kind) {
@@ -190,6 +216,7 @@ class AllocationService(
     // ----------------------------------------------------------------------------------------------------------
 
     override fun approve(planId: UUID): AllocationPlanView {
+        authorise(requirePlan(planId).holderEntityId, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
         val actor = actorProvider.current().userId
         val current = locked(planId)
         plans.lockEntity(current.holderEntityId)
@@ -337,6 +364,7 @@ class AllocationService(
     // ----------------------------------------------------------------------------------------------------------
 
     override fun reject(planId: UUID, reason: String): AllocationPlanView {
+        authorise(requirePlan(planId).holderEntityId, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
         val rejected = AllocationPlan(locked(planId)).reject(actorProvider.current().userId, reason)
         save(rejected)
         plans.deleteSoftReservations(planId)
@@ -345,6 +373,7 @@ class AllocationService(
     }
 
     override fun cancel(planId: UUID, reason: String): AllocationPlanView {
+        authorise(requirePlan(planId).holderEntityId, Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
         val current = locked(planId)
         val cancelled = AllocationPlan(current).cancel(actorProvider.current().userId, reason)
         save(cancelled)

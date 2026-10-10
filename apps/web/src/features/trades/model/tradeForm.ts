@@ -1,11 +1,11 @@
-import { decimal, type Schema } from '@/shared/api/types';
+import { decimal, type Body, type Schema } from '@/shared/api/types';
 import type { Criterion } from '@/features/criteria/model/tree';
 import { EXAMPLE } from '@/features/criteria/model/tree';
 
 export type TradeView = Schema<'TradeView'>;
-export type CaptureTrade = Schema<'CaptureTrade'>;
-export type AmendTrade = Schema<'AmendTrade'>;
-type CaptureLeg = Schema<'CaptureLeg'>;
+export type CaptureTrade = Body<'CaptureTrade'>;
+export type AmendTrade = Body<'AmendTrade'>;
+type CaptureLeg = Body<'CaptureLeg'>;
 export type ProductFamily = CaptureTrade['productFamily'];
 export type InstrumentType = CaptureTrade['instrumentType'];
 export type Side = CaptureLeg['side'];

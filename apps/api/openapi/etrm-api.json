@@ -89,7 +89,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "addressType", "city", "country", "line1", "partyId", "partyType", "postalCode" ],
+        "required" : [ "addressType", "city", "country", "line1", "partyId", "partyType", "postalCode", "text" ],
         "type" : "object"
       },
       "AgeingRow" : {
@@ -125,7 +125,7 @@
             "type" : "number"
           }
         },
-        "required" : [ "counterpartyId", "currency", "days1to30", "days31to60", "days61to90", "direction", "notDue", "over90" ],
+        "required" : [ "counterpartyId", "currency", "days1to30", "days31to60", "days61to90", "direction", "notDue", "over90", "total" ],
         "type" : "object"
       },
       "AgreeNetting" : {
@@ -351,7 +351,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "holderEntityId", "id", "idempotencyKey", "lines", "objective", "proposedAt", "proposedBy", "reservationExpiresAt", "snapshotSeq", "solver", "status", "version" ],
+        "required" : [ "allocatedMwh", "holderEntityId", "id", "idempotencyKey", "lines", "objective", "proposedAt", "proposedBy", "reservationExpiresAt", "snapshotSeq", "solver", "status", "version" ],
         "type" : "object"
       },
       "AllocationView" : {
@@ -392,6 +392,41 @@
           }
         },
         "required" : [ "allocatedAt", "allocatedBy", "amount", "id", "invoiceId", "kind" ],
+        "type" : "object"
+      },
+      "AllocationWhatIf" : {
+        "properties" : {
+          "computedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "coverage" : {
+            "$ref" : "#/components/schemas/CoverageReport"
+          },
+          "holderEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AllocationLineView"
+            },
+            "type" : "array"
+          },
+          "objective" : {
+            "additionalProperties" : { },
+            "type" : "object"
+          },
+          "snapshotSeq" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "solver" : {
+            "enum" : [ "GREEDY", "EXACT" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "computedAt", "coverage", "holderEntityId", "lines", "objective", "snapshotSeq", "solver" ],
         "type" : "object"
       },
       "AllowanceHoldingView" : {
@@ -931,7 +966,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "bucketCode", "expiringWithin90DaysMwh", "heldMwh", "inTransferMwh", "lotCount", "productionYear", "reservedMwh" ],
+        "required" : [ "bucketCode", "expiringWithin90DaysMwh", "heldMwh", "inTransferMwh", "liveMwh", "lotCount", "productionYear", "reservedMwh" ],
         "type" : "object"
       },
       "BucketSurplus" : {
@@ -1255,7 +1290,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "end", "start" ],
+        "required" : [ "end", "quantity", "start" ],
         "type" : "object"
       },
       "ChangeRequestView" : {
@@ -1414,7 +1449,7 @@
             "type" : [ "integer", "null" ]
           }
         },
-        "required" : [ "asOf", "complianceYear", "estimatedEmissions", "freeAllocationExpected", "freeAllocationReceived", "heldAllowances", "holdings", "legalEntityId", "openPurchases", "openSales", "surrenderDeadline", "surrendered" ],
+        "required" : [ "asOf", "complianceYear", "emissionsBasis", "estimatedEmissions", "freeAllocationExpected", "freeAllocationOutstanding", "freeAllocationReceived", "heldAllowances", "holdings", "legalEntityId", "netPosition", "obligationOutstanding", "openPurchases", "openSales", "surrenderDeadline", "surrendered" ],
         "type" : "object"
       },
       "ConfirmInstructionForBreak" : {
@@ -1754,7 +1789,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "asOf", "holderEntityId", "obligations", "shortageGroups", "snapshotSeq", "surplusByBucket", "totalCoveredMwh", "totalDemandMwh" ],
+        "required" : [ "asOf", "holderEntityId", "obligations", "shortageGroups", "snapshotSeq", "surplusByBucket", "totalCoveredMwh", "totalDemandMwh", "totalShortfallMwh" ],
         "type" : "object"
       },
       "CreateBook" : {
@@ -2791,7 +2826,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "bookId", "counterpartyId", "deliveredQuantity", "deliveryDate", "deliveryWindow", "legId", "legalEntityId", "price", "priceCurrency", "priceType", "productFamily", "quantity", "scheduleId", "side", "status", "tradeId", "tradeNumber" ],
+        "required" : [ "bookId", "counterpartyId", "deliveredQuantity", "deliveryDate", "deliveryWindow", "legId", "legalEntityId", "price", "priceCurrency", "priceType", "productFamily", "quantity", "remainingQuantity", "scheduleId", "side", "status", "tradeId", "tradeNumber" ],
         "type" : "object"
       },
       "DeliveryScheduleView" : {
@@ -2830,7 +2865,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "deliveredQuantity", "deliveryDate", "deliveryWindow", "id", "quantity", "scheduleNo", "status" ],
+        "required" : [ "deliveredQuantity", "deliveryDate", "deliveryWindow", "id", "quantity", "remainingQuantity", "scheduleNo", "status" ],
         "type" : "object"
       },
       "DeliveryTerms" : {
@@ -3011,7 +3046,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "latestAction", "missingFields", "tradeId", "tradeNumber" ],
+        "required" : [ "complete", "latestAction", "missingFields", "tradeId", "tradeNumber" ],
         "type" : "object"
       },
       "EmirEventView" : {
@@ -3199,7 +3234,7 @@
             "type" : [ "integer", "null" ]
           }
         },
-        "required" : [ "complianceYear", "installationAccounts", "installations", "legalEntityId", "surrenderDeadline" ],
+        "required" : [ "complianceYear", "estimatedEmissions", "freeAllocationExpected", "freeAllocationReceived", "installationAccounts", "installations", "legalEntityId", "surrenderDeadline", "surrendered" ],
         "type" : "object"
       },
       "Equals" : {
@@ -3372,7 +3407,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "allocated", "installationId", "received", "status", "year" ],
+        "required" : [ "allocated", "entitlement", "installationId", "outstanding", "received", "status", "year" ],
         "type" : "object"
       },
       "FuturesContractView" : {
@@ -3842,7 +3877,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "complianceYear", "emissions", "emissionsBasis", "held", "installation", "status", "surrenderDeadline", "surrendered" ],
+        "required" : [ "complianceYear", "emissions", "emissionsBasis", "held", "installation", "net", "outstanding", "status", "surrenderDeadline", "surrendered" ],
         "type" : "object"
       },
       "InstallationLine" : {
@@ -4179,7 +4214,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "counterpartyId", "createdBy", "currency", "grossTotal", "id", "invoiceDate", "kind", "legalEntityId", "lines", "netTotal", "notes", "status", "taxPointDate", "vatTotal", "version" ],
+        "required" : [ "counterpartyId", "createdBy", "currency", "direction", "grossTotal", "id", "invoiceDate", "kind", "legalEntityId", "lines", "netTotal", "notes", "outstanding", "status", "taxPointDate", "vatTotal", "version" ],
         "type" : "object"
       },
       "JournalEntryView" : {
@@ -4265,7 +4300,7 @@
             "type" : "number"
           }
         },
-        "required" : [ "createdAt", "createdBy", "currency", "description", "entryNumber", "eventType", "hash", "id", "legalEntityId", "lines", "period", "postingDate", "status" ],
+        "required" : [ "createdAt", "createdBy", "currency", "description", "entryNumber", "eventType", "hash", "id", "legalEntityId", "lines", "period", "postingDate", "status", "totalCredit", "totalDebit" ],
         "type" : "object"
       },
       "JournalLineView" : {
@@ -4549,7 +4584,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "endExclusive", "start" ],
+        "required" : [ "endExclusive", "endInclusive", "start" ],
         "type" : "object"
       },
       "LotCancelRequest" : {
@@ -4861,7 +4896,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "acquisitionDate", "acquisitionSource", "attributes", "certificateScheme", "deviceCountry", "deviceGsrn", "energyCarrier", "energySourceCode", "energySourcePath", "expiryDate", "holderEntityId", "id", "issuanceRef", "issueDate", "issuingBody", "issuingCountry", "labels", "productionPeriod", "quantityMwh", "range", "registryAccountId", "registryCode", "rootLotId", "status", "version" ],
+        "required" : [ "acquisitionDate", "acquisitionSource", "attributes", "certificateScheme", "classKey", "deviceCountry", "deviceGsrn", "energyCarrier", "energySourceCode", "energySourcePath", "expiryDate", "holderEntityId", "id", "issuanceRef", "issueDate", "issuingBody", "issuingCountry", "labels", "productionPeriod", "quantityMwh", "range", "registryAccountId", "registryCode", "rootLotId", "status", "version" ],
         "type" : "object"
       },
       "ManualJournal" : {
@@ -5101,7 +5136,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "bookType", "id", "treatment" ],
+        "required" : [ "bookType", "id", "signedOff", "treatment" ],
         "type" : "object"
       },
       "NettingStatementView" : {
@@ -5254,7 +5289,7 @@
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "allowanceCostToSell", "currency", "expiryDays", "gooCostToSellPerMwh", "id" ],
+        "required" : [ "allowanceCostToSell", "currency", "expiryDays", "gooCostToSellPerMwh", "id", "signedOff" ],
         "type" : "object"
       },
       "NumberRange" : {
@@ -5305,7 +5340,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "coveredMwh", "demandMwh", "eligibleClassCount", "eligibleSupplyMwh", "obligationId" ],
+        "required" : [ "coveredMwh", "demandMwh", "eligibleClassCount", "eligibleSupplyMwh", "obligationId", "shortfallMwh" ],
         "type" : "object"
       },
       "ObligationView" : {
@@ -5427,7 +5462,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "constraints", "criteriaSummary", "criterion", "deliveryDate", "deliveryWindow", "fulfilledMwh", "holderEntityId", "id", "kind", "priorityClass", "quantityMwh", "status", "version" ],
+        "required" : [ "constraints", "criteriaSummary", "criterion", "deliveryDate", "deliveryWindow", "fulfilledMwh", "holderEntityId", "id", "kind", "priorityClass", "quantityMwh", "remainingMwh", "status", "version" ],
         "type" : "object"
       },
       "OidcView" : {
@@ -6658,7 +6693,7 @@
             "type" : "number"
           }
         },
-        "required" : [ "exported", "glAccount", "subLedger" ],
+        "required" : [ "exported", "glAccount", "notExported", "reconciled", "subLedger" ],
         "type" : "object"
       },
       "RecordAllowanceMovement" : {
@@ -7180,7 +7215,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "attempts", "createdAt", "fromAccountId", "holderEntityId", "id", "instructionKey", "quantity", "registryCode", "status", "submittedBy", "type", "version" ],
+        "required" : [ "attempts", "createdAt", "fromAccountId", "holderEntityId", "id", "instructionKey", "quantity", "registryCode", "status", "submittedBy", "type", "unit", "version" ],
         "type" : "object"
       },
       "RegistryTransactionLine" : {
@@ -8457,7 +8492,7 @@
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "deliveries", "id", "legNo", "price", "priceCurrency", "priceType", "quantity", "side", "unit" ],
+        "required" : [ "deliveries", "id", "legNo", "notional", "price", "priceCurrency", "priceType", "quantity", "side", "unit" ],
         "type" : "object"
       },
       "TradePage" : {
@@ -8701,7 +8736,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "bookId", "counterpartyId", "createdBy", "id", "instrumentType", "legalEntityId", "legs", "productFamily", "status", "tradeDate", "tradeNumber", "trader", "version" ],
+        "required" : [ "bookId", "counterpartyId", "createdBy", "emirReportable", "id", "instrumentType", "legalEntityId", "legs", "notional", "obligationsOpen", "productFamily", "requiresRiskApproval", "status", "tradeDate", "tradeNumber", "trader", "version" ],
         "type" : "object"
       },
       "TransactionImportReport" : {
@@ -8772,7 +8807,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "expectedDays", "feasible", "feePerMwh", "fromRegistryCode", "toRegistryCode" ],
+        "required" : [ "expectedDays", "feasible", "feePerMwh", "fromRegistryCode", "sameRegistry", "toRegistryCode" ],
         "type" : "object"
       },
       "TrialBalanceRow" : {
@@ -8801,7 +8836,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "accountCode", "accountName", "credit", "debit", "type" ],
+        "required" : [ "accountCode", "accountName", "balance", "credit", "debit", "type" ],
         "type" : "object"
       },
       "UiConfigView" : {
@@ -9931,6 +9966,44 @@
               }
             },
             "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Allocation" ]
+      }
+    },
+    "/api/v1/allocation/plans/what-if" : {
+      "post" : {
+        "operationId" : "allocation_whatIf",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProposeAllocation"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AllocationWhatIf"
+                }
+              }
+            },
+            "description" : "OK"
           },
           "default" : {
             "content" : {

@@ -18,8 +18,8 @@ import kotlin.reflect.full.primaryConstructor
 
 /**
  * Marks Kotlin constructor properties that are neither nullable nor defaulted as `required`, so generated clients
- * see `id: string` rather than `id?: string`. Computed properties (serialised, never read) are marked `readOnly`;
- * they stay optional so request bodies do not have to carry them.
+ * see `id: string` rather than `id?: string`. Computed properties (serialised, never read) are `readOnly`, and
+ * required when non-null: clients always get them and never send them.
  */
 class KotlinRequiredProperties : ModelConverter {
     override fun resolve(type: AnnotatedType, context: ModelConverterContext, chain: Iterator<ModelConverter>): Schema<*>? {
@@ -32,11 +32,11 @@ class KotlinRequiredProperties : ModelConverter {
         val required = parameters.filter { !it.isOptional && !it.type.isMarkedNullable }.mapNotNull { it.name }.filter { holder.properties.containsKey(it) }
         if (required.isNotEmpty()) holder.required = (holder.required.orEmpty() + required).distinct()
         val constructorNames = parameters.mapNotNull { it.name }.toSet()
-        runCatching { cls.kotlin.memberProperties }.getOrDefault(emptyList())
-            .filter { it.name !in constructorNames }
-            .mapNotNull { holder.properties[it.name] }
-            .filter { it.`$ref` == null }
-            .forEach { it.readOnly = true }
+        val computed = runCatching { cls.kotlin.memberProperties }.getOrDefault(emptyList())
+            .filter { it.name !in constructorNames && holder.properties[it.name]?.`$ref` == null && holder.properties.containsKey(it.name) }
+        computed.forEach { holder.properties.getValue(it.name).readOnly = true }
+        val alwaysPresent = computed.filter { !it.returnType.isMarkedNullable }.map { it.name }
+        if (alwaysPresent.isNotEmpty()) holder.required = (holder.required.orEmpty() + alwaysPresent).distinct()
         return schema
     }
 
