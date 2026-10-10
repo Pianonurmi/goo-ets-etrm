@@ -80,6 +80,17 @@ object TestDatabase {
         }
     }
 
+    /** Drops the given module schemas so a full-application test starts from empty schemas and migrates itself. */
+    fun resetSchemas(vararg modules: String) {
+        synchronized(this) {
+            dataSource.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    modules.filter { it != "platform" }.forEach { statement.execute("DROP SCHEMA IF EXISTS etrm_$it CASCADE") }
+                }
+            }
+        }
+    }
+
     private fun flywayFor(module: String, clean: Boolean): Flyway = Flyway.configure()
         .dataSource(dataSource)
         .schemas("etrm_$module")

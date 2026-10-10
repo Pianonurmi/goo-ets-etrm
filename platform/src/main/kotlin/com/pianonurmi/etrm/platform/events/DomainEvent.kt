@@ -13,10 +13,13 @@ interface DomainEvent {
     val eventId: UUID
     val occurredAt: Instant
     val correlationId: String?
-
-    /** Stable, versioned type name used in the event journal and for externalisation. */
-    val eventType: String get() = this::class.simpleName ?: "UnknownEvent"
 }
+
+/**
+ * Stable type name used in the audit journal and for externalisation. An extension rather than an interface
+ * member so that `DomainEvent by metadata` delegation cannot redirect it to the metadata holder's class.
+ */
+val DomainEvent.eventType: String get() = this::class.simpleName ?: "UnknownEvent"
 
 /** Convenience holder so event data classes only need to add their payload. */
 data class EventMetadata(
