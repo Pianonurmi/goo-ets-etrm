@@ -166,6 +166,7 @@ class ReportingServiceIT {
             mockk(),
             mockk(),
             mockk(),
+            mockk(),
             mockk(relaxed = true),
             repository,
             clock,

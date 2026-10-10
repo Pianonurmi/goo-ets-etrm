@@ -29,6 +29,7 @@
   | EMIR_TRADE_ACTIVITY | EMIR events in a period with their fields | same |
   | MIFID_ANCILLARY_ACTIVITY | allowance trades of a year by purpose | same |
   | GL_TRIAL_BALANCE | a period's movements per account | accountant, audit |
+  | GL_RECONCILIATION | sub-ledger, exported and GL closing balances per GL account (ADR 0024) | accountant, audit |
 - **Every run is an export**: `GET /api/v1/reports/{code}?format=csv|json&...`.
   - The run is numbered per report and entity (`report_export.seq`).
   - The content and its SHA-256 are stored, append-only, and the response headers carry both.

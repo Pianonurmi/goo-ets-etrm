@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.reporting.application
 
 import com.pianonurmi.etrm.etscompliance.api.EtsComplianceQuery
 import com.pianonurmi.etrm.inventory.api.LotQuery
+import com.pianonurmi.etrm.ledger.api.GlInterfaceQuery
 import com.pianonurmi.etrm.ledger.api.LedgerQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.security.Role
@@ -50,6 +51,7 @@ class ReportCatalogue(
     private val risk: RiskQuery,
     private val compliance: EtsComplianceQuery,
     private val ledger: LedgerQuery,
+    private val gl: GlInterfaceQuery,
     private val fxRates: FxRates,
     private val repository: ReportingRepository,
     private val clock: Clock,
@@ -290,6 +292,26 @@ class ReportCatalogue(
                     "debit" to it.debit,
                     "credit" to it.credit,
                     "balance" to it.balance,
+                )
+            }
+        },
+        Definition(
+            "GL_RECONCILIATION",
+            "GL reconciliation",
+            "Closing balances per GL account: sub-ledger, exported and general ledger",
+            FINANCE,
+            listOf(ENTITY, ReportParameter("period", "yyyy-MM", true, "Period")),
+            listOf("glAccount", "subLedger", "exported", "generalLedger", "notExported", "glDifference", "reconciled"),
+        ) { p ->
+            gl.reconciliation(p.uuid("legalEntityId"), YearMonth.parse(p.string("period"))).map {
+                mapOf(
+                    "glAccount" to it.glAccount,
+                    "subLedger" to it.subLedger,
+                    "exported" to it.exported,
+                    "generalLedger" to it.generalLedger,
+                    "notExported" to it.notExported,
+                    "glDifference" to it.glDifference,
+                    "reconciled" to it.reconciled,
                 )
             }
         },

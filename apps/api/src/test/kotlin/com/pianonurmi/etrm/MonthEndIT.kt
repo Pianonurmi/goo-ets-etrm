@@ -193,6 +193,8 @@ class MonthEndIT {
         s.asUser("accountant").body(glBalances).put("/api/v1/ledger/gl-balances/2026-09?legalEntityId=${s.entityId}").then().statusCode(200)
             .body("findAll { !it.reconciled }.size()", equalTo(0))
         s.asUser("accountant").get("/api/v1/ledger/periods/2026-09/hard-close-blockers?legalEntityId=${s.entityId}").then().body("size()", equalTo(0))
+        s.asUser("accountant").get("/api/v1/reports/GL_RECONCILIATION?legalEntityId=${s.entityId}&period=2026-09").then().statusCode(200)
+            .body("rows.findAll { !it.reconciled }.size()", equalTo(0)).body("rows.size()", greaterThan(0))
         s.asUser("accountant").post("/api/v1/ledger/periods/2026-09/close?legalEntityId=${s.entityId}&hard=true").then().statusCode(200)
             .body("status", equalTo("CLOSED"))
         s.asUser("auditor", "AUDITOR").get("/api/v1/ledger/journal/verify?legalEntityId=${s.entityId}").then().body("ok", equalTo(true))
