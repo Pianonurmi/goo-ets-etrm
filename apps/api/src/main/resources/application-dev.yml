@@ -6,3 +6,7 @@ logging:
   level:
     com.pianonurmi.etrm: DEBUG
     org.jooq.tools.LoggerListener: DEBUG
+etrm:
+  ui:
+    auth-mode: DEV_HEADERS
+    environment: DEV

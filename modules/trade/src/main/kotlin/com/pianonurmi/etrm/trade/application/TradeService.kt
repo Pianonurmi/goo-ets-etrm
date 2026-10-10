@@ -471,6 +471,16 @@ class TradeService(
     override fun trades(filter: TradeFilter): List<TradeView> = repository.list(filter)
 
     @Transactional(readOnly = true)
+    override fun visibleTrades(filter: TradeFilter): List<TradeView> {
+        val actor = actorProvider.current()
+        filter.legalEntityId?.let { actor.requireEntity(it) }
+        return repository.list(filter.copy(legalEntityIds = actor.entityFilter))
+    }
+
+    @Transactional(readOnly = true)
+    override fun requireVisibleTrade(id: UUID): TradeView = requireTrade(id).also { actorProvider.current().requireEntity(it.legalEntityId) }
+
+    @Transactional(readOnly = true)
     override fun versions(tradeId: UUID): List<TradeVersionView> = repository.versions(tradeId)
 
     @Transactional(readOnly = true)

@@ -192,6 +192,8 @@ data class LotFilter(
     val expiringBefore: LocalDate? = null,
     val reservationRef: UUID? = null,
     val limit: Int = 500,
+    /** Restricts the list to lots held by these legal entities; null means no restriction. */
+    val holderEntityIds: Set<UUID>? = null,
 )
 
 // --------------------------------------------------------------------------------------------------------------

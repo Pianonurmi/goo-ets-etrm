@@ -1,0 +1,21 @@
+# Production security chain (JWT) with a stub decoder, see SecuredChainIT.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 10000
+  task:
+    scheduling:
+      pool:
+        size: 1
+etrm:
+  ui:
+    oidc:
+      authority: https://login.example.test/realms/etrm
+  registry:
+    outbox-dir: build/test-registry-outbox
+logging:
+  level:
+    com.pianonurmi.etrm: INFO
+    org.springframework.modulith: WARN

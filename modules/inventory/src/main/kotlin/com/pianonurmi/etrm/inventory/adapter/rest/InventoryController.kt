@@ -61,24 +61,24 @@ class InventoryController(
         @RequestParam(required = false) deviceGsrn: String?,
         @RequestParam(required = false) expiringBefore: LocalDate?,
         @RequestParam(defaultValue = "500") limit: Int,
-    ): List<LotView> = lotQuery.lots(LotFilter(holderEntityId, registryAccountId, status, deviceGsrn, expiringBefore, limit = limit))
+    ): List<LotView> = lotQuery.visibleLots(LotFilter(holderEntityId, registryAccountId, status, deviceGsrn, expiringBefore, limit = limit))
 
     @GetMapping("/lots/{id}")
     fun lot(
         @PathVariable id: UUID,
-    ): LotView = lotQuery.requireLot(id)
+    ): LotView = lotQuery.requireVisibleLot(id)
 
     @GetMapping("/lots/{id}/history")
     fun history(
         @PathVariable id: UUID,
-    ): List<LotEventView> = lotQuery.history(id)
+    ): List<LotEventView> = lotQuery.requireVisibleLot(id).let { lotQuery.history(id) }
 
     @GetMapping("/lots/{id}/as-of")
     fun asOf(
         @PathVariable id: UUID,
         @RequestParam effectiveAt: Instant,
         @RequestParam knownAt: Instant,
-    ): Map<String, Any?>? = lotQuery.asOf(id, effectiveAt, knownAt)
+    ): Map<String, Any?>? = lotQuery.requireVisibleLot(id).let { lotQuery.asOf(id, effectiveAt, knownAt) }
 
     @PostMapping("/lots")
     @ResponseStatus(HttpStatus.CREATED)
@@ -118,7 +118,7 @@ class InventoryController(
     @PostMapping("/lots/{id}/cancel")
     fun cancel(
         @PathVariable id: UUID,
-        @RequestBody body: CancelRequest,
+        @RequestBody body: LotCancelRequest,
     ): LotView = lotCommand.cancel(id, body.quantity, body.details)
 
     @PostMapping("/lots/{id}/withdraw")
@@ -210,6 +210,6 @@ data class QuantityRequest(val quantity: Long)
 
 data class ReservationRequest(val reservationRef: UUID, val quantity: Long? = null)
 
-data class CancelRequest(val quantity: Long? = null, val details: CancellationDetails)
+data class LotCancelRequest(val quantity: Long? = null, val details: CancellationDetails)
 
 data class ReasonRequest(val reason: String)

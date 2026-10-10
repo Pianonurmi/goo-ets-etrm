@@ -17,6 +17,10 @@ spring:
     enabled: false   # migrations run per module schema, see ModularMigrations
   jooq:
     sql-dialect: postgres
+  web:
+    resources:
+      # The UI bundle is served by SpaConfiguration (index.html fallback and cache headers).
+      add-mappings: false
   modulith:
     events:
       jdbc:
@@ -34,6 +38,14 @@ spring:
 etrm:
   migrations:
     enabled: true
+  ui:
+    # Browser sign-in (ADR 0026): Authorization Code with PKCE against the public client etrm-web.
+    auth-mode: OIDC
+    environment: ${ETRM_ENVIRONMENT:}
+    oidc:
+      authority: ${ETRM_OIDC_BROWSER_ISSUER:${ETRM_OIDC_ISSUER:http://localhost:8081/realms/etrm}}
+      client-id: ${ETRM_OIDC_WEB_CLIENT:etrm-web}
+      scope: openid profile
   security:
     roles-claim: roles
     legal-entities-claim: legal_entities
@@ -55,6 +67,10 @@ server:
   error:
     include-message: never
   shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,application/problem+json,text/html,text/css,text/csv,application/javascript,text/javascript,image/svg+xml
+    min-response-size: 2KB
 
 management:
   endpoints:
@@ -71,6 +87,8 @@ management:
       probability: 0.1
 
 springdoc:
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
   api-docs:
     path: /v3/api-docs
   swagger-ui:

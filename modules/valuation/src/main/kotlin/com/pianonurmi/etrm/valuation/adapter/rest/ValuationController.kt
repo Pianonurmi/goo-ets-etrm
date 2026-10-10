@@ -44,7 +44,7 @@ class ValuationController(private val query: ValuationQuery, private val command
     ): List<ValuationRunView> = query.runs(legalEntityId, from, to)
 
     @GetMapping("/runs/{id}")
-    fun run(
+    fun runDetail(
         @PathVariable id: UUID,
     ): ValuationRunView = query.run(id) ?: throw NotFoundException("ValuationRun", id)
 

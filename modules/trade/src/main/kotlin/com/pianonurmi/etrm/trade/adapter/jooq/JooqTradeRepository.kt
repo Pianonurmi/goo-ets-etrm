@@ -52,6 +52,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             DSL.and(
                 listOfNotNull(
                     filter.legalEntityId?.let { TRADE.LEGAL_ENTITY_ID.eq(it) },
+                    filter.legalEntityIds?.let { TRADE.LEGAL_ENTITY_ID.`in`(it) },
                     filter.bookId?.let { TRADE.BOOK_ID.eq(it) },
                     filter.counterpartyId?.let { TRADE.COUNTERPARTY_ID.eq(it) },
                     filter.statuses?.let { TRADE.STATUS.`in`(it.map(TradeStatus::name)) },

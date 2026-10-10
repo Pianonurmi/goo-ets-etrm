@@ -267,8 +267,20 @@ class LotService(
     override fun lots(filter: LotFilter): List<LotView> = lots.list(filter)
 
     @Transactional(readOnly = true)
-    override fun search(holderEntityId: UUID, bound: BoundCriterion, statuses: Set<LotStatus>, limit: Int): List<LotView> =
-        lots.search(holderEntityId, criteria.compile(bound, LotCriteriaColumns), statuses, limit)
+    override fun visibleLots(filter: LotFilter): List<LotView> {
+        val actor = actorProvider.current()
+        filter.holderEntityId?.let { actor.requireEntity(it) }
+        return lots.list(filter.copy(holderEntityIds = actor.entityFilter))
+    }
+
+    @Transactional(readOnly = true)
+    override fun requireVisibleLot(id: UUID): LotView = requireLot(id).also { actorProvider.current().requireEntity(it.holderEntityId) }
+
+    @Transactional(readOnly = true)
+    override fun search(holderEntityId: UUID, bound: BoundCriterion, statuses: Set<LotStatus>, limit: Int): List<LotView> {
+        actorProvider.current().requireEntity(holderEntityId)
+        return lots.search(holderEntityId, criteria.compile(bound, LotCriteriaColumns), statuses, limit)
+    }
 
     @Transactional(readOnly = true)
     override fun history(lotId: UUID): List<LotEventView> = journal.history(lotId)

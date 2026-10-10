@@ -98,6 +98,12 @@ interface LotQuery {
 
     fun lots(filter: LotFilter): List<LotView>
 
+    /** [lots] limited to the legal entities the current user may see; the REST and UI lists use this. */
+    fun visibleLots(filter: LotFilter): List<LotView>
+
+    /** [requireLot] that refuses a lot held by a legal entity outside the current user's scope. */
+    fun requireVisibleLot(id: UUID): LotView
+
     /** SQL search of live lots by bound criteria (uses the criteria compiler). */
     fun search(holderEntityId: UUID, bound: BoundCriterion, statuses: Set<LotStatus> = setOf(LotStatus.HELD), limit: Int = 1000): List<LotView>
 

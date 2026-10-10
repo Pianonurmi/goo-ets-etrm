@@ -10,6 +10,9 @@ spring:
       pool:
         size: 1
 etrm:
+  ui:
+    auth-mode: DEV_HEADERS
+    environment: TEST
   trade:
     approval-threshold: 0
   registry:

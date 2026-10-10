@@ -269,6 +269,8 @@ data class TradeFilter(
     val tradeDateFrom: LocalDate? = null,
     val tradeDateTo: LocalDate? = null,
     val limit: Int = 200,
+    /** Restricts the list to these legal entities; null means no restriction. */
+    val legalEntityIds: Set<UUID>? = null,
 )
 
 /** A firm sell-side (or buy-side) delivery that other modules act on; sourced from confirmed trades. */
@@ -311,6 +313,12 @@ interface TradeQuery {
     fun byNumber(tradeNumber: String): TradeView?
 
     fun trades(filter: TradeFilter): List<TradeView>
+
+    /** [trades] limited to the legal entities the current user may see; the REST and UI lists use this. */
+    fun visibleTrades(filter: TradeFilter): List<TradeView>
+
+    /** [requireTrade] that refuses a trade of a legal entity outside the current user's scope. */
+    fun requireVisibleTrade(id: UUID): TradeView
 
     fun versions(tradeId: UUID): List<TradeVersionView>
 

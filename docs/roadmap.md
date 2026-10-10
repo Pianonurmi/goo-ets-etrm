@@ -5,7 +5,7 @@
 | 1 | Foundation, core domain, ledger, API (no UI): reference data, taxonomy, product and criteria language, trade, inventory, registry ports and simulator, allocation engine, position, ledger, workflow, audit, CI, docs | delivered |
 | 2 | Registry integrations (outbox, statement formats, Union Registry, API channel), reconciliation break workflow, settlement and invoicing with VAT and netting, counterparty confirmation matching, full approval inbox | delivered (G-REX and NECS mappings wait for their specifications; see the milestone list below) |
 | 3 | Valuation and market data (file imports, ECB FX), curves, MtM and P&L explain, period-end accounting, risk limits and credit exposure, ETS compliance (installations, verified emissions, free allocation, surrender), EMIR/MiFID data, reporting, GL interface | delivered (vendor feeds, EMIR layout and SAP layout wait for specifications; see the architecture plan's status) |
-| 4 | Web UI (React + TypeScript): blotter, inventory explorer with criteria builder, allocation workbench, coverage and expiry dashboards, ledger browser, approval inbox, admin | planned |
+| 4 | Web UI (React + TypeScript, bundled in the API jar): approval inbox, trade blotter and capture, inventory explorer with criteria builder, allocation workbench, coverage and expiry dashboards, market data and curves, valuation, risk, ETS compliance, ledger, month end, reports, admin | in progress |
 | 5 | Scale and operations: Kafka externalisation of events, Helm/Kubernetes, HA PostgreSQL, partitioning of version and event tables, exact (CP-SAT) solver, performance and DR drills, penetration test | planned |
 
 Known gaps to close before production: AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -42,3 +42,20 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M8 | `reporting` module: report catalogue with logged, hashed and audited exports; EMIR events (NEWT/MODI/TERM/EROR/VALU) and completeness; MiFID ancillary activity | done |
 | M9 | GL interface: exactly-once exports (period and delta), formats as data (generic CSV, SAP-style flat file, unverified), delivery, acknowledgement and rejection, GL balance reconciliation, hard-close gates, posting rule changes under four eyes | done |
 | M10 | Documentation and end-to-end tests (`MonthEndIT`: market data to hard close) | done |
+
+## Increment 4 milestones
+
+| Milestone | Scope | Status |
+|---|---|---|
+| M0 | Backend for the UI: `ui-config` and `me`, SPA serving with cache headers and CSP, framework errors as problems, OpenAPI contract (operation ids, required, discriminated unions, problems) with a committed snapshot, entity scope on trade and lot reads, Keycloak web client (ADRs 0025–0027) | done |
+| M1 | `apps/web` scaffold, Gradle and CI integration, shell, sign-in and personas, generated client, data grid, Playwright smoke test | planned |
+| M2 | Demo data profile | planned |
+| M3 | Approval inbox and home | planned |
+| M4 | Criteria catalogue, criteria builder, inventory explorer | planned |
+| M5 | Trade search, blotter, detail, capture and lifecycle | planned |
+| M6 | Allocation what-if and workbench; coverage, expiry and ETS dashboards | planned |
+| M7 | Market data, curves, valuation | planned |
+| M8 | Risk and ETS compliance | planned |
+| M9 | Ledger browser, month end, reports (ADR 0028) | planned |
+| M10 | Admin, reference data, taxonomy, change requests, audit | planned |
+| M11 | Hardening: accessibility, performance budget, documentation | planned |

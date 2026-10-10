@@ -60,6 +60,7 @@ class JooqLotRepository(private val dsl: DSLContext) : LotRepository {
             DSL.and(
                 listOfNotNull(
                     filter.holderEntityId?.let { CERTIFICATE_LOT.HOLDER_ENTITY_ID.eq(it) },
+                    filter.holderEntityIds?.let { CERTIFICATE_LOT.HOLDER_ENTITY_ID.`in`(it) },
                     filter.registryAccountId?.let { CERTIFICATE_LOT.REGISTRY_ACCOUNT_ID.eq(it) },
                     filter.statuses?.let { CERTIFICATE_LOT.STATUS.`in`(it.map(LotStatus::name)) },
                     filter.deviceGsrn?.let { CERTIFICATE_LOT.DEVICE_GSRN.eq(it) },

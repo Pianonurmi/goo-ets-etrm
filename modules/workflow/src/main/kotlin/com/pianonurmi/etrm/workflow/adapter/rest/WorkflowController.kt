@@ -33,7 +33,7 @@ data class AssignRequest(val assignee: String)
 
 data class CommentRequest(val body: String)
 
-data class CancelRequest(val reason: String)
+data class TaskCancelRequest(val reason: String)
 
 @RestController
 @RequestMapping("/api/v1/workflow")
@@ -139,6 +139,6 @@ class WorkflowController(private val query: WorkflowQuery, private val command: 
     @PostMapping("/tasks/{id}/cancel")
     fun cancel(
         @PathVariable id: UUID,
-        @RequestBody body: CancelRequest,
+        @RequestBody body: TaskCancelRequest,
     ): ApprovalTaskView = command.cancel(id, body.reason)
 }

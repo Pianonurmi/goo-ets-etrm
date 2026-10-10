@@ -3,14 +3,18 @@ package com.pianonurmi.etrm.config
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.web.SpaConfiguration
+import com.pianonurmi.etrm.web.UiProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
+import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
@@ -18,6 +22,8 @@ import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
+import org.springframework.security.web.util.matcher.RequestMatcher
 import java.util.UUID
 
 /**
@@ -26,15 +32,23 @@ import java.util.UUID
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(SecurityProperties::class)
+@EnableConfigurationProperties(SecurityProperties::class, UiProperties::class)
 class SecurityConfiguration {
+    /**
+     * The web UI shell and its assets are public (they hold no data); every API call needs a bearer token except the
+     * UI configuration the browser reads before signing in.
+     */
     @Bean
     @Profile("!dev & !test")
-    fun resourceServerChain(http: HttpSecurity, properties: SecurityProperties): SecurityFilterChain = http
+    fun resourceServerChain(http: HttpSecurity, properties: SecurityProperties, ui: UiProperties): SecurityFilterChain = http
         .csrf { it.disable() }
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+        .headers { browserHeaders(it, ui) }
         .authorizeHttpRequests {
-            it.requestMatchers("/actuator/health/**", "/actuator/info", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
+            it.requestMatchers("/actuator/health/**", "/actuator/info", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+            it.requestMatchers(HttpMethod.GET, "/api/v1/ui-config").permitAll()
+            it.requestMatchers("/error").permitAll()
+            it.requestMatchers(SPA_ROUTES).permitAll()
             it.anyRequest().authenticated()
         }
         .oauth2ResourceServer { oauth ->
@@ -56,9 +70,10 @@ class SecurityConfiguration {
      */
     @Bean
     @Profile("dev", "test")
-    fun developmentChain(http: HttpSecurity): SecurityFilterChain = http
+    fun developmentChain(http: HttpSecurity, ui: UiProperties): SecurityFilterChain = http
         .csrf(AbstractHttpConfigurer<*, *>::disable)
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+        .headers { browserHeaders(it, ui) }
         .authorizeHttpRequests { it.anyRequest().permitAll() }
         .build()
 
@@ -66,6 +81,38 @@ class SecurityConfiguration {
     fun actorProvider(properties: SecurityProperties): ActorProvider = SpringSecurityActorProvider(properties)
 
     companion object {
+        /** GET requests for the UI shell: anything outside the API, actuator and OpenAPI paths. */
+        val SPA_ROUTES = RequestMatcher { request ->
+            request.method == HttpMethod.GET.name() && !SpaConfiguration.isServerPath(request.requestURI.removePrefix(request.contextPath))
+        }
+
+        /**
+         * Content security policy for the UI: own scripts only, inline styles (Mantine injects them), and the identity
+         * provider for token calls and the silent-renew frame.
+         */
+        fun contentSecurityPolicy(ui: UiProperties): String {
+            val idp = if (ui.authMode == UiProperties.AuthMode.OIDC) " " + ui.oidc.origin() else ""
+            return listOf(
+                "default-src 'self'",
+                "script-src 'self'",
+                "style-src 'self' 'unsafe-inline'",
+                "img-src 'self' data: blob:",
+                "font-src 'self' data:",
+                "connect-src 'self'$idp",
+                "frame-src 'self'$idp",
+                "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "form-action 'self'$idp",
+                "object-src 'none'",
+            ).joinToString("; ")
+        }
+
+        private fun browserHeaders(headers: HeadersConfigurer<HttpSecurity>, ui: UiProperties) {
+            headers.contentSecurityPolicy { it.policyDirectives(contentSecurityPolicy(ui)) }
+            headers.referrerPolicy { it.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
+            headers.frameOptions { it.deny() }
+        }
+
         fun rolesOf(jwt: Jwt, claim: String): Set<String> {
             val raw = jwt.claims[claim]
             return when (raw) {

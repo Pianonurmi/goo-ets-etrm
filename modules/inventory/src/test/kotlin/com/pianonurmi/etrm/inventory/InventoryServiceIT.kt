@@ -68,7 +68,7 @@ import java.util.UUID
 class InventoryServiceIT {
     private val published = mutableListOf<Any>()
     private val publisher = ApplicationEventPublisher { published += it }
-    private val actor = ActorProvider { Actor("tester", "Tester", setOf(com.pianonurmi.etrm.platform.security.Role.BACK_OFFICE)) }
+    private val actor = ActorProvider { Actor("tester", "Tester", setOf(com.pianonurmi.etrm.platform.security.Role.BACK_OFFICE), allEntities = true) }
     private lateinit var lots: LotService
     private lateinit var holdings: AllowanceHoldingService
     private lateinit var reconciliation: ReconciliationService

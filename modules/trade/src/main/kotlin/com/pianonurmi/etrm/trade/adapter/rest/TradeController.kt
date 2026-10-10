@@ -42,17 +42,17 @@ class TradeController(private val command: TradeCommand, private val query: Trad
         @RequestParam(required = false) from: LocalDate?,
         @RequestParam(required = false) to: LocalDate?,
         @RequestParam(defaultValue = "200") limit: Int,
-    ): List<TradeView> = query.trades(TradeFilter(legalEntityId, bookId, counterpartyId, status, productFamily, from, to, limit))
+    ): List<TradeView> = query.visibleTrades(TradeFilter(legalEntityId, bookId, counterpartyId, status, productFamily, from, to, limit))
 
     @GetMapping("/{id}")
     fun trade(
         @PathVariable id: UUID,
-    ): TradeView = query.requireTrade(id)
+    ): TradeView = query.requireVisibleTrade(id)
 
     @GetMapping("/{id}/versions")
     fun versions(
         @PathVariable id: UUID,
-    ): List<TradeVersionView> = query.versions(id)
+    ): List<TradeVersionView> = query.requireVisibleTrade(id).let { query.versions(id) }
 
     @GetMapping("/obligations")
     fun obligations(

@@ -56,6 +56,8 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 - Market data: rates go through `FxRates` and prices through `CurveQuery` / `GooMarks` / `IndexFixings`. Nothing else stores prices.
 - Period end (`PeriodEndService`) and similar measurements post the difference between the required balance and what is booked, so a re-run is idempotent. Use the adjustment path (`LedgerService.postAdjustment`).
 - Reports are entries in `ReportCatalogue`. Every run is logged with its content hash. Add a report there, with its roles.
+- The OpenAPI document is a contract (ADR 0027): after changing a controller or a view, run `./gradlew :apps:api:updateOpenApiSnapshot` and commit `apps/api/openapi/etrm-api.json`. Operation ids are `<controller>_<method>`, so keep handler names unique per controller and stable.
+- Read endpoints respect entity scope: unfiltered lists use `Actor.entityFilter` (see `TradeQuery.visibleTrades`, `LotQuery.visibleLots`), single records call `requireEntity`, and `EntityScopeInterceptor` refuses a `legalEntityId`/`holderEntityId` parameter outside the user's scope.
 - External layouts not checked against their specification are marked `verified = false`: EMIR field rules, the SAP GL layout, PFE add-ons and registry API mappings.
 
 ## Lint
