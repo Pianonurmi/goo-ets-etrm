@@ -39,5 +39,5 @@ GL interface format, market data vendor for bucket marks.
 | M6 | Ledger period end: MtM by book type policy, NRV, emission provision, free allocation release, FX revaluation; policies under four eyes; index-leg memos at indicative prices | done |
 | M7 | `risk` module: limits under four eyes, credit exposure (MtM, receivables, PFE, collateral), breaches, pre-trade check SPI; credit limits leave reference data | done |
 | M8 | `reporting` module: report catalogue with logged, hashed and audited exports; EMIR events (NEWT/MODI/TERM/EROR/VALU) and completeness; MiFID ancillary activity | done |
-| M9 | GL interface: exactly-once exports, formats, acknowledgement, reconciliation, hard-close gates | planned |
+| M9 | GL interface: exactly-once exports (period and delta), formats as data (generic CSV, SAP-style flat file, unverified), delivery, acknowledgement and rejection, GL balance reconciliation, hard-close gates, posting rule changes under four eyes | done |
 | M10 | Documentation and end-to-end tests | planned |

@@ -4,6 +4,8 @@ import com.pianonurmi.etrm.ledger.api.AccountType
 import com.pianonurmi.etrm.ledger.api.AccountingPeriodView
 import com.pianonurmi.etrm.ledger.api.EntryStatus
 import com.pianonurmi.etrm.ledger.api.GlAccountView
+import com.pianonurmi.etrm.ledger.api.GlExportKind
+import com.pianonurmi.etrm.ledger.api.GlExportStatus
 import com.pianonurmi.etrm.ledger.api.GlExportView
 import com.pianonurmi.etrm.ledger.api.GlExported
 import com.pianonurmi.etrm.ledger.api.JournalEntryPosted
@@ -20,8 +22,9 @@ import com.pianonurmi.etrm.ledger.api.TrialBalanceRow
 import com.pianonurmi.etrm.ledger.api.UpsertPostingRule
 import com.pianonurmi.etrm.ledger.domain.EntryBuilder
 import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
-import com.pianonurmi.etrm.ledger.domain.GlExportFormat
+import com.pianonurmi.etrm.ledger.domain.GlExportRenderer
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
+import com.pianonurmi.etrm.ledger.domain.GlInterfaceRepository
 import com.pianonurmi.etrm.ledger.domain.JournalRepository
 import com.pianonurmi.etrm.ledger.domain.PeriodRepository
 import com.pianonurmi.etrm.ledger.domain.PostingRuleRepository
@@ -60,6 +63,9 @@ class LedgerService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    private val glInterface: GlInterfaceRepository,
+    /** Checks before a hard close (ADR 0024); none when not wired (hand-wired tests). */
+    private val gates: HardCloseGates? = null,
 ) : LedgerCommand, LedgerQuery {
     // ----------------------------------------------------------------------------------------------------------
     // Posting
@@ -302,6 +308,11 @@ class LedgerService(
         val target = if (hard) PeriodStatus.CLOSED else PeriodStatus.SOFT_CLOSED
         if (current == PeriodStatus.CLOSED) throw ValidationException("Period $period is already hard-closed")
         if (current == target) throw ValidationException("Period $period is already ${target.name.lowercase().replace('_', '-')}")
+        if (hard) {
+            gates?.blockers(legalEntityId, period)?.takeIf {
+                it.isNotEmpty()
+            }?.let { throw ValidationException("Period $period cannot be hard-closed: ${it.joinToString("; ")}") }
+        }
         val view = AccountingPeriodView(legalEntityId, period.toString(), target, actor.userId, clock.instant())
         periods.upsert(view)
         return view
@@ -322,24 +333,29 @@ class LedgerService(
     }
 
     /**
-     * Exports a closed (soft or hard) period for the general ledger. The journal's hash chain must verify and every
-     * exported account must have a GL mapping; memo accounts stay in the sub-ledger.
+     * Exports the entries of a closed (soft or hard) period that no earlier export carried (ADR 0024): the first export
+     * of a period is PERIOD, later ones (adjustments posted since, or entries of a rejected export) DELTA. The journal's
+     * hash chain must verify and every exported account must have a GL mapping; memo accounts stay in the sub-ledger.
      */
-    override fun exportGl(legalEntityId: UUID, period: YearMonth): GlExportView {
+    override fun exportGl(legalEntityId: UUID, period: YearMonth, format: String): GlExportView {
         val actor = actorProvider.current()
         actor.requireRole(Role.ACCOUNTANT)
         actor.requireEntity(legalEntityId)
         val status = periods.find(legalEntityId, period.toString())?.status ?: PeriodStatus.OPEN
         if (status == PeriodStatus.OPEN) throw ValidationException("Period $period is open; close it (soft or hard) before exporting")
         if (verifyJournal(legalEntityId).isNotEmpty()) throw ValidationException("The journal hash chain does not verify; the export is refused")
+        val layout = glInterface.layout(format.uppercase()) ?: throw NotFoundException("GlExportFormat", format)
+        journal.lockEntity(legalEntityId)
         val chart = accounts.accounts(legalEntityId)
         val memo = chart.filter { it.type == AccountType.MEMO }.map { it.code }.toSet()
-        val entries = journal.entries(legalEntityId, period.toString(), null, Int.MAX_VALUE)
+        val already = glInterface.exportedEntryIds(legalEntityId, period.toString())
+        val entries = journal.entries(legalEntityId, period.toString(), null, Int.MAX_VALUE).filter { it.id !in already }
+        if (entries.isEmpty()) throw ValidationException("Every entry of $period has been exported")
         val unmapped = entries.flatMap { it.lines }.map { it.accountCode }.filter { it !in memo }.toSet()
             .filter { code -> chart.firstOrNull { it.code == code }?.glMapping.isNullOrBlank() }
         if (unmapped.isNotEmpty()) throw ValidationException("Accounts without a GL mapping: ${unmapped.sorted().joinToString()}")
-        journal.lockEntity(legalEntityId)
-        val content = GlExportFormat.csv(entries, memo)
+        val entity = referenceData.requireLegalEntity(legalEntityId)
+        val content = GlExportRenderer.render(entries, memo, layout, entity.code, entity.baseCurrency.currencyCode)
         val export = GlExportView(
             Ids.newId(),
             legalEntityId,
@@ -350,8 +366,18 @@ class LedgerService(
             entries.size,
             HashChain.next(null, content),
             content,
+            kind = if (glInterface.exports(legalEntityId, period.toString()).any {
+                    it.status != GlExportStatus.REJECTED
+                }
+            ) {
+                GlExportKind.DELTA
+            } else {
+                GlExportKind.PERIOD
+            },
+            format = format.uppercase(),
         )
         exports.insert(export)
+        glInterface.insertEntries(export.id, entries.map { it.id })
         events.publishEvent(GlExported(export.id, legalEntityId, export.exportSeq, export.period, export.entryCount, export.contentHash))
         return export
     }
@@ -369,9 +395,8 @@ class LedgerService(
         return accounts.accounts(legalEntityId)
     }
 
-    override fun upsertRule(command: UpsertPostingRule): PostingRuleView {
-        actorProvider.current().requireRole(Role.ACCOUNTANT)
-        command.legalEntityId?.let { actorProvider.current().requireEntity(it) }
+    /** Applies an approved rule change (from the `POSTING_RULE_CHANGE` task); returns the rule's new version. */
+    fun applyRule(command: UpsertPostingRule): PostingRuleView {
         if (command.lines.isEmpty()) throw ValidationException("A posting rule needs lines")
         val view = PostingRuleView(
             Ids.newId(),
@@ -387,7 +412,7 @@ class LedgerService(
             1,
         )
         rules.upsert(view)
-        return view
+        return rules.all().first { it.ruleCode == view.ruleCode && it.legalEntityId == view.legalEntityId }
     }
 
     // ----------------------------------------------------------------------------------------------------------

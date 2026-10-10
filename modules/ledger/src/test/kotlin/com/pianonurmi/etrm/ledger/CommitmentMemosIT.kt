@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.ledger
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqCommitmentMemoRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
+import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlInterfaceRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPostingRuleRepository
@@ -82,6 +83,7 @@ class CommitmentMemosIT {
             actor,
             publisher,
             clock,
+            JooqGlInterfaceRepository(dsl),
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         memos = CommitmentMemos(ledger, JooqCommitmentMemoRepository(dsl), curves, fx, clock)

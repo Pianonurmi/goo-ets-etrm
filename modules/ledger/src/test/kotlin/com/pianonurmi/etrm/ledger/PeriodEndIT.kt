@@ -19,6 +19,7 @@ import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqCostLayerRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
+import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlInterfaceRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodEndRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodRepository
@@ -124,6 +125,7 @@ class PeriodEndIT {
             actor,
             publisher,
             clock,
+            JooqGlInterfaceRepository(dsl),
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         listeners = LedgerEventListeners(ledger, JooqCostLayerRepository(dsl), referenceData, mockk(relaxed = true), mockk(relaxed = true), clock)

@@ -148,7 +148,19 @@ data class GlExportView(
     val entryCount: Int,
     val contentHash: String,
     val content: String,
+    /** The period's first export, or a later one with the entries posted since. */
+    val kind: GlExportKind = GlExportKind.PERIOD,
+    val format: String = "GENERIC_CSV",
+    val status: GlExportStatus = GlExportStatus.GENERATED,
+    val statusReason: String? = null,
+    val acknowledgementRef: String? = null,
+    val statusChangedBy: String? = null,
+    val statusChangedAt: Instant? = null,
 )
+
+enum class GlExportKind { PERIOD, DELTA }
+
+enum class GlExportStatus { GENERATED, DELIVERED, ACKNOWLEDGED, REJECTED }
 
 data class UpsertPostingRule(
     val legalEntityId: UUID? = null,
@@ -174,11 +186,10 @@ interface LedgerCommand {
 
     fun reopenPeriod(legalEntityId: UUID, period: YearMonth): AccountingPeriodView
 
-    fun exportGl(legalEntityId: UUID, period: YearMonth): GlExportView
+    /** Exports the period's entries not exported before (each entry once) in a GL format; the period must be closed (soft or hard). */
+    fun exportGl(legalEntityId: UUID, period: YearMonth, format: String = "GENERIC_CSV"): GlExportView
 
     fun ensureChartOfAccounts(legalEntityId: UUID): List<GlAccountView>
-
-    fun upsertRule(command: UpsertPostingRule): PostingRuleView
 }
 
 interface LedgerQuery {

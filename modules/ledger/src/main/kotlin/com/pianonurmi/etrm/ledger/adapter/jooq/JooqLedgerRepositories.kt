@@ -365,6 +365,9 @@ class JooqGlExportRepository(private val dsl: DSLContext) : GlExportRepository {
             .set(GL_EXPORT.ENTRY_COUNT, export.entryCount)
             .set(GL_EXPORT.CONTENT_HASH, export.contentHash)
             .set(GL_EXPORT.CONTENT, export.content)
+            .set(GL_EXPORT.KIND, export.kind.name)
+            .set(GL_EXPORT.FORMAT, export.format)
+            .set(GL_EXPORT.STATUS, export.status.name)
             .execute()
     }
 
@@ -372,7 +375,7 @@ class JooqGlExportRepository(private val dsl: DSLContext) : GlExportRepository {
         .where(GL_EXPORT.LEGAL_ENTITY_ID.eq(legalEntityId), GL_EXPORT.PERIOD.eq(period))
         .orderBy(GL_EXPORT.EXPORTED_AT.desc())
         .limit(1)
-        .fetchOne { GlExportView(it.id, it.legalEntityId, it.exportSeq, it.period, it.exportedAt, it.exportedBy, it.entryCount, it.contentHash, it.content) }
+        .fetchOne(::toGlExport)
 
     override fun nextSeq(legalEntityId: UUID): Int = (
         dsl.select(DSL.max(GL_EXPORT.EXPORT_SEQ)).from(GL_EXPORT).where(GL_EXPORT.LEGAL_ENTITY_ID.eq(legalEntityId)).fetchOne(0, Int::class.java) ?: 0
@@ -459,3 +462,22 @@ class JooqSeedRepository(private val dsl: DSLContext) : SeedRepository {
             .execute()
     }
 }
+
+internal fun toGlExport(r: com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.records.GlExportRecord) = GlExportView(
+    r.id,
+    r.legalEntityId,
+    r.exportSeq,
+    r.period,
+    r.exportedAt,
+    r.exportedBy,
+    r.entryCount,
+    r.contentHash,
+    r.content,
+    com.pianonurmi.etrm.ledger.api.GlExportKind.valueOf(r.kind),
+    r.format,
+    com.pianonurmi.etrm.ledger.api.GlExportStatus.valueOf(r.status),
+    r.statusReason,
+    r.acknowledgementRef,
+    r.statusChangedBy,
+    r.statusChangedAt,
+)

@@ -16,6 +16,7 @@ import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqCostLayerRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
+import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlInterfaceRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPostingRuleRepository
@@ -98,6 +99,7 @@ class LedgerServiceIT {
             actor,
             publisher,
             clock,
+            JooqGlInterfaceRepository(dsl),
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         listeners = LedgerEventListeners(
@@ -313,7 +315,8 @@ class LedgerServiceIT {
 
         val export = ledger.exportGl(wacEntityId, YearMonth.of(2026, 9))
         export.entryCount shouldBe 2
-        ledger.exportGl(wacEntityId, YearMonth.of(2026, 9)).exportSeq shouldBe export.exportSeq + 1
+        // Each entry is exported once: nothing new, nothing to export.
+        shouldThrow<ValidationException> { ledger.exportGl(wacEntityId, YearMonth.of(2026, 9)) }
         export.content shouldContain "140000"
         export.contentHash.length shouldBe 64
         ledger.verifyJournal(wacEntityId).shouldBeEmpty()

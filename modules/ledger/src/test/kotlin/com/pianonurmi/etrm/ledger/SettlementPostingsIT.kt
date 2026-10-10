@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.ledger
 
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
+import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlInterfaceRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPostingRuleRepository
@@ -76,6 +77,7 @@ class SettlementPostingsIT {
             actor,
             publisher,
             clock,
+            JooqGlInterfaceRepository(dsl),
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         postings = SettlementPostings(ledger, referenceData)

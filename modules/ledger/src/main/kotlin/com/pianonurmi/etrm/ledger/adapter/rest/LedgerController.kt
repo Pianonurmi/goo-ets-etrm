@@ -2,12 +2,20 @@ package com.pianonurmi.etrm.ledger.adapter.rest
 
 import com.pianonurmi.etrm.ledger.api.AccountingPeriodView
 import com.pianonurmi.etrm.ledger.api.GlAccountView
+import com.pianonurmi.etrm.ledger.api.GlBalanceLine
+import com.pianonurmi.etrm.ledger.api.GlExportFormatView
 import com.pianonurmi.etrm.ledger.api.GlExportView
+import com.pianonurmi.etrm.ledger.api.GlInterfaceCommand
+import com.pianonurmi.etrm.ledger.api.GlInterfaceQuery
 import com.pianonurmi.etrm.ledger.api.JournalEntryView
 import com.pianonurmi.etrm.ledger.api.LedgerCommand
 import com.pianonurmi.etrm.ledger.api.LedgerQuery
 import com.pianonurmi.etrm.ledger.api.ManualJournal
+import com.pianonurmi.etrm.ledger.api.PostingRuleChangeView
+import com.pianonurmi.etrm.ledger.api.PostingRuleVersionView
 import com.pianonurmi.etrm.ledger.api.PostingRuleView
+import com.pianonurmi.etrm.ledger.api.ReconciliationRow
+import com.pianonurmi.etrm.ledger.api.RuleChangeStatus
 import com.pianonurmi.etrm.ledger.api.TrialBalanceRow
 import com.pianonurmi.etrm.ledger.api.UpsertPostingRule
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -31,7 +39,12 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/ledger")
 @Tag(name = "Ledger", description = "Sub-ledger: journal, trial balance, posting rules, periods, FX rates, GL export")
-class LedgerController(private val command: LedgerCommand, private val query: LedgerQuery) {
+class LedgerController(
+    private val command: LedgerCommand,
+    private val query: LedgerQuery,
+    private val gl: GlInterfaceCommand,
+    private val glQuery: GlInterfaceQuery,
+) {
     @GetMapping("/entries")
     fun entries(
         @RequestParam legalEntityId: UUID,
@@ -73,10 +86,22 @@ class LedgerController(private val command: LedgerCommand, private val query: Le
         @RequestParam(required = false) legalEntityId: UUID?,
     ): List<PostingRuleView> = query.rules(legalEntityId)
 
+    /** Proposes a rule change; it applies when another accountant approves the `POSTING_RULE_CHANGE` task. */
     @PutMapping("/rules")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun upsertRule(
         @Valid @RequestBody body: UpsertPostingRule,
-    ): PostingRuleView = command.upsertRule(body)
+    ): PostingRuleChangeView = gl.requestRuleChange(body)
+
+    @GetMapping("/rules/changes")
+    fun ruleChanges(
+        @RequestParam(required = false) status: RuleChangeStatus?,
+    ): List<PostingRuleChangeView> = glQuery.ruleChanges(status)
+
+    @GetMapping("/rules/{ruleCode}/history")
+    fun ruleHistory(
+        @PathVariable ruleCode: String,
+    ): List<PostingRuleVersionView> = glQuery.ruleHistory(ruleCode)
 
     @GetMapping("/periods")
     fun periods(
@@ -102,13 +127,60 @@ class LedgerController(private val command: LedgerCommand, private val query: Le
     fun export(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,
-    ): GlExportView = command.exportGl(legalEntityId, period)
+        @RequestParam(defaultValue = "GENERIC_CSV") format: String,
+    ): GlExportView = command.exportGl(legalEntityId, period, format)
 
     @PostMapping("/exports/{period}/csv", produces = [MediaType.TEXT_PLAIN_VALUE])
     fun exportCsv(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,
-    ): String = command.exportGl(legalEntityId, period).content
+        @RequestParam(defaultValue = "GENERIC_CSV") format: String,
+    ): String = command.exportGl(legalEntityId, period, format).content
+
+    @GetMapping("/exports")
+    fun exports(
+        @RequestParam legalEntityId: UUID,
+        @RequestParam(required = false) period: YearMonth?,
+    ): List<GlExportView> = glQuery.exports(legalEntityId, period).map { it.copy(content = "") }
+
+    @GetMapping("/export-formats")
+    fun exportFormats(): List<GlExportFormatView> = glQuery.formats()
+
+    @PostMapping("/exports/{id}/delivered")
+    fun delivered(
+        @PathVariable id: UUID,
+    ): GlExportView = gl.markDelivered(id).copy(content = "")
+
+    @PostMapping("/exports/{id}/acknowledge")
+    fun acknowledge(
+        @PathVariable id: UUID,
+        @RequestBody body: AcknowledgeRequest,
+    ): GlExportView = gl.acknowledge(id, body.reference).copy(content = "")
+
+    @PostMapping("/exports/{id}/reject")
+    fun reject(
+        @PathVariable id: UUID,
+        @RequestBody body: ReasonRequest,
+    ): GlExportView = gl.reject(id, body.reason).copy(content = "")
+
+    @PutMapping("/gl-balances/{period}")
+    fun importBalances(
+        @RequestParam legalEntityId: UUID,
+        @PathVariable period: YearMonth,
+        @RequestBody body: List<GlBalanceLine>,
+    ): List<ReconciliationRow> = gl.importBalances(legalEntityId, period, body)
+
+    @GetMapping("/reconciliation")
+    fun reconciliation(
+        @RequestParam legalEntityId: UUID,
+        @RequestParam period: YearMonth,
+    ): List<ReconciliationRow> = glQuery.reconciliation(legalEntityId, period)
+
+    @GetMapping("/periods/{period}/hard-close-blockers")
+    fun hardCloseBlockers(
+        @RequestParam legalEntityId: UUID,
+        @PathVariable period: YearMonth,
+    ): List<String> = glQuery.hardCloseBlockers(legalEntityId, period)
 
     @GetMapping("/journal/verify")
     fun verify(
@@ -117,3 +189,5 @@ class LedgerController(private val command: LedgerCommand, private val query: Le
 }
 
 data class ReasonRequest(val reason: String)
+
+data class AcknowledgeRequest(val reference: String)
