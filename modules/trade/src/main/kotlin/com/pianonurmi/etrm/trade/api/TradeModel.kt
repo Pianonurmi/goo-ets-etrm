@@ -8,6 +8,7 @@ import com.pianonurmi.etrm.product.api.EnergyCarrier
 import com.pianonurmi.etrm.product.api.InstrumentType
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
+import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -105,8 +106,13 @@ data class TradeView(
     val confirmationRef: String?,
     val createdBy: String,
     val legs: List<TradeLegView>,
+    /** The legal entity's policy when the trade was captured. */
+    val obligationsOpenAt: ObligationsOpenAt = ObligationsOpenAt.CONFIRMED,
 ) {
     val notional: BigDecimal get() = legs.sumOf { it.notional }
+
+    /** Whether the trade's deliveries are obligations: once firm, or once approved where the entity's policy says so. */
+    val obligationsOpen: Boolean get() = status.firm || (status == TradeStatus.APPROVED && obligationsOpenAt == ObligationsOpenAt.APPROVED)
 }
 
 data class TradeVersionView(

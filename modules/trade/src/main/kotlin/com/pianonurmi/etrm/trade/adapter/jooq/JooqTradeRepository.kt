@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.api.ProductFamily
+import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import com.pianonurmi.etrm.trade.adapter.jooq.generated.Sequences.TRADE_NUMBER_SEQ
 import com.pianonurmi.etrm.trade.adapter.jooq.generated.tables.DeliveryRecord.DELIVERY_RECORD
 import com.pianonurmi.etrm.trade.adapter.jooq.generated.tables.DeliverySchedule.DELIVERY_SCHEDULE
@@ -82,6 +83,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             .set(TRADE.STATUS, trade.status.name)
             .set(TRADE.CURRENT_VERSION, trade.version)
             .set(TRADE.CREATED_BY, recordedBy)
+            .set(TRADE.OBLIGATIONS_OPEN_AT, trade.obligationsOpenAt.name)
             .execute()
         writeVersion(trade, recordedBy, reason)
         writeProjections(trade)
@@ -172,7 +174,8 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
         .join(TRADE).on(TRADE.ID.eq(DELIVERY_SCHEDULE.TRADE_ID))
         .where(
             TRADE.LEGAL_ENTITY_ID.eq(legalEntityId),
-            TRADE.STATUS.`in`(TradeStatus.entries.filter { it.firm }.map { it.name }),
+            TRADE.STATUS.`in`(TradeStatus.entries.filter { it.firm }.map { it.name })
+                .or(TRADE.STATUS.eq(TradeStatus.APPROVED.name).and(TRADE.OBLIGATIONS_OPEN_AT.eq(ObligationsOpenAt.APPROVED.name))),
             DELIVERY_SCHEDULE.STATUS.`in`(DeliveryStatus.PENDING.name, DeliveryStatus.PARTIALLY_DELIVERED.name),
             side?.let { TRADE_LEG.SIDE.eq(it.name) } ?: DSL.noCondition(),
             productFamily?.let { TRADE.PRODUCT_FAMILY.eq(it.name) } ?: DSL.noCondition(),

@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.trade.domain
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
+import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.TradeStatus
@@ -34,10 +35,20 @@ class TradeAggregate(state: TradeView) {
         return transition(state.copy(status = TradeStatus.DRAFT, approvedBy = null, approvedAt = null))
     }
 
+    /**
+     * Records the confirmation. An approved trade becomes CONFIRMED; where obligations open at approval, deliveries may
+     * already have started, and the confirmation is recorded without changing the delivery status.
+     */
     fun confirm(confirmationRef: String, at: Instant): TradeView {
+        if (state.confirmedAt != null) throw IllegalStateTransitionException("Trade ${state.tradeNumber}", "confirmed", "confirmed again")
+        if (deliversBeforeConfirmation && state.status in setOf(TradeStatus.PARTIALLY_DELIVERED, TradeStatus.DELIVERED)) {
+            return transition(state.copy(confirmedAt = at, confirmationRef = confirmationRef))
+        }
         requireStatus(TradeStatus.APPROVED)
         return transition(state.copy(status = TradeStatus.CONFIRMED, confirmedAt = at, confirmationRef = confirmationRef))
     }
+
+    private val deliversBeforeConfirmation: Boolean get() = state.obligationsOpenAt == ObligationsOpenAt.APPROVED
 
     /** Amendments re-open approval; a firm trade that is amended falls back to pending approval. */
     fun amend(amended: TradeView): TradeView {
@@ -59,7 +70,11 @@ class TradeAggregate(state: TradeView) {
     }
 
     fun recordDelivery(scheduleId: UUID, quantity: BigDecimal): Pair<TradeView, DeliveryScheduleView> {
-        requireStatus(TradeStatus.CONFIRMED, TradeStatus.PARTIALLY_DELIVERED)
+        if (deliversBeforeConfirmation) {
+            requireStatus(TradeStatus.APPROVED, TradeStatus.CONFIRMED, TradeStatus.PARTIALLY_DELIVERED)
+        } else {
+            requireStatus(TradeStatus.CONFIRMED, TradeStatus.PARTIALLY_DELIVERED)
+        }
         if (quantity.signum() <= 0) throw ValidationException("Delivered quantity must be positive")
         var updatedSchedule: DeliveryScheduleView? = null
         val legs = state.legs.map { leg ->

@@ -146,6 +146,7 @@ class ReferenceDataService(
             validPeriod = ValidPeriod(command.validFrom),
             active = true,
             version = 1,
+            obligationsOpenAt = command.obligationsOpenAt,
         )
         repository.insertLegalEntity(entity)
         events.publishEvent(LegalEntityChanged(entity.id))
@@ -161,6 +162,7 @@ class ReferenceDataService(
             lei = command.lei?.let(ReferenceDataPolicies::lei) ?: current.lei,
             vatNumber = command.vatNumber ?: current.vatNumber,
             accountingPolicy = command.accountingPolicy ?: current.accountingPolicy,
+            obligationsOpenAt = command.obligationsOpenAt ?: current.obligationsOpenAt,
             active = command.active ?: current.active,
             validPeriod = command.validTo?.let { current.validPeriod.endingAt(it) } ?: current.validPeriod,
             version = current.version + 1,

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>{{title}}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Helvetica, sans-serif; font-size: 9.5pt; color: #111; }
+    h1 { font-size: 15pt; margin: 0 0 4mm 0; }
+    h2 { font-size: 11pt; margin: 6mm 0 2mm 0; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 1.2mm 2mm; border-bottom: 0.3pt solid #bbb; vertical-align: top; }
+    th { width: 35%; font-weight: bold; }
+    .muted { color: #666; font-size: 8pt; }
+  </style>
+</head>
+<body>
+  <h1>{{title}}</h1>
+  <p class="muted">Version {{version}}, issued {{issuedAt}}. Please confirm or report any difference by return.</p>
+  <table>
+    <tr><th>Our trade number</th><td>{{tradeNumber}}</td></tr>
+    <tr><th>Your reference</th><td>{{counterpartyTradeRef}}</td></tr>
+    <tr><th>Trade date</th><td>{{tradeDate}}</td></tr>
+    <tr><th>Product family</th><td>{{productFamily}}</td></tr>
+    <tr><th>Master agreement</th><td>{{masterAgreement}}</td></tr>
+  </table>
+  {{#legs}}
+  <h2>Leg {{legNo}}</h2>
+  <table>
+    <tr><th>Seller</th><td>{{seller}}</td></tr>
+    <tr><th>Buyer</th><td>{{buyer}}</td></tr>
+    <tr><th>Product</th><td>{{product}} {{criteria}}</td></tr>
+    {{#attributes}}<tr><th>{{key}}</th><td>{{value}}</td></tr>{{/attributes}}
+    <tr><th>Quantity</th><td>{{quantity}} {{unit}}</td></tr>
+    <tr><th>Price</th><td>{{price}} {{currency}} per {{unit}}</td></tr>
+    <tr><th>Amount</th><td>{{amount}} {{currency}} (excluding VAT)</td></tr>
+    <tr><th>Seller's registry account</th><td>{{sellerAccount}}</td></tr>
+    <tr><th>Buyer's registry account</th><td>{{buyerAccount}}</td></tr>
+  </table>
+  <table>
+    <tr><th>Delivery date</th><th>Quantity</th><th>Payment date</th></tr>
+    {{#deliveries}}<tr><td>{{date}}</td><td>{{quantity}}</td><td>{{paymentDate}}</td></tr>{{/deliveries}}
+  </table>
+  {{/legs}}
+</body>
+</html>

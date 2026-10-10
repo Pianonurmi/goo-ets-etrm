@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.trade.domain
 
 import com.pianonurmi.etrm.product.api.ProductFamily
+import com.pianonurmi.etrm.trade.api.ConfirmationView
 import com.pianonurmi.etrm.trade.api.DeliveryObligationView
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeFilter
@@ -45,4 +46,16 @@ interface TradeRepository {
     fun openObligations(legalEntityId: UUID, side: Side?, productFamily: ProductFamily?): List<DeliveryObligationView>
 
     fun obligation(scheduleId: UUID): DeliveryObligationView?
+}
+
+interface ConfirmationRepository {
+    fun insert(view: ConfirmationView)
+
+    fun update(view: ConfirmationView)
+
+    fun find(id: UUID, forUpdate: Boolean = false): ConfirmationView?
+
+    fun forTrade(tradeId: UUID): List<ConfirmationView>
+
+    fun theirs(tradeId: UUID, reference: String): ConfirmationView?
 }

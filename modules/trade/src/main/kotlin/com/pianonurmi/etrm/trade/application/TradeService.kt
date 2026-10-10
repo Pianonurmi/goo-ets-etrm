@@ -78,6 +78,7 @@ class TradeService(
         val submitted = TradeAggregate(trade).submitForApproval(requiresApproval(trade))
         repository.saveVersion(submitted, actor, "submitted")
         events.publishEvent(TradeCaptured(submitted))
+        openObligationsIfDue(submitted)
         if (counterparty.counterpartyType == CounterpartyType.INTERCOMPANY) captureMirror(command, submitted, counterparty.linkedLegalEntityId!!, actor)
         return submitted
     }
@@ -109,6 +110,7 @@ class TradeService(
         val linked = original.copy(intercompanyLinkId = mirror.id, version = original.version + 1)
         repository.saveVersion(linked, actor, "linked to ${mirror.tradeNumber}")
         events.publishEvent(TradeCaptured(submitted))
+        openObligationsIfDue(submitted)
     }
 
     private fun build(command: CaptureTrade, actor: String): TradeView {
@@ -141,6 +143,7 @@ class TradeService(
             confirmationRef = null,
             createdBy = actor,
             legs = command.legs.mapIndexed { index, leg -> buildLeg(command.productFamily, command.legalEntityId, command.counterpartyId, index + 1, leg) },
+            obligationsOpenAt = entity.obligationsOpenAt,
         )
     }
 
@@ -244,7 +247,7 @@ class TradeService(
             externalRef = command.externalRef ?: current.externalRef,
             legs = legs,
         )
-        val wasFirm = current.status.firm
+        val wasFirm = current.obligationsOpen
         val next = TradeAggregate(current).amend(amended)
         save(next, actor, command.reason)
         events.publishEvent(TradeAmended(next, current.version))
@@ -261,6 +264,7 @@ class TradeService(
         val next = TradeAggregate(locked(tradeId)).approve(actor, clock.instant())
         save(next, actor, "approved")
         events.publishEvent(TradeApproved(next))
+        openObligationsIfDue(next)
         return next
     }
 
@@ -270,15 +274,18 @@ class TradeService(
         return next
     }
 
-    override fun confirm(tradeId: UUID, command: ConfirmTrade): TradeView {
-        val actor = actorProvider.current().userId
-        val next = TradeAggregate(locked(tradeId)).confirm(command.confirmationRef, command.confirmedAt ?: clock.instant())
+    override fun confirm(tradeId: UUID, command: ConfirmTrade): TradeView = confirmAs(tradeId, command, actorProvider.current().userId)
+
+    /** Confirmation on behalf of [actor], e.g. `system` when the counterparty's confirmation matched ours. */
+    fun confirmAs(tradeId: UUID, command: ConfirmTrade, actor: String): TradeView {
+        val current = locked(tradeId)
+        val next = TradeAggregate(current).confirm(command.confirmationRef, command.confirmedAt ?: clock.instant())
         save(next, actor, "confirmed via ${command.method}")
         events.publishEvent(TradeConfirmed(next))
-        obligationsOf(next).forEach { events.publishEvent(DeliveryObligationOpened(it)) }
+        if (!current.obligationsOpen) obligationsOf(next).forEach { events.publishEvent(DeliveryObligationOpened(it)) }
         next.intercompanyLinkId?.let { linkedId ->
             val linked = locked(linkedId)
-            if (linked.status == TradeStatus.APPROVED) confirm(linkedId, command)
+            if (linked.status == TradeStatus.APPROVED) confirmAs(linkedId, command, actor)
         }
         return next
     }
@@ -288,7 +295,7 @@ class TradeService(
         val next = TradeAggregate(current).cancel()
         save(next, actorProvider.current().userId, "cancelled: $reason")
         events.publishEvent(TradeCancelled(next, reason))
-        if (current.status.firm) {
+        if (current.obligationsOpen) {
             obligationsOf(current).filter {
                 it.status != DeliveryStatus.DELIVERED
             }.forEach { events.publishEvent(DeliveryObligationClosed(it, "cancelled")) }
@@ -361,6 +368,11 @@ class TradeService(
 
     private fun save(trade: TradeView, actor: String, reason: String?) {
         if (!repository.saveVersion(trade, actor, reason)) throw StaleVersionException("Trade", trade.id, trade.version - 1, -1)
+    }
+
+    /** Approved trades of entities whose obligations open at approval oblige delivery from now on. */
+    private fun openObligationsIfDue(trade: TradeView) {
+        if (trade.status == TradeStatus.APPROVED && trade.obligationsOpen) obligationsOf(trade).forEach { events.publishEvent(DeliveryObligationOpened(it)) }
     }
 
     private fun obligationsOf(trade: TradeView): List<DeliveryObligationView> = trade.legs.flatMap { leg ->

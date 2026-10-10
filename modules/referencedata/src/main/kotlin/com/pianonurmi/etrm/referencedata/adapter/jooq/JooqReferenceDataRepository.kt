@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.referencedata.api.HistoryEntry
 import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.LegalEntityView
 import com.pianonurmi.etrm.referencedata.api.MasterAgreement
+import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import com.pianonurmi.etrm.referencedata.api.OwnerType
 import com.pianonurmi.etrm.referencedata.api.ProductionDeviceView
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
@@ -90,6 +91,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         allowanceCostingMethod = entity.accountingPolicy.allowanceCostingMethod.name
         allowanceClassification = entity.accountingPolicy.allowanceClassification.name
         freeAllocationPolicy = entity.accountingPolicy.freeAllocationPolicy.name
+        obligationsOpenAt = entity.obligationsOpenAt.name
         validTo = entity.validPeriod.validTo
         active = entity.active
     }
@@ -112,6 +114,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         validPeriod = ValidPeriod(r.validFrom, r.validTo),
         active = r.active,
         version = r.version,
+        obligationsOpenAt = ObligationsOpenAt.valueOf(r.obligationsOpenAt),
     )
 
     // ----------------------------------------------------------------------------------------------------------

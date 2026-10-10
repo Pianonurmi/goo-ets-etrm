@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.referencedata.api.CreateCounterparty
 import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
 import com.pianonurmi.etrm.referencedata.api.CreateRegistryAccount
 import com.pianonurmi.etrm.referencedata.api.HolderType
+import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
@@ -80,6 +81,9 @@ class TradeServiceIT {
     private lateinit var accountA: UUID
     private lateinit var externalAccount: UUID
     private lateinit var otherCounterparty: UUID
+    private lateinit var entityEarly: UUID
+    private lateinit var bookEarly: UUID
+    private lateinit var accountEarly: UUID
 
     @BeforeAll
     fun setUp() {
@@ -108,6 +112,13 @@ class TradeServiceIT {
             CreateRegistryAccount("FINGRID", "FI-A-1", "A holding", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityA),
         ).id
         otherCounterparty = referenceData.createCounterparty(CreateCounterparty("OTHER-CP", "Other Energy", "DE")).id
+        entityEarly = referenceData.createLegalEntity(
+            CreateLegalEntity("ENTITY-E", "Early Delivery Oy", "FI", validFrom = LocalDate.of(2026, 1, 1), obligationsOpenAt = ObligationsOpenAt.APPROVED),
+        ).id
+        bookEarly = referenceData.createBook(CreateBook(entityEarly, "GOO-E", "GoO trading E", BookType.TRADING)).id
+        accountEarly = referenceData.createRegistryAccount(
+            CreateRegistryAccount("FINGRID", "FI-E-1", "E holding", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityEarly),
+        ).id
         // Counterparty accounts normally arrive through a four-eyes change request; inserted directly here.
         val hknr = referenceData.requireRegistry("HKNR")
         externalAccount = Ids.newId()
@@ -274,6 +285,43 @@ class TradeServiceIT {
         trades.requireTrade(mirror.id).status shouldBe TradeStatus.CONFIRMED
         trades.openObligations(entityB, Side.BUY).map { it.tradeNumber }.distinct() shouldBe listOf(mirror.tradeNumber)
         shouldThrow<ValidationException> { trades.capture(gooSale(counterparty = icoB)) }
+    }
+
+    @Test
+    fun `where obligations open at approval, deliveries may precede the confirmation`() {
+        currentUser = "trader1"
+        val trade = trades.capture(
+            gooSale(quantity = 100).copy(legalEntityId = entityEarly, bookId = bookEarly).let {
+                it.copy(legs = it.legs.map { leg -> leg.copy(deliveryAccountId = accountEarly) })
+            },
+        )
+        trade.obligationsOpenAt shouldBe ObligationsOpenAt.APPROVED
+        trade.obligationsOpen shouldBe false
+        trades.openObligations(entityEarly).none { it.tradeId == trade.id } shouldBe true
+        currentUser = "middle-office"
+        val approved = trades.approve(trade.id)
+        approved.obligationsOpen shouldBe true
+        published.filterIsInstance<DeliveryObligationOpened>().filter { it.obligation.tradeId == trade.id } shouldHaveSize 2
+        trades.openObligations(entityEarly).filter { it.tradeId == trade.id } shouldHaveSize 2
+
+        val first = approved.legs.single().deliveries.first()
+        trades.recordDelivery(trade.id, RecordDelivery(first.id, BigDecimal(50), LocalDate.of(2026, 9, 10), "TX-E1")).status shouldBe
+            TradeStatus.PARTIALLY_DELIVERED
+        val confirmed = trades.confirm(trade.id, ConfirmTrade("CONF-E"))
+        confirmed.status shouldBe TradeStatus.PARTIALLY_DELIVERED
+        confirmed.confirmationRef shouldBe "CONF-E"
+        // Obligations were opened at approval and are not opened again.
+        published.filterIsInstance<DeliveryObligationOpened>().filter { it.obligation.tradeId == trade.id } shouldHaveSize 2
+        shouldThrow<IllegalStateTransitionException> { trades.confirm(trade.id, ConfirmTrade("CONF-E2")) }
+
+        // The default policy still waits for the confirmation.
+        currentUser = "trader1"
+        val usual = trades.capture(gooSale(quantity = 10))
+        currentUser = "middle-office"
+        val usualApproved = trades.approve(usual.id)
+        shouldThrow<IllegalStateTransitionException> {
+            trades.recordDelivery(usual.id, RecordDelivery(usualApproved.legs.single().deliveries.first().id, BigDecimal(5), LocalDate.of(2026, 9, 10)))
+        }
     }
 
     @Test

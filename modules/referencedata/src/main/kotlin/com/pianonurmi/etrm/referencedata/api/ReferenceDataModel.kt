@@ -24,6 +24,9 @@ data class AccountingPolicy(
     val freeAllocationPolicy: FreeAllocationPolicy = FreeAllocationPolicy.NOMINAL,
 )
 
+/** The trade status from which a legal entity's trades create delivery obligations. */
+enum class ObligationsOpenAt { APPROVED, CONFIRMED }
+
 data class LegalEntityView(
     val id: UUID,
     val code: String,
@@ -37,6 +40,7 @@ data class LegalEntityView(
     val validPeriod: ValidPeriod,
     val active: Boolean,
     val version: Int,
+    val obligationsOpenAt: ObligationsOpenAt = ObligationsOpenAt.CONFIRMED,
 )
 
 enum class BookType { TRADING, OWN_USE, HEDGING, COMPLIANCE }
@@ -165,6 +169,7 @@ data class CreateLegalEntity(
     val timeZone: String = "Europe/Helsinki",
     val accountingPolicy: AccountingPolicy = AccountingPolicy(),
     val validFrom: LocalDate,
+    val obligationsOpenAt: ObligationsOpenAt = ObligationsOpenAt.CONFIRMED,
 )
 
 data class UpdateLegalEntity(
@@ -175,6 +180,7 @@ data class UpdateLegalEntity(
     val active: Boolean? = null,
     val validTo: LocalDate? = null,
     val expectedVersion: Int,
+    val obligationsOpenAt: ObligationsOpenAt? = null,
 )
 
 data class CreateBook(
