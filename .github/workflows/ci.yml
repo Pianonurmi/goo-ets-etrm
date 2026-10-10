@@ -59,7 +59,7 @@ jobs:
       - name: Build container image
         run: docker build -t goo-ets-etrm:${{ github.sha }} -f ops/Dockerfile .
       - name: SBOM and vulnerability scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: goo-ets-etrm:${{ github.sha }}
           format: table

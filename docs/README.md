@@ -2,6 +2,7 @@
 
 | Folder | Content |
 |---|---|
+| `architecture-plan.md` | Approved architecture and delivery plan: target architecture, domain model, non-functional targets, increments 1–5, open questions, and how increment 1 deviates |
 | `arc42/` | Architecture documentation following the arc42 template (sections 1–8 filled for increment 1) |
 | `adr/` | Architecture decision records (MADR format) |
 | `domain/` | Domain model notes: GoO attribute schema, criteria language, allocation engine, posting rules, EU ETS |

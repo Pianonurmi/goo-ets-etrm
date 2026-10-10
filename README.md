@@ -50,6 +50,23 @@ Full-size allocation benchmark:
 ./gradlew :modules:allocation:test --tests '*AllocationBenchmarkTest*' -Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000
 ```
 
+## Clone and run on a new machine
+
+```bash
+git clone https://github.com/Pianonurmi/goo-ets-etrm.git
+cd goo-ets-etrm
+docker compose -f ops/docker-compose.yml up -d postgres keycloak
+export ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:5432/etrm_codegen
+export ETRM_TEST_DB_URL=jdbc:postgresql://localhost:5432/etrm_test
+export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
+./gradlew build
+```
+
+- You need JDK 21 and Docker. The Gradle wrapper downloads Gradle itself.
+- `ops/postgres-init.sql` creates the code-generation and test databases on the first start of the PostgreSQL container. If the volume already exists, create them by hand.
+- The repository's default branch is currently `ccr-c2c9258a-sd2hhq`. Renaming it to `main` is a one-time step in the GitHub repository settings.
+- `CLAUDE.md` summarises commands and conventions for working on the code with Claude Code.
+
 ## Golden path (see `apps/api/src/test/kotlin/com/pianonurmi/etrm/GoldenPathIT.kt`)
 
 1. Create a legal entity, book, counterparty, registry accounts and a production device.
