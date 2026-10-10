@@ -67,6 +67,7 @@ data class MigrationProperties(
             "inventory",
             "allocation",
             "registry",
+            "etscompliance",
             "position",
             "settlement",
             "valuation",

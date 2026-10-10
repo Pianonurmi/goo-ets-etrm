@@ -43,6 +43,9 @@ etrm:
     ecb:
       # Pulls the ECB euro reference rates on working days; needs outbound access to www.ecb.europa.eu.
       enabled: ${ETRM_ECB_ENABLED:false}
+  etscompliance:
+    # Daily review of ETS deadlines (Europe/Berlin): reminders 30, 14 and 7 days before, and when overdue.
+    deadline-cron: "0 15 6 * * *"
 
 server:
   port: 8080

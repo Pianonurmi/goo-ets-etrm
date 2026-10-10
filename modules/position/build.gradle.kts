@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":modules:inventory"))
     implementation(project(":modules:trade"))
     implementation(project(":modules:allocation"))
+    implementation(project(":modules:etscompliance"))
     implementation(libs.springdoc.openapi)
     implementation(libs.shedlock.spring)
 

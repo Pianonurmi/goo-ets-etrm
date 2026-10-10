@@ -48,10 +48,13 @@ data class ComplianceLadder(
     val freeAllocationReceived: Long,
     /** Allowances already surrendered for the year. */
     val surrendered: Long,
+    /** Verified emissions when every installation's are verified and approved. */
     val verifiedEmissions: Long?,
-    val forecastEmissions: Long?,
+    /** Each installation's best figure: verified, else monthly estimates, else forecast. */
+    val estimatedEmissions: Long,
+    val installations: List<InstallationLine> = emptyList(),
 ) {
-    val emissionsBasis: Long get() = verifiedEmissions ?: forecastEmissions ?: 0
+    val emissionsBasis: Long get() = verifiedEmissions ?: estimatedEmissions
 
     /** Free allocation still to be issued for the year. */
     val freeAllocationOutstanding: Long get() = maxOf(0, freeAllocationExpected - freeAllocationReceived)
@@ -68,12 +71,15 @@ data class ComplianceLadder(
         get() = obligationOutstanding.takeIf { it > 0 }?.let { BigDecimal(supply).divide(BigDecimal(it), 4, java.math.RoundingMode.HALF_UP) }
 }
 
-data class UpsertComplianceInput(
-    val legalEntityId: UUID,
-    val complianceYear: Int,
-    val verifiedEmissionsTco2e: Long? = null,
-    val forecastEmissionsTco2e: Long? = null,
-    val freeAllocationExpected: Long? = null,
+/** One installation's figures in the ladder; basis and status are those of the etscompliance module. */
+data class InstallationLine(
+    val installationId: UUID,
+    val name: String,
+    val emissions: Long,
+    val basis: String,
+    val surrendered: Long,
+    val held: Long,
+    val status: String,
 )
 
 enum class SnapshotKind { GOO, ETS }
@@ -98,8 +104,6 @@ interface PositionQuery {
 }
 
 interface PositionCommand {
-    fun upsertComplianceInput(command: UpsertComplianceInput)
-
     /** Persists today's GoO and ETS positions for the entity; returns the snapshots written. */
     fun takeSnapshots(legalEntityId: UUID, asOfDate: LocalDate): List<PositionSnapshotView>
 }

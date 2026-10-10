@@ -6,12 +6,9 @@ import com.pianonurmi.etrm.position.api.PositionCommand
 import com.pianonurmi.etrm.position.api.PositionQuery
 import com.pianonurmi.etrm.position.api.PositionSnapshotView
 import com.pianonurmi.etrm.position.api.SnapshotKind
-import com.pianonurmi.etrm.position.api.UpsertComplianceInput
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.PutMapping
-import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -32,14 +29,6 @@ class PositionController(private val query: PositionQuery, private val command: 
         @RequestParam legalEntityId: UUID,
         @RequestParam complianceYear: Int,
     ): ComplianceLadder = query.complianceLadder(legalEntityId, complianceYear)
-
-    @PutMapping("/ets/inputs")
-    fun upsertInput(
-        @RequestBody body: UpsertComplianceInput,
-    ): ComplianceLadder {
-        command.upsertComplianceInput(body)
-        return query.complianceLadder(body.legalEntityId, body.complianceYear)
-    }
 
     @GetMapping("/snapshots")
     fun snapshots(

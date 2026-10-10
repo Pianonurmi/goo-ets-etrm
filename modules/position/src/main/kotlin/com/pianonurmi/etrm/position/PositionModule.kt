@@ -7,6 +7,8 @@ import org.springframework.modulith.PackageInfo
 @PackageInfo
 @ApplicationModule(
     displayName = "Position",
-    allowedDependencies = ["referencedata :: api", "product :: api", "product :: criteria", "inventory :: api", "trade :: api", "allocation :: api"],
+    allowedDependencies = [
+        "referencedata :: api", "product :: api", "product :: criteria", "inventory :: api", "trade :: api", "allocation :: api", "etscompliance :: api",
+    ],
 )
 class PositionModule

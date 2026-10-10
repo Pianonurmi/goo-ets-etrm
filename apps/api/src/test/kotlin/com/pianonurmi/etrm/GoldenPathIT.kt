@@ -165,20 +165,42 @@ class GoldenPathIT {
             """{"holderEntityId":"$entityId","registryAccountId":"$etsAccountId","productCode":"EUA","type":"$type","quantity":$qty,"effectiveDate":"2026-06-30",
                ${price?.let { "\"costPerUnit\":$it,\"costCurrency\":\"EUR\"," } ?: ""}"complianceYear":$year}""",
         ).post("/api/v1/inventory/holdings/movements").then().statusCode(201)
+        val installationId: String = asUser("middle").body(
+            """{"legalEntityId":"$entityId","kind":"INSTALLATION","eutlId":"FI-DEMO-001","name":"Demo CHP plant","country":"FI",
+               "registryAccountId":"$etsAccountId","validFrom":"2026-01-01"}""",
+        ).post("/api/v1/ets/installations").then().statusCode(201).extract().path("id")
+        asUser("middle").body("""{"allocated":10000}""").put("/api/v1/ets/installations/$installationId/free-allocation/2026").then().statusCode(200)
+            .body("outstanding", org.hamcrest.Matchers.equalTo(10000))
         move("FREE_ALLOCATION", 10_000, null, 2026)
         move("PURCHASE", 4_000, "72.50", 2026)
-        asUser("risk").body("""{"legalEntityId":"$entityId","complianceYear":2026,"forecastEmissionsTco2e":12000,"freeAllocationExpected":0}""")
-            .put("/api/v1/positions/ets/inputs").then().statusCode(200).body("heldAllowances", org.hamcrest.Matchers.equalTo(14000))
+        asUser("risk").body("""{"complianceYear":2026,"kind":"FORECAST","quantityTco2e":12000}""")
+            .post("/api/v1/ets/installations/$installationId/emissions").then().statusCode(201)
+        asUser("risk").get("/api/v1/positions/ets?legalEntityId=$entityId&complianceYear=2026").then().statusCode(200)
+            .body("heldAllowances", org.hamcrest.Matchers.equalTo(14000))
+            .body("freeAllocationOutstanding", org.hamcrest.Matchers.equalTo(0))
             .body("netPosition", org.hamcrest.Matchers.equalTo(2000))
+
+        // Verified emissions count once a second person approves them.
+        val recordId: String = asUser(
+            "middle",
+        ).body("""{"complianceYear":2026,"quantityTco2e":12000,"verifier":"Demo Verifier Oy","verifiedOn":"2027-02-15"}""")
+            .post("/api/v1/ets/installations/$installationId/verified-emissions").then().statusCode(201)
+            .body("status", org.hamcrest.Matchers.equalTo("PENDING_APPROVAL")).extract().path("id")
+        val task: String = asUser("risk").get("/api/v1/workflow/tasks?subjectRef=$recordId&type=VERIFIED_EMISSIONS_APPROVAL").then()
+            .body("items.size()", org.hamcrest.Matchers.equalTo(1)).extract().path("items[0].id")
+        asUser("middle").post("/api/v1/workflow/tasks/$task/approve").then().statusCode(403)
+        asUser("risk").post("/api/v1/workflow/tasks/$task/approve").then().statusCode(200)
+        asUser("risk").get("/api/v1/ets/installations/$installationId/compliance/2026").then().statusCode(200)
+            .body("emissionsBasis", org.hamcrest.Matchers.equalTo("VERIFIED")).body("status", org.hamcrest.Matchers.equalTo("VERIFIED"))
+
         move("SURRENDER", 12_000, null, 2026)
-        asUser(
-            "risk",
-        ).get(
-            "/api/v1/positions/ets?legalEntityId=$entityId&complianceYear=2026",
-        ).then().statusCode(200).body("heldAllowances", org.hamcrest.Matchers.equalTo(2000))
+        asUser("risk").get("/api/v1/positions/ets?legalEntityId=$entityId&complianceYear=2026").then().statusCode(200)
+            .body("heldAllowances", org.hamcrest.Matchers.equalTo(2000))
+            .body("verifiedEmissions", org.hamcrest.Matchers.equalTo(12000))
             .body("surrendered", org.hamcrest.Matchers.equalTo(12000))
             .body("obligationOutstanding", org.hamcrest.Matchers.equalTo(0))
             .body("netPosition", org.hamcrest.Matchers.equalTo(2000))
+            .body("installations[0].status", org.hamcrest.Matchers.equalTo("COMPLIANT"))
         val eua = asUser(
             "accountant",
         ).get("/api/v1/ledger/entries?legalEntityId=$entityId&period=2026-06").then().statusCode(200).extract().jsonPath().getList<String>("ruleCode")

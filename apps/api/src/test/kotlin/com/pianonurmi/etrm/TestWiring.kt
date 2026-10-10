@@ -16,6 +16,7 @@ object TestWiring {
         "inventory",
         "allocation",
         "registry",
+        "etscompliance",
         "position",
         "settlement",
         "valuation",
