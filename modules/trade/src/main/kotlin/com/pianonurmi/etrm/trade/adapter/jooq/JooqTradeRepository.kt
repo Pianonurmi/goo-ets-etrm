@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.trade.adapter.jooq
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.InstrumentType
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import com.pianonurmi.etrm.trade.adapter.jooq.generated.Sequences.TRADE_NUMBER_SEQ
@@ -15,9 +16,13 @@ import com.pianonurmi.etrm.trade.api.DeliveryObligationView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeFilter
+import com.pianonurmi.etrm.trade.api.TradePage
+import com.pianonurmi.etrm.trade.api.TradeSearch
 import com.pianonurmi.etrm.trade.api.TradeStatus
+import com.pianonurmi.etrm.trade.api.TradeSummaryView
 import com.pianonurmi.etrm.trade.api.TradeVersionView
 import com.pianonurmi.etrm.trade.api.TradeView
+import com.pianonurmi.etrm.trade.domain.TradeCursor
 import com.pianonurmi.etrm.trade.domain.TradeRepository
 import org.jooq.DSLContext
 import org.jooq.JSONB
@@ -66,6 +71,63 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
         .limit(filter.limit)
         .fetch(TRADE.ID)
         .mapNotNull { find(it) }
+
+    override fun search(search: TradeSearch): TradePage {
+        val limit = search.limit.coerceIn(1, MAX_SEARCH)
+        val legs = TRADE_LEG.`as`("all_legs")
+        val legCount = DSL.field(DSL.selectCount().from(legs).where(legs.TRADE_ID.eq(TRADE.ID)))
+        val notional = DSL.field(DSL.select(DSL.sum(legs.QUANTITY.mul(legs.PRICE))).from(legs).where(legs.TRADE_ID.eq(TRADE.ID)))
+        val after = search.cursor?.let(TradeCursor::decode)
+        val text = search.q?.trim()?.takeIf { it.isNotEmpty() }?.let { "%${it.replace("%", "\\%").replace("_", "\\_")}%" }
+        val conditions = listOfNotNull(
+            search.legalEntityId?.let { TRADE.LEGAL_ENTITY_ID.eq(it) },
+            search.legalEntityIds?.let { TRADE.LEGAL_ENTITY_ID.`in`(it) },
+            search.bookId?.let { TRADE.BOOK_ID.eq(it) },
+            search.counterpartyId?.let { TRADE.COUNTERPARTY_ID.eq(it) },
+            search.statuses?.takeIf { it.isNotEmpty() }?.let { TRADE.STATUS.`in`(it.map(TradeStatus::name)) },
+            search.productFamily?.let { TRADE.PRODUCT_FAMILY.eq(it.name) },
+            search.tradeDateFrom?.let { TRADE.TRADE_DATE.ge(it) },
+            search.tradeDateTo?.let { TRADE.TRADE_DATE.lt(it) },
+            text?.let { TRADE.TRADE_NUMBER.likeIgnoreCase(it).or(TRADE.EXTERNAL_REF.likeIgnoreCase(it)).or(TRADE.UTI.likeIgnoreCase(it)) },
+            after?.let { DSL.row(TRADE.TRADE_DATE, TRADE.TRADE_NUMBER).lt(it.tradeDate, it.tradeNumber) },
+        )
+        val rows = dsl.select(TRADE.asterisk(), TRADE_LEG.SIDE, TRADE_LEG.ALLOWANCE_PRODUCT_CODE, TRADE_LEG.CRITERIA_SUMMARY, TRADE_LEG.ENERGY_CARRIER)
+            .select(TRADE_LEG.QUANTITY, TRADE_LEG.UNIT, TRADE_LEG.PRICE, TRADE_LEG.PRICE_CURRENCY, legCount.`as`("leg_count"), notional.`as`("notional"))
+            .from(TRADE)
+            .join(TRADE_LEG).on(TRADE_LEG.TRADE_ID.eq(TRADE.ID).and(TRADE_LEG.LEG_NO.eq(1)))
+            .where(DSL.and(conditions))
+            .orderBy(TRADE.TRADE_DATE.desc(), TRADE.TRADE_NUMBER.desc())
+            .limit(limit + 1)
+            .fetch()
+        val items = rows.take(limit).map { r ->
+            TradeSummaryView(
+                id = r[TRADE.ID],
+                tradeNumber = r[TRADE.TRADE_NUMBER],
+                legalEntityId = r[TRADE.LEGAL_ENTITY_ID],
+                bookId = r[TRADE.BOOK_ID],
+                counterpartyId = r[TRADE.COUNTERPARTY_ID],
+                productFamily = ProductFamily.valueOf(r[TRADE.PRODUCT_FAMILY]),
+                instrumentType = InstrumentType.valueOf(r[TRADE.INSTRUMENT_TYPE]),
+                tradeDate = r[TRADE.TRADE_DATE],
+                status = TradeStatus.valueOf(r[TRADE.STATUS]),
+                trader = r[TRADE.TRADER],
+                externalRef = r[TRADE.EXTERNAL_REF],
+                uti = r[TRADE.UTI],
+                version = r[TRADE.CURRENT_VERSION],
+                createdAt = r[TRADE.CREATED_AT],
+                side = Side.valueOf(r[TRADE_LEG.SIDE]),
+                product = r[TRADE_LEG.ALLOWANCE_PRODUCT_CODE] ?: r[TRADE_LEG.CRITERIA_SUMMARY] ?: r[TRADE_LEG.ENERGY_CARRIER] ?: "",
+                quantity = r[TRADE_LEG.QUANTITY],
+                unit = r[TRADE_LEG.UNIT],
+                price = r[TRADE_LEG.PRICE],
+                priceCurrency = r[TRADE_LEG.PRICE_CURRENCY],
+                legCount = r.get("leg_count", Int::class.java),
+                notional = r.get("notional", BigDecimal::class.java) ?: BigDecimal.ZERO,
+            )
+        }
+        val next = if (rows.size > limit) items.lastOrNull()?.let { TradeCursor(it.tradeDate, it.tradeNumber).encode() } else null
+        return TradePage(items, next)
+    }
 
     override fun insert(trade: TradeView, recordedBy: String, reason: String?) {
         dsl.insertInto(TRADE)
@@ -324,5 +386,9 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             status = DeliveryStatus.valueOf(s.status),
             priceIndex = l.priceIndex,
         )
+    }
+
+    private companion object {
+        const val MAX_SEARCH = 500
     }
 }

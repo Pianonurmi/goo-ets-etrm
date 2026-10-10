@@ -26,6 +26,11 @@ export default tseslint.config(
     },
   },
   {
+    // Tests build fixtures by index; a missing element fails the test anyway.
+    files: ['**/*.test.ts', '**/*.test.tsx'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
+  },
+  {
     files: ['eslint.config.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },

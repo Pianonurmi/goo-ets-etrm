@@ -7,6 +7,15 @@ import type { OperationId, Role } from '@/shared/api/types';
  */
 export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   referenceData_createLegalEntity: ['ADMIN'],
+  trade_capture: ['TRADER', 'MIDDLE_OFFICE'],
+  trade_amend: ['TRADER', 'MIDDLE_OFFICE'],
+  trade_cancel: ['TRADER', 'MIDDLE_OFFICE'],
+  trade_approve: ['MIDDLE_OFFICE', 'RISK'],
+  trade_reject: ['MIDDLE_OFFICE', 'RISK'],
+  trade_confirm: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  trade_recordDelivery: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  trade_settle: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  confirmation_issue: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
   inventory_receive: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],
   inventory_split: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],
   inventory_reserve: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],

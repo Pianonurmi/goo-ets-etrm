@@ -45,7 +45,9 @@ import com.pianonurmi.etrm.trade.api.TradeCommand
 import com.pianonurmi.etrm.trade.api.TradeConfirmed
 import com.pianonurmi.etrm.trade.api.TradeFilter
 import com.pianonurmi.etrm.trade.api.TradeLegView
+import com.pianonurmi.etrm.trade.api.TradePage
 import com.pianonurmi.etrm.trade.api.TradeQuery
+import com.pianonurmi.etrm.trade.api.TradeSearch
 import com.pianonurmi.etrm.trade.api.TradeSettled
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeVersionView
@@ -91,6 +93,10 @@ class TradeService(
         val actor = actorProvider.current()
         actor.requireRole(*roles)
         actor.requireEntity(legalEntityId)
+    }
+
+    override fun requireTradeOperator(tradeId: UUID) {
+        authorise(requireTrade(tradeId).legalEntityId, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     }
 
     override fun capture(command: CaptureTrade): TradeView {
@@ -475,6 +481,13 @@ class TradeService(
         val actor = actorProvider.current()
         filter.legalEntityId?.let { actor.requireEntity(it) }
         return repository.list(filter.copy(legalEntityIds = actor.entityFilter))
+    }
+
+    @Transactional(readOnly = true)
+    override fun searchTrades(search: TradeSearch): TradePage {
+        val actor = actorProvider.current()
+        search.legalEntityId?.let { actor.requireEntity(it) }
+        return repository.search(search.copy(legalEntityIds = actor.entityFilter))
     }
 
     @Transactional(readOnly = true)

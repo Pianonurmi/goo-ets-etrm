@@ -8,6 +8,9 @@ legal-entity scope; the UI only mirrors them.
 |---|---|---|---|
 | Home | `/` | `ui_me`, `referenceData_legalEntities`, `workflow_inbox` (actionable, first five), `workflow_counts` | everyone |
 | Approval inbox | `/inbox` | `workflow_inbox` (cursor paging, filters in the URL), `workflow_taskTypes`, `workflow_counts`, `workflow_bulk` | candidates of each task type |
+| Trade blotter | `/trades` | `trade_search` (one query per page, keyset cursor, filters and `q` in the URL), `referenceData_counterparties`, `referenceData_books` | everyone in scope |
+| Trade capture and amendment | `/trades/new`, `/trades/:tradeId/amend` | `trade_capture`, `trade_amend`, criteria builder, `referenceData_registryAccounts`, `product_allowances` | TRADER, MIDDLE_OFFICE |
+| Trade detail | `/trades/:tradeId` | `trade_trade`, `trade_versions` (diff per version), `confirmation_forTrade`, `valuation_tradeMtm`, `trade_confirm`, `trade_cancel`, link to the approval task | confirm: MIDDLE_OFFICE, BACK_OFFICE; amend/cancel: TRADER, MIDDLE_OFFICE |
 | Inventory: certificates | `/inventory` | `inventory_lots` (selected entity; status and expiry filters in the URL) | everyone in scope |
 | Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
 | Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |
@@ -32,3 +35,13 @@ legal-entity scope; the UI only mirrors them.
 - The JSON tab edits the same value. The criterion travels exactly as the API defines it, a discriminated union on
   `type`.
 - Totals on the inventory screens add whole certificate counts (MWh). No money is summed in the browser.
+
+## Trades (`features/trades`)
+
+- The capture form keeps decimals as strings (`model/tradeForm.ts`), checks what the browser can, and maps the
+  server's 422 violations onto the fields. Anything it cannot place is listed at the top of the form.
+- Approval runs through the inbox (four eyes): the detail page links to the open `TRADE_APPROVAL` task.
+- Pre-trade findings (credit, limits) are shown as the trade carries them. A finding that needs risk approval is red.
+- A GoO sale needs the counterparty's registry account before it can be confirmed. The form says so.
+- The REST guards for recording deliveries, settling and issuing our confirmation require middle or back office.
+  Module flows (allocation, registry) are unaffected.

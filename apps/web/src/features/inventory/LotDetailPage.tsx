@@ -26,6 +26,7 @@ import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
+import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { daysToExpiry, LotStatusBadge, type Lot } from './lotColumns';
@@ -78,12 +79,15 @@ function LotActions({ lot }: { lot: Lot }) {
   };
   const withdraw = $api.useMutation('post', '/api/v1/inventory/lots/{id}/withdraw', {
     onSuccess: done(t('inventory.withdrawn')),
+    meta: { notify: false },
   });
   const split = $api.useMutation('post', '/api/v1/inventory/lots/{id}/split', {
     onSuccess: done(t('inventory.splitDone')),
+    meta: { notify: false },
   });
   const cancel = $api.useMutation('post', '/api/v1/inventory/lots/{id}/cancel', {
     onSuccess: done(t('inventory.cancelled')),
+    meta: { notify: false },
   });
   const live = lot.status === 'HELD';
   const path = { params: { path: { id: lot.id } } };
@@ -113,6 +117,7 @@ function LotActions({ lot }: { lot: Lot }) {
       <Modal opened={action === 'withdraw'} onClose={() => setAction(null)} title={t('inventory.withdraw')}>
         <Stack>
           <Text size="sm">{t('inventory.withdrawHint')}</Text>
+          <ProblemAlert error={withdraw.error} />
           <Textarea
             label={t('inbox.reason')}
             required
@@ -131,6 +136,7 @@ function LotActions({ lot }: { lot: Lot }) {
       </Modal>
       <Modal opened={action === 'split'} onClose={() => setAction(null)} title={t('inventory.split')}>
         <Stack>
+          <ProblemAlert error={split.error} />
           <NumberInput
             label={t('inventory.splitQuantity')}
             description={t('inventory.splitHint', { quantity: lot.quantityMwh })}
@@ -151,6 +157,7 @@ function LotActions({ lot }: { lot: Lot }) {
       <Modal opened={action === 'cancel'} onClose={() => setAction(null)} title={t('inventory.cancel')} size="lg">
         <Stack>
           <Text size="sm">{t('inventory.cancelHint')}</Text>
+          <ProblemAlert error={cancel.error} />
           <Select
             label={t('inventory.purpose')}
             data={PURPOSES.map((purpose) => ({ value: purpose, label: t(`inventory.purposes.${purpose}`) }))}

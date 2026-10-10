@@ -8460,6 +8460,105 @@
         "required" : [ "deliveries", "id", "legNo", "price", "priceCurrency", "priceType", "quantity", "side", "unit" ],
         "type" : "object"
       },
+      "TradePage" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TradeSummaryView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "items" ],
+        "type" : "object"
+      },
+      "TradeSummaryView" : {
+        "properties" : {
+          "bookId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "counterpartyId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "externalRef" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "instrumentType" : {
+            "enum" : [ "SPOT", "FORWARD", "FUTURE", "OPTION", "SWAP", "AUCTION", "INTERNAL_TRANSFER" ],
+            "type" : "string"
+          },
+          "legCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "notional" : {
+            "type" : "number"
+          },
+          "price" : {
+            "type" : "number"
+          },
+          "priceCurrency" : {
+            "type" : "string"
+          },
+          "product" : {
+            "type" : "string"
+          },
+          "productFamily" : {
+            "enum" : [ "GUARANTEE_OF_ORIGIN", "EMISSION_ALLOWANCE" ],
+            "type" : "string"
+          },
+          "quantity" : {
+            "type" : "number"
+          },
+          "side" : {
+            "enum" : [ "BUY", "SELL" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "DRAFT", "PENDING_APPROVAL", "APPROVED", "CONFIRMED", "PARTIALLY_DELIVERED", "DELIVERED", "SETTLED", "CLOSED", "CANCELLED", "DISPUTED" ],
+            "type" : "string"
+          },
+          "tradeDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "tradeNumber" : {
+            "type" : "string"
+          },
+          "trader" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "type" : "string"
+          },
+          "uti" : {
+            "type" : [ "string", "null" ]
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "bookId", "counterpartyId", "createdAt", "id", "instrumentType", "legCount", "legalEntityId", "notional", "price", "priceCurrency", "product", "productFamily", "quantity", "side", "status", "tradeDate", "tradeNumber", "trader", "unit", "version" ],
+        "type" : "object"
+      },
       "TradeVersionView" : {
         "properties" : {
           "reason" : {
@@ -20359,6 +20458,118 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/DeliveryObligationView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Trades" ]
+      }
+    },
+    "/api/v1/trades/search" : {
+      "get" : {
+        "operationId" : "trade_search",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "bookId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "counterpartyId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "enum" : [ "DRAFT", "PENDING_APPROVAL", "APPROVED", "CONFIRMED", "PARTIALLY_DELIVERED", "DELIVERED", "SETTLED", "CLOSED", "CANCELLED", "DISPUTED" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
+          }
+        }, {
+          "in" : "query",
+          "name" : "productFamily",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "GUARANTEE_OF_ORIGIN", "EMISSION_ALLOWANCE" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 100,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TradePage"
                 }
               }
             },

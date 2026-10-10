@@ -55,6 +55,10 @@ class EntityScopeIT {
         scoped().body("{\"reason\":\"test\"}").post("/api/v1/inventory/lots/$theirLot/withdraw").then().statusCode(403)
         scoped().body("{\"reason\":\"registry correction\"}").post("/api/v1/inventory/lots/$myLot/withdraw").then().statusCode(200)
 
+        // Manual trade operations need middle or back office.
+        mine.asUser("a-trader", "TRADER").post("/api/v1/trades/$myTrade/settle").then().statusCode(403)
+        mine.asUser("a-trader", "TRADER").post("/api/v1/trades/$myTrade/confirmations").then().statusCode(403)
+
         // Without X-Entities the dev/test actor sees every entity.
         mine.asUser("everyone").get("/api/v1/trades/$theirTrade").then().statusCode(200)
     }

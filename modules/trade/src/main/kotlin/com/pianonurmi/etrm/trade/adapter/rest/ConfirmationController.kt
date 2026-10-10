@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.trade.api.ConfirmationCommand
 import com.pianonurmi.etrm.trade.api.ConfirmationQuery
 import com.pianonurmi.etrm.trade.api.ConfirmationView
 import com.pianonurmi.etrm.trade.api.ReceiveConfirmation
+import com.pianonurmi.etrm.trade.api.TradeCommand
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -18,7 +19,11 @@ import java.util.UUID
 /** Our confirmations (JSON terms, PDF under /api/v1/documents) and matching of the counterparty's. */
 @RestController
 @Tag(name = "Trade confirmations", description = "Issue our confirmation and match the counterparty's")
-class ConfirmationController(private val command: ConfirmationCommand, private val query: ConfirmationQuery) {
+class ConfirmationController(
+    private val command: ConfirmationCommand,
+    private val query: ConfirmationQuery,
+    private val trades: TradeCommand,
+) {
     @GetMapping("/api/v1/trades/{tradeId}/confirmations")
     fun forTrade(
         @PathVariable tradeId: UUID,
@@ -29,7 +34,7 @@ class ConfirmationController(private val command: ConfirmationCommand, private v
     @ResponseStatus(HttpStatus.CREATED)
     fun issue(
         @PathVariable tradeId: UUID,
-    ): ConfirmationView = command.issue(tradeId)
+    ): ConfirmationView = trades.requireTradeOperator(tradeId).let { command.issue(tradeId) }
 
     @GetMapping("/api/v1/confirmations/{id}")
     fun confirmation(

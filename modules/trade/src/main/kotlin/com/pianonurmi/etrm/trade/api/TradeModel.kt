@@ -244,6 +244,12 @@ data class RecordDelivery(
 interface TradeCommand {
     fun capture(command: CaptureTrade): TradeView
 
+    /**
+     * Refuses a manual operation over REST (recording a delivery, settling, issuing our confirmation) unless the
+     * current user is middle or back office with access to the trade's entity. Module flows call the commands directly.
+     */
+    fun requireTradeOperator(tradeId: UUID)
+
     fun amend(tradeId: UUID, command: AmendTrade): TradeView
 
     /** Four-eyes approval; the approver must differ from the trader and the person who captured the trade. */
@@ -319,6 +325,9 @@ interface TradeQuery {
 
     /** [requireTrade] that refuses a trade of a legal entity outside the current user's scope. */
     fun requireVisibleTrade(id: UUID): TradeView
+
+    /** Blotter search, limited to the legal entities the current user may see. */
+    fun searchTrades(search: TradeSearch): TradePage
 
     fun versions(tradeId: UUID): List<TradeVersionView>
 

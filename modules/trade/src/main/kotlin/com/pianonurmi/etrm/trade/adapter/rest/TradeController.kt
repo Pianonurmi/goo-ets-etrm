@@ -9,7 +9,9 @@ import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeCommand
 import com.pianonurmi.etrm.trade.api.TradeFilter
+import com.pianonurmi.etrm.trade.api.TradePage
 import com.pianonurmi.etrm.trade.api.TradeQuery
+import com.pianonurmi.etrm.trade.api.TradeSearch
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeVersionView
 import com.pianonurmi.etrm.trade.api.TradeView
@@ -43,6 +45,21 @@ class TradeController(private val command: TradeCommand, private val query: Trad
         @RequestParam(required = false) to: LocalDate?,
         @RequestParam(defaultValue = "200") limit: Int,
     ): List<TradeView> = query.visibleTrades(TradeFilter(legalEntityId, bookId, counterpartyId, status, productFamily, from, to, limit))
+
+    /** Blotter search with an opaque cursor; `q` matches trade number, external reference or UTI. */
+    @GetMapping("/search")
+    fun search(
+        @RequestParam(required = false) legalEntityId: UUID?,
+        @RequestParam(required = false) bookId: UUID?,
+        @RequestParam(required = false) counterpartyId: UUID?,
+        @RequestParam(required = false) status: Set<TradeStatus>?,
+        @RequestParam(required = false) productFamily: ProductFamily?,
+        @RequestParam(required = false) from: LocalDate?,
+        @RequestParam(required = false) to: LocalDate?,
+        @RequestParam(required = false) q: String?,
+        @RequestParam(defaultValue = "100") limit: Int,
+        @RequestParam(required = false) cursor: String?,
+    ): TradePage = query.searchTrades(TradeSearch(legalEntityId, bookId, counterpartyId, status, productFamily, from, to, q, limit, cursor))
 
     @GetMapping("/{id}")
     fun trade(
@@ -106,12 +123,12 @@ class TradeController(private val command: TradeCommand, private val query: Trad
     fun recordDelivery(
         @PathVariable id: UUID,
         @RequestBody body: RecordDelivery,
-    ): TradeView = command.recordDelivery(id, body)
+    ): TradeView = command.requireTradeOperator(id).let { command.recordDelivery(id, body) }
 
     @PostMapping("/{id}/settle")
     fun settle(
         @PathVariable id: UUID,
-    ): TradeView = command.markSettled(id)
+    ): TradeView = command.requireTradeOperator(id).let { command.markSettled(id) }
 }
 
 data class ReasonRequest(val reason: String)

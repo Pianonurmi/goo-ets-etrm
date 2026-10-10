@@ -5,6 +5,8 @@ import com.pianonurmi.etrm.trade.api.ConfirmationView
 import com.pianonurmi.etrm.trade.api.DeliveryObligationView
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeFilter
+import com.pianonurmi.etrm.trade.api.TradePage
+import com.pianonurmi.etrm.trade.api.TradeSearch
 import com.pianonurmi.etrm.trade.api.TradeVersionView
 import com.pianonurmi.etrm.trade.api.TradeView
 import java.math.BigDecimal
@@ -21,6 +23,9 @@ interface TradeRepository {
     fun byNumber(tradeNumber: String): TradeView?
 
     fun list(filter: TradeFilter): List<TradeView>
+
+    /** Blotter rows in one query, keyset-paged on trade date and trade number. */
+    fun search(search: TradeSearch): TradePage
 
     /** Inserts the trade with version 1 and its first version row. */
     fun insert(trade: TradeView, recordedBy: String, reason: String?)

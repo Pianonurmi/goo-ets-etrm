@@ -2,6 +2,9 @@ import { createBrowserRouter } from 'react-router';
 import { AppLayout } from './layout/AppLayout';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
+import { registerSubjectScreens } from '@/features/inbox/model/subjects';
+
+registerSubjectScreens('TRADE');
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
 export const router = createBrowserRouter([
@@ -20,6 +23,22 @@ export const router = createBrowserRouter([
       {
         path: 'inbox/:taskId',
         lazy: async () => ({ Component: (await import('@/features/inbox/TaskDetailPage')).TaskDetailPage }),
+      },
+      {
+        path: 'trades',
+        lazy: async () => ({ Component: (await import('@/features/trades/TradesPage')).TradesPage }),
+      },
+      {
+        path: 'trades/new',
+        lazy: async () => ({ Component: (await import('@/features/trades/TradeFormPage')).TradeFormPage }),
+      },
+      {
+        path: 'trades/:tradeId',
+        lazy: async () => ({ Component: (await import('@/features/trades/TradeDetailPage')).TradeDetailPage }),
+      },
+      {
+        path: 'trades/:tradeId/amend',
+        lazy: async () => ({ Component: (await import('@/features/trades/TradeFormPage')).TradeFormPage }),
       },
       {
         path: 'inventory',
