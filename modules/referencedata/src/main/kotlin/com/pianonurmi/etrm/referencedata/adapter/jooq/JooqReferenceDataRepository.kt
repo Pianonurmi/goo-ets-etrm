@@ -280,6 +280,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
             .set(REGISTRY_ACCOUNT.TRUSTED, account.trusted)
             .set(REGISTRY_ACCOUNT.TRUSTED_SINCE, account.trustedSince)
             .set(REGISTRY_ACCOUNT.ACTIVE, account.active)
+            .set(REGISTRY_ACCOUNT.DEFAULT_BOOK_ID, account.defaultBookId)
             .execute()
     }
 
@@ -290,6 +291,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         .set(REGISTRY_ACCOUNT.TRUSTED, account.trusted)
         .set(REGISTRY_ACCOUNT.TRUSTED_SINCE, account.trustedSince)
         .set(REGISTRY_ACCOUNT.ACTIVE, account.active)
+        .set(REGISTRY_ACCOUNT.DEFAULT_BOOK_ID, account.defaultBookId)
         .set(REGISTRY_ACCOUNT.VERSION, account.version)
         .set(REGISTRY_ACCOUNT.UPDATED_AT, Instant.now())
         .where(REGISTRY_ACCOUNT.ID.eq(account.id), REGISTRY_ACCOUNT.VERSION.eq(expectedVersion))
@@ -312,6 +314,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
             active = a.active,
             version = a.version,
             trustedSince = a.trustedSince,
+            defaultBookId = a.defaultBookId,
         )
     }
 

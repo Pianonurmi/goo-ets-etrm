@@ -135,6 +135,8 @@ data class RegistryAccountView(
     val version: Int,
     /** First day the account counts as trusted (Union Registry trusted account list activation). */
     val trustedSince: java.time.LocalDate? = null,
+    /** The book that inventory on this account belongs to, for position limits. */
+    val defaultBookId: UUID? = null,
 ) {
     fun trustedOn(date: java.time.LocalDate): Boolean = trusted && trustedSince != null && !date.isBefore(trustedSince)
 }
@@ -251,6 +253,7 @@ data class CreateRegistryAccount(
     val canImport: Boolean = true,
     val canExport: Boolean = true,
     val trusted: Boolean = false,
+    val defaultBookId: UUID? = null,
 )
 
 data class CreateProductionDevice(

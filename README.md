@@ -20,6 +20,7 @@ positions and a double-entry sub-ledger, for a European company group with sever
 | `settlement` | Settlement items per delivery, **VAT rules as data**, gap-free invoices with PDF, payments, credit notes, netting, AR/AP and VAT reports |
 | `marketdata` | Instruments with vendor aliases, prices and FX rates (bitemporal, plausibility checks), import formats as data, price index fixings, ECB reference rates |
 | `valuation` | MtM of open trades per delivery schedule against official curves, end-of-day runs signed off by risk, P&L explain |
+| `risk` | Limits under four eyes, credit exposure and credit support, utilisation and breaches, pre-trade checks on trade approval |
 | `etscompliance` | EU ETS installations and aircraft operators, emissions (verified with four eyes), free allocation, surrender attribution and requests, deadline reminders |
 | `allocation` | Matching engine: lot classes, scoring, greedy solver with share constraints, **max-flow coverage**, plans with soft and hard reservations |
 | `position` | GoO coverage position by bucket and vintage, expiry ladder, EU ETS compliance ladder, snapshots |

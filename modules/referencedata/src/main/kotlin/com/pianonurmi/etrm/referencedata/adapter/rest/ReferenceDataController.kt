@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -96,7 +97,6 @@ class ReferenceDataController(
         @Valid @RequestBody body: CreateCounterparty,
     ): CounterpartyView {
         requireMaintainer()
-        if (body.creditLimit != null) actorProvider.current().requireRole(Role.RISK)
         return command.createCounterparty(body)
     }
 
@@ -106,7 +106,6 @@ class ReferenceDataController(
         @Valid @RequestBody body: UpdateCounterparty,
     ): CounterpartyView {
         requireMaintainer()
-        if (body.creditLimit != null) actorProvider.current().requireRole(Role.RISK)
         return command.updateCounterparty(id, body)
     }
 
@@ -130,6 +129,12 @@ class ReferenceDataController(
     fun createRegistryAccount(
         @Valid @RequestBody body: CreateRegistryAccount,
     ): RegistryAccountView = requireMaintainer(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR).let { command.createRegistryAccount(body) }
+
+    @PutMapping("/registry-accounts/{id}/default-book")
+    fun assignDefaultBook(
+        @PathVariable id: UUID,
+        @RequestBody body: DefaultBookRequest,
+    ): RegistryAccountView = requireMaintainer(Role.BACK_OFFICE).let { command.assignDefaultBook(id, body.bookId) }
 
     @GetMapping("/production-devices")
     fun productionDevices(
@@ -166,3 +171,5 @@ class ReferenceDataController(
         @RequestParam knownAt: Instant,
     ): Map<String, Any?>? = query.asOf(table, id, knownAt)
 }
+
+data class DefaultBookRequest(val bookId: UUID?)

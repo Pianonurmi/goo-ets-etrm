@@ -118,14 +118,37 @@ data class TradeView(
     /** The legal entity's policy when the trade was captured. */
     val obligationsOpenAt: ObligationsOpenAt = ObligationsOpenAt.CONFIRMED,
     val regulatory: RegulatoryTerms = RegulatoryTerms(),
+    /** Findings of the pre-trade checks ([TradeApprovalCheck]) when the trade was captured or last amended. */
+    val approvalFindings: List<ApprovalFinding> = emptyList(),
 ) {
     val notional: BigDecimal get() = legs.sumOf { it.notional }
+
+    /** A pre-trade check found something only the risk function may approve. */
+    val requiresRiskApproval: Boolean get() = approvalFindings.any { it.severity == FindingSeverity.REQUIRES_RISK_APPROVAL }
 
     /** Whether the trade is an EMIR-reportable derivative (see [RegulatoryScope]). */
     val emirReportable: Boolean get() = RegulatoryScope.reportable(this)
 
     /** Whether the trade's deliveries are obligations: once firm, or once approved where the entity's policy says so. */
     val obligationsOpen: Boolean get() = status.firm || (status == TradeStatus.APPROVED && obligationsOpenAt == ObligationsOpenAt.APPROVED)
+}
+
+enum class FindingSeverity {
+    INFO,
+    WARN,
+
+    /** The trade needs approval even below the threshold, and only RISK may give it. */
+    REQUIRES_RISK_APPROVAL,
+}
+
+data class ApprovalFinding(val code: String, val severity: FindingSeverity, val message: String)
+
+/**
+ * A check run on every captured or amended trade before it is submitted for approval. Other modules implement it
+ * (risk: limits and credit headroom), so trade depends on none of them. A check must not change anything.
+ */
+fun interface TradeApprovalCheck {
+    fun check(trade: TradeView): List<ApprovalFinding>
 }
 
 data class TradeVersionView(

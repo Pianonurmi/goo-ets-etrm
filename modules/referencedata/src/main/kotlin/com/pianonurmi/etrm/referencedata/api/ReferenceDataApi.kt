@@ -78,6 +78,9 @@ interface ReferenceDataCommand {
 
     fun createRegistryAccount(command: CreateRegistryAccount): RegistryAccountView
 
+    /** Sets (or clears) the book that inventory on one of an entity's own accounts belongs to. */
+    fun assignDefaultBook(accountId: UUID, bookId: UUID?): RegistryAccountView
+
     fun createProductionDevice(command: CreateProductionDevice): ProductionDeviceView
 
     fun updateProductionDevice(id: UUID, command: UpdateProductionDevice): ProductionDeviceView

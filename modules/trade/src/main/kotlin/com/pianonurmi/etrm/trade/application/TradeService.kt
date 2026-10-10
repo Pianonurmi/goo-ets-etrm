@@ -21,6 +21,7 @@ import com.pianonurmi.etrm.referencedata.api.LegalEntityView
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
 import com.pianonurmi.etrm.trade.api.AmendTrade
+import com.pianonurmi.etrm.trade.api.ApprovalFinding
 import com.pianonurmi.etrm.trade.api.CaptureLeg
 import com.pianonurmi.etrm.trade.api.CaptureTrade
 import com.pianonurmi.etrm.trade.api.ClearingStatus
@@ -36,6 +37,7 @@ import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeAmended
+import com.pianonurmi.etrm.trade.api.TradeApprovalCheck
 import com.pianonurmi.etrm.trade.api.TradeApproved
 import com.pianonurmi.etrm.trade.api.TradeCancelled
 import com.pianonurmi.etrm.trade.api.TradeCaptured
@@ -52,6 +54,7 @@ import com.pianonurmi.etrm.trade.api.UtiSource
 import com.pianonurmi.etrm.trade.domain.RegulatoryChecks
 import com.pianonurmi.etrm.trade.domain.TradeAggregate
 import com.pianonurmi.etrm.trade.domain.TradeRepository
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -77,6 +80,8 @@ class TradeService(
     private val fxRates: FxRates,
     @Value("\${etrm.trade.approval-threshold-currency:EUR}") private val thresholdCurrency: String,
     private val futures: FuturesContractQuery,
+    /** Pre-trade checks of other modules, resolved when used (they read trades themselves). */
+    private val checks: ObjectProvider<TradeApprovalCheck>? = null,
 ) : TradeCommand, TradeQuery {
     // ----------------------------------------------------------------------------------------------------------
     // Capture and amendment
@@ -92,7 +97,7 @@ class TradeService(
         authorise(command.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
         val actor = actorProvider.current().userId
         val counterparty = referenceData.requireCounterparty(command.counterpartyId)
-        val trade = build(command, actor)
+        val trade = build(command, actor).let { it.copy(approvalFindings = runChecks(it)) }
         repository.insert(trade, actor, command.reason ?: "captured")
         val submitted = TradeAggregate(trade).submitForApproval(requiresApproval(trade))
         repository.saveVersion(submitted, actor, "submitted")
@@ -352,6 +357,7 @@ class TradeService(
             legs = legs,
             regulatory = command.regulatory ?: current.regulatory,
         ).let { withRegulatoryTerms(it, referenceData.requireLegalEntity(current.legalEntityId), keptUti = current.regulatory.uti) }
+            .let { it.copy(approvalFindings = runChecks(it)) }
         val wasFirm = current.obligationsOpen
         val next = TradeAggregate(current).amend(amended)
         save(next, actor, command.reason)
@@ -368,6 +374,7 @@ class TradeService(
         val actor = actorProvider.current().userId
         val current = locked(tradeId)
         authorise(current.legalEntityId, Role.MIDDLE_OFFICE, Role.RISK)
+        if (current.requiresRiskApproval) actorProvider.current().requireRole(Role.RISK)
         val next = TradeAggregate(current).approve(actor, clock.instant())
         save(next, actor, "approved")
         events.publishEvent(TradeApproved(next))
@@ -480,12 +487,14 @@ class TradeService(
      * threshold. A trade whose currency cannot be converted is treated as above it.
      */
     private fun requiresApproval(trade: TradeView): Boolean {
-        if (approvalThreshold.signum() == 0) return true
+        if (approvalThreshold.signum() == 0 || trade.requiresRiskApproval) return true
         val converted = trade.legs.map { leg ->
             fxRates.rate(trade.tradeDate, leg.priceCurrency.currencyCode, thresholdCurrency)?.let { leg.notional * it.rate } ?: return true
         }
         return converted.fold(BigDecimal.ZERO, BigDecimal::add) >= approvalThreshold
     }
+
+    private fun runChecks(trade: TradeView): List<ApprovalFinding> = checks?.orderedStream()?.toList().orEmpty().flatMap { it.check(trade) }
 
     private fun locked(id: UUID): TradeView = repository.lock(id) ?: throw NotFoundException("Trade", id)
 

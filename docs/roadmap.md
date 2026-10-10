@@ -37,7 +37,7 @@ GL interface format, market data vendor for bucket marks.
 | M4 | `valuation` module: MtM per delivery schedule against official curves, end-of-day runs with sign-off, P&L explain | done |
 | M5 | `etscompliance` module: installations, emissions with verified-emissions approval, free allocation, surrender attribution and requests, deadline reminders | done |
 | M6 | Ledger period end: MtM by book type policy, NRV, emission provision, free allocation release, FX revaluation; policies under four eyes; index-leg memos at indicative prices | done |
-| M7 | `risk` module: limits, credit exposure, breaches, pre-trade check | planned |
+| M7 | `risk` module: limits under four eyes, credit exposure (MtM, receivables, PFE, collateral), breaches, pre-trade check SPI; credit limits leave reference data | done |
 | M8 | `reporting` module: report catalogue and exports, EMIR/MiFID data | planned |
 | M9 | GL interface: exactly-once exports, formats, acknowledgement, reconciliation, hard-close gates | planned |
 | M10 | Documentation and end-to-end tests | planned |

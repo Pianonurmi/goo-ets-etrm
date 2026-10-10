@@ -21,6 +21,7 @@ object TestWiring {
         "settlement",
         "valuation",
         "ledger",
+        "risk",
         "workflow",
         "audit",
     )

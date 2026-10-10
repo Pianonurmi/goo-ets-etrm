@@ -222,7 +222,7 @@ class ReferenceDataService(
             masterAgreements = command.masterAgreements,
             paymentTermsDays = command.paymentTermsDays.also { if (it < 0) throw ValidationException("paymentTermsDays must be >= 0") },
             settlementCurrency = ReferenceDataPolicies.currency(command.settlementCurrency),
-            creditLimit = command.creditLimit,
+            creditLimit = command.creditLimit?.let { throw ValidationException(CREDIT_LIMIT_MOVED) },
             active = true,
             version = 1,
             nettingAgreed = command.nettingAgreed,
@@ -246,7 +246,7 @@ class ReferenceDataService(
             vatNumber = command.vatNumber ?: current.vatNumber,
             masterAgreements = command.masterAgreements ?: current.masterAgreements,
             paymentTermsDays = command.paymentTermsDays ?: current.paymentTermsDays,
-            creditLimit = command.creditLimit ?: current.creditLimit,
+            creditLimit = command.creditLimit?.let { throw ValidationException(CREDIT_LIMIT_MOVED) } ?: current.creditLimit,
             active = command.active ?: current.active,
             nettingAgreed = command.nettingAgreed ?: current.nettingAgreed,
             selfBilling = command.selfBilling ?: current.selfBilling,
@@ -298,10 +298,25 @@ class ReferenceDataService(
             trusted = command.trusted,
             active = true,
             version = 1,
+            defaultBookId = command.defaultBookId?.also { requireOwnBook(command.holderId, it) },
         )
         repository.insertRegistryAccount(account)
         events.publishEvent(RegistryAccountChanged(account.id))
         return account
+    }
+
+    override fun assignDefaultBook(accountId: UUID, bookId: UUID?): RegistryAccountView {
+        val current = requireRegistryAccount(accountId)
+        if (current.holderType != HolderType.LEGAL_ENTITY) throw ValidationException("Only an entity's own accounts belong to its books")
+        bookId?.let { requireOwnBook(current.holderId, it) }
+        val next = current.copy(defaultBookId = bookId, version = current.version + 1)
+        if (!repository.updateRegistryAccount(next, current.version)) throw StaleVersionException("RegistryAccount", accountId, current.version, next.version)
+        events.publishEvent(RegistryAccountChanged(accountId))
+        return next
+    }
+
+    private fun requireOwnBook(legalEntityId: UUID, bookId: UUID) {
+        if (requireBook(bookId).legalEntityId != legalEntityId) throw ValidationException("Book $bookId belongs to another legal entity")
     }
 
     @Transactional
@@ -388,6 +403,8 @@ class ReferenceDataService(
     }
 
     companion object {
+        private const val CREDIT_LIMIT_MOVED = "Credit limits are risk limits (CREDIT_EXPOSURE) maintained in the risk module"
+
         @Suppress("unused")
         private val WEEKEND = setOf(DayOfWeek.SATURDAY.value, DayOfWeek.SUNDAY.value)
     }

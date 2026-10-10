@@ -68,9 +68,15 @@ class TradeApprovalTasks(private val workflow: WorkflowCommand, private val trad
                 subjectRef = trade.id,
                 legalEntityId = trade.legalEntityId,
                 summary = "Trade ${trade.tradeNumber}: " +
-                    trade.legs.joinToString { "${it.side} ${it.quantity.toPlainString()} ${it.unit} @ ${it.price} ${it.priceCurrency}" },
+                    trade.legs.joinToString { "${it.side} ${it.quantity.toPlainString()} ${it.unit} @ ${it.price} ${it.priceCurrency}" } +
+                    if (trade.requiresRiskApproval) " (risk approval required)" else "",
                 requestedBy = trade.trader,
-                payload = mapOf("tradeNumber" to trade.tradeNumber, "notional" to trade.notional, "counterpartyId" to trade.counterpartyId.toString()),
+                payload = mapOf(
+                    "tradeNumber" to trade.tradeNumber,
+                    "notional" to trade.notional,
+                    "counterpartyId" to trade.counterpartyId.toString(),
+                    "findings" to trade.approvalFindings.map { mapOf("code" to it.code, "severity" to it.severity.name, "message" to it.message) },
+                ),
             ),
         )
     }

@@ -152,6 +152,17 @@ data class AgeingRow(
     val total: BigDecimal get() = notDue + days1to30 + days31to60 + days61to90 + over90
 }
 
+/** What one counterparty owes or is owed, per direction and currency: invoiced and still open, and delivered but not invoiced. */
+data class CounterpartyBalance(
+    val counterpartyId: UUID,
+    val direction: SettlementDirection,
+    val currency: String,
+    val invoicedOutstanding: BigDecimal,
+    val deliveredNotInvoiced: BigDecimal,
+) {
+    val total: BigDecimal get() = invoicedOutstanding + deliveredNotInvoiced
+}
+
 data class CashForecastRow(val date: LocalDate, val currency: String, val incoming: BigDecimal, val outgoing: BigDecimal, val basis: String)
 
 data class VatReportRow(
@@ -167,6 +178,9 @@ data class EcSalesListRow(val customerVatNumber: String, val country: String, va
 
 interface SettlementReports {
     fun ageing(legalEntityId: UUID, asOf: LocalDate): List<AgeingRow>
+
+    /** Open balances per counterparty, gross of VAT, for credit exposure. */
+    fun counterpartyBalances(legalEntityId: UUID): List<CounterpartyBalance>
 
     fun cashForecast(legalEntityId: UUID, from: LocalDate, toExclusive: LocalDate): List<CashForecastRow>
 

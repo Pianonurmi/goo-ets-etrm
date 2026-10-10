@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.settlement.api.AgeingRow
 import com.pianonurmi.etrm.settlement.api.CashForecastRow
+import com.pianonurmi.etrm.settlement.api.CounterpartyBalance
 import com.pianonurmi.etrm.settlement.api.EcSalesListRow
 import com.pianonurmi.etrm.settlement.api.InvoiceFilter
 import com.pianonurmi.etrm.settlement.api.InvoiceKind
@@ -59,6 +60,26 @@ class SettlementReportService(
             )
         }
         .sortedWith(compareBy({ it.direction }, { it.counterpartyId.toString() }))
+
+    /** Also for SYSTEM: risk measures credit exposure in scheduled and event-driven runs. */
+    override fun counterpartyBalances(legalEntityId: UUID): List<CounterpartyBalance> {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.ACCOUNTANT, Role.BACK_OFFICE, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR, Role.SYSTEM)
+        actor.requireEntity(legalEntityId)
+        val invoiced = openInvoices(legalEntityId).map { Triple(it.counterpartyId, it.direction, it.currency) to (it.outstanding to BigDecimal.ZERO) }
+        val delivered = items.find(
+            SettlementItemFilter(
+                legalEntityId = legalEntityId,
+                statuses = setOf(SettlementItemStatus.OPEN, SettlementItemStatus.NEEDS_ATTENTION),
+                limit = 10_000,
+            ),
+        )
+            .filter { it.netAmount != null }
+            .map { Triple(it.counterpartyId, it.direction, it.currency) to (BigDecimal.ZERO to it.netAmount!! + (it.vatAmount ?: BigDecimal.ZERO)) }
+        return (invoiced + delivered).groupBy({ it.first }, { it.second })
+            .map { (key, amounts) -> CounterpartyBalance(key.first, key.second, key.third, amounts.sumOf { it.first }, amounts.sumOf { it.second }) }
+            .sortedWith(compareBy({ it.counterpartyId.toString() }, { it.direction }, { it.currency }))
+    }
 
     /** Open invoices by due date, plus delivered but not yet invoiced items expected after the counterparty's terms. */
     override fun cashForecast(legalEntityId: UUID, from: LocalDate, toExclusive: LocalDate): List<CashForecastRow> {

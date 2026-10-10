@@ -44,6 +44,7 @@ import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import com.pianonurmi.etrm.trade.adapter.jooq.JooqTradeRepository
 import com.pianonurmi.etrm.trade.api.AmendTrade
+import com.pianonurmi.etrm.trade.api.ApprovalFinding
 import com.pianonurmi.etrm.trade.api.CaptureDelivery
 import com.pianonurmi.etrm.trade.api.CaptureLeg
 import com.pianonurmi.etrm.trade.api.CaptureTrade
@@ -53,9 +54,11 @@ import com.pianonurmi.etrm.trade.api.DeliveryObligationClosed
 import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
+import com.pianonurmi.etrm.trade.api.FindingSeverity
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeApprovalCheck
 import com.pianonurmi.etrm.trade.api.TradeConfirmed
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.UtiSource
@@ -70,6 +73,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.springframework.beans.factory.support.StaticListableBeanFactory
 import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
 import java.time.Clock
@@ -84,6 +88,7 @@ class TradeServiceIT {
     private var currentUser = "trader1"
     private var override: Actor? = null
     private lateinit var tradeService: (BigDecimal, FxRates) -> TradeService
+    private lateinit var checkedService: (TradeApprovalCheck) -> TradeService
     private lateinit var futures: FuturesContractService
     private lateinit var referenceDataService: ReferenceDataService
     private val actor = ActorProvider { override ?: Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE), allEntities = true) }
@@ -103,6 +108,7 @@ class TradeServiceIT {
     private lateinit var accountEarly: UUID
 
     @BeforeAll
+    @Suppress("LongMethod") // hand-wired services and reference data
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "product", "trade")
         val dsl = TestDatabase.dsl
@@ -131,6 +137,27 @@ class TradeServiceIT {
             )
         }
         trades = tradeService(BigDecimal.ZERO, mockk<FxRates>(relaxed = true))
+        checkedService = { check ->
+            val identity =
+                mockk<FxRates> {
+                    every { rate(any(), any(), any()) } answers { FxRateView(firstArg(), secondArg(), thirdArg(), BigDecimal.ONE, "1", firstArg()) }
+                }
+            TradeService(
+                JooqTradeRepository(dsl),
+                referenceData,
+                criteria,
+                buckets,
+                catalogue,
+                actor,
+                publisher,
+                Clock.systemUTC(),
+                BigDecimal("1000000000"),
+                identity,
+                "EUR",
+                futures,
+                StaticListableBeanFactory().apply { addBean("check", check) }.getBeanProvider(TradeApprovalCheck::class.java),
+            )
+        }
 
         entityA = referenceData.createLegalEntity(CreateLegalEntity("ENTITY-A", "Entity A Oy", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
         entityB = referenceData.createLegalEntity(CreateLegalEntity("ENTITY-B", "Entity B AB", "SE", validFrom = LocalDate.of(2026, 1, 1))).id
@@ -307,6 +334,32 @@ class TradeServiceIT {
             it.status shouldBe TradeStatus.CONFIRMED
             it.confirmationRef shouldBe "CONF-2B"
         }
+    }
+
+    @Test
+    fun `a pre-trade check can require approval below the threshold, and then only risk may approve`() {
+        val check = TradeApprovalCheck { trade ->
+            if (trade.notional > BigDecimal(10_000)) {
+                listOf(ApprovalFinding("CREDIT_LIMIT", FindingSeverity.REQUIRES_RISK_APPROVAL, "over the limit"))
+            } else {
+                listOf(ApprovalFinding("NO_CREDIT_LIMIT", FindingSeverity.WARN, "no limit"))
+            }
+        }
+        val checked = checkedService(check)
+        currentUser = "trader1"
+        checked.capture(gooSale(quantity = 100)).let {
+            it.status shouldBe TradeStatus.APPROVED
+            it.approvalFindings.single().severity shouldBe FindingSeverity.WARN
+        }
+        val large = checked.capture(gooSale(quantity = 50_000))
+        large.status shouldBe TradeStatus.PENDING_APPROVAL
+        large.requiresRiskApproval shouldBe true
+        checked.trade(large.id)!!.approvalFindings.single().code shouldBe "CREDIT_LIMIT"
+        override = Actor("middle1", "m", setOf(Role.MIDDLE_OFFICE), allEntities = true)
+        shouldThrow<ForbiddenException> { checked.approve(large.id) }
+        override = Actor("risk1", "r", setOf(Role.RISK), allEntities = true)
+        checked.approve(large.id).status shouldBe TradeStatus.APPROVED
+        override = null
     }
 
     @Test
