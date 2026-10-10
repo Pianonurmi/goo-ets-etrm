@@ -1,7 +1,7 @@
 # Posting rules
 
 Facts (`PostingFacts`): `amounts` (`cost`, `proceeds`, `notional`, `quantity`, settlement: `net`, `vat`, `gross`,
-`selfAssessedVat`, `amount`, `deliveredValue`, `fxGain`, `fxLoss`), `attributes` (`acquisitionSource`,
+`selfAssessedVat`, `amount`, `deliveredValue`, `openCommitment`, `fxGain`, `fxLoss`), `attributes` (`acquisitionSource`,
 `side`, `movementType`, `allowanceClassification`, `freeAllocationPolicy`, derived `hasCost`, `hasProceeds`), `dimensions`
 (trade, lot, device, counterparty, registry account, bucket).
 
@@ -15,10 +15,11 @@ Facts (`PostingFacts`): `amounts` (`cost`, `proceeds`, `notional`, `quantity`, s
 | GOO_EXPIRY_WRITE_OFF | LotExpired | cost | 4300 Write-off | 1400 |
 | TRADE_SALE_COMMITMENT / TRADE_PURCHASE_COMMITMENT | TradeConfirmed | side | 9000 / 9001 memo | 9009 memo contra |
 | EUA_PURCHASE_INTANGIBLE / _INVENTORY | HoldingChanged | PURCHASE, classification | 1610 / 1410 | 2200 |
-| EUA_FREE_ALLOCATION_FAIR_VALUE | HoldingChanged | FREE_ALLOCATION, FAIR_VALUE | 1610 | 2400 Deferred income |
-| EUA_SURRENDER | HoldingChanged | SURRENDER, cost | 2300 Emission provision | 1610 |
-| EUA_SALE_COST / EUA_SALE_PROCEEDS | HoldingChanged | SALE | 4010 / 1500 | 1610 / 3010 |
-| TRADE_SALE_ / TRADE_PURCHASE_COMMITMENT_RELEASE | DeliveryRecorded | side, fixed price | 9009 memo contra | 9000 / 9001 memo |
+| EUA_FREE_ALLOCATION_FAIR_VALUE / _INVENTORY | HoldingChanged | FREE_ALLOCATION, FAIR_VALUE, classification | 1610 / 1410 | 2400 Deferred income |
+| EUA_SURRENDER / _INVENTORY | HoldingChanged | SURRENDER, cost, classification | 2300 Emission provision | 1610 / 1410 |
+| EUA_SALE_COST / _INVENTORY, EUA_SALE_PROCEEDS | HoldingChanged | SALE, classification | 4010 / 1500 | 1610 or 1410 / 3010 |
+| TRADE_SALE_ / TRADE_PURCHASE_COMMITMENT_RELEASE | DeliveryRecorded | side, memo open | 9009 memo contra | 9000 / 9001 memo |
+| TRADE_SALE_ / TRADE_PURCHASE_COMMITMENT_REVERSAL | CommitmentReversed | side | 9009 memo contra | 9000 / 9001 memo |
 | INVOICE_RECEIVABLE | InvoiceIssued | RECEIVABLE | 1510 Invoiced receivables (gross) | 1500 (net), 2500 Output VAT |
 | INVOICE_PAYABLE | InvoiceIssued | PAYABLE | 2200 (net), 1700 Input VAT | 2210 Invoiced payables (gross) |
 | INVOICE_RECEIVABLE_CREDIT / INVOICE_PAYABLE_CREDIT | InvoiceIssued | credit note | the reverse of the two above | |
@@ -32,8 +33,22 @@ Costing: certificates use specific identification (lot cost basis). Allowances u
 product consumed FIFO or weighted average per the entity's `allowanceCostingMethod`; nominal free allocation creates a
 zero-cost layer, fair-value free allocation a layer at the fair value supplied with the movement.
 
-Periods: `OPEN` accepts all postings; `SOFT_CLOSED` accepts manual adjustments and reversals; `CLOSED` accepts nothing
-and cannot be reopened. Reversals of entries in closed periods post on the current date.
+Commitment memos are kept per delivery schedule (`commitment_memo`). A confirmation posts the value of the quantity
+still to deliver at the fixed price; each delivery releases its share of what was posted, and the delivery that
+completes the schedule releases the remainder. An amendment or a cancellation reverses whatever is still open, and
+the re-confirmed trade posts a new memo. Legs without a fixed price get no memo yet. Releases and reversals are
+recorded once per event, so replays change nothing.
+
+Default rules ship as a versioned set (`default-posting-rules.json`). When the shipped version is newer than the one
+last applied (`ledger_seed`), default rules are brought in line with it and defaults no longer shipped are
+deactivated. Entity-specific overrides are never changed.
+
+Periods move `OPEN` → `SOFT_CLOSED` → `CLOSED`; a soft close can be reopened, a hard close is final (a database
+trigger refuses any change to a closed period). `OPEN` accepts all postings, `SOFT_CLOSED` accepts manual adjustments
+and reversals, `CLOSED` accepts nothing. Reversals of entries in closed periods post on the current date.
+
+FX: a rate is the direct quote, else the inverse of the opposite quote, else a cross through EUR, each the latest
+on or before the date and at most `etrm.fx.max-staleness-days` (default 10) old.
 
 Settlement (ADR 0014) books no revenue: invoices move accrued receivables and payables (from deliveries and receipts)
 to invoiced ones and add VAT; a lot's cost basis that differs from the supplier's invoice leaves a variance in 2200.

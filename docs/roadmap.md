@@ -4,7 +4,7 @@
 |---|---|---|
 | 1 | Foundation, core domain, ledger, API (no UI): reference data, taxonomy, product and criteria language, trade, inventory, registry ports and simulator, allocation engine, position, ledger, workflow, audit, CI, docs | delivered |
 | 2 | Registry integrations (outbox, statement formats, Union Registry, API channel), reconciliation break workflow, settlement and invoicing with VAT and netting, counterparty confirmation matching, full approval inbox | delivered (G-REX and NECS mappings wait for their specifications; see the milestone list below) |
-| 3 | Valuation and market data (EEX/ICE, GoO platforms, ECB FX), curves, MtM and P&L explain, risk limits and credit exposure, ETS compliance (installations, verified emissions, free allocation, surrender), EMIR/MiFID data, reporting | planned |
+| 3 | Valuation and market data (EEX/ICE, GoO platforms, ECB FX), curves, MtM and P&L explain, risk limits and credit exposure, ETS compliance (installations, verified emissions, free allocation, surrender), EMIR/MiFID data, reporting | in progress (see the milestone list below) |
 | 4 | Web UI (React + TypeScript): blotter, inventory explorer with criteria builder, allocation workbench, coverage and expiry dashboards, ledger browser, approval inbox, admin | planned |
 | 5 | Scale and operations: Kafka externalisation of events, Helm/Kubernetes, HA PostgreSQL, partitioning of version and event tables, exact (CP-SAT) solver, performance and DR drills, penetration test | planned |
 
@@ -25,3 +25,19 @@ GL interface format, market data vendor for bucket marks.
 | M7 | Settlement: invoices, VAT rules, payments, netting, ledger postings | done |
 | M8 | Registry API adapters: API channel framework and generic REST contract done; G-REX and NECS mappings wait for the specifications | done (framework) |
 | M9 | Documentation consolidation | done |
+
+## Increment 3 milestones
+
+| Milestone | Scope | Status |
+|---|---|---|
+| M0 | Fixes: final hard close, commitment memos per schedule (released and reversed), FX inverse and cross rates, bucket mapping by criteria implication, compliance ladder netting, role and entity checks, GL export correctness, versioned default rules | done |
+| M1 | `marketdata` module: instruments, quotes, FX, import formats as data, ECB reference rate adapter (disabled by default) | planned |
+| M2 | Curves with official snapshots and sign-off; marks and index fixings from curves | planned |
+| M3 | Regulatory trade data (UTI, UPI/ISIN, venue, execution time, clearing) and futures contracts | planned |
+| M4 | `valuation` module: MtM, end-of-day runs with sign-off, P&L explain | planned |
+| M5 | `etscompliance` module: installations, emissions, free allocation, surrenders, deadlines | planned |
+| M6 | Ledger period end: MtM by book type policy, NRV, emission provision, free allocation release, FX revaluation | planned |
+| M7 | `risk` module: limits, credit exposure, breaches, pre-trade check | planned |
+| M8 | `reporting` module: report catalogue and exports, EMIR/MiFID data | planned |
+| M9 | GL interface: exactly-once exports, formats, acknowledgement, reconciliation, hard-close gates | planned |
+| M10 | Documentation and end-to-end tests | planned |

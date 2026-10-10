@@ -5,6 +5,8 @@ import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.StaleVersionException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.product.api.BoundBuckets
+import com.pianonurmi.etrm.product.api.BucketMatch
+import com.pianonurmi.etrm.product.api.BucketMatchKind
 import com.pianonurmi.etrm.product.api.CreateProductBucket
 import com.pianonurmi.etrm.product.api.ProductBucketCommand
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
@@ -12,6 +14,8 @@ import com.pianonurmi.etrm.product.api.ProductBucketView
 import com.pianonurmi.etrm.product.api.UpdateProductBucket
 import com.pianonurmi.etrm.product.api.criteria.BindContext
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
+import com.pianonurmi.etrm.product.api.criteria.Criterion
+import com.pianonurmi.etrm.product.domain.CriteriaImplication
 import com.pianonurmi.etrm.product.domain.ProductBucket
 import com.pianonurmi.etrm.product.domain.ProductBucketRepository
 import org.springframework.stereotype.Service
@@ -36,6 +40,16 @@ class ProductBucketService(
         buckets = repository.all(activeOnly).map { bucket -> bucket.toView() to criteria.bind(bucket.criterion, context) },
         evaluate = criteria::evaluate,
     )
+
+    override fun bucketFor(criteriaId: UUID?, criterion: Criterion, context: BindContext): BucketMatch? {
+        val active = repository.all(true).map { it.toView() }
+        active.firstOrNull { criteriaId != null && it.criteriaId == criteriaId }?.let { return BucketMatch(it, BucketMatchKind.EXACT) }
+        val bound = criteria.bind(criterion, context)
+        return active.filter { CriteriaImplication.implies(bound, criteria.bind(it.criterion, context)) }
+            .sortedWith(compareByDescending<ProductBucketView> { it.specificity }.thenBy { it.sortOrder }.thenBy { it.code })
+            .firstOrNull()
+            ?.let { BucketMatch(it, BucketMatchKind.IMPLIED) }
+    }
 
     @Transactional
     override fun create(command: CreateProductBucket): ProductBucketView {

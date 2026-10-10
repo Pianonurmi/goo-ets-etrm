@@ -1,162 +1,190 @@
-[
-  {
-    "ruleCode": "GOO_ISSUANCE", "eventType": "LotReceived", "description": "Own production certificates issued: inventory at cost basis",
-    "conditions": {"acquisitionSource": "ISSUANCE", "hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "1400", "amount": "cost"}, {"side": "CREDIT", "account": "4400", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "GOO_PURCHASE_RECEIPT", "eventType": "LotReceived", "description": "Purchased certificates received: inventory against accrued payable",
-    "conditions": {"acquisitionSource": "TRANSFER_IN", "hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "1400", "amount": "cost"}, {"side": "CREDIT", "account": "2200", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "GOO_SALE_DELIVERY_REVENUE", "eventType": "SaleDelivered", "description": "Certificates delivered against a sale: revenue at contract price",
-    "conditions": {},
-    "lines": [{"side": "DEBIT", "account": "1500", "amount": "proceeds"}, {"side": "CREDIT", "account": "3000", "amount": "proceeds"}]
-  },
-  {
-    "ruleCode": "GOO_SALE_DELIVERY_COGS", "eventType": "SaleDelivered", "description": "Certificates delivered against a sale: cost of goods sold",
-    "conditions": {"hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "4000", "amount": "cost"}, {"side": "CREDIT", "account": "1400", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "GOO_DISCLOSURE_CANCELLATION", "eventType": "LotCancelled", "description": "Certificates cancelled for disclosure or own use: expense at cost",
-    "conditions": {"hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "4100", "amount": "cost"}, {"side": "CREDIT", "account": "1400", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "GOO_EXPIRY_WRITE_OFF", "eventType": "LotExpired", "description": "Expired certificates written off",
-    "conditions": {"hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "4300", "amount": "cost"}, {"side": "CREDIT", "account": "1400", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "TRADE_SALE_COMMITMENT", "eventType": "TradeConfirmed", "description": "Confirmed sale: off-balance commitment memo",
-    "conditions": {"side": "SELL"},
-    "lines": [{"side": "DEBIT", "account": "9000", "amount": "notional"}, {"side": "CREDIT", "account": "9009", "amount": "notional"}]
-  },
-  {
-    "ruleCode": "TRADE_PURCHASE_COMMITMENT", "eventType": "TradeConfirmed", "description": "Confirmed purchase: off-balance commitment memo",
-    "conditions": {"side": "BUY"},
-    "lines": [{"side": "DEBIT", "account": "9001", "amount": "notional"}, {"side": "CREDIT", "account": "9009", "amount": "notional"}]
-  },
-  {
-    "ruleCode": "EUA_PURCHASE_INTANGIBLE", "eventType": "HoldingChanged", "description": "Allowances purchased, held for compliance (IAS 38 intangible)",
-    "conditions": {"movementType": "PURCHASE", "allowanceClassification": "INTANGIBLE_ASSET", "hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "1610", "amount": "cost"}, {"side": "CREDIT", "account": "2200", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "EUA_PURCHASE_INVENTORY", "eventType": "HoldingChanged", "description": "Allowances purchased, held for trading (inventory)",
-    "conditions": {"movementType": "PURCHASE", "allowanceClassification": "INVENTORY", "hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "1410", "amount": "cost"}, {"side": "CREDIT", "account": "2200", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "EUA_FREE_ALLOCATION_FAIR_VALUE", "eventType": "HoldingChanged", "description": "Free allocation recognised at fair value against deferred income (IAS 20 gross)",
-    "conditions": {"movementType": "FREE_ALLOCATION", "freeAllocationPolicy": "FAIR_VALUE", "hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "1610", "amount": "cost"}, {"side": "CREDIT", "account": "2400", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "EUA_SURRENDER", "eventType": "HoldingChanged", "description": "Allowances surrendered: release provision at carrying cost",
-    "conditions": {"movementType": "SURRENDER", "hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "2300", "amount": "cost"}, {"side": "CREDIT", "account": "1610", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "EUA_SALE_COST", "eventType": "HoldingChanged", "description": "Allowances sold: derecognise at carrying cost",
-    "conditions": {"movementType": "SALE", "hasCost": true},
-    "lines": [{"side": "DEBIT", "account": "4010", "amount": "cost"}, {"side": "CREDIT", "account": "1610", "amount": "cost"}]
-  },
-  {
-    "ruleCode": "EUA_SALE_PROCEEDS", "eventType": "HoldingChanged", "description": "Allowances sold: proceeds",
-    "conditions": {"movementType": "SALE", "hasProceeds": true},
-    "lines": [{"side": "DEBIT", "account": "1500", "amount": "proceeds"}, {"side": "CREDIT", "account": "3010", "amount": "proceeds"}]
-  },
-  {
-    "ruleCode": "TRADE_SALE_COMMITMENT_RELEASE", "eventType": "DeliveryRecorded", "description": "Sale delivered: commitment memo released",
-    "conditions": {"side": "SELL"},
-    "lines": [{"side": "DEBIT", "account": "9009", "amount": "deliveredValue"}, {"side": "CREDIT", "account": "9000", "amount": "deliveredValue"}]
-  },
-  {
-    "ruleCode": "TRADE_PURCHASE_COMMITMENT_RELEASE", "eventType": "DeliveryRecorded", "description": "Purchase received: commitment memo released",
-    "conditions": {"side": "BUY"},
-    "lines": [{"side": "DEBIT", "account": "9009", "amount": "deliveredValue"}, {"side": "CREDIT", "account": "9001", "amount": "deliveredValue"}]
-  },
-  {
-    "ruleCode": "INVOICE_RECEIVABLE", "eventType": "InvoiceIssued", "description": "Sales invoice: accrued receivable invoiced, output VAT",
-    "conditions": {"direction": "RECEIVABLE", "credit": "false"},
-    "lines": [{"side": "DEBIT", "account": "1510", "amount": "gross"}, {"side": "CREDIT", "account": "1500", "amount": "net"}, {"side": "CREDIT", "account": "2500", "amount": "vat"}]
-  },
-  {
-    "ruleCode": "INVOICE_RECEIVABLE_CREDIT", "eventType": "InvoiceIssued", "description": "Credit note: invoiced receivable and output VAT reversed",
-    "conditions": {"direction": "RECEIVABLE", "credit": "true"},
-    "lines": [{"side": "DEBIT", "account": "1500", "amount": "net"}, {"side": "DEBIT", "account": "2500", "amount": "vat"}, {"side": "CREDIT", "account": "1510", "amount": "gross"}]
-  },
-  {
-    "ruleCode": "INVOICE_PAYABLE", "eventType": "InvoiceIssued", "description": "Purchase or self-billed invoice: accrued payable invoiced, input VAT",
-    "conditions": {"direction": "PAYABLE", "credit": "false"},
-    "lines": [{"side": "DEBIT", "account": "2200", "amount": "net"}, {"side": "DEBIT", "account": "1700", "amount": "vat"}, {"side": "CREDIT", "account": "2210", "amount": "gross"}]
-  },
-  {
-    "ruleCode": "INVOICE_PAYABLE_CREDIT", "eventType": "InvoiceIssued", "description": "Purchase credit: invoiced payable and input VAT reversed",
-    "conditions": {"direction": "PAYABLE", "credit": "true"},
-    "lines": [{"side": "DEBIT", "account": "2210", "amount": "gross"}, {"side": "CREDIT", "account": "2200", "amount": "net"}, {"side": "CREDIT", "account": "1700", "amount": "vat"}]
-  },
-  {
-    "ruleCode": "VAT_REVERSE_CHARGE", "eventType": "InvoiceIssued", "description": "Reverse-charged purchase: VAT self-assessed as output and input",
-    "conditions": {"direction": "PAYABLE", "credit": "false"},
-    "lines": [{"side": "DEBIT", "account": "1700", "amount": "selfAssessedVat"}, {"side": "CREDIT", "account": "2500", "amount": "selfAssessedVat"}]
-  },
-  {
-    "ruleCode": "VAT_REVERSE_CHARGE_CREDIT", "eventType": "InvoiceIssued", "description": "Reverse-charged purchase credited: self-assessed VAT reversed",
-    "conditions": {"direction": "PAYABLE", "credit": "true"},
-    "lines": [{"side": "DEBIT", "account": "2500", "amount": "selfAssessedVat"}, {"side": "CREDIT", "account": "1700", "amount": "selfAssessedVat"}]
-  },
-  {
-    "ruleCode": "PAYMENT_RECEIVED", "eventType": "PaymentRecorded", "description": "Cash received, not yet applied",
-    "conditions": {"direction": "INCOMING"},
-    "lines": [{"side": "DEBIT", "account": "1900", "amount": "amount"}, {"side": "CREDIT", "account": "2600", "amount": "amount"}]
-  },
-  {
-    "ruleCode": "PAYMENT_MADE", "eventType": "PaymentRecorded", "description": "Cash paid, not yet applied",
-    "conditions": {"direction": "OUTGOING"},
-    "lines": [{"side": "DEBIT", "account": "1520", "amount": "amount"}, {"side": "CREDIT", "account": "1900", "amount": "amount"}]
-  },
-  {
-    "ruleCode": "RECEIVABLE_PAID", "eventType": "InvoiceSettled", "description": "Receipt applied to an invoice",
-    "conditions": {"kind": "PAYMENT", "direction": "RECEIVABLE"},
-    "lines": [{"side": "DEBIT", "account": "2600", "amount": "amount"}, {"side": "CREDIT", "account": "1510", "amount": "amount"}]
-  },
-  {
-    "ruleCode": "PAYABLE_PAID", "eventType": "InvoiceSettled", "description": "Payment applied to an invoice",
-    "conditions": {"kind": "PAYMENT", "direction": "PAYABLE"},
-    "lines": [{"side": "DEBIT", "account": "2210", "amount": "amount"}, {"side": "CREDIT", "account": "1520", "amount": "amount"}]
-  },
-  {
-    "ruleCode": "RECEIVABLE_NETTED", "eventType": "InvoiceSettled", "description": "Receivable settled by netting",
-    "conditions": {"kind": "NETTING", "direction": "RECEIVABLE"},
-    "lines": [{"side": "DEBIT", "account": "1950", "amount": "amount"}, {"side": "CREDIT", "account": "1510", "amount": "amount"}]
-  },
-  {
-    "ruleCode": "PAYABLE_NETTED", "eventType": "InvoiceSettled", "description": "Payable settled by netting",
-    "conditions": {"kind": "NETTING", "direction": "PAYABLE"},
-    "lines": [{"side": "DEBIT", "account": "2210", "amount": "amount"}, {"side": "CREDIT", "account": "1950", "amount": "amount"}]
-  },
-  {
-    "ruleCode": "FX_GAIN_RECEIVABLE", "eventType": "RealisedFx", "description": "Realised FX gain on a receipt",
-    "conditions": {"direction": "RECEIVABLE"},
-    "lines": [{"side": "DEBIT", "account": "1510", "amount": "fxGain"}, {"side": "CREDIT", "account": "3900", "amount": "fxGain"}]
-  },
-  {
-    "ruleCode": "FX_LOSS_RECEIVABLE", "eventType": "RealisedFx", "description": "Realised FX loss on a receipt",
-    "conditions": {"direction": "RECEIVABLE"},
-    "lines": [{"side": "DEBIT", "account": "4900", "amount": "fxLoss"}, {"side": "CREDIT", "account": "1510", "amount": "fxLoss"}]
-  },
-  {
-    "ruleCode": "FX_GAIN_PAYABLE", "eventType": "RealisedFx", "description": "Realised FX gain on a payment",
-    "conditions": {"direction": "PAYABLE"},
-    "lines": [{"side": "DEBIT", "account": "2210", "amount": "fxGain"}, {"side": "CREDIT", "account": "3900", "amount": "fxGain"}]
-  },
-  {
-    "ruleCode": "FX_LOSS_PAYABLE", "eventType": "RealisedFx", "description": "Realised FX loss on a payment",
-    "conditions": {"direction": "PAYABLE"},
-    "lines": [{"side": "DEBIT", "account": "4900", "amount": "fxLoss"}, {"side": "CREDIT", "account": "2210", "amount": "fxLoss"}]
-  }
-]
+{
+  "version": 2,
+  "rules": [
+    {
+      "ruleCode": "GOO_ISSUANCE", "eventType": "LotReceived", "description": "Own production certificates issued: inventory at cost basis",
+      "conditions": {"acquisitionSource": "ISSUANCE", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "1400", "amount": "cost"}, {"side": "CREDIT", "account": "4400", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "GOO_PURCHASE_RECEIPT", "eventType": "LotReceived", "description": "Purchased certificates received: inventory against accrued payable",
+      "conditions": {"acquisitionSource": "TRANSFER_IN", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "1400", "amount": "cost"}, {"side": "CREDIT", "account": "2200", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "GOO_SALE_DELIVERY_REVENUE", "eventType": "SaleDelivered", "description": "Certificates delivered against a sale: revenue at contract price",
+      "conditions": {},
+      "lines": [{"side": "DEBIT", "account": "1500", "amount": "proceeds"}, {"side": "CREDIT", "account": "3000", "amount": "proceeds"}]
+    },
+    {
+      "ruleCode": "GOO_SALE_DELIVERY_COGS", "eventType": "SaleDelivered", "description": "Certificates delivered against a sale: cost of goods sold",
+      "conditions": {"hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "4000", "amount": "cost"}, {"side": "CREDIT", "account": "1400", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "GOO_DISCLOSURE_CANCELLATION", "eventType": "LotCancelled", "description": "Certificates cancelled for disclosure or own use: expense at cost",
+      "conditions": {"hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "4100", "amount": "cost"}, {"side": "CREDIT", "account": "1400", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "GOO_EXPIRY_WRITE_OFF", "eventType": "LotExpired", "description": "Expired certificates written off",
+      "conditions": {"hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "4300", "amount": "cost"}, {"side": "CREDIT", "account": "1400", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "TRADE_SALE_COMMITMENT", "eventType": "TradeConfirmed", "description": "Confirmed sale: off-balance commitment memo",
+      "conditions": {"side": "SELL"},
+      "lines": [{"side": "DEBIT", "account": "9000", "amount": "notional"}, {"side": "CREDIT", "account": "9009", "amount": "notional"}]
+    },
+    {
+      "ruleCode": "TRADE_PURCHASE_COMMITMENT", "eventType": "TradeConfirmed", "description": "Confirmed purchase: off-balance commitment memo",
+      "conditions": {"side": "BUY"},
+      "lines": [{"side": "DEBIT", "account": "9001", "amount": "notional"}, {"side": "CREDIT", "account": "9009", "amount": "notional"}]
+    },
+    {
+      "ruleCode": "EUA_PURCHASE_INTANGIBLE", "eventType": "HoldingChanged", "description": "Allowances purchased, held for compliance (IAS 38 intangible)",
+      "conditions": {"movementType": "PURCHASE", "allowanceClassification": "INTANGIBLE_ASSET", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "1610", "amount": "cost"}, {"side": "CREDIT", "account": "2200", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_PURCHASE_INVENTORY", "eventType": "HoldingChanged", "description": "Allowances purchased, held for trading (inventory)",
+      "conditions": {"movementType": "PURCHASE", "allowanceClassification": "INVENTORY", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "1410", "amount": "cost"}, {"side": "CREDIT", "account": "2200", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_FREE_ALLOCATION_FAIR_VALUE", "eventType": "HoldingChanged", "description": "Free allocation recognised at fair value against deferred income (IAS 20 gross)",
+      "conditions": {"movementType": "FREE_ALLOCATION", "freeAllocationPolicy": "FAIR_VALUE", "allowanceClassification": "INTANGIBLE_ASSET", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "1610", "amount": "cost"}, {"side": "CREDIT", "account": "2400", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_FREE_ALLOCATION_FAIR_VALUE_INVENTORY", "eventType": "HoldingChanged", "description": "Free allocation held as inventory, recognised at fair value against deferred income (IAS 20 gross)",
+      "conditions": {"movementType": "FREE_ALLOCATION", "freeAllocationPolicy": "FAIR_VALUE", "allowanceClassification": "INVENTORY", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "1410", "amount": "cost"}, {"side": "CREDIT", "account": "2400", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_SURRENDER", "eventType": "HoldingChanged", "description": "Allowances surrendered: release provision at carrying cost",
+      "conditions": {"movementType": "SURRENDER", "allowanceClassification": "INTANGIBLE_ASSET", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "2300", "amount": "cost"}, {"side": "CREDIT", "account": "1610", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_SURRENDER_INVENTORY", "eventType": "HoldingChanged", "description": "Allowances held as inventory surrendered: release provision at carrying cost",
+      "conditions": {"movementType": "SURRENDER", "allowanceClassification": "INVENTORY", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "2300", "amount": "cost"}, {"side": "CREDIT", "account": "1410", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_SALE_COST", "eventType": "HoldingChanged", "description": "Allowances sold: derecognise at carrying cost",
+      "conditions": {"movementType": "SALE", "allowanceClassification": "INTANGIBLE_ASSET", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "4010", "amount": "cost"}, {"side": "CREDIT", "account": "1610", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_SALE_COST_INVENTORY", "eventType": "HoldingChanged", "description": "Allowances held as inventory sold: derecognise at carrying cost",
+      "conditions": {"movementType": "SALE", "allowanceClassification": "INVENTORY", "hasCost": true},
+      "lines": [{"side": "DEBIT", "account": "4010", "amount": "cost"}, {"side": "CREDIT", "account": "1410", "amount": "cost"}]
+    },
+    {
+      "ruleCode": "EUA_SALE_PROCEEDS", "eventType": "HoldingChanged", "description": "Allowances sold: proceeds",
+      "conditions": {"movementType": "SALE", "hasProceeds": true},
+      "lines": [{"side": "DEBIT", "account": "1500", "amount": "proceeds"}, {"side": "CREDIT", "account": "3010", "amount": "proceeds"}]
+    },
+    {
+      "ruleCode": "TRADE_SALE_COMMITMENT_RELEASE", "eventType": "DeliveryRecorded", "description": "Sale delivered: commitment memo released",
+      "conditions": {"side": "SELL"},
+      "lines": [{"side": "DEBIT", "account": "9009", "amount": "deliveredValue"}, {"side": "CREDIT", "account": "9000", "amount": "deliveredValue"}]
+    },
+    {
+      "ruleCode": "TRADE_PURCHASE_COMMITMENT_RELEASE", "eventType": "DeliveryRecorded", "description": "Purchase received: commitment memo released",
+      "conditions": {"side": "BUY"},
+      "lines": [{"side": "DEBIT", "account": "9009", "amount": "deliveredValue"}, {"side": "CREDIT", "account": "9001", "amount": "deliveredValue"}]
+    },
+    {
+      "ruleCode": "TRADE_SALE_COMMITMENT_REVERSAL", "eventType": "CommitmentReversed", "description": "Sale amended or cancelled: remaining commitment memo reversed",
+      "conditions": {"side": "SELL"},
+      "lines": [{"side": "DEBIT", "account": "9009", "amount": "openCommitment"}, {"side": "CREDIT", "account": "9000", "amount": "openCommitment"}]
+    },
+    {
+      "ruleCode": "TRADE_PURCHASE_COMMITMENT_REVERSAL", "eventType": "CommitmentReversed", "description": "Purchase amended or cancelled: remaining commitment memo reversed",
+      "conditions": {"side": "BUY"},
+      "lines": [{"side": "DEBIT", "account": "9009", "amount": "openCommitment"}, {"side": "CREDIT", "account": "9001", "amount": "openCommitment"}]
+    },
+    {
+      "ruleCode": "INVOICE_RECEIVABLE", "eventType": "InvoiceIssued", "description": "Sales invoice: accrued receivable invoiced, output VAT",
+      "conditions": {"direction": "RECEIVABLE", "credit": "false"},
+      "lines": [{"side": "DEBIT", "account": "1510", "amount": "gross"}, {"side": "CREDIT", "account": "1500", "amount": "net"}, {"side": "CREDIT", "account": "2500", "amount": "vat"}]
+    },
+    {
+      "ruleCode": "INVOICE_RECEIVABLE_CREDIT", "eventType": "InvoiceIssued", "description": "Credit note: invoiced receivable and output VAT reversed",
+      "conditions": {"direction": "RECEIVABLE", "credit": "true"},
+      "lines": [{"side": "DEBIT", "account": "1500", "amount": "net"}, {"side": "DEBIT", "account": "2500", "amount": "vat"}, {"side": "CREDIT", "account": "1510", "amount": "gross"}]
+    },
+    {
+      "ruleCode": "INVOICE_PAYABLE", "eventType": "InvoiceIssued", "description": "Purchase or self-billed invoice: accrued payable invoiced, input VAT",
+      "conditions": {"direction": "PAYABLE", "credit": "false"},
+      "lines": [{"side": "DEBIT", "account": "2200", "amount": "net"}, {"side": "DEBIT", "account": "1700", "amount": "vat"}, {"side": "CREDIT", "account": "2210", "amount": "gross"}]
+    },
+    {
+      "ruleCode": "INVOICE_PAYABLE_CREDIT", "eventType": "InvoiceIssued", "description": "Purchase credit: invoiced payable and input VAT reversed",
+      "conditions": {"direction": "PAYABLE", "credit": "true"},
+      "lines": [{"side": "DEBIT", "account": "2210", "amount": "gross"}, {"side": "CREDIT", "account": "2200", "amount": "net"}, {"side": "CREDIT", "account": "1700", "amount": "vat"}]
+    },
+    {
+      "ruleCode": "VAT_REVERSE_CHARGE", "eventType": "InvoiceIssued", "description": "Reverse-charged purchase: VAT self-assessed as output and input",
+      "conditions": {"direction": "PAYABLE", "credit": "false"},
+      "lines": [{"side": "DEBIT", "account": "1700", "amount": "selfAssessedVat"}, {"side": "CREDIT", "account": "2500", "amount": "selfAssessedVat"}]
+    },
+    {
+      "ruleCode": "VAT_REVERSE_CHARGE_CREDIT", "eventType": "InvoiceIssued", "description": "Reverse-charged purchase credited: self-assessed VAT reversed",
+      "conditions": {"direction": "PAYABLE", "credit": "true"},
+      "lines": [{"side": "DEBIT", "account": "2500", "amount": "selfAssessedVat"}, {"side": "CREDIT", "account": "1700", "amount": "selfAssessedVat"}]
+    },
+    {
+      "ruleCode": "PAYMENT_RECEIVED", "eventType": "PaymentRecorded", "description": "Cash received, not yet applied",
+      "conditions": {"direction": "INCOMING"},
+      "lines": [{"side": "DEBIT", "account": "1900", "amount": "amount"}, {"side": "CREDIT", "account": "2600", "amount": "amount"}]
+    },
+    {
+      "ruleCode": "PAYMENT_MADE", "eventType": "PaymentRecorded", "description": "Cash paid, not yet applied",
+      "conditions": {"direction": "OUTGOING"},
+      "lines": [{"side": "DEBIT", "account": "1520", "amount": "amount"}, {"side": "CREDIT", "account": "1900", "amount": "amount"}]
+    },
+    {
+      "ruleCode": "RECEIVABLE_PAID", "eventType": "InvoiceSettled", "description": "Receipt applied to an invoice",
+      "conditions": {"kind": "PAYMENT", "direction": "RECEIVABLE"},
+      "lines": [{"side": "DEBIT", "account": "2600", "amount": "amount"}, {"side": "CREDIT", "account": "1510", "amount": "amount"}]
+    },
+    {
+      "ruleCode": "PAYABLE_PAID", "eventType": "InvoiceSettled", "description": "Payment applied to an invoice",
+      "conditions": {"kind": "PAYMENT", "direction": "PAYABLE"},
+      "lines": [{"side": "DEBIT", "account": "2210", "amount": "amount"}, {"side": "CREDIT", "account": "1520", "amount": "amount"}]
+    },
+    {
+      "ruleCode": "RECEIVABLE_NETTED", "eventType": "InvoiceSettled", "description": "Receivable settled by netting",
+      "conditions": {"kind": "NETTING", "direction": "RECEIVABLE"},
+      "lines": [{"side": "DEBIT", "account": "1950", "amount": "amount"}, {"side": "CREDIT", "account": "1510", "amount": "amount"}]
+    },
+    {
+      "ruleCode": "PAYABLE_NETTED", "eventType": "InvoiceSettled", "description": "Payable settled by netting",
+      "conditions": {"kind": "NETTING", "direction": "PAYABLE"},
+      "lines": [{"side": "DEBIT", "account": "2210", "amount": "amount"}, {"side": "CREDIT", "account": "1950", "amount": "amount"}]
+    },
+    {
+      "ruleCode": "FX_GAIN_RECEIVABLE", "eventType": "RealisedFx", "description": "Realised FX gain on a receipt",
+      "conditions": {"direction": "RECEIVABLE"},
+      "lines": [{"side": "DEBIT", "account": "1510", "amount": "fxGain"}, {"side": "CREDIT", "account": "3900", "amount": "fxGain"}]
+    },
+    {
+      "ruleCode": "FX_LOSS_RECEIVABLE", "eventType": "RealisedFx", "description": "Realised FX loss on a receipt",
+      "conditions": {"direction": "RECEIVABLE"},
+      "lines": [{"side": "DEBIT", "account": "4900", "amount": "fxLoss"}, {"side": "CREDIT", "account": "1510", "amount": "fxLoss"}]
+    },
+    {
+      "ruleCode": "FX_GAIN_PAYABLE", "eventType": "RealisedFx", "description": "Realised FX gain on a payment",
+      "conditions": {"direction": "PAYABLE"},
+      "lines": [{"side": "DEBIT", "account": "2210", "amount": "fxGain"}, {"side": "CREDIT", "account": "3900", "amount": "fxGain"}]
+    },
+    {
+      "ruleCode": "FX_LOSS_PAYABLE", "eventType": "RealisedFx", "description": "Realised FX loss on a payment",
+      "conditions": {"direction": "PAYABLE"},
+      "lines": [{"side": "DEBIT", "account": "4900", "amount": "fxLoss"}, {"side": "CREDIT", "account": "2210", "amount": "fxLoss"}]
+    }
+  ]
+}

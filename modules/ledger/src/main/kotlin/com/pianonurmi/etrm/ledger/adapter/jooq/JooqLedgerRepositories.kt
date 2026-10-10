@@ -2,12 +2,15 @@ package com.pianonurmi.etrm.ledger.adapter.jooq
 
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.Sequences.JOURNAL_ENTRY_SEQ
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.AccountingPeriod.ACCOUNTING_PERIOD
+import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.CommitmentMemo.COMMITMENT_MEMO
+import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.CommitmentMemoMovement.COMMITMENT_MEMO_MOVEMENT
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.CostLayer.COST_LAYER
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.FxRate.FX_RATE
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.GlAccount.GL_ACCOUNT
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.GlExport.GL_EXPORT
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.JournalEntry.JOURNAL_ENTRY
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.JournalLine.JOURNAL_LINE
+import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.LedgerSeed.LEDGER_SEED
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.PostingRule.POSTING_RULE
 import com.pianonurmi.etrm.ledger.adapter.jooq.generated.tables.records.JournalEntryRecord
 import com.pianonurmi.etrm.ledger.api.AccountType
@@ -20,16 +23,22 @@ import com.pianonurmi.etrm.ledger.api.JournalLineView
 import com.pianonurmi.etrm.ledger.api.PeriodStatus
 import com.pianonurmi.etrm.ledger.api.PostingRuleView
 import com.pianonurmi.etrm.ledger.api.RuleLine
+import com.pianonurmi.etrm.ledger.domain.CommitmentMemo
+import com.pianonurmi.etrm.ledger.domain.CommitmentMemoRepository
 import com.pianonurmi.etrm.ledger.domain.CostLayer
 import com.pianonurmi.etrm.ledger.domain.CostLayerRepository
+import com.pianonurmi.etrm.ledger.domain.DatedRate
 import com.pianonurmi.etrm.ledger.domain.FxRateRepository
 import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
 import com.pianonurmi.etrm.ledger.domain.JournalRepository
+import com.pianonurmi.etrm.ledger.domain.MemoMovementKind
 import com.pianonurmi.etrm.ledger.domain.PeriodRepository
 import com.pianonurmi.etrm.ledger.domain.PostingRuleRepository
+import com.pianonurmi.etrm.ledger.domain.SeedRepository
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
+import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.impl.DSL
@@ -280,6 +289,13 @@ class JooqFxRateRepository(private val dsl: DSLContext) : FxRateRepository {
         .limit(1)
         .fetchOne(FX_RATE.RATE)
 
+    override fun latest(date: LocalDate, from: String, to: String): DatedRate? = dsl.select(FX_RATE.RATE_DATE, FX_RATE.RATE)
+        .from(FX_RATE)
+        .where(FX_RATE.FROM_CURRENCY.eq(from), FX_RATE.TO_CURRENCY.eq(to), FX_RATE.RATE_DATE.le(date))
+        .orderBy(FX_RATE.RATE_DATE.desc())
+        .limit(1)
+        .fetchOne { DatedRate(it.value1(), it.value2()) }
+
     override fun upsert(date: LocalDate, from: String, to: String, rate: BigDecimal, source: String) {
         dsl.insertInto(FX_RATE)
             .set(FX_RATE.RATE_DATE, date)
@@ -331,6 +347,7 @@ class JooqGlExportRepository(private val dsl: DSLContext) : GlExportRepository {
         dsl.insertInto(GL_EXPORT)
             .set(GL_EXPORT.ID, export.id)
             .set(GL_EXPORT.LEGAL_ENTITY_ID, export.legalEntityId)
+            .set(GL_EXPORT.EXPORT_SEQ, export.exportSeq)
             .set(GL_EXPORT.PERIOD, export.period)
             .set(GL_EXPORT.EXPORTED_AT, export.exportedAt)
             .set(GL_EXPORT.EXPORTED_BY, export.exportedBy)
@@ -344,5 +361,90 @@ class JooqGlExportRepository(private val dsl: DSLContext) : GlExportRepository {
         .where(GL_EXPORT.LEGAL_ENTITY_ID.eq(legalEntityId), GL_EXPORT.PERIOD.eq(period))
         .orderBy(GL_EXPORT.EXPORTED_AT.desc())
         .limit(1)
-        .fetchOne { GlExportView(it.id, it.legalEntityId, it.period, it.exportedAt, it.exportedBy, it.entryCount, it.contentHash, it.content) }
+        .fetchOne { GlExportView(it.id, it.legalEntityId, it.exportSeq, it.period, it.exportedAt, it.exportedBy, it.entryCount, it.contentHash, it.content) }
+
+    override fun nextSeq(legalEntityId: UUID): Int = (
+        dsl.select(DSL.max(GL_EXPORT.EXPORT_SEQ)).from(GL_EXPORT).where(GL_EXPORT.LEGAL_ENTITY_ID.eq(legalEntityId)).fetchOne(0, Int::class.java) ?: 0
+    ) + 1
+}
+
+@Repository
+class JooqCommitmentMemoRepository(private val dsl: DSLContext) : CommitmentMemoRepository {
+    override fun insert(memo: CommitmentMemo, confirmedEventId: UUID): Boolean = dsl.insertInto(COMMITMENT_MEMO)
+        .set(COMMITMENT_MEMO.ID, memo.id)
+        .set(COMMITMENT_MEMO.LEGAL_ENTITY_ID, memo.legalEntityId)
+        .set(COMMITMENT_MEMO.TRADE_ID, memo.tradeId)
+        .set(COMMITMENT_MEMO.TRADE_NUMBER, memo.tradeNumber)
+        .set(COMMITMENT_MEMO.TRADE_VERSION, memo.tradeVersion)
+        .set(COMMITMENT_MEMO.SCHEDULE_ID, memo.scheduleId)
+        .set(COMMITMENT_MEMO.SIDE, memo.side)
+        .set(COMMITMENT_MEMO.PRODUCT_FAMILY, memo.productFamily)
+        .set(COMMITMENT_MEMO.CURRENCY, memo.currency)
+        .set(COMMITMENT_MEMO.QUANTITY, memo.quantity)
+        .set(COMMITMENT_MEMO.AMOUNT, memo.amount)
+        .set(COMMITMENT_MEMO.CONFIRMED_EVENT_ID, confirmedEventId)
+        .onConflict(COMMITMENT_MEMO.CONFIRMED_EVENT_ID, COMMITMENT_MEMO.SCHEDULE_ID)
+        .doNothing()
+        .execute() == 1
+
+    override fun openForSchedule(scheduleId: UUID): List<CommitmentMemo> = select(COMMITMENT_MEMO.SCHEDULE_ID.eq(scheduleId))
+
+    override fun openForTrade(tradeId: UUID): List<CommitmentMemo> = select(COMMITMENT_MEMO.TRADE_ID.eq(tradeId))
+
+    override fun move(eventId: UUID, memoId: UUID, kind: MemoMovementKind, amount: BigDecimal): Boolean = dsl.insertInto(COMMITMENT_MEMO_MOVEMENT)
+        .set(COMMITMENT_MEMO_MOVEMENT.EVENT_ID, eventId)
+        .set(COMMITMENT_MEMO_MOVEMENT.MEMO_ID, memoId)
+        .set(COMMITMENT_MEMO_MOVEMENT.KIND, kind.name)
+        .set(COMMITMENT_MEMO_MOVEMENT.AMOUNT, amount)
+        .onConflictDoNothing()
+        .execute() == 1
+
+    private fun select(condition: Condition): List<CommitmentMemo> {
+        val released = DSL.coalesce(
+            DSL.field(
+                DSL.select(
+                    DSL.sum(COMMITMENT_MEMO_MOVEMENT.AMOUNT),
+                ).from(COMMITMENT_MEMO_MOVEMENT).where(COMMITMENT_MEMO_MOVEMENT.MEMO_ID.eq(COMMITMENT_MEMO.ID)),
+            ),
+            BigDecimal.ZERO,
+        )
+        return dsl.select(COMMITMENT_MEMO.asterisk(), released.`as`("released"))
+            .from(COMMITMENT_MEMO)
+            .where(condition)
+            .orderBy(COMMITMENT_MEMO.CREATED_AT, COMMITMENT_MEMO.ID)
+            .fetch { r ->
+                val m = r.into(COMMITMENT_MEMO)
+                CommitmentMemo(
+                    m.id,
+                    m.legalEntityId,
+                    m.tradeId,
+                    m.tradeNumber,
+                    m.tradeVersion,
+                    m.scheduleId,
+                    m.side,
+                    m.productFamily,
+                    m.currency,
+                    m.quantity,
+                    m.amount,
+                    r.get("released", BigDecimal::class.java),
+                )
+            }
+            .filter { it.open.signum() > 0 }
+    }
+}
+
+@Repository
+class JooqSeedRepository(private val dsl: DSLContext) : SeedRepository {
+    override fun version(name: String): Int? = dsl.select(LEDGER_SEED.VERSION).from(LEDGER_SEED).where(LEDGER_SEED.NAME.eq(name)).fetchOne(LEDGER_SEED.VERSION)
+
+    override fun record(name: String, version: Int) {
+        dsl.insertInto(LEDGER_SEED)
+            .set(LEDGER_SEED.NAME, name)
+            .set(LEDGER_SEED.VERSION, version)
+            .onConflict(LEDGER_SEED.NAME)
+            .doUpdate()
+            .set(LEDGER_SEED.VERSION, version)
+            .set(LEDGER_SEED.APPLIED_AT, java.time.Instant.now())
+            .execute()
+    }
 }

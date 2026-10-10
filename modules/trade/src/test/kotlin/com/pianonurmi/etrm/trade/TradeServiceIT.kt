@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.trade
 
+import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -13,6 +14,7 @@ import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
+import com.pianonurmi.etrm.product.api.BucketMatchKind
 import com.pianonurmi.etrm.product.api.InstrumentType
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
@@ -69,7 +71,8 @@ class TradeServiceIT {
     private val published = mutableListOf<Any>()
     private val publisher = ApplicationEventPublisher { published += it }
     private var currentUser = "trader1"
-    private val actor = ActorProvider { Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE)) }
+    private var override: Actor? = null
+    private val actor = ActorProvider { override ?: Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE), allEntities = true) }
 
     private lateinit var trades: TradeService
     private lateinit var entityA: UUID
@@ -202,7 +205,9 @@ class TradeServiceIT {
         trade.tradeNumber shouldStartWith "T-2026-"
         trade.status shouldBe TradeStatus.PENDING_APPROVAL
         trade.legs.single().criteriaSummary shouldBe "device in region NORDIC AND energy source within HYDRO AND vintage 2026"
-        trade.legs.single().bucketCode shouldBe null
+        // Nordic hydro of 2026 is provably within the Nordic hydro bucket.
+        trade.legs.single().bucketCode shouldBe "NORDIC_HYDRO"
+        trade.legs.single().bucketMatch shouldBe BucketMatchKind.IMPLIED
         trade.notional shouldBe BigDecimal("9250.00")
 
         shouldThrow<SegregationOfDutiesException> { trades.approve(trade.id) }
@@ -215,7 +220,7 @@ class TradeServiceIT {
         confirmed.status shouldBe TradeStatus.CONFIRMED
         published.filterIsInstance<TradeConfirmed>().single { it.trade.id == trade.id }.trade.status shouldBe TradeStatus.CONFIRMED
         published.filterIsInstance<DeliveryObligationOpened>().filter { it.obligation.tradeId == trade.id } shouldHaveSize 2
-        trades.openObligations(entityA, Side.SELL, ProductFamily.GUARANTEE_OF_ORIGIN).map {
+        trades.openObligations(entityA, Side.SELL, ProductFamily.GUARANTEE_OF_ORIGIN).filter { it.tradeId == trade.id }.map {
             it.remainingQuantity
         } shouldBe listOf(BigDecimal("2500.000"), BigDecimal("2500.000"))
 
@@ -262,6 +267,28 @@ class TradeServiceIT {
         published.drop(before).filterIsInstance<DeliveryObligationClosed>() shouldHaveSize 2
         trades.openObligations(entityA).none { it.tradeId == trade.id } shouldBe true
         shouldThrow<com.pianonurmi.etrm.platform.errors.StaleVersionException> { trades.amend(trade.id, AmendTrade(expectedVersion = 4, reason = "stale")) }
+        // The amended trade is approved and confirmed again on its new terms.
+        amended.confirmedAt shouldBe null
+        currentUser = "approver"
+        trades.approve(trade.id)
+        trades.confirm(trade.id, ConfirmTrade("CONF-2B")).let {
+            it.status shouldBe TradeStatus.CONFIRMED
+            it.confirmationRef shouldBe "CONF-2B"
+        }
+    }
+
+    @Test
+    fun `trade commands need trading roles and access to the entity`() {
+        currentUser = "trader1"
+        val trade = trades.capture(gooSale(quantity = 100))
+        val outsider = Actor("outsider", "Outsider", setOf(Role.TRADER, Role.MIDDLE_OFFICE), legalEntityScope = setOf(UUID.randomUUID()))
+        val accountant = Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT), allEntities = true)
+        override = outsider
+        shouldThrow<ForbiddenException> { trades.capture(gooSale(quantity = 100)) }
+        shouldThrow<ForbiddenException> { trades.cancel(trade.id, "not mine") }
+        override = accountant
+        shouldThrow<ForbiddenException> { trades.approve(trade.id) }
+        override = null
     }
 
     @Test

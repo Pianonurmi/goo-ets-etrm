@@ -195,6 +195,12 @@ interface AllowanceHoldingQuery {
     fun holdingById(holdingId: UUID): AllowanceHoldingView?
 
     fun movements(holdingId: UUID): List<AllowanceMovementView>
+
+    /**
+     * Total absolute quantity of [type] movements on the entity's holdings for a compliance year. Movements recorded
+     * without a compliance year count in the calendar year of their effective date.
+     */
+    fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>? = null): Long
 }
 
 data class HoldingChanged(

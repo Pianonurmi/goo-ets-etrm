@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.settlement.application
 
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.settlement.api.AgeingRow
 import com.pianonurmi.etrm.settlement.api.CashForecastRow
@@ -29,8 +31,16 @@ class SettlementReportService(
     private val invoices: InvoiceRepository,
     private val items: SettlementItemRepository,
     private val referenceData: ReferenceDataQuery,
+    private val actorProvider: ActorProvider,
 ) : SettlementReports {
-    override fun ageing(legalEntityId: UUID, asOf: LocalDate): List<AgeingRow> = openInvoices(legalEntityId)
+    /** Receivables, payables and VAT of one entity: finance, risk and audit roles with access to the entity. */
+    private fun authorise(legalEntityId: UUID) {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.ACCOUNTANT, Role.BACK_OFFICE, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR)
+        actor.requireEntity(legalEntityId)
+    }
+
+    override fun ageing(legalEntityId: UUID, asOf: LocalDate): List<AgeingRow> = authorise(legalEntityId).let { openInvoices(legalEntityId) }
         .groupBy { Triple(it.counterpartyId, it.direction, it.currency) }
         .map { (key, group) ->
             fun bucket(range: LongRange?) = group.filter { inv ->
@@ -52,6 +62,7 @@ class SettlementReportService(
 
     /** Open invoices by due date, plus delivered but not yet invoiced items expected after the counterparty's terms. */
     override fun cashForecast(legalEntityId: UUID, from: LocalDate, toExclusive: LocalDate): List<CashForecastRow> {
+        authorise(legalEntityId)
         val invoiced = openInvoices(legalEntityId).map { Triple(maxOf(it.dueDate!!, from), it.currency, it.direction) to it.outstanding }
             .map { (key, amount) -> Flow(key.first, key.second, key.third, amount, "invoiced") }
         val uninvoiced = items.find(SettlementItemFilter(legalEntityId = legalEntityId, statuses = setOf(SettlementItemStatus.OPEN), limit = 10_000))
@@ -73,7 +84,9 @@ class SettlementReportService(
             .sortedWith(compareBy({ it.date }, { it.currency }, { it.basis }))
     }
 
-    override fun vatReport(legalEntityId: UUID, from: LocalDate, toExclusive: LocalDate): List<VatReportRow> = issued(legalEntityId)
+    override fun vatReport(legalEntityId: UUID, from: LocalDate, toExclusive: LocalDate): List<VatReportRow> = authorise(legalEntityId).let {
+        issued(legalEntityId)
+    }
         .filter { it.taxPointDate >= from && it.taxPointDate < toExclusive }
         .flatMap { inv -> inv.lines.map { inv to it } }
         .groupBy { (inv, line) -> listOf(inv.direction, line.vatTreatment, line.vatRate.stripTrailingZeros(), inv.currency) }
@@ -89,7 +102,9 @@ class SettlementReportService(
         }
         .sortedWith(compareBy({ it.direction }, { it.treatment }, { it.rate }))
 
-    override fun ecSalesList(legalEntityId: UUID, from: LocalDate, toExclusive: LocalDate): List<EcSalesListRow> = issued(legalEntityId)
+    override fun ecSalesList(legalEntityId: UUID, from: LocalDate, toExclusive: LocalDate): List<EcSalesListRow> = authorise(legalEntityId).let {
+        issued(legalEntityId)
+    }
         .filter { it.direction == SettlementDirection.RECEIVABLE && it.taxPointDate >= from && it.taxPointDate < toExclusive }
         .flatMap { inv -> inv.lines.filter { it.vatTreatment == VatTreatment.REVERSE_CHARGE_CROSS_BORDER }.map { inv to it } }
         .groupBy { (inv, _) -> Triple(inv.customer?.vatNumber ?: "missing", inv.customer?.country ?: "", inv.currency) }

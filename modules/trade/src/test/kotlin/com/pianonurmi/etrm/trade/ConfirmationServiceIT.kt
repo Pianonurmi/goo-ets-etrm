@@ -71,7 +71,7 @@ import java.util.UUID
 class ConfirmationServiceIT {
     private val published = mutableListOf<Any>()
     private var currentUser = "trader1"
-    private val actor = ActorProvider { Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)) }
+    private val actor = ActorProvider { Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE), allEntities = true) }
     private lateinit var confirmations: ConfirmationService
     private val bus = ApplicationEventPublisher { event ->
         published += event

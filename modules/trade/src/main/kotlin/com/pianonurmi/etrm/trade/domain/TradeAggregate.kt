@@ -56,7 +56,8 @@ class TradeAggregate(state: TradeView) {
         if (state.legs.flatMap { it.deliveries }.any { it.deliveredQuantity.signum() > 0 }) {
             throw ValidationException("Trade ${state.tradeNumber} has deliveries recorded; amend by a new trade and a cancellation of the remainder")
         }
-        return transition(amended.copy(status = TradeStatus.PENDING_APPROVAL, approvedBy = null, approvedAt = null))
+        // An amended trade is approved and confirmed again on its new terms.
+        return transition(amended.copy(status = TradeStatus.PENDING_APPROVAL, approvedBy = null, approvedAt = null, confirmedAt = null, confirmationRef = null))
     }
 
     fun cancel(): TradeView {

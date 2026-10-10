@@ -18,7 +18,6 @@ import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.referencedata.api.AllowanceCostingMethod
 import com.pianonurmi.etrm.referencedata.api.FreeAllocationPolicy
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
-import com.pianonurmi.etrm.trade.api.TradeConfirmed
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
@@ -87,33 +86,6 @@ class LedgerEventListeners(
                 lotDimensions(lot),
             ),
         )
-    }
-
-    @EventListener
-    fun on(event: TradeConfirmed) {
-        val trade = event.trade
-        trade.legs.forEach { leg ->
-            ledger.post(
-                facts(
-                    trade.legalEntityId,
-                    "TradeConfirmed",
-                    UUID.nameUUIDFromBytes("${event.eventId}:${leg.legNo}".toByteArray()),
-                    trade.tradeDate,
-                    leg.priceCurrency.currencyCode,
-                    "TRADE",
-                    trade.tradeNumber,
-                    "Trade ${trade.tradeNumber} leg ${leg.legNo} confirmed",
-                    mapOf("notional" to leg.notional, "quantity" to leg.quantity),
-                    mapOf("side" to leg.side.name, "productFamily" to trade.productFamily.name),
-                    mapOf(
-                        "trade" to trade.tradeNumber,
-                        "book" to trade.bookId.toString(),
-                        "counterparty" to trade.counterpartyId.toString(),
-                        "bucket" to leg.bucketCode,
-                    ),
-                ),
-            )
-        }
     }
 
     @EventListener

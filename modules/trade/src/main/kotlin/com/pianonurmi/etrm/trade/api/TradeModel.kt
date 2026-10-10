@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.EventMetadata
 import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.BucketMatchKind
 import com.pianonurmi.etrm.product.api.EnergyCarrier
 import com.pianonurmi.etrm.product.api.InstrumentType
 import com.pianonurmi.etrm.product.api.ProductFamily
@@ -80,6 +81,8 @@ data class TradeLegView(
     val deliveries: List<DeliveryScheduleView>,
     /** The counterparty's registered account (reference data); [counterpartyAccountRef] mirrors it as text. */
     val counterpartyAccountId: UUID? = null,
+    /** How [bucketCode] was found: the bucket's own criteria, or a bucket that provably contains the leg's criteria. */
+    val bucketMatch: BucketMatchKind? = null,
 ) {
     val notional: BigDecimal get() = quantity * price
 }

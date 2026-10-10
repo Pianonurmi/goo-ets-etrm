@@ -176,6 +176,9 @@ class GoldenPathIT {
         ).get(
             "/api/v1/positions/ets?legalEntityId=$entityId&complianceYear=2026",
         ).then().statusCode(200).body("heldAllowances", org.hamcrest.Matchers.equalTo(2000))
+            .body("surrendered", org.hamcrest.Matchers.equalTo(12000))
+            .body("obligationOutstanding", org.hamcrest.Matchers.equalTo(0))
+            .body("netPosition", org.hamcrest.Matchers.equalTo(2000))
         val eua = asUser(
             "accountant",
         ).get("/api/v1/ledger/entries?legalEntityId=$entityId&period=2026-06").then().statusCode(200).extract().jsonPath().getList<String>("ruleCode")

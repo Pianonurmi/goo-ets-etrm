@@ -66,7 +66,7 @@ class LedgerController(private val command: LedgerCommand, private val query: Le
     @GetMapping("/accounts")
     fun accounts(
         @RequestParam legalEntityId: UUID,
-    ): List<GlAccountView> = command.ensureChartOfAccounts(legalEntityId)
+    ): List<GlAccountView> = query.accounts(legalEntityId)
 
     @GetMapping("/rules")
     fun rules(

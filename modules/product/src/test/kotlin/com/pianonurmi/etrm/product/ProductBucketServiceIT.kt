@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
+import com.pianonurmi.etrm.product.api.BucketMatchKind
 import com.pianonurmi.etrm.product.api.criteria.CriteriaSubject
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.LotAttribute
@@ -59,6 +60,25 @@ class ProductBucketServiceIT {
         bound.best(finnishHydro)?.code shouldBe "FI_HYDRO"
         bound.best(subject("DE", "RENEWABLE.WIND.WIND_OFFSHORE", emptySet()))?.code shouldBe "EU_WIND_UNSUPPORTED"
         bound.best(subject("DE", "NON_RENEWABLE.FOSSIL.FOSSIL_GAS", emptySet()))?.code shouldBe "ANY_GOO"
+    }
+
+    @Test
+    fun `ad-hoc criteria map to the most specific bucket that provably contains them`() {
+        val ctx = criteria.contextFor(LocalDate.of(2026, 12, 1))
+        val finnishReservoir2026 = Criterion.all(Criterion.country("FI"), Criterion.energySource("HYDRO_RESERVOIR"), Criterion.productionYear(2026))
+        buckets.bucketFor(null, finnishReservoir2026, ctx)!!.let {
+            it.bucket.code shouldBe "FI_HYDRO"
+            it.kind shouldBe BucketMatchKind.IMPLIED
+        }
+        val nordicHydro = buckets.requireBucket("NORDIC_HYDRO")
+        buckets.bucketFor(nordicHydro.criteriaId, nordicHydro.criterion, ctx)!!.let {
+            it.bucket.code shouldBe "NORDIC_HYDRO"
+            it.kind shouldBe BucketMatchKind.EXACT
+        }
+        // Finland or Germany is not Nordic: only the European bucket provably contains it.
+        buckets.bucketFor(null, Criterion.all(Criterion.country("FI", "DE"), Criterion.energySource("WIND")), ctx)!!.bucket.code shouldBe "EU_WIND"
+        // "Not nuclear" proves nothing about the source.
+        buckets.bucketFor(null, Criterion.Not(Criterion.energySource("NUCLEAR")), ctx)!!.bucket.code shouldBe "ANY_GOO"
     }
 
     private fun subject(country: String, source: String, labels: Set<String>) = object : CriteriaSubject {

@@ -140,6 +140,8 @@ data class AccountingPeriodView(val legalEntityId: UUID, val period: String, val
 data class GlExportView(
     val id: UUID,
     val legalEntityId: UUID,
+    /** Export number per legal entity, without gaps. */
+    val exportSeq: Int,
     val period: String,
     val exportedAt: Instant,
     val exportedBy: String,
@@ -199,5 +201,16 @@ interface LedgerQuery {
     /** Ids of entries whose hash chain is broken, per entity. */
     fun verifyJournal(legalEntityId: UUID): List<UUID>
 }
+
+/** A GL export was produced; the audit trail records who exported what. */
+data class GlExported(
+    val exportId: UUID,
+    val legalEntityId: UUID,
+    val exportSeq: Int,
+    val period: String,
+    val entryCount: Int,
+    val contentHash: String,
+    val metadata: EventMetadata = EventMetadata(),
+) : DomainEvent by metadata
 
 data class JournalEntryPosted(val entry: JournalEntryView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata

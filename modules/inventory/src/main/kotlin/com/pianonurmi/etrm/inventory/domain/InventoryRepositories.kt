@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.inventory.domain
 
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingView
+import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementView
 import com.pianonurmi.etrm.inventory.api.AllowanceStatementLine
 import com.pianonurmi.etrm.inventory.api.BreakFilter
@@ -94,6 +95,8 @@ interface AllowanceHoldingRepository {
     fun appendMovement(movement: NewAllowanceMovement): AllowanceMovementView
 
     fun movements(holdingId: UUID): List<AllowanceMovementView>
+
+    fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>?): Long
 }
 
 interface ReconciliationRepository {

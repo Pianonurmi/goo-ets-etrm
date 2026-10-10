@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.ledger.api.AccountingPeriodView
 import com.pianonurmi.etrm.ledger.api.EntryStatus
 import com.pianonurmi.etrm.ledger.api.GlAccountView
 import com.pianonurmi.etrm.ledger.api.GlExportView
+import com.pianonurmi.etrm.ledger.api.GlExported
 import com.pianonurmi.etrm.ledger.api.JournalEntryPosted
 import com.pianonurmi.etrm.ledger.api.JournalEntryView
 import com.pianonurmi.etrm.ledger.api.JournalLineView
@@ -19,6 +20,7 @@ import com.pianonurmi.etrm.ledger.api.TrialBalanceRow
 import com.pianonurmi.etrm.ledger.api.UpsertPostingRule
 import com.pianonurmi.etrm.ledger.domain.EntryBuilder
 import com.pianonurmi.etrm.ledger.domain.FxRateRepository
+import com.pianonurmi.etrm.ledger.domain.FxResolver
 import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
 import com.pianonurmi.etrm.ledger.domain.GlExportFormat
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
@@ -35,6 +37,7 @@ import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -59,7 +62,10 @@ class LedgerService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    @Value("\${etrm.fx.max-staleness-days:10}") maxFxStalenessDays: Long = 10,
 ) : LedgerCommand, LedgerQuery {
+    private val fxResolver = FxResolver({ date, from, to -> fxRates.latest(date, from, to) }, maxFxStalenessDays)
+
     // ----------------------------------------------------------------------------------------------------------
     // Posting
     // ----------------------------------------------------------------------------------------------------------
@@ -277,60 +283,78 @@ class LedgerService(
     /** The rate converting [from] into [to] on [date] (latest on or before). */
     fun rateOn(date: LocalDate, from: String, to: String): BigDecimal = fxRateFor(date, from, to)
 
-    private fun fxRateFor(date: LocalDate, from: String, to: String): BigDecimal {
-        if (from.equals(to, ignoreCase = true)) return BigDecimal.ONE
-        return fxRates.rateOn(date, from.uppercase(), to.uppercase()) ?: throw ValidationException("No FX rate $from/$to on or before $date")
-    }
+    private fun fxRateFor(date: LocalDate, from: String, to: String): BigDecimal =
+        fxResolver.resolve(date, from.uppercase(), to.uppercase())?.rate ?: throw ValidationException("No FX rate $from/$to on or before $date")
 
     // ----------------------------------------------------------------------------------------------------------
     // Periods, export, master data
     // ----------------------------------------------------------------------------------------------------------
 
+    /** OPEN → SOFT_CLOSED → CLOSED; a hard-closed period is final. */
     override fun closePeriod(legalEntityId: UUID, period: YearMonth, hard: Boolean): AccountingPeriodView {
-        actorProvider.current().requireRole(Role.ACCOUNTANT)
-        val view =
-            AccountingPeriodView(
-                legalEntityId,
-                period.toString(),
-                if (hard) PeriodStatus.CLOSED else PeriodStatus.SOFT_CLOSED,
-                actorProvider.current().userId,
-                clock.instant(),
-            )
+        val actor = actorProvider.current()
+        actor.requireRole(Role.ACCOUNTANT)
+        actor.requireEntity(legalEntityId)
+        val current = periods.find(legalEntityId, period.toString())?.status ?: PeriodStatus.OPEN
+        val target = if (hard) PeriodStatus.CLOSED else PeriodStatus.SOFT_CLOSED
+        if (current == PeriodStatus.CLOSED) throw ValidationException("Period $period is already hard-closed")
+        if (current == target) throw ValidationException("Period $period is already ${target.name.lowercase().replace('_', '-')}")
+        val view = AccountingPeriodView(legalEntityId, period.toString(), target, actor.userId, clock.instant())
         periods.upsert(view)
         return view
     }
 
     override fun reopenPeriod(legalEntityId: UUID, period: YearMonth): AccountingPeriodView {
-        actorProvider.current().requireRole(Role.ACCOUNTANT)
-        val current = periods.find(legalEntityId, period.toString())
-        if (current?.status == PeriodStatus.CLOSED) {
-            throw ValidationException(
-                "Period $period is hard-closed and cannot be reopened; post adjustments in an open period",
-            )
+        val actor = actorProvider.current()
+        actor.requireRole(Role.ACCOUNTANT)
+        actor.requireEntity(legalEntityId)
+        when (periods.find(legalEntityId, period.toString())?.status ?: PeriodStatus.OPEN) {
+            PeriodStatus.CLOSED -> throw ValidationException("Period $period is hard-closed and cannot be reopened; post adjustments in an open period")
+            PeriodStatus.OPEN -> throw ValidationException("Period $period is open")
+            PeriodStatus.SOFT_CLOSED -> Unit
         }
         val view = AccountingPeriodView(legalEntityId, period.toString(), PeriodStatus.OPEN, null, null)
         periods.upsert(view)
         return view
     }
 
+    /**
+     * Exports a closed (soft or hard) period for the general ledger. The journal's hash chain must verify and every
+     * exported account must have a GL mapping; memo accounts stay in the sub-ledger.
+     */
     override fun exportGl(legalEntityId: UUID, period: YearMonth): GlExportView {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.ACCOUNTANT)
+        actor.requireEntity(legalEntityId)
+        val status = periods.find(legalEntityId, period.toString())?.status ?: PeriodStatus.OPEN
+        if (status == PeriodStatus.OPEN) throw ValidationException("Period $period is open; close it (soft or hard) before exporting")
+        if (verifyJournal(legalEntityId).isNotEmpty()) throw ValidationException("The journal hash chain does not verify; the export is refused")
+        val chart = accounts.accounts(legalEntityId)
+        val memo = chart.filter { it.type == AccountType.MEMO }.map { it.code }.toSet()
         val entries = journal.entries(legalEntityId, period.toString(), null, Int.MAX_VALUE)
-        val content = GlExportFormat.csv(entries)
+        val unmapped = entries.flatMap { it.lines }.map { it.accountCode }.filter { it !in memo }.toSet()
+            .filter { code -> chart.firstOrNull { it.code == code }?.glMapping.isNullOrBlank() }
+        if (unmapped.isNotEmpty()) throw ValidationException("Accounts without a GL mapping: ${unmapped.sorted().joinToString()}")
+        journal.lockEntity(legalEntityId)
+        val content = GlExportFormat.csv(entries, memo)
         val export = GlExportView(
             Ids.newId(),
             legalEntityId,
+            exports.nextSeq(legalEntityId),
             period.toString(),
             clock.instant(),
-            actorProvider.current().userId,
+            actor.userId,
             entries.size,
             HashChain.next(null, content),
             content,
         )
         exports.insert(export)
+        events.publishEvent(GlExported(export.id, legalEntityId, export.exportSeq, export.period, export.entryCount, export.contentHash))
         return export
     }
 
     override fun upsertFxRate(date: LocalDate, from: String, to: String, rate: BigDecimal, source: String) {
+        actorProvider.current().requireRole(Role.ACCOUNTANT, Role.MIDDLE_OFFICE)
         if (rate.signum() <= 0) throw ValidationException("FX rate must be positive")
         fxRates.upsert(date, from.uppercase(), to.uppercase(), rate, source)
     }
@@ -349,6 +373,8 @@ class LedgerService(
     }
 
     override fun upsertRule(command: UpsertPostingRule): PostingRuleView {
+        actorProvider.current().requireRole(Role.ACCOUNTANT)
+        command.legalEntityId?.let { actorProvider.current().requireEntity(it) }
         if (command.lines.isEmpty()) throw ValidationException("A posting rule needs lines")
         val view = PostingRuleView(
             Ids.newId(),
@@ -375,15 +401,22 @@ class LedgerService(
     override fun entry(id: UUID): JournalEntryView? = journal.find(id)
 
     @Transactional(readOnly = true)
-    override fun entries(legalEntityId: UUID, period: YearMonth?, sourceRef: String?, limit: Int): List<JournalEntryView> =
-        journal.entries(legalEntityId, period?.toString(), sourceRef, limit)
+    override fun entries(legalEntityId: UUID, period: YearMonth?, sourceRef: String?, limit: Int): List<JournalEntryView> {
+        actorProvider.current().requireEntity(legalEntityId)
+        return journal.entries(legalEntityId, period?.toString(), sourceRef, limit)
+    }
 
     @Transactional(readOnly = true)
-    override fun trialBalance(legalEntityId: UUID, period: YearMonth): List<TrialBalanceRow> =
-        TrialBalance.compute(journal.entries(legalEntityId, period.toString(), null, Int.MAX_VALUE), accounts.accounts(legalEntityId))
+    override fun trialBalance(legalEntityId: UUID, period: YearMonth): List<TrialBalanceRow> {
+        actorProvider.current().requireEntity(legalEntityId)
+        return TrialBalance.compute(journal.entries(legalEntityId, period.toString(), null, Int.MAX_VALUE), accounts.accounts(legalEntityId))
+    }
 
     @Transactional(readOnly = true)
-    override fun accounts(legalEntityId: UUID): List<GlAccountView> = accounts.accounts(legalEntityId)
+    override fun accounts(legalEntityId: UUID): List<GlAccountView> {
+        actorProvider.current().requireEntity(legalEntityId)
+        return accounts.accounts(legalEntityId)
+    }
 
     @Transactional(readOnly = true)
     override fun rules(
@@ -391,10 +424,13 @@ class LedgerService(
     ): List<PostingRuleView> = rules.all().filter { legalEntityId == null || it.legalEntityId == null || it.legalEntityId == legalEntityId }
 
     @Transactional(readOnly = true)
-    override fun periods(legalEntityId: UUID): List<AccountingPeriodView> = periods.periods(legalEntityId)
+    override fun periods(legalEntityId: UUID): List<AccountingPeriodView> {
+        actorProvider.current().requireEntity(legalEntityId)
+        return periods.periods(legalEntityId)
+    }
 
     @Transactional(readOnly = true)
-    override fun fxRate(date: LocalDate, from: String, to: String): BigDecimal? = fxRates.rateOn(date, from.uppercase(), to.uppercase())
+    override fun fxRate(date: LocalDate, from: String, to: String): BigDecimal? = fxResolver.resolve(date, from.uppercase(), to.uppercase())?.rate
 
     @Transactional(readOnly = true)
     override fun verifyJournal(legalEntityId: UUID): List<UUID> {
@@ -423,10 +459,10 @@ object DefaultLedgerData {
 
     fun chartOfAccounts(): List<AccountTemplate> = chart
 
-    fun postingRules(): List<UpsertPostingRule> = Json.mapper.readValue(
-        resource("ledger/default-posting-rules.json"),
-        object : TypeReference<List<UpsertPostingRule>>() {},
-    )
+    /** Default rules with the version of the set; raise the version whenever a default rule changes. */
+    data class RuleSet(val version: Int, val rules: List<UpsertPostingRule>)
+
+    fun postingRules(): RuleSet = Json.mapper.readValue(resource("ledger/default-posting-rules.json"), RuleSet::class.java)
 
     private fun resource(path: String): String = DefaultLedgerData::class.java.classLoader.getResourceAsStream(path)!!.use { it.readBytes().decodeToString() }
 }

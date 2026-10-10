@@ -11,6 +11,8 @@ import com.pianonurmi.etrm.inventory.domain.AllowanceHoldingRepository
 import com.pianonurmi.etrm.inventory.domain.NewAllowanceMovement
 import com.pianonurmi.etrm.platform.ids.Ids
 import org.jooq.DSLContext
+import org.jooq.DatePart
+import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.Instant
 import java.util.UUID
@@ -70,6 +72,16 @@ class JooqAllowanceHoldingRepository(private val dsl: DSLContext) : AllowanceHol
 
     override fun movements(holdingId: UUID): List<AllowanceMovementView> =
         dsl.selectFrom(ALLOWANCE_MOVEMENT).where(ALLOWANCE_MOVEMENT.HOLDING_ID.eq(holdingId)).orderBy(ALLOWANCE_MOVEMENT.SEQ).fetch(::toMovement)
+
+    override fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>?): Long {
+        val year = DSL.coalesce(ALLOWANCE_MOVEMENT.COMPLIANCE_YEAR, DSL.extract(ALLOWANCE_MOVEMENT.EFFECTIVE_DATE, DatePart.YEAR))
+        return dsl.select(DSL.sum(DSL.abs(ALLOWANCE_MOVEMENT.QUANTITY)))
+            .from(ALLOWANCE_MOVEMENT)
+            .join(ALLOWANCE_HOLDING).on(ALLOWANCE_HOLDING.ID.eq(ALLOWANCE_MOVEMENT.HOLDING_ID))
+            .where(ALLOWANCE_HOLDING.HOLDER_ENTITY_ID.eq(holderEntityId), ALLOWANCE_MOVEMENT.MOVEMENT_TYPE.eq(type.name), year.eq(complianceYear))
+            .and(productCodes?.let { ALLOWANCE_HOLDING.PRODUCT_CODE.`in`(it) } ?: DSL.noCondition())
+            .fetchOne(0, Long::class.java) ?: 0L
+    }
 
     private fun toView(r: AllowanceHoldingRecord) = AllowanceHoldingView(
         r.id,

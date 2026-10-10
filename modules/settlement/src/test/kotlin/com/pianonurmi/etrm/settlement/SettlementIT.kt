@@ -108,7 +108,7 @@ import java.util.concurrent.Executors
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SettlementIT {
     private var user = "trader"
-    private val actor = ActorProvider { Actor(user, user, setOf(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.ACCOUNTANT)) }
+    private val actor = ActorProvider { Actor(user, user, setOf(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-10-09T10:00:00Z"), ZoneOffset.UTC) // a Friday
     private lateinit var items: SettlementItemService
     private val bus = ApplicationEventPublisher { if (it is DeliveryRecorded) items.on(it) }
@@ -187,7 +187,7 @@ class SettlementIT {
             actor,
             bus,
         )
-        reports = SettlementReportService(JooqInvoiceRepository(dsl), JooqSettlementItemRepository(dsl), referenceData)
+        reports = SettlementReportService(JooqInvoiceRepository(dsl), JooqSettlementItemRepository(dsl), referenceData, actor)
         entity = referenceData.createLegalEntity(
             CreateLegalEntity("SETT-FI", "Settlement Oy", "FI", vatNumber = "FI12345678", validFrom = LocalDate.of(2026, 1, 1)),
         ).id

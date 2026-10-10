@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.EnergyCarrier
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductCatalogueQuery
@@ -70,7 +71,14 @@ class TradeService(
     // Capture and amendment
     // ----------------------------------------------------------------------------------------------------------
 
+    private fun authorise(legalEntityId: UUID, vararg roles: Role) {
+        val actor = actorProvider.current()
+        actor.requireRole(*roles)
+        actor.requireEntity(legalEntityId)
+    }
+
     override fun capture(command: CaptureTrade): TradeView {
+        authorise(command.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
         val actor = actorProvider.current().userId
         val counterparty = referenceData.requireCounterparty(command.counterpartyId)
         val trade = build(command, actor)
@@ -177,7 +185,10 @@ class TradeService(
                 null
             }
         }
-        val bucket = criteriaRef?.let { ref -> buckets.buckets().firstOrNull { it.criteriaId == ref.id }?.code }
+        val bucket = criteriaRef?.let { ref ->
+            val firstDelivery = leg.deliveries.minOf { it.deliveryDate }
+            buckets.bucketFor(ref.id, leg.criterion!!, criteria.contextFor(firstDelivery))
+        }
         val counterpartyAccount = counterpartyAccount(counterpartyId, legNo, leg)
         return TradeLegView(
             id = Ids.newId(),
@@ -188,7 +199,8 @@ class TradeService(
             criteriaId = criteriaRef?.id,
             criterion = leg.criterion,
             criteriaSummary = criteriaRef?.summary,
-            bucketCode = bucket,
+            bucketCode = bucket?.bucket?.code,
+            bucketMatch = bucket?.kind,
             quantity = leg.quantity,
             unit = leg.unit,
             price = leg.price,
@@ -233,6 +245,7 @@ class TradeService(
     override fun amend(tradeId: UUID, command: AmendTrade): TradeView {
         val actor = actorProvider.current().userId
         val current = locked(tradeId)
+        authorise(current.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
         if (current.version != command.expectedVersion) throw StaleVersionException("Trade", tradeId, command.expectedVersion, current.version)
         val legs = command.legs?.mapIndexed {
             index,
@@ -261,7 +274,9 @@ class TradeService(
 
     override fun approve(tradeId: UUID): TradeView {
         val actor = actorProvider.current().userId
-        val next = TradeAggregate(locked(tradeId)).approve(actor, clock.instant())
+        val current = locked(tradeId)
+        authorise(current.legalEntityId, Role.MIDDLE_OFFICE, Role.RISK)
+        val next = TradeAggregate(current).approve(actor, clock.instant())
         save(next, actor, "approved")
         events.publishEvent(TradeApproved(next))
         openObligationsIfDue(next)
@@ -269,12 +284,17 @@ class TradeService(
     }
 
     override fun reject(tradeId: UUID, reason: String): TradeView {
-        val next = TradeAggregate(locked(tradeId)).reject()
+        val current = locked(tradeId)
+        authorise(current.legalEntityId, Role.MIDDLE_OFFICE, Role.RISK)
+        val next = TradeAggregate(current).reject()
         save(next, actorProvider.current().userId, "rejected: $reason")
         return next
     }
 
-    override fun confirm(tradeId: UUID, command: ConfirmTrade): TradeView = confirmAs(tradeId, command, actorProvider.current().userId)
+    override fun confirm(tradeId: UUID, command: ConfirmTrade): TradeView {
+        authorise(requireTrade(tradeId).legalEntityId, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
+        return confirmAs(tradeId, command, actorProvider.current().userId)
+    }
 
     /** Confirmation on behalf of [actor], e.g. `system` when the counterparty's confirmation matched ours. */
     fun confirmAs(tradeId: UUID, command: ConfirmTrade, actor: String): TradeView {
@@ -292,6 +312,7 @@ class TradeService(
 
     override fun cancel(tradeId: UUID, reason: String): TradeView {
         val current = locked(tradeId)
+        authorise(current.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
         val next = TradeAggregate(current).cancel()
         save(next, actorProvider.current().userId, "cancelled: $reason")
         events.publishEvent(TradeCancelled(next, reason))

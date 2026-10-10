@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.ledger.api.PostingRuleView
 import com.pianonurmi.etrm.ledger.api.PostingSide
 import com.pianonurmi.etrm.ledger.api.TrialBalanceRow
 import com.pianonurmi.etrm.platform.errors.ValidationException
+import com.pianonurmi.etrm.platform.text.Csv
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -136,42 +137,130 @@ object TrialBalance {
     }
 }
 
-object GlExportFormat {
-    fun csv(entries: List<JournalEntryView>): String = buildString {
-        appendLine(
-            "entry_number,posting_date,period,account,gl_mapping,debit,credit,currency,base_debit,base_credit,description,source_type,source_ref,dimensions",
-        )
-        entries.sortedBy { it.entryNumber }.forEach { e ->
-            e.lines.forEach { l ->
-                appendLine(
-                    listOf(
-                        e.entryNumber,
-                        e.postingDate,
-                        e.period,
-                        l.accountCode,
-                        l.glMapping ?: "",
-                        l.debit,
-                        l.credit,
-                        l.currency,
-                        l.baseDebit,
-                        l.baseCredit,
-                        quote(e.description),
-                        e.sourceType ?: "",
-                        e.sourceRef ?: "",
-                        quote(
-                            l.dimensions.entries.joinToString(";") {
-                                "${it.key}=${it.value ?: ""}"
-                            },
-                        ),
-                    ).joinToString(","),
-                )
-            }
+data class DatedRate(val date: LocalDate, val rate: BigDecimal)
+
+/** How a rate was found: directly, as the inverse of the opposite quote, or crossed through a pivot currency. */
+data class ResolvedRate(val rate: BigDecimal, val path: String, val oldestDate: LocalDate)
+
+/**
+ * Resolves an exchange rate from published rates: the direct quote, else the inverse of the opposite quote, else a
+ * cross through EUR (the ECB publishes EUR-based rates). Each leg uses its latest rate on or before the date; a rate
+ * older than [maxStalenessDays] is not used.
+ */
+class FxResolver(private val lookup: (LocalDate, String, String) -> DatedRate?, private val maxStalenessDays: Long, private val pivot: String = "EUR") {
+    fun resolve(date: LocalDate, from: String, to: String): ResolvedRate? {
+        if (from == to) return ResolvedRate(BigDecimal.ONE, "identity", date)
+        return direct(date, from, to) ?: if (from != pivot && to != pivot) cross(date, from, to) else null
+    }
+
+    private fun direct(date: LocalDate, from: String, to: String): ResolvedRate? {
+        fresh(date, lookup(date, from, to))?.let { return ResolvedRate(it.rate, "$from/$to", it.date) }
+        return fresh(date, lookup(date, to, from))?.let {
+            ResolvedRate(BigDecimal.ONE.divide(it.rate, SCALE, RoundingMode.HALF_EVEN), "1/($to/$from)", it.date)
         }
     }
 
-    private fun quote(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+    private fun cross(date: LocalDate, from: String, to: String): ResolvedRate? {
+        val first = direct(date, from, pivot) ?: return null
+        val second = direct(date, pivot, to) ?: return null
+        return ResolvedRate(
+            (first.rate * second.rate).setScale(SCALE, RoundingMode.HALF_EVEN),
+            "${first.path} x ${second.path}",
+            minOf(first.oldestDate, second.oldestDate),
+        )
+    }
 
-    private val JournalLineView.glMapping: String? get() = dimensions["glMapping"]
+    private fun fresh(date: LocalDate, rate: DatedRate?): DatedRate? = rate?.takeIf { !it.date.plusDays(maxStalenessDays).isBefore(date) }
+
+    private companion object {
+        const val SCALE = 10
+    }
+}
+
+/** Commitment memo posted for one delivery schedule of a confirmed trade, with what has been released so far. */
+data class CommitmentMemo(
+    val id: UUID,
+    val legalEntityId: UUID,
+    val tradeId: UUID,
+    val tradeNumber: String,
+    val tradeVersion: Int,
+    val scheduleId: UUID,
+    val side: String,
+    val productFamily: String,
+    val currency: String,
+    val quantity: BigDecimal,
+    val amount: BigDecimal,
+    val released: BigDecimal,
+) {
+    val open: BigDecimal get() = amount - released
+}
+
+enum class MemoMovementKind { RELEASE, REVERSAL }
+
+interface CommitmentMemoRepository {
+    /** Inserts the memo unless one exists for this confirmation and schedule; returns whether it was inserted. */
+    fun insert(memo: CommitmentMemo, confirmedEventId: UUID): Boolean
+
+    fun openForSchedule(scheduleId: UUID): List<CommitmentMemo>
+
+    fun openForTrade(tradeId: UUID): List<CommitmentMemo>
+
+    /** Records a release or reversal once per event and memo; returns whether it was recorded now. */
+    fun move(eventId: UUID, memoId: UUID, kind: MemoMovementKind, amount: BigDecimal): Boolean
+}
+
+interface SeedRepository {
+    fun version(name: String): Int?
+
+    fun record(name: String, version: Int)
+}
+
+/** CSV for the general ledger (RFC 4180): one row per journal line, memo accounts left out, amounts with 2 decimals. */
+object GlExportFormat {
+    val header = listOf(
+        "entry_number",
+        "posting_date",
+        "period",
+        "account",
+        "gl_mapping",
+        "debit",
+        "credit",
+        "currency",
+        "base_debit",
+        "base_credit",
+        "description",
+        "source_type",
+        "source_ref",
+        "reversal_of",
+        "dimensions",
+    )
+
+    fun csv(entries: List<JournalEntryView>, memoAccounts: Set<String>): String = Csv.write(
+        header,
+        entries.sortedBy { it.entryNumber }.flatMap { e ->
+            e.lines.filter { it.accountCode !in memoAccounts }.map { l ->
+                listOf(
+                    e.entryNumber,
+                    e.postingDate,
+                    e.period,
+                    l.accountCode,
+                    l.dimensions["glMapping"],
+                    amount(l.debit),
+                    amount(l.credit),
+                    l.currency,
+                    amount(l.baseDebit),
+                    amount(l.baseCredit),
+                    e.description,
+                    e.sourceType,
+                    e.sourceRef,
+                    e.reversalOf,
+                    l.dimensions.filterKeys { it != "glMapping" }.entries.sortedBy { it.key }.joinToString(";") { "${it.key}=${it.value ?: ""}" },
+                )
+            }
+        },
+    )
+
+    private fun amount(value: BigDecimal): String = value.setScale(2, RoundingMode.HALF_EVEN).toPlainString()
 }
 
 interface GlAccountRepository {
@@ -217,6 +306,9 @@ interface PeriodRepository {
 interface FxRateRepository {
     fun rateOn(date: LocalDate, from: String, to: String): BigDecimal?
 
+    /** The latest rate on or before [date] in exactly this direction, with its date. */
+    fun latest(date: LocalDate, from: String, to: String): DatedRate?
+
     fun upsert(date: LocalDate, from: String, to: String, rate: BigDecimal, source: String)
 }
 
@@ -230,6 +322,9 @@ interface CostLayerRepository {
 
 interface GlExportRepository {
     fun insert(export: GlExportView)
+
+    /** Next export number for the entity; callers hold the entity's journal lock. */
+    fun nextSeq(legalEntityId: UUID): Int
 
     fun latest(legalEntityId: UUID, period: String): GlExportView?
 }

@@ -20,20 +20,24 @@ import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPostingRuleRepository
+import com.pianonurmi.etrm.ledger.adapter.jooq.JooqSeedRepository
 import com.pianonurmi.etrm.ledger.api.EntryStatus
 import com.pianonurmi.etrm.ledger.api.ManualJournal
 import com.pianonurmi.etrm.ledger.api.ManualLine
+import com.pianonurmi.etrm.ledger.api.PeriodStatus
 import com.pianonurmi.etrm.ledger.application.LedgerEventListeners
 import com.pianonurmi.etrm.ledger.application.LedgerService
 import com.pianonurmi.etrm.ledger.application.PostingRuleSeeder
 import com.pianonurmi.etrm.ledger.domain.CostLayer
 import com.pianonurmi.etrm.ledger.domain.CostingEngine
 import com.pianonurmi.etrm.ledger.domain.CostingMethod
+import com.pianonurmi.etrm.ledger.domain.GlExportFormat
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.platform.text.Csv
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.api.EnergyCarrier
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
@@ -49,6 +53,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldMatch
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
@@ -65,13 +70,14 @@ import java.util.UUID
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class LedgerServiceIT {
-    private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT)) }
+    private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-09-15T10:00:00Z"), ZoneOffset.UTC)
     private lateinit var ledger: LedgerService
     private lateinit var listeners: LedgerEventListeners
     private lateinit var entityId: UUID
     private lateinit var wacEntityId: UUID
     private val accountId: UUID = UUID.randomUUID()
+    private lateinit var referenceDataService: ReferenceDataService
 
     @BeforeAll
     fun setUp() {
@@ -80,6 +86,7 @@ class LedgerServiceIT {
         val publisher = ApplicationEventPublisher { }
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), publisher)
         val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, publisher)
+        referenceDataService = referenceData
         ledger = LedgerService(
             JooqGlAccountRepository(dsl),
             JooqPostingRuleRepository(dsl),
@@ -92,7 +99,7 @@ class LedgerServiceIT {
             publisher,
             clock,
         )
-        PostingRuleSeeder(JooqPostingRuleRepository(dsl), ledger).seed()
+        PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         listeners = LedgerEventListeners(
             ledger,
             JooqCostLayerRepository(dsl),
@@ -295,11 +302,59 @@ class LedgerServiceIT {
             )
         }
         shouldThrow<ValidationException> { ledger.reopenPeriod(wacEntityId, YearMonth.of(2026, 9)) }
+        // A hard close is final: it cannot be soft-closed (and then reopened) or closed again.
+        shouldThrow<ValidationException> { ledger.closePeriod(wacEntityId, YearMonth.of(2026, 9), hard = false) }
+        shouldThrow<ValidationException> { ledger.closePeriod(wacEntityId, YearMonth.of(2026, 9), hard = true) }
+        shouldThrow<Exception> {
+            TestDatabase.dsl.execute("UPDATE etrm_ledger.accounting_period SET status = 'OPEN' WHERE legal_entity_id = ? AND period = '2026-09'", wacEntityId)
+        }
+        // Open periods are not exported.
+        shouldThrow<ValidationException> { ledger.exportGl(wacEntityId, YearMonth.of(2026, 10)) }
 
         val export = ledger.exportGl(wacEntityId, YearMonth.of(2026, 9))
         export.entryCount shouldBe 2
+        ledger.exportGl(wacEntityId, YearMonth.of(2026, 9)).exportSeq shouldBe export.exportSeq + 1
         export.content shouldContain "140000"
         export.contentHash.length shouldBe 64
         ledger.verifyJournal(wacEntityId).shouldBeEmpty()
+        // RFC 4180 with plain two-decimal amounts.
+        val rows = Csv.parse(export.content)
+        rows.first() shouldBe GlExportFormat.header
+        rows.drop(1).forEach { row -> row[5] shouldMatch Regex("[0-9]+\\.[0-9]{2}") }
+    }
+
+    @Test
+    fun `a soft-closed period can be reopened but not soft-closed twice`() {
+        val period = YearMonth.of(2026, 5)
+        ledger.closePeriod(entityId, period, hard = false)
+        shouldThrow<ValidationException> { ledger.closePeriod(entityId, period, hard = false) }
+        ledger.reopenPeriod(entityId, period).status shouldBe PeriodStatus.OPEN
+        shouldThrow<ValidationException> { ledger.reopenPeriod(entityId, period) }
+    }
+
+    @Test
+    fun `memo accounts are not exported`() {
+        val memoEntity = referenceDataService.createLegalEntity(CreateLegalEntity("MEMO-CO", "Memo Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        ledger.postManual(
+            ManualJournal(
+                memoEntity,
+                LocalDate.of(2026, 4, 2),
+                "memo",
+                "EUR",
+                listOf(ManualLine("9000", debit = BigDecimal(5)), ManualLine("9009", credit = BigDecimal(5))),
+            ),
+        )
+        ledger.postManual(
+            ManualJournal(
+                memoEntity,
+                LocalDate.of(2026, 4, 3),
+                "real",
+                "EUR",
+                listOf(ManualLine("1400", debit = BigDecimal(7)), ManualLine("2200", credit = BigDecimal(7))),
+            ),
+        )
+        ledger.closePeriod(memoEntity, YearMonth.of(2026, 4), hard = false)
+        val rows = Csv.parse(ledger.exportGl(memoEntity, YearMonth.of(2026, 4)).content).drop(1)
+        rows.map { it[3] }.toSet() shouldBe setOf("1400", "2200")
     }
 }

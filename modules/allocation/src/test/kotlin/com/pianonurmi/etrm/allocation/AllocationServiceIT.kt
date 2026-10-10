@@ -80,7 +80,7 @@ import java.util.UUID
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AllocationServiceIT {
     private var currentUser = "trader"
-    private val actor = ActorProvider { Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE)) }
+    private val actor = ActorProvider { Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE), allEntities = true) }
     private val published = mutableListOf<Any>()
     private lateinit var allocation: AllocationService
     private lateinit var obligations: ObligationService

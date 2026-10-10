@@ -14,3 +14,12 @@
 - Purchases are delivered when the allowances arrive with the trade number as reference, or by a manual match.
 - Union Registry holdings statements reconcile balances per product (`BALANCE_MISMATCH` breaks).
 - Not yet: intercompany allowance trades record the sale on the selling entity and the receipt on the buying entity, but the mirror purchase trade is matched by hand.
+
+## Increment 3
+
+- The compliance ladder counts EU ETS products only (EUA, EUAA) and works per compliance year:
+  - obligation = emissions (verified, else forecast) − allowances already surrendered for the year;
+  - supply = held + firm purchases − firm sales delivering by the surrender deadline + free allocation still to be
+    issued (expected − already received, which is in the holdings);
+  - net position = supply − obligation.
+- The surrender deadline is 30 September of the following year for compliance years from 2024 (30 April before).

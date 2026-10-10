@@ -32,6 +32,16 @@ class BoundBuckets(val buckets: List<Pair<ProductBucketView, BoundCriterion>>, p
         .firstOrNull()
 }
 
+enum class BucketMatchKind {
+    /** The criteria are the bucket's own. */
+    EXACT,
+
+    /** Every certificate the criteria accept is in the bucket (proved, not guessed). */
+    IMPLIED,
+}
+
+data class BucketMatch(val bucket: ProductBucketView, val kind: BucketMatchKind)
+
 interface ProductBucketQuery {
     fun buckets(activeOnly: Boolean = true): List<ProductBucketView>
 
@@ -42,6 +52,12 @@ interface ProductBucketQuery {
     fun bucketById(id: UUID): ProductBucketView?
 
     fun bind(context: BindContext, activeOnly: Boolean = true): BoundBuckets
+
+    /**
+     * The bucket a delivery criterion belongs to: the bucket with the same stored criteria, else the most specific
+     * active bucket whose criteria provably contain it, bound for [context]. Null when no bucket contains it.
+     */
+    fun bucketFor(criteriaId: UUID?, criterion: Criterion, context: BindContext): BucketMatch?
 }
 
 data class CreateProductBucket(

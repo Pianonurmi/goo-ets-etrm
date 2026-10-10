@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPostingRuleRepository
+import com.pianonurmi.etrm.ledger.adapter.jooq.JooqSeedRepository
 import com.pianonurmi.etrm.ledger.api.PostingFacts
 import com.pianonurmi.etrm.ledger.application.LedgerService
 import com.pianonurmi.etrm.ledger.application.PostingRuleSeeder
@@ -51,7 +52,7 @@ import java.util.UUID
 /** Every settlement posting balances, and settled invoices leave nothing behind in the clearing accounts. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SettlementPostingsIT {
-    private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT)) }
+    private val actor = ActorProvider { Actor("accountant", "Accountant", setOf(Role.ACCOUNTANT), allEntities = true) }
     private val clock = Clock.fixed(Instant.parse("2026-10-15T10:00:00Z"), ZoneOffset.UTC)
     private lateinit var ledger: LedgerService
     private lateinit var postings: SettlementPostings
@@ -76,7 +77,7 @@ class SettlementPostingsIT {
             publisher,
             clock,
         )
-        PostingRuleSeeder(JooqPostingRuleRepository(dsl), ledger).seed()
+        PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         postings = SettlementPostings(ledger, referenceData)
     }
 

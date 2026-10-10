@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.referencedata.adapter.rest
 
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.BookView
 import com.pianonurmi.etrm.referencedata.api.CounterpartyView
 import com.pianonurmi.etrm.referencedata.api.CreateBook
@@ -36,7 +38,14 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/reference")
 @Tag(name = "Reference data", description = "Legal entities, books, counterparties, registries, registry accounts, production devices")
-class ReferenceDataController(private val query: ReferenceDataQuery, private val command: ReferenceDataCommand) {
+class ReferenceDataController(
+    private val query: ReferenceDataQuery,
+    private val command: ReferenceDataCommand,
+    private val actorProvider: ActorProvider,
+) {
+    /** Master data is maintained by middle office (and administrators); registry data also by operations. */
+    private fun requireMaintainer(vararg extra: Role) = actorProvider.current().requireRole(Role.MIDDLE_OFFICE, *extra)
+
     @GetMapping("/legal-entities")
     fun legalEntities(): List<LegalEntityView> = query.legalEntities()
 
@@ -49,13 +58,13 @@ class ReferenceDataController(private val query: ReferenceDataQuery, private val
     @ResponseStatus(HttpStatus.CREATED)
     fun createLegalEntity(
         @Valid @RequestBody body: CreateLegalEntity,
-    ): LegalEntityView = command.createLegalEntity(body)
+    ): LegalEntityView = requireMaintainer().let { command.createLegalEntity(body) }
 
     @PatchMapping("/legal-entities/{id}")
     fun updateLegalEntity(
         @PathVariable id: UUID,
         @Valid @RequestBody body: UpdateLegalEntity,
-    ): LegalEntityView = command.updateLegalEntity(id, body)
+    ): LegalEntityView = requireMaintainer().let { command.updateLegalEntity(id, body) }
 
     @GetMapping("/legal-entities/{id}/books")
     fun books(
@@ -66,7 +75,7 @@ class ReferenceDataController(private val query: ReferenceDataQuery, private val
     @ResponseStatus(HttpStatus.CREATED)
     fun createBook(
         @Valid @RequestBody body: CreateBook,
-    ): BookView = command.createBook(body)
+    ): BookView = requireMaintainer().let { command.createBook(body) }
 
     @GetMapping("/books/{id}")
     fun book(
@@ -85,13 +94,21 @@ class ReferenceDataController(private val query: ReferenceDataQuery, private val
     @ResponseStatus(HttpStatus.CREATED)
     fun createCounterparty(
         @Valid @RequestBody body: CreateCounterparty,
-    ): CounterpartyView = command.createCounterparty(body)
+    ): CounterpartyView {
+        requireMaintainer()
+        if (body.creditLimit != null) actorProvider.current().requireRole(Role.RISK)
+        return command.createCounterparty(body)
+    }
 
     @PatchMapping("/counterparties/{id}")
     fun updateCounterparty(
         @PathVariable id: UUID,
         @Valid @RequestBody body: UpdateCounterparty,
-    ): CounterpartyView = command.updateCounterparty(id, body)
+    ): CounterpartyView {
+        requireMaintainer()
+        if (body.creditLimit != null) actorProvider.current().requireRole(Role.RISK)
+        return command.updateCounterparty(id, body)
+    }
 
     @GetMapping("/registries")
     fun registries(): List<RegistryView> = query.registries()
@@ -112,7 +129,7 @@ class ReferenceDataController(private val query: ReferenceDataQuery, private val
     @ResponseStatus(HttpStatus.CREATED)
     fun createRegistryAccount(
         @Valid @RequestBody body: CreateRegistryAccount,
-    ): RegistryAccountView = command.createRegistryAccount(body)
+    ): RegistryAccountView = requireMaintainer(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR).let { command.createRegistryAccount(body) }
 
     @GetMapping("/production-devices")
     fun productionDevices(
@@ -128,14 +145,13 @@ class ReferenceDataController(private val query: ReferenceDataQuery, private val
     @ResponseStatus(HttpStatus.CREATED)
     fun createProductionDevice(
         @Valid @RequestBody body: CreateProductionDevice,
-    ): ProductionDeviceView = command.createProductionDevice(body)
+    ): ProductionDeviceView = requireMaintainer(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR).let { command.createProductionDevice(body) }
 
     @PatchMapping("/production-devices/{id}")
     fun updateProductionDevice(
         @PathVariable id: UUID,
         @Valid @RequestBody body: UpdateProductionDevice,
-    ): ProductionDeviceView =
-        command.updateProductionDevice(id, body)
+    ): ProductionDeviceView = requireMaintainer(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR).let { command.updateProductionDevice(id, body) }
 
     @GetMapping("/history/{table}/{id}")
     fun history(

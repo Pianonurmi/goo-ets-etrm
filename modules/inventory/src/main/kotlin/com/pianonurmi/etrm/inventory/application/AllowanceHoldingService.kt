@@ -96,4 +96,8 @@ class AllowanceHoldingService(
 
     @Transactional(readOnly = true)
     override fun movements(holdingId: UUID): List<AllowanceMovementView> = repository.movements(holdingId)
+
+    @Transactional(readOnly = true)
+    override fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>?): Long =
+        repository.movementTotal(holderEntityId, type, complianceYear, productCodes?.map { it.uppercase() }?.toSet())
 }

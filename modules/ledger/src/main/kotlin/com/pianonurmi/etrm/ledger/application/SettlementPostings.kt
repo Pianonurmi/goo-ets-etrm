@@ -7,8 +7,6 @@ import com.pianonurmi.etrm.settlement.api.InvoiceIssued
 import com.pianonurmi.etrm.settlement.api.InvoiceSettled
 import com.pianonurmi.etrm.settlement.api.PaymentRecorded
 import com.pianonurmi.etrm.settlement.api.SettlementDirection
-import com.pianonurmi.etrm.trade.api.DeliveryRecorded
-import com.pianonurmi.etrm.trade.api.PriceType
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 import java.math.RoundingMode
@@ -23,28 +21,6 @@ import java.util.UUID
  */
 @Component
 class SettlementPostings(private val ledger: LedgerService, private val referenceData: ReferenceDataQuery) {
-    /** A delivery releases its share of the trade's commitment memo. */
-    @EventListener
-    fun on(event: DeliveryRecorded) {
-        val o = event.obligation
-        if (o.priceType != PriceType.FIXED) return
-        ledger.post(
-            PostingFacts(
-                legalEntityId = o.legalEntityId,
-                eventType = "DeliveryRecorded",
-                eventId = event.eventId,
-                postingDate = event.deliveredOn,
-                currency = o.priceCurrency.currencyCode,
-                sourceType = "DELIVERY",
-                sourceRef = event.deliveryId.toString(),
-                description = "Delivered ${event.quantity.toPlainString()} on ${o.tradeNumber}",
-                amounts = mapOf("deliveredValue" to (event.quantity * o.price).setScale(2, RoundingMode.HALF_UP)),
-                attributes = mapOf("side" to o.side.name, "productFamily" to o.productFamily.name),
-                dimensions = mapOf("trade" to o.tradeNumber, "counterparty" to o.counterpartyId.toString()),
-            ),
-        )
-    }
-
     @EventListener
     fun on(event: InvoiceIssued) {
         val invoice = event.invoice
