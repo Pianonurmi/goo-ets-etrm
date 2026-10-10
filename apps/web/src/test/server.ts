@@ -34,4 +34,7 @@ export const server = setupServer(
     } satisfies Schema<'MeView'>);
   }),
   http.get(`${ORIGIN}/api/v1/reference/legal-entities`, () => HttpResponse.json(entities)),
+  http.get(`${ORIGIN}/api/v1/workflow/task-types`, () => HttpResponse.json([])),
+  http.get(`${ORIGIN}/api/v1/workflow/tasks/counts`, () => HttpResponse.json({ TRADE_APPROVAL: 2 })),
+  http.get(`${ORIGIN}/api/v1/workflow/tasks`, () => HttpResponse.json({ items: [], nextCursor: null })),
 );

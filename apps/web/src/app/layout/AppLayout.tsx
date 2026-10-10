@@ -1,12 +1,22 @@
-import { AppShell, Box, NavLink, ScrollArea, Text } from '@mantine/core';
+import { AppShell, Badge, Box, NavLink, ScrollArea, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, NavLink as RouterLink, useLocation } from 'react-router';
 import { useSession } from '@/shared/auth/SessionContext';
 import { QueryState } from '@/shared/components/QueryState';
+import { useActionableCounts } from '@/features/inbox/hooks';
 import { visibleSections } from '../navigation';
 import { Header } from './Header';
+
+function InboxBadge() {
+  const { total } = useActionableCounts();
+  return total > 0 ? (
+    <Badge size="sm" color="red" variant="filled" circle={total < 10} data-testid="inbox-badge">
+      {total}
+    </Badge>
+  ) : null;
+}
 
 function DevBanner() {
   const { t } = useTranslation();
@@ -59,6 +69,7 @@ export function AppLayout() {
                   to={item.path}
                   label={t(item.label)}
                   leftSection={item.icon}
+                  rightSection={item.badge === 'inbox' ? <InboxBadge /> : undefined}
                   active={isActive(item.path)}
                   onClick={close}
                 />

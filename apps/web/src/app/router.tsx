@@ -13,6 +13,14 @@ export const router = createBrowserRouter([
         index: true,
         lazy: async () => ({ Component: (await import('@/features/home/HomePage')).HomePage }),
       },
+      {
+        path: 'inbox',
+        lazy: async () => ({ Component: (await import('@/features/inbox/InboxPage')).InboxPage }),
+      },
+      {
+        path: 'inbox/:taskId',
+        lazy: async () => ({ Component: (await import('@/features/inbox/TaskDetailPage')).TaskDetailPage }),
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

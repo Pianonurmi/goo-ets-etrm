@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSession } from '@/shared/auth/SessionContext';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { useEntity } from '@/shared/context/EntityContext';
+import { MyTasksCard } from '@/features/inbox/MyTasksCard';
 
 export function HomePage() {
   const { t } = useTranslation();
@@ -40,6 +41,9 @@ export function HomePage() {
             {entity ? `${entity.code} · ${entity.name}` : t('header.noEntity')}
           </Text>
         </Card>
+      </SimpleGrid>
+      <SimpleGrid cols={{ base: 1, lg: 2 }}>
+        <MyTasksCard />
       </SimpleGrid>
     </Stack>
   );

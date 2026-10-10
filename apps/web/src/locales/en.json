@@ -11,7 +11,8 @@
     "sectionTrading": "Trading",
     "sectionOperations": "Operations",
     "sectionFinance": "Finance and risk",
-    "sectionAdmin": "Administration"
+    "sectionAdmin": "Administration",
+    "inbox": "Inbox"
   },
   "header": {
     "entity": "Legal entity",
@@ -45,6 +46,90 @@
   "common": {
     "yes": "Yes",
     "no": "No",
-    "empty": "Nothing to show"
+    "empty": "Nothing to show",
+    "cancel": "Cancel"
+  },
+  "inbox": {
+    "title": "Approval inbox",
+    "description": "Approvals and follow-ups from every module. Tasks you requested yourself need a second person.",
+    "empty": "No tasks match these filters",
+    "shown": "{{count}} tasks shown",
+    "loadMore": "Load more",
+    "back": "Back to the inbox",
+    "overdue": "Overdue",
+    "escalated": "Escalated ({{level}})",
+    "priority": "Priority {{priority}}",
+    "candidates": "Who may decide",
+    "fourEyes": "Four eyes",
+    "details": "Details",
+    "decide": "Decision",
+    "reason": "Reason",
+    "reasonHint": "Required for some decisions; recorded in the audit trail.",
+    "ownRequest": "You requested this. Another person has to decide it.",
+    "notCandidate": "Only {{roles}} can decide this task.",
+    "decidedBy": "Decided by {{user}} at {{at}}",
+    "assignment": "Assignment",
+    "claim": "Claim",
+    "release": "Release",
+    "assignTo": "Assign to user",
+    "assign": "Assign",
+    "comments": "Comments",
+    "noComments": "No comments yet",
+    "addComment": "Add comment",
+    "history": "History",
+    "bulkHint": "The decision applies to each selected task you may decide; the others are reported back.",
+    "bulkResult": "{{ok}} decided, {{failed}} refused",
+    "myTasks": "Waiting for you",
+    "noTasks": "Nothing waiting for you",
+    "openInbox": "Open the inbox",
+    "decision": {
+      "APPROVE": "Approve",
+      "REJECT": "Reject",
+      "ACKNOWLEDGE": "Acknowledge"
+    },
+    "decided": {
+      "APPROVE": "Approved",
+      "REJECT": "Rejected",
+      "ACKNOWLEDGE": "Acknowledged"
+    },
+    "bulk": {
+      "APPROVE": "Approve {{count}}",
+      "REJECT": "Reject {{count}}",
+      "ACKNOWLEDGE": "Acknowledge {{count}}"
+    },
+    "status": {
+      "OPEN": "Open",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "ACKNOWLEDGED": "Acknowledged",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled"
+    },
+    "sort": {
+      "DUE": "Due first",
+      "REQUESTED": "Newest first",
+      "PRIORITY": "Priority"
+    },
+    "filters": {
+      "status": "Status",
+      "type": "Task type",
+      "allTypes": "All types",
+      "sort": "Order",
+      "actionable": "Only what I can decide",
+      "mine": "Assigned to me",
+      "overdue": "Overdue only",
+      "entityOnly": "Only {{entity}}"
+    },
+    "columns": {
+      "priority": "Priority",
+      "type": "Type",
+      "summary": "Summary",
+      "subject": "Subject",
+      "requestedBy": "Requested by",
+      "requestedAt": "Requested",
+      "dueAt": "Due",
+      "assignee": "Assignee",
+      "status": "Status"
+    }
   }
 }

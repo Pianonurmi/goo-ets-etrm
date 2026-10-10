@@ -1,4 +1,4 @@
-import { IconHome } from '@tabler/icons-react';
+import { IconHome, IconInbox } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { Role } from '@/shared/api/types';
 
@@ -9,6 +9,8 @@ export interface NavItem {
   icon: ReactNode;
   /** Shown only to these roles (ADMIN sees everything); everyone when absent. */
   roles?: readonly Role[];
+  /** A live count shown next to the label. */
+  badge?: 'inbox';
 }
 
 export interface NavSection {
@@ -20,7 +22,14 @@ export interface NavSection {
 const ICON = 18;
 
 /** Navigation; each milestone of increment 4 adds its screens here. */
-export const NAVIGATION: NavSection[] = [{ items: [{ path: '/', label: 'nav.home', icon: <IconHome size={ICON} /> }] }];
+export const NAVIGATION: NavSection[] = [
+  {
+    items: [
+      { path: '/', label: 'nav.home', icon: <IconHome size={ICON} /> },
+      { path: '/inbox', label: 'nav.inbox', icon: <IconInbox size={ICON} />, badge: 'inbox' },
+    ],
+  },
+];
 
 export function visibleSections(roles: readonly Role[]): NavSection[] {
   const allowed = (item: NavItem) =>

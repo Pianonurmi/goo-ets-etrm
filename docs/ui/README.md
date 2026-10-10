@@ -54,6 +54,8 @@ src/locales    translations (English)
 e2e/           Playwright specs
 ```
 
+Screens, their operations and roles: [screens.md](screens.md).
+
 ## Conventions
 
 - **API calls:** go through `$api` (TanStack Query) or `api` (openapi-fetch); paths and bodies are typed from the
