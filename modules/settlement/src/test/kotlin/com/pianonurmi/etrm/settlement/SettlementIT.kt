@@ -157,6 +157,7 @@ class SettlementIT {
             BigDecimal.ZERO,
             mockk<FxRates>(relaxed = true),
             "EUR",
+            mockk(relaxed = true),
         )
         vat = VatRuleService(JooqVatRuleRepository(dsl), actor, bus)
         items = SettlementItemService(

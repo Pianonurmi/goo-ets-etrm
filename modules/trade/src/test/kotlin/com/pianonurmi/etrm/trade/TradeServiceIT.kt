@@ -15,12 +15,15 @@ import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
+import com.pianonurmi.etrm.product.adapter.jooq.JooqFuturesContractRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
 import com.pianonurmi.etrm.product.api.BucketMatchKind
+import com.pianonurmi.etrm.product.api.CreateFuturesContract
 import com.pianonurmi.etrm.product.api.InstrumentType
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.application.CriteriaServiceImpl
+import com.pianonurmi.etrm.product.application.FuturesContractService
 import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
@@ -44,15 +47,18 @@ import com.pianonurmi.etrm.trade.api.AmendTrade
 import com.pianonurmi.etrm.trade.api.CaptureDelivery
 import com.pianonurmi.etrm.trade.api.CaptureLeg
 import com.pianonurmi.etrm.trade.api.CaptureTrade
+import com.pianonurmi.etrm.trade.api.ClearingStatus
 import com.pianonurmi.etrm.trade.api.ConfirmTrade
 import com.pianonurmi.etrm.trade.api.DeliveryObligationClosed
 import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.RecordDelivery
+import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeConfirmed
 import com.pianonurmi.etrm.trade.api.TradeStatus
+import com.pianonurmi.etrm.trade.api.UtiSource
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
@@ -68,6 +74,7 @@ import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
+import java.time.YearMonth
 import java.util.UUID
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -77,6 +84,8 @@ class TradeServiceIT {
     private var currentUser = "trader1"
     private var override: Actor? = null
     private lateinit var tradeService: (BigDecimal, FxRates) -> TradeService
+    private lateinit var futures: FuturesContractService
+    private lateinit var referenceDataService: ReferenceDataService
     private val actor = ActorProvider { override ?: Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE), allEntities = true) }
 
     private lateinit var trades: TradeService
@@ -99,12 +108,27 @@ class TradeServiceIT {
         val dsl = TestDatabase.dsl
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), publisher)
         val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, publisher)
+        referenceDataService = referenceData
         val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
         val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
         ProductBucketSeeder(buckets, buckets).seed()
         val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
+        futures = FuturesContractService(JooqFuturesContractRepository(dsl), catalogue, actor)
         tradeService = { threshold, fx ->
-            TradeService(JooqTradeRepository(dsl), referenceData, criteria, buckets, catalogue, actor, publisher, Clock.systemUTC(), threshold, fx, "EUR")
+            TradeService(
+                JooqTradeRepository(dsl),
+                referenceData,
+                criteria,
+                buckets,
+                catalogue,
+                actor,
+                publisher,
+                Clock.systemUTC(),
+                threshold,
+                fx,
+                "EUR",
+                futures,
+            )
         }
         trades = tradeService(BigDecimal.ZERO, mockk<FxRates>(relaxed = true))
 
@@ -305,6 +329,118 @@ class TradeServiceIT {
         thresholded.capture(sale(50_000, "30", "SEK")).status shouldBe TradeStatus.PENDING_APPROVAL
         // A currency without a rate cannot be shown to be below the threshold.
         thresholded.capture(sale(10, "1", "USD")).status shouldBe TradeStatus.PENDING_APPROVAL
+    }
+
+    private fun euaTrade(
+        entity: UUID,
+        book: UUID,
+        counterparty: UUID,
+        instrument: InstrumentType,
+        delivery: LocalDate,
+        quantity: Long = 5_000,
+        contract: String? = null,
+        regulatory: RegulatoryTerms? = null,
+    ) = CaptureTrade(
+        legalEntityId = entity,
+        bookId = book,
+        counterpartyId = counterparty,
+        productFamily = ProductFamily.EMISSION_ALLOWANCE,
+        instrumentType = instrument,
+        tradeDate = LocalDate.of(2026, 10, 9),
+        legs = listOf(
+            CaptureLeg(
+                side = Side.BUY,
+                allowanceProductCode = "EUA",
+                quantity = BigDecimal(quantity),
+                unit = QuantityUnit.TCO2E,
+                price = BigDecimal("72.50"),
+                deliveries = listOf(CaptureDelivery(LocalDateRange(delivery, delivery.plusDays(1)), delivery, BigDecimal(quantity))),
+                futuresContractCode = contract,
+            ),
+        ),
+        regulatory = regulatory,
+    )
+
+    @Test
+    fun `allowance derivatives get a UTI from the entity's LEI that survives amendments, spot trades are not reportable`() {
+        currentUser = "trader1"
+        val lei = "743700AAAAAAAAAAAA24"
+        val entity = referenceDataService.createLegalEntity(CreateLegalEntity("REG-CO", "Reg Co", "FI", lei = lei, validFrom = LocalDate.of(2026, 1, 1))).id
+        val book = referenceDataService.createBook(CreateBook(entity, "EUA-T", "EUA trading", BookType.TRADING)).id
+        val forward = trades.capture(euaTrade(entity, book, external, InstrumentType.FORWARD, LocalDate.of(2026, 12, 15)))
+        forward.emirReportable shouldBe true
+        forward.regulatory.uti!! shouldStartWith lei
+        forward.regulatory.utiSource shouldBe UtiSource.OWN
+        val amended = trades.amend(forward.id, AmendTrade(expectedVersion = forward.version, reason = "venue", regulatory = RegulatoryTerms(venueMic = "XOFF")))
+        amended.regulatory.uti shouldBe forward.regulatory.uti
+        amended.regulatory.venueMic shouldBe "XOFF"
+        shouldThrow<ValidationException> {
+            trades.amend(forward.id, AmendTrade(expectedVersion = amended.version, reason = "uti", regulatory = RegulatoryTerms(uti = lei + "OTHER")))
+        }
+        shouldThrow<ValidationException> {
+            trades.capture(
+                euaTrade(entity, book, external, InstrumentType.FORWARD, LocalDate.of(2026, 12, 15), regulatory = RegulatoryTerms(venueMic = "nope")),
+            )
+        }
+        // Delivery two working days after a Friday trade is spot.
+        trades.capture(euaTrade(entity, book, external, InstrumentType.FORWARD, LocalDate.of(2026, 10, 13))).let {
+            it.emirReportable shouldBe false
+            it.regulatory.uti shouldBe null
+        }
+        // The counterparty generates the UTI: none of ours.
+        trades.capture(
+            euaTrade(
+                entity,
+                book,
+                external,
+                InstrumentType.FORWARD,
+                LocalDate.of(2027, 3, 1),
+                regulatory = RegulatoryTerms(utiSource = UtiSource.COUNTERPARTY),
+            ),
+        ).regulatory.uti shouldBe null
+    }
+
+    @Test
+    fun `futures deliver once in whole lots on the contract's venue and are cleared`() {
+        currentUser = "trader1"
+        val entity = referenceDataService.createLegalEntity(CreateLegalEntity("FUT-CO", "Fut Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        val book = referenceDataService.createBook(CreateBook(entity, "EUA-F", "EUA futures", BookType.HEDGING)).id
+        val ccp = referenceDataService.createCounterparty(
+            CreateCounterparty("ECC", "European Commodity Clearing", "DE", counterpartyType = CounterpartyType.CLEARING_HOUSE),
+        ).id
+        override = Actor("mo", "MO", setOf(Role.MIDDLE_OFFICE), allEntities = true)
+        futures.create(
+            CreateFuturesContract(
+                "TST_EUA_DEC26",
+                "EUA",
+                "XEEE",
+                YearMonth.of(2026, 12),
+                LocalDate.of(2026, 12, 21),
+                LocalDate.of(2026, 12, 21),
+                BigDecimal(1000),
+            ),
+        )
+        override = null
+        val dec = LocalDate.of(2026, 12, 21)
+        trades.capture(euaTrade(entity, book, ccp, InstrumentType.FUTURE, dec, contract = "TST_EUA_DEC26")).let {
+            it.regulatory.venueMic shouldBe "XEEE"
+            it.regulatory.clearingStatus shouldBe ClearingStatus.CLEARED
+            it.regulatory.ccpCounterpartyId shouldBe ccp
+            it.legs.single().futuresContractCode shouldBe "TST_EUA_DEC26"
+        }
+        shouldThrow<ValidationException> { trades.capture(euaTrade(entity, book, external, InstrumentType.FUTURE, dec, contract = "TST_EUA_DEC26")) }
+        shouldThrow<ValidationException> {
+            trades.capture(euaTrade(entity, book, ccp, InstrumentType.FUTURE, dec, quantity = 1_500, contract = "TST_EUA_DEC26"))
+        }
+        shouldThrow<ValidationException> { trades.capture(euaTrade(entity, book, ccp, InstrumentType.FUTURE, dec.minusDays(1), contract = "TST_EUA_DEC26")) }
+        shouldThrow<ValidationException> { trades.capture(euaTrade(entity, book, ccp, InstrumentType.FUTURE, dec)) }
+        shouldThrow<ValidationException> {
+            trades.capture(
+                euaTrade(entity, book, ccp, InstrumentType.FUTURE, dec, contract = "TST_EUA_DEC26").let { c ->
+                    c.copy(legs = c.legs.map { it.copy(isin = "DE000A1234567") })
+                },
+            )
+        }
     }
 
     @Test

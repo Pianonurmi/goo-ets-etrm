@@ -41,7 +41,11 @@ data class LegalEntityView(
     val active: Boolean,
     val version: Int,
     val obligationsOpenAt: ObligationsOpenAt = ObligationsOpenAt.CONFIRMED,
+    val emirClassification: EmirClassification? = null,
 )
+
+/** EMIR counterparty classification: financial, non-financial above or below the clearing threshold, or outside the EU. */
+enum class EmirClassification { FC, NFC_PLUS, NFC_MINUS, THIRD_COUNTRY_ENTITY, OTHER }
 
 enum class BookType { TRADING, OWN_USE, HEDGING, COMPLIANCE }
 
@@ -81,6 +85,9 @@ data class CounterpartyView(
     /** We invoice our purchases from this counterparty ourselves (self-billing agreement). */
     val selfBilling: Boolean = false,
     val invoiceEmail: String? = null,
+    val emirClassification: EmirClassification? = null,
+    /** The group parent; credit exposure and limits roll up to it. */
+    val parentCounterpartyId: UUID? = null,
 )
 
 enum class RegistryType { GOO, EMISSION_ALLOWANCE }
@@ -175,6 +182,7 @@ data class CreateLegalEntity(
     val accountingPolicy: AccountingPolicy = AccountingPolicy(),
     val validFrom: LocalDate,
     val obligationsOpenAt: ObligationsOpenAt = ObligationsOpenAt.CONFIRMED,
+    val emirClassification: EmirClassification? = null,
 )
 
 data class UpdateLegalEntity(
@@ -186,6 +194,7 @@ data class UpdateLegalEntity(
     val validTo: LocalDate? = null,
     val expectedVersion: Int,
     val obligationsOpenAt: ObligationsOpenAt? = null,
+    val emirClassification: EmirClassification? = null,
 )
 
 data class CreateBook(
@@ -212,6 +221,8 @@ data class CreateCounterparty(
     val nettingAgreed: Boolean = false,
     val selfBilling: Boolean = false,
     val invoiceEmail: String? = null,
+    val emirClassification: EmirClassification? = null,
+    val parentCounterpartyId: UUID? = null,
 )
 
 data class UpdateCounterparty(
@@ -226,6 +237,8 @@ data class UpdateCounterparty(
     val nettingAgreed: Boolean? = null,
     val selfBilling: Boolean? = null,
     val invoiceEmail: String? = null,
+    val emirClassification: EmirClassification? = null,
+    val parentCounterpartyId: UUID? = null,
 )
 
 data class CreateRegistryAccount(

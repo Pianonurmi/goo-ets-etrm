@@ -12,9 +12,11 @@ import com.pianonurmi.etrm.referencedata.api.CreateCounterparty
 import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
 import com.pianonurmi.etrm.referencedata.api.CreateProductionDevice
 import com.pianonurmi.etrm.referencedata.api.CreateRegistryAccount
+import com.pianonurmi.etrm.referencedata.api.EmirClassification
 import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.OwnerType
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
+import com.pianonurmi.etrm.referencedata.api.UpdateCounterparty
 import com.pianonurmi.etrm.referencedata.api.UpdateLegalEntity
 import com.pianonurmi.etrm.referencedata.api.UpdateProductionDevice
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
@@ -43,6 +45,19 @@ class ReferenceDataServiceIT {
         val publisher = ApplicationEventPublisher { }
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(TestDatabase.dsl), publisher)
         service = ReferenceDataService(JooqReferenceDataRepository(TestDatabase.dsl), taxonomy, publisher)
+    }
+
+    @Test
+    fun `counterparties carry their EMIR classification and group parent, without cycles`() {
+        val parent = service.createCounterparty(CreateCounterparty("GRP-PARENT", "Group Parent AG", "DE", emirClassification = EmirClassification.FC))
+        val child = service.createCounterparty(CreateCounterparty("GRP-CHILD", "Group Trading GmbH", "DE", parentCounterpartyId = parent.id))
+        child.parentCounterpartyId shouldBe parent.id
+        shouldThrow<ValidationException> {
+            service.updateCounterparty(parent.id, UpdateCounterparty(expectedVersion = parent.version, parentCounterpartyId = child.id))
+        }
+        service.updateCounterparty(child.id, UpdateCounterparty(expectedVersion = child.version, emirClassification = EmirClassification.NFC_PLUS))
+            .emirClassification shouldBe EmirClassification.NFC_PLUS
+        service.requireCounterparty(parent.id).emirClassification shouldBe EmirClassification.FC
     }
 
     @Test

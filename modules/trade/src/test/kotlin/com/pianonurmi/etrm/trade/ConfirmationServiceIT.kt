@@ -111,6 +111,7 @@ class ConfirmationServiceIT {
             BigDecimal.ZERO,
             mockk<FxRates>(relaxed = true),
             "EUR",
+            mockk(relaxed = true),
         )
         documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
         confirmations = ConfirmationService(JooqConfirmationRepository(dsl), trades, referenceData, documents, actor, bus, clock)

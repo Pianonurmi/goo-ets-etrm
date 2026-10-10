@@ -141,6 +141,7 @@ class AllocationServiceIT {
                 BigDecimal.ZERO,
                 mockk<FxRates>(relaxed = true),
                 "EUR",
+                mockk(relaxed = true),
             )
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, referenceData, bus)

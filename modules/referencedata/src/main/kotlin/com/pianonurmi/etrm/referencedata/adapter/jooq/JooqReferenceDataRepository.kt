@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.BookView
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
 import com.pianonurmi.etrm.referencedata.api.CounterpartyView
+import com.pianonurmi.etrm.referencedata.api.EmirClassification
 import com.pianonurmi.etrm.referencedata.api.FreeAllocationPolicy
 import com.pianonurmi.etrm.referencedata.api.GooCostingMethod
 import com.pianonurmi.etrm.referencedata.api.HistoryEntry
@@ -92,6 +93,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         allowanceClassification = entity.accountingPolicy.allowanceClassification.name
         freeAllocationPolicy = entity.accountingPolicy.freeAllocationPolicy.name
         obligationsOpenAt = entity.obligationsOpenAt.name
+        emirClassification = entity.emirClassification?.name
         validTo = entity.validPeriod.validTo
         active = entity.active
     }
@@ -115,6 +117,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         active = r.active,
         version = r.version,
         obligationsOpenAt = ObligationsOpenAt.valueOf(r.obligationsOpenAt),
+        emirClassification = r.emirClassification?.let(EmirClassification::valueOf),
     )
 
     // ----------------------------------------------------------------------------------------------------------
@@ -192,6 +195,8 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         nettingAgreed = c.nettingAgreed
         selfBilling = c.selfBilling
         invoiceEmail = c.invoiceEmail
+        emirClassification = c.emirClassification?.name
+        parentCounterpartyId = c.parentCounterpartyId
     }
 
     private fun toCounterparty(r: CounterpartyRecord) = CounterpartyView(
@@ -212,6 +217,8 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         nettingAgreed = r.nettingAgreed,
         selfBilling = r.selfBilling,
         invoiceEmail = r.invoiceEmail,
+        emirClassification = r.emirClassification?.let(EmirClassification::valueOf),
+        parentCounterpartyId = r.parentCounterpartyId,
     )
 
     // ----------------------------------------------------------------------------------------------------------

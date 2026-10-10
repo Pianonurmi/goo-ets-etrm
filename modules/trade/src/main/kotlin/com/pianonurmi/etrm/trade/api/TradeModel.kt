@@ -83,6 +83,12 @@ data class TradeLegView(
     val counterpartyAccountId: UUID? = null,
     /** How [bucketCode] was found: the bucket's own criteria, or a bucket that provably contains the leg's criteria. */
     val bucketMatch: BucketMatchKind? = null,
+    /** For exchange futures: the listed contract (product catalogue). */
+    val futuresContractCode: String? = null,
+    /** Unique product identifier (ISO 4914) for OTC derivatives. */
+    val upi: String? = null,
+    /** ISIN of the instrument when it has one (futures, venue-traded contracts). */
+    val isin: String? = null,
 ) {
     val notional: BigDecimal get() = quantity * price
 }
@@ -111,8 +117,12 @@ data class TradeView(
     val legs: List<TradeLegView>,
     /** The legal entity's policy when the trade was captured. */
     val obligationsOpenAt: ObligationsOpenAt = ObligationsOpenAt.CONFIRMED,
+    val regulatory: RegulatoryTerms = RegulatoryTerms(),
 ) {
     val notional: BigDecimal get() = legs.sumOf { it.notional }
+
+    /** Whether the trade is an EMIR-reportable derivative (see [RegulatoryScope]). */
+    val emirReportable: Boolean get() = RegulatoryScope.reportable(this)
 
     /** Whether the trade's deliveries are obligations: once firm, or once approved where the entity's policy says so. */
     val obligationsOpen: Boolean get() = status.firm || (status == TradeStatus.APPROVED && obligationsOpenAt == ObligationsOpenAt.APPROVED)
@@ -159,6 +169,9 @@ data class CaptureLeg(
     /** `REGISTRY_CODE:account`; resolved to a registered account when one exists, otherwise kept as free text. */
     val counterpartyAccountRef: String? = null,
     val deliveries: List<CaptureDelivery>,
+    val futuresContractCode: String? = null,
+    val upi: String? = null,
+    val isin: String? = null,
 )
 
 data class CaptureTrade(
@@ -176,6 +189,7 @@ data class CaptureTrade(
     /** For intercompany trades: the book in the counterparty legal entity that receives the mirrored trade. */
     val mirrorBookId: UUID? = null,
     val reason: String? = null,
+    val regulatory: RegulatoryTerms? = null,
 )
 
 data class AmendTrade(
@@ -186,6 +200,8 @@ data class AmendTrade(
     val masterAgreementRef: String? = null,
     val externalRef: String? = null,
     val legs: List<CaptureLeg>? = null,
+    /** New regulatory terms; a UTI once assigned is kept for the life of the trade. */
+    val regulatory: RegulatoryTerms? = null,
 )
 
 data class ConfirmTrade(val confirmationRef: String, val method: String = "EMAIL", val confirmedAt: Instant? = null)
@@ -322,3 +338,57 @@ data class DeliveryObligationChanged(val obligation: DeliveryObligationView, val
 
 data class DeliveryObligationClosed(val obligation: DeliveryObligationView, val reason: String, val metadata: EventMetadata = EventMetadata()) :
     DomainEvent by metadata
+
+/** Who generated the unique transaction identifier. */
+enum class UtiSource { OWN, COUNTERPARTY, VENUE }
+
+enum class ClearingStatus { NOT_CLEARED, CLEARED, INTEND_TO_CLEAR }
+
+/** MiFIR trading capacity: dealing on own account, matched principal, any other capacity. */
+enum class TradeCapacity { DEAL, MTCH, AOTC }
+
+/** Who reports the trade to a trade repository under EMIR. */
+enum class ReportingResponsibility { SELF, COUNTERPARTY, BOTH }
+
+/** Data that EMIR and MiFID II reporting of allowance derivatives need; validated on capture and amendment. */
+data class RegulatoryTerms(
+    /** ISO 23897: the generating entity's LEI followed by up to 32 characters. */
+    val uti: String? = null,
+    val utiSource: UtiSource? = null,
+    val executionTimestamp: Instant? = null,
+    /** ISO 10383 MIC of the venue, or `XOFF` for a trade concluded off venue. */
+    val venueMic: String? = null,
+    val clearingStatus: ClearingStatus = ClearingStatus.NOT_CLEARED,
+    /** The central counterparty when cleared. */
+    val ccpCounterpartyId: UUID? = null,
+    val tradeCapacity: TradeCapacity? = null,
+    val reportingResponsibility: ReportingResponsibility? = null,
+)
+
+/**
+ * Which trades are reportable derivatives under EMIR: forwards, futures, swaps and options on emission allowances.
+ * Allowance forwards delivering entirely within two working days of the trade date are spot transactions, not
+ * derivatives. GoO trades are not financial instruments. To be confirmed by compliance for each entity.
+ */
+object RegulatoryScope {
+    private val derivatives = setOf(InstrumentType.FORWARD, InstrumentType.FUTURE, InstrumentType.SWAP, InstrumentType.OPTION)
+
+    fun reportable(trade: TradeView): Boolean {
+        if (trade.productFamily != ProductFamily.EMISSION_ALLOWANCE || trade.instrumentType !in derivatives) return false
+        if (trade.instrumentType != InstrumentType.FORWARD) return true
+        val spotLimit = workingDaysAfter(trade.tradeDate, SPOT_DAYS)
+        return trade.legs.flatMap { it.deliveries }.any { it.deliveryDate.isAfter(spotLimit) }
+    }
+
+    private fun workingDaysAfter(date: LocalDate, days: Int): LocalDate {
+        var d = date
+        var left = days
+        while (left > 0) {
+            d = d.plusDays(1)
+            if (d.dayOfWeek.value <= 5) left--
+        }
+        return d
+    }
+
+    private const val SPOT_DAYS = 2
+}

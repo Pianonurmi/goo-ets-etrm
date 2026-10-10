@@ -9,17 +9,21 @@ import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.EnergyCarrier
+import com.pianonurmi.etrm.product.api.FuturesContractQuery
+import com.pianonurmi.etrm.product.api.InstrumentType
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductCatalogueQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
 import com.pianonurmi.etrm.referencedata.api.HolderType
+import com.pianonurmi.etrm.referencedata.api.LegalEntityView
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
 import com.pianonurmi.etrm.trade.api.AmendTrade
 import com.pianonurmi.etrm.trade.api.CaptureLeg
 import com.pianonurmi.etrm.trade.api.CaptureTrade
+import com.pianonurmi.etrm.trade.api.ClearingStatus
 import com.pianonurmi.etrm.trade.api.ConfirmTrade
 import com.pianonurmi.etrm.trade.api.DeliveryObligationChanged
 import com.pianonurmi.etrm.trade.api.DeliveryObligationClosed
@@ -29,6 +33,7 @@ import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.RecordDelivery
+import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeAmended
 import com.pianonurmi.etrm.trade.api.TradeApproved
@@ -43,6 +48,8 @@ import com.pianonurmi.etrm.trade.api.TradeSettled
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeVersionView
 import com.pianonurmi.etrm.trade.api.TradeView
+import com.pianonurmi.etrm.trade.api.UtiSource
+import com.pianonurmi.etrm.trade.domain.RegulatoryChecks
 import com.pianonurmi.etrm.trade.domain.TradeAggregate
 import com.pianonurmi.etrm.trade.domain.TradeRepository
 import org.springframework.beans.factory.annotation.Value
@@ -69,6 +76,7 @@ class TradeService(
     @Value("\${etrm.trade.approval-threshold:0}") private val approvalThreshold: BigDecimal,
     private val fxRates: FxRates,
     @Value("\${etrm.trade.approval-threshold-currency:EUR}") private val thresholdCurrency: String,
+    private val futures: FuturesContractQuery,
 ) : TradeCommand, TradeQuery {
     // ----------------------------------------------------------------------------------------------------------
     // Capture and amendment
@@ -114,7 +122,10 @@ class TradeService(
             },
             mirrorBookId = null,
         )
-        val mirror = build(mirrorCommand, actor).copy(intercompanyLinkId = original.id)
+        // One transaction, one UTI: the mirror reports the original's identifier.
+        val mirror = build(mirrorCommand, actor).let {
+            it.copy(intercompanyLinkId = original.id, regulatory = it.regulatory.copy(uti = original.regulatory.uti, utiSource = original.regulatory.utiSource))
+        }
         repository.insert(mirror, actor, "intercompany mirror of ${original.tradeNumber}")
         val submitted = TradeAggregate(mirror).submitForApproval(requiresApproval(mirror))
         repository.saveVersion(submitted, actor, "submitted")
@@ -132,7 +143,7 @@ class TradeService(
         command.brokerId?.let(referenceData::requireCounterparty)
         if (command.legs.isEmpty()) throw ValidationException("A trade needs at least one leg")
         val id = Ids.newId()
-        return TradeView(
+        val trade = TradeView(
             id = id,
             tradeNumber = repository.nextTradeNumber(command.tradeDate.year),
             legalEntityId = entity.id,
@@ -155,7 +166,75 @@ class TradeService(
             createdBy = actor,
             legs = command.legs.mapIndexed { index, leg -> buildLeg(command.productFamily, command.legalEntityId, command.counterpartyId, index + 1, leg) },
             obligationsOpenAt = entity.obligationsOpenAt,
+            regulatory = command.regulatory ?: RegulatoryTerms(),
         )
+        return withRegulatoryTerms(trade, entity, keptUti = null)
+    }
+
+    /**
+     * Checks the regulatory identifiers, completes futures from their contract (venue, clearing), and gives a
+     * reportable trade our own UTI when no other party generates one. A UTI, once assigned, never changes.
+     */
+    private fun withRegulatoryTerms(trade: TradeView, entity: LegalEntityView, keptUti: String?): TradeView {
+        var terms = trade.regulatory
+        if (keptUti != null) {
+            if (terms.uti != null && terms.uti != keptUti) throw ValidationException("The UTI of ${trade.tradeNumber} is $keptUti and cannot change")
+            terms = terms.copy(uti = keptUti)
+        }
+        terms.venueMic?.let { if (!RegulatoryChecks.mic(it)) throw ValidationException("Venue $it is not an ISO 10383 MIC (use XOFF off venue)") }
+        terms.uti?.let { if (!RegulatoryChecks.uti(it)) throw ValidationException("UTI $it is not an ISO 23897 identifier starting with a valid LEI") }
+        terms.ccpCounterpartyId?.let {
+            if (referenceData.requireCounterparty(
+                    it,
+                ).counterpartyType != CounterpartyType.CLEARING_HOUSE
+            ) {
+                throw ValidationException("The CCP must be a clearing house")
+            }
+        }
+        if (trade.instrumentType == InstrumentType.FUTURE) terms = futuresTerms(trade, terms)
+        if (terms.clearingStatus == ClearingStatus.CLEARED && terms.ccpCounterpartyId == null) throw ValidationException("A cleared trade names its CCP")
+        val lei = entity.lei
+        if (lei != null && generatesOwnUti(trade, terms)) {
+            terms = terms.copy(uti = (lei + "ETRM" + trade.tradeNumber.filter(Char::isLetterOrDigit)).uppercase().take(UTI_LENGTH), utiSource = UtiSource.OWN)
+        }
+        return trade.copy(regulatory = terms)
+    }
+
+    private fun generatesOwnUti(trade: TradeView, terms: RegulatoryTerms): Boolean =
+        terms.uti == null && trade.emirReportable && (terms.utiSource ?: UtiSource.OWN) == UtiSource.OWN
+
+    /** An exchange future delivers once, on the contract's date, in whole lots, cleared, on the contract's venue. */
+    private fun futuresTerms(trade: TradeView, terms: RegulatoryTerms): RegulatoryTerms {
+        val counterparty = referenceData.requireCounterparty(trade.counterpartyId)
+        if (counterparty.counterpartyType != CounterpartyType.EXCHANGE && counterparty.counterpartyType != CounterpartyType.CLEARING_HOUSE) {
+            throw ValidationException("A future is traded with an exchange or clearing house, not ${counterparty.code}")
+        }
+        val venues = trade.legs.map { leg ->
+            val code = leg.futuresContractCode ?: throw ValidationException("Leg ${leg.legNo}: a future names its futuresContractCode")
+            val contract = futures.futuresContract(code)?.takeIf { it.active } ?: throw NotFoundException("FuturesContract", code)
+            if (leg.allowanceProductCode != contract.allowanceProductCode) {
+                throw ValidationException(
+                    "Leg ${leg.legNo}: contract $code is on ${contract.allowanceProductCode}",
+                )
+            }
+            if (leg.deliveries.size != 1 || leg.deliveries.single().deliveryDate != contract.deliveryDate) {
+                throw ValidationException("Leg ${leg.legNo}: a future delivers once, on ${contract.deliveryDate}")
+            }
+            if (leg.quantity.remainder(contract.contractSize).signum() != 0) {
+                throw ValidationException("Leg ${leg.legNo}: quantity must be whole lots of ${contract.contractSize.stripTrailingZeros().toPlainString()}")
+            }
+            if (leg.priceCurrency.currencyCode != contract.currency) {
+                throw ValidationException(
+                    "Leg ${leg.legNo}: contract $code trades in ${contract.currency}",
+                )
+            }
+            if (trade.tradeDate.isAfter(contract.lastTradingDay)) throw ValidationException("Contract $code stopped trading on ${contract.lastTradingDay}")
+            contract.venueMic
+        }.toSet()
+        val venue = venues.singleOrNull() ?: throw ValidationException("All legs of a future trade on one venue")
+        if (terms.venueMic != null && terms.venueMic != venue) throw ValidationException("The contracts trade on $venue, not ${terms.venueMic}")
+        val ccp = terms.ccpCounterpartyId ?: trade.counterpartyId.takeIf { counterparty.counterpartyType == CounterpartyType.CLEARING_HOUSE }
+        return terms.copy(venueMic = venue, clearingStatus = ClearingStatus.CLEARED, ccpCounterpartyId = ccp)
     }
 
     private fun buildLeg(family: ProductFamily, legalEntityId: UUID, counterpartyId: UUID, legNo: Int, leg: CaptureLeg): TradeLegView {
@@ -216,8 +295,17 @@ class TradeService(
             deliveries = leg.deliveries.sortedBy { it.deliveryDate }.mapIndexed { i, d ->
                 DeliveryScheduleView(Ids.newId(), i + 1, d.deliveryWindow, d.deliveryDate, d.quantity, BigDecimal.ZERO, d.paymentDate, DeliveryStatus.PENDING)
             },
+            futuresContractCode = leg.futuresContractCode?.uppercase(),
+            upi = checkedUpi(legNo, leg.upi),
+            isin = checkedIsin(legNo, leg.isin),
         )
     }
+
+    private fun checkedUpi(legNo: Int, upi: String?): String? =
+        upi?.uppercase()?.also { if (!RegulatoryChecks.upi(it)) throw ValidationException("Leg $legNo: UPI $it is not 12 characters") }
+
+    private fun checkedIsin(legNo: Int, isin: String?): String? =
+        isin?.uppercase()?.also { if (!RegulatoryChecks.isin(it)) throw ValidationException("Leg $legNo: ISIN $it has a wrong format or check digit") }
 
     /**
      * The counterparty's registry account for a leg: the explicit account (which must belong to the counterparty, or
@@ -262,7 +350,8 @@ class TradeService(
             masterAgreementRef = command.masterAgreementRef ?: current.masterAgreementRef,
             externalRef = command.externalRef ?: current.externalRef,
             legs = legs,
-        )
+            regulatory = command.regulatory ?: current.regulatory,
+        ).let { withRegulatoryTerms(it, referenceData.requireLegalEntity(current.legalEntityId), keptUti = current.regulatory.uti) }
         val wasFirm = current.obligationsOpen
         val next = TradeAggregate(current).amend(amended)
         save(next, actor, command.reason)
@@ -439,5 +528,9 @@ class TradeService(
                 priceIndex = leg.priceIndex,
             )
         }
+    }
+
+    private companion object {
+        const val UTI_LENGTH = 52
     }
 }

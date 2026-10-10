@@ -33,7 +33,7 @@ GL interface format, market data vendor for bucket marks.
 | M0 | Fixes: final hard close, commitment memos per schedule (released and reversed), FX inverse and cross rates, bucket mapping by criteria implication, compliance ladder netting, role and entity checks, GL export correctness, versioned default rules | done |
 | M1 | `marketdata` module: instruments, quotes, FX, import formats as data, ECB reference rate adapter (disabled by default), futures contract catalogue | done |
 | M2 | Curves with official snapshots and sign-off; allocation marks from vintage curves; INDEX legs priced from fixings | done |
-| M3 | Regulatory trade data (UTI, UPI/ISIN, venue, execution time, clearing) and futures contracts | planned |
+| M3 | Regulatory trade data (UTI, UPI/ISIN, venue, execution time, clearing), EMIR classification and counterparty groups, futures validation | done |
 | M4 | `valuation` module: MtM, end-of-day runs with sign-off, P&L explain | planned |
 | M5 | `etscompliance` module: installations, emissions, free allocation, surrenders, deadlines | planned |
 | M6 | Ledger period end: MtM by book type policy, NRV, emission provision, free allocation release, FX revaluation | planned |

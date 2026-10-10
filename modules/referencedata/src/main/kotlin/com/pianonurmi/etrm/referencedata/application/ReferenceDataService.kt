@@ -147,6 +147,7 @@ class ReferenceDataService(
             active = true,
             version = 1,
             obligationsOpenAt = command.obligationsOpenAt,
+            emirClassification = command.emirClassification,
         )
         repository.insertLegalEntity(entity)
         events.publishEvent(LegalEntityChanged(entity.id))
@@ -163,6 +164,7 @@ class ReferenceDataService(
             vatNumber = command.vatNumber ?: current.vatNumber,
             accountingPolicy = command.accountingPolicy ?: current.accountingPolicy,
             obligationsOpenAt = command.obligationsOpenAt ?: current.obligationsOpenAt,
+            emirClassification = command.emirClassification ?: current.emirClassification,
             active = command.active ?: current.active,
             validPeriod = command.validTo?.let { current.validPeriod.endingAt(it) } ?: current.validPeriod,
             version = current.version + 1,
@@ -226,6 +228,8 @@ class ReferenceDataService(
             nettingAgreed = command.nettingAgreed,
             selfBilling = command.selfBilling,
             invoiceEmail = command.invoiceEmail?.trim(),
+            emirClassification = command.emirClassification,
+            parentCounterpartyId = command.parentCounterpartyId?.also { requireParent(it, null) },
         )
         repository.insertCounterparty(counterparty)
         events.publishEvent(CounterpartyChanged(counterparty.id))
@@ -247,6 +251,8 @@ class ReferenceDataService(
             nettingAgreed = command.nettingAgreed ?: current.nettingAgreed,
             selfBilling = command.selfBilling ?: current.selfBilling,
             invoiceEmail = command.invoiceEmail?.trim() ?: current.invoiceEmail,
+            emirClassification = command.emirClassification ?: current.emirClassification,
+            parentCounterpartyId = command.parentCounterpartyId?.also { requireParent(it, id) } ?: current.parentCounterpartyId,
             version = current.version + 1,
         )
         if (!repository.updateCounterparty(updated, command.expectedVersion)) {
@@ -254,6 +260,16 @@ class ReferenceDataService(
         }
         events.publishEvent(CounterpartyChanged(id))
         return updated
+    }
+
+    /** A group parent must exist and must not be the counterparty itself or one of its descendants. */
+    private fun requireParent(parentId: UUID, childId: UUID?) {
+        var cursor: UUID? = parentId
+        val seen = mutableSetOf<UUID>()
+        while (cursor != null) {
+            if (cursor == childId || !seen.add(cursor)) throw ValidationException("Counterparty groups cannot form a cycle")
+            cursor = requireCounterparty(cursor).parentCounterpartyId
+        }
     }
 
     @Transactional
