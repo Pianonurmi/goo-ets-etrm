@@ -195,7 +195,18 @@ interface LedgerCommand {
 interface LedgerQuery {
     fun entry(id: UUID): JournalEntryView?
 
-    fun entries(legalEntityId: UUID, period: YearMonth? = null, sourceRef: String? = null, limit: Int = 500): List<JournalEntryView>
+    /**
+     * Entries in entry-number order. [accountCode] keeps entries with a line on that account; [afterEntryNumber] pages
+     * forward (keyset) from the last entry number of the previous page.
+     */
+    fun entries(
+        legalEntityId: UUID,
+        period: YearMonth? = null,
+        sourceRef: String? = null,
+        limit: Int = 500,
+        accountCode: String? = null,
+        afterEntryNumber: Long? = null,
+    ): List<JournalEntryView>
 
     fun trialBalance(legalEntityId: UUID, period: YearMonth): List<TrialBalanceRow>
 

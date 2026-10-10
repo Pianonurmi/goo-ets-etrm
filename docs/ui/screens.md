@@ -22,6 +22,12 @@ legal-entity scope; the UI only mirrors them.
 | Limit detail | `/risk/limits/:limitId` | `risk_limit`, `risk_utilisation`, `risk_breaches`, link to the `LIMIT_CHANGE` task, `risk_requestLimit` with `replaces` | change: RISK |
 | EU ETS compliance | `/ets` | `etsCompliance_compliance` (year in the URL), `etsCompliance_deadlines` (calendar), `etsCompliance_register` | register: MIDDLE_OFFICE, BACK_OFFICE |
 | Installation | `/ets/installations/:installationId` | `etsCompliance_installation`, `etsCompliance_installationCompliance`, `etsCompliance_emissions`, `etsCompliance_recordEmissions`, `etsCompliance_recordVerifiedEmissions`, `etsCompliance_freeAllocation`, `etsCompliance_setFreeAllocation`, `etsCompliance_surrenders`, `etsCompliance_requestSurrender` | estimates and verified emissions: MIDDLE_OFFICE, BACK_OFFICE, RISK (verified ones approved in the inbox); free allocation: MIDDLE_OFFICE, BACK_OFFICE; surrender: BACK_OFFICE, REGISTRY_OPERATOR |
+| Ledger: entries | `/ledger` (period, account and source in the URL) | `ledger_entries` (`accountCode`, keyset paging with `afterEntryNumber`), `ledger_entry`, `ledger_reverse`, `ledger_postManual`, `ledger_accounts`, `ledger_verify` | reverse and manual entries: ACCOUNTANT, BACK_OFFICE; read: ACCOUNTANT, AUDITOR, BACK_OFFICE in scope |
+| Ledger: trial balance, accounts, posting rules | `/ledger?tab=trial-balance`, `accounts`, `rules` | `ledger_trialBalance`, `ledger_accounts`, `ledger_rules`, `ledger_ruleHistory`, `ledger_ruleChanges` | read only |
+| Month end: close | `/month-end` (period in the URL, default the previous month) | `ledger_periods`, `ledger_closePeriod` (soft or hard), `ledger_reopenPeriod`, `ledger_hardCloseBlockers` (checklist), `periodEnd_runs`, `periodEnd_run` | ACCOUNTANT |
+| Month end: GL interface | `/month-end?tab=gl` | `ledger_exportFormats`, `ledger_exports`, `ledger_export`, `ledger_delivered`, `ledger_acknowledge`, `ledger_reject`, `ledger_reconciliation`, `ledger_importBalances` (pasted lines) | writes: ACCOUNTANT; read: ACCOUNTANT, AUDITOR |
+| Month end: policies | `/month-end?tab=policies` | `periodEnd_mtmPolicies`, `periodEnd_nrvPolicy`, `periodEnd_policyChanges`, `periodEnd_requestPolicyChange` | request: ACCOUNTANT (approval by another in the inbox) |
+| Reports | `/reports` (`report` in the URL) | `reporting_catalogue` (filtered by the user's roles), `reporting_report` (JSON into a grid, or CSV download; run number and hash from the response headers), `reporting_exports`, `reporting_emirEvents`, `reporting_emirCompleteness`, `reporting_emirFieldRules` | the roles each report names |
 | Inventory: certificates | `/inventory` | `inventory_lots` (selected entity; status and expiry filters in the URL) | everyone in scope |
 | Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
 | Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |
@@ -69,3 +75,15 @@ legal-entity scope; the UI only mirrors them.
 - Deadlines are grouped by month and coloured met, overdue, due within 30 days (the first reminder stage) or
   upcoming (`model/deadlines.ts`).
 - Quantities of allowances are whole tonnes. Net and outstanding figures come from the server.
+
+## Ledger, month end and reports (`features/ledger`, `features/monthend`, `features/reports`)
+
+- The journal pages forward by entry number (`afterEntryNumber`), 200 entries a page. The account filter keeps
+  entries with a line on that account. An entry opens in a drawer with its lines, dimensions, source and hash, and
+  can be reversed with a reason. Entries are never edited.
+- Manual entries need two complete lines, each with an account and exactly one amount (`model/manual.ts`). The
+  server checks the balance and the period.
+- The hard-close checklist is the server's list of blockers. Hard close stays disabled while there are any.
+- GL balances are pasted as `account;balance;currency` lines (`model/glBalances.ts`) and reconciled by the server.
+- A report's parameters are generated from its definition. The legal entity comes from the header selector. Every
+  run, on screen or as CSV, is logged with its number and content hash.

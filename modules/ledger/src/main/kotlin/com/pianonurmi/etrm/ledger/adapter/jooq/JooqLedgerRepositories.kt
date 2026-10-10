@@ -189,10 +189,26 @@ class JooqJournalRepository(private val dsl: DSLContext) : JournalRepository {
     override fun findByEvent(eventId: UUID, ruleCode: String): JournalEntryView? =
         dsl.selectFrom(JOURNAL_ENTRY).where(JOURNAL_ENTRY.EVENT_ID.eq(eventId), JOURNAL_ENTRY.RULE_CODE.eq(ruleCode)).fetchOne()?.let(::toView)
 
-    override fun entries(legalEntityId: UUID, period: String?, sourceRef: String?, limit: Int): List<JournalEntryView> = dsl.selectFrom(JOURNAL_ENTRY)
+    override fun entries(
+        legalEntityId: UUID,
+        period: String?,
+        sourceRef: String?,
+        limit: Int,
+        accountCode: String?,
+        afterEntryNumber: Long?,
+    ): List<JournalEntryView> = dsl.selectFrom(JOURNAL_ENTRY)
         .where(JOURNAL_ENTRY.LEGAL_ENTITY_ID.eq(legalEntityId))
         .and(period?.let { JOURNAL_ENTRY.PERIOD.eq(it) } ?: DSL.noCondition())
         .and(sourceRef?.let { JOURNAL_ENTRY.SOURCE_REF.eq(it) } ?: DSL.noCondition())
+        .and(afterEntryNumber?.let { JOURNAL_ENTRY.ENTRY_NUMBER.gt(it) } ?: DSL.noCondition())
+        .and(
+            accountCode?.let { code ->
+                DSL.exists(
+                    DSL.selectOne().from(JOURNAL_LINE).join(GL_ACCOUNT).on(GL_ACCOUNT.ID.eq(JOURNAL_LINE.ACCOUNT_ID))
+                        .where(JOURNAL_LINE.ENTRY_ID.eq(JOURNAL_ENTRY.ID), GL_ACCOUNT.CODE.eq(code)),
+                )
+            } ?: DSL.noCondition(),
+        )
         .orderBy(JOURNAL_ENTRY.ENTRY_NUMBER)
         .limit(limit)
         .fetch(::toView)

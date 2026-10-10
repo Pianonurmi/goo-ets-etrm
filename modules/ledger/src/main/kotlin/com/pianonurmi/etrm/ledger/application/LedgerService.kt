@@ -423,9 +423,17 @@ class LedgerService(
     override fun entry(id: UUID): JournalEntryView? = journal.find(id)
 
     @Transactional(readOnly = true)
-    override fun entries(legalEntityId: UUID, period: YearMonth?, sourceRef: String?, limit: Int): List<JournalEntryView> {
+    override fun entries(
+        legalEntityId: UUID,
+        period: YearMonth?,
+        sourceRef: String?,
+        limit: Int,
+        accountCode: String?,
+        afterEntryNumber: Long?,
+    ): List<JournalEntryView> {
         actorProvider.current().requireEntity(legalEntityId)
-        return journal.entries(legalEntityId, period?.toString(), sourceRef, limit)
+        if (limit !in 1..MAX_PAGE) throw ValidationException("limit is between 1 and $MAX_PAGE")
+        return journal.entries(legalEntityId, period?.toString(), sourceRef, limit, accountCode?.trim()?.ifEmpty { null }, afterEntryNumber)
     }
 
     @Transactional(readOnly = true)
@@ -468,6 +476,7 @@ class LedgerService(
 
     private companion object {
         const val MAX_PERIODS_AHEAD = 24
+        const val MAX_PAGE = 500
     }
 }
 

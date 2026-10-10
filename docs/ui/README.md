@@ -2,7 +2,8 @@
 
 React and TypeScript single-page application in `apps/web`, served by the API jar from the same origin (ADR 0025).
 Sign-in uses OIDC with PKCE in production and dev personas in the `dev` and `test` profiles (ADR 0026). The API
-client is generated from the committed OpenAPI document (ADR 0027).
+client is generated from the committed OpenAPI document (ADR 0027). Actions are offered by role through a table
+keyed by operation id (ADR 0028).
 
 ## Run it
 

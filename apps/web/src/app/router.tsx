@@ -14,6 +14,8 @@ registerSubjectScreens(
   'CREDIT_SUPPORT',
   'EMISSION_RECORD',
   'COMPLIANCE_DEADLINE',
+  'ACCOUNTING_POLICY_CHANGE',
+  'POSTING_RULE',
 );
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
@@ -97,6 +99,18 @@ export const router = createBrowserRouter([
       {
         path: 'ets/installations/:installationId',
         lazy: async () => ({ Component: (await import('@/features/ets/InstallationPage')).InstallationPage }),
+      },
+      {
+        path: 'ledger',
+        lazy: async () => ({ Component: (await import('@/features/ledger/LedgerPage')).LedgerPage }),
+      },
+      {
+        path: 'month-end',
+        lazy: async () => ({ Component: (await import('@/features/monthend/MonthEndPage')).MonthEndPage }),
+      },
+      {
+        path: 'reports',
+        lazy: async () => ({ Component: (await import('@/features/reports/ReportsPage')).ReportsPage }),
       },
       {
         path: 'inventory',

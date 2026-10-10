@@ -234,6 +234,14 @@ class LedgerServiceIT {
         sale.first { it.ruleCode == "EUA_SALE_PROCEEDS" }.totalCredit shouldBe BigDecimal("45000.00")
         // the nominal free allocation layer is left: zero cost
         entries.none { it.sourceRef == "3" } shouldBe true
+
+        // Filtered by account and paged by entry number.
+        val onCost = ledger.entries(entityId, period = YearMonth.of(2026, 8), accountCode = "1610")
+        onCost.isNotEmpty() shouldBe true
+        onCost.all { entry -> entry.lines.any { it.accountCode == "1610" } } shouldBe true
+        val firstPage = ledger.entries(entityId, period = YearMonth.of(2026, 8), limit = 2)
+        val nextPage = ledger.entries(entityId, period = YearMonth.of(2026, 8), afterEntryNumber = firstPage.last().entryNumber)
+        (firstPage + nextPage).map { it.id } shouldBe entries.map { it.id }
     }
 
     @Test

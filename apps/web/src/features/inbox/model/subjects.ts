@@ -12,8 +12,8 @@ const SUBJECT_ROUTES: Record<string, (ref: string) => string> = {
   CREDIT_SUPPORT: () => '/risk?tab=credit-support',
   EMISSION_RECORD: () => '/ets',
   COMPLIANCE_DEADLINE: () => '/ets',
-  ACCOUNTING_POLICY_CHANGE: () => '/month-end/policies',
-  POSTING_RULE: () => '/ledger/rules',
+  ACCOUNTING_POLICY_CHANGE: () => '/month-end?tab=policies',
+  POSTING_RULE: () => '/ledger?tab=rules',
   CHANGE_REQUEST: () => '/admin/change-requests',
 };
 

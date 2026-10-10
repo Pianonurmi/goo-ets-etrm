@@ -51,7 +51,9 @@ class LedgerController(
         @RequestParam(required = false) period: YearMonth?,
         @RequestParam(required = false) sourceRef: String?,
         @RequestParam(defaultValue = "500") limit: Int,
-    ): List<JournalEntryView> = query.entries(legalEntityId, period, sourceRef, limit)
+        @RequestParam(required = false) accountCode: String?,
+        @RequestParam(required = false) afterEntryNumber: Long?,
+    ): List<JournalEntryView> = query.entries(legalEntityId, period, sourceRef, limit, accountCode, afterEntryNumber)
 
     @GetMapping("/entries/{id}")
     fun entry(

@@ -248,7 +248,14 @@ interface JournalRepository {
 
     fun findByEvent(eventId: UUID, ruleCode: String): JournalEntryView?
 
-    fun entries(legalEntityId: UUID, period: String?, sourceRef: String?, limit: Int): List<JournalEntryView>
+    fun entries(
+        legalEntityId: UUID,
+        period: String?,
+        sourceRef: String?,
+        limit: Int,
+        accountCode: String? = null,
+        afterEntryNumber: Long? = null,
+    ): List<JournalEntryView>
 
     fun allForEntity(legalEntityId: UUID): List<JournalEntryView>
 
