@@ -176,7 +176,17 @@ data class AmendTrade(
 
 data class ConfirmTrade(val confirmationRef: String, val method: String = "EMAIL", val confirmedAt: Instant? = null)
 
-data class RecordDelivery(val scheduleId: UUID, val quantity: BigDecimal, val deliveredOn: LocalDate, val reference: String? = null)
+/**
+ * Records a physical delivery against a schedule. [idempotencyKey] identifies the delivery at its source (for example
+ * `instruction:<id>`); recording the same key twice is a no-op, so several sources may report one delivery safely.
+ */
+data class RecordDelivery(
+    val scheduleId: UUID,
+    val quantity: BigDecimal,
+    val deliveredOn: LocalDate,
+    val reference: String? = null,
+    val idempotencyKey: String? = null,
+)
 
 interface TradeCommand {
     fun capture(command: CaptureTrade): TradeView
@@ -277,6 +287,8 @@ data class TradeCancelled(override val trade: TradeView, val reason: String, val
 
 data class DeliveryRecorded(
     override val trade: TradeView,
+    /** Stable id of the delivery record; downstream modules key on it. */
+    val deliveryId: UUID,
     val obligation: DeliveryObligationView,
     val quantity: BigDecimal,
     val deliveredOn: LocalDate,

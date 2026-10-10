@@ -10,6 +10,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
+import com.pianonurmi.etrm.registry.api.InstructionCancelled
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
 import com.pianonurmi.etrm.registry.api.InstructionStatus
@@ -49,6 +50,7 @@ class RegistryInstructionService(
 ) : RegistryInstructionCommand, RegistryInstructionQuery {
     override fun submitTransfer(command: SubmitTransfer): RegistryInstructionView {
         repository.byKey(command.idempotencyKey)?.let { return it }
+        requireUsableAccount(lotQuery.requireLot(command.lotId).registryAccountId, export = true)
         val lot = prepareLot(command.lotId, command.quantityMwh)
         val route = routes.route(lot.registryCode, command.toRegistryCode)
         if (!route.feasible) throw ValidationException("No transfer route from ${lot.registryCode} to ${command.toRegistryCode}")
@@ -68,6 +70,7 @@ class RegistryInstructionService(
 
     override fun submitCancellation(command: SubmitCancellation): RegistryInstructionView {
         repository.byKey(command.idempotencyKey)?.let { return it }
+        requireUsableAccount(lotQuery.requireLot(command.lotId).registryAccountId, export = false)
         val lot = prepareLot(command.lotId, command.quantityMwh)
         val instruction = newInstruction(
             InstructionType.CANCELLATION,
@@ -95,6 +98,7 @@ class RegistryInstructionService(
         save(next, null)
         val lot = lotQuery.requireLot(next.lotId)
         if (lot.status == LotStatus.IN_TRANSFER && lot.instructionRef == next.id) lots.failTransfer(next.lotId, next.id, "instruction cancelled: $reason")
+        events.publishEvent(InstructionCancelled(next, reason))
         return next
     }
 
@@ -124,6 +128,13 @@ class RegistryInstructionService(
     override fun forPlan(planRef: UUID): List<RegistryInstructionView> = repository.forPlan(planRef)
 
     // ----------------------------------------------------------------------------------------------------------
+
+    /** The source account must be active and, for transfers, allowed to export. */
+    private fun requireUsableAccount(accountId: UUID, export: Boolean) {
+        val account = referenceData.requireRegistryAccount(accountId)
+        if (!account.active) throw ValidationException("Registry account ${account.accountNumber} is inactive")
+        if (export && !account.canExport) throw ValidationException("Registry account ${account.accountNumber} may not export")
+    }
 
     private fun prepareLot(lotId: UUID, quantity: Long?): LotView {
         val lot = lotQuery.requireLot(lotId)

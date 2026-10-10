@@ -260,11 +260,20 @@ class TradeService(
 
     override fun recordDelivery(tradeId: UUID, command: RecordDelivery): TradeView {
         val actor = actorProvider.current().userId
-        val (next, schedule) = TradeAggregate(locked(tradeId)).recordDelivery(command.scheduleId, command.quantity)
+        val current = locked(tradeId)
+        if (command.idempotencyKey != null && repository.deliveryRecorded(command.idempotencyKey)) return current
+        val (next, schedule) = TradeAggregate(current).recordDelivery(command.scheduleId, command.quantity)
         save(next, actor, "delivery ${command.quantity} on ${command.deliveredOn}")
-        repository.appendDeliveryRecord(command.scheduleId, command.quantity, command.deliveredOn, command.reference, actor)
+        val deliveryId = repository.appendDeliveryRecord(
+            command.scheduleId,
+            command.quantity,
+            command.deliveredOn,
+            command.reference,
+            command.idempotencyKey,
+            actor,
+        )
         val obligation = obligationsOf(next).first { it.scheduleId == schedule.id }
-        events.publishEvent(DeliveryRecorded(next, obligation, command.quantity, command.deliveredOn, command.reference))
+        events.publishEvent(DeliveryRecorded(next, deliveryId, obligation, command.quantity, command.deliveredOn, command.reference))
         if (schedule.status == DeliveryStatus.DELIVERED) {
             events.publishEvent(DeliveryObligationClosed(obligation, "delivered"))
         } else {

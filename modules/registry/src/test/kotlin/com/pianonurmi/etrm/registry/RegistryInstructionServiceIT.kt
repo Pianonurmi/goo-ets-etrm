@@ -77,7 +77,7 @@ class RegistryInstructionServiceIT {
         routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
         instructions = RegistryInstructionService(
             JooqRegistryInstructionRepository(dsl),
-            listOf(SimulatorRegistryGateway(), ManualRegistryGateway(), FileRegistryGateway("build/test-outbox")),
+            listOf(SimulatorRegistryGateway(), ManualRegistryGateway(), FileRegistryGateway("build/test-outbox", referenceData)),
             lots,
             lots,
             referenceData,

@@ -65,7 +65,11 @@ class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryI
         .set(REGISTRY_INSTRUCTION.CONFIRMED_BY, instruction.confirmedBy)
         .set(REGISTRY_INSTRUCTION.SENT_AT, instruction.sentAt)
         .set(REGISTRY_INSTRUCTION.CONFIRMED_AT, instruction.confirmedAt)
-        .set(REGISTRY_INSTRUCTION.RESPONSE_PAYLOAD, responsePayload?.let { JSONB.jsonb(Json.mapper.writeValueAsString(it)) })
+        // Keep the last registry response when a transition carries none (e.g. operator confirmation).
+        .set(
+            REGISTRY_INSTRUCTION.RESPONSE_PAYLOAD,
+            responsePayload?.let { DSL.value(JSONB.jsonb(Json.mapper.writeValueAsString(it))) } ?: REGISTRY_INSTRUCTION.RESPONSE_PAYLOAD,
+        )
         .set(REGISTRY_INSTRUCTION.VERSION, instruction.version)
         .where(REGISTRY_INSTRUCTION.ID.eq(instruction.id), REGISTRY_INSTRUCTION.VERSION.eq(instruction.version - 1))
         .execute() == 1

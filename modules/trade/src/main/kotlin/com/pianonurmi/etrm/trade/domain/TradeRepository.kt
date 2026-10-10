@@ -29,7 +29,18 @@ interface TradeRepository {
 
     fun versions(tradeId: UUID): List<TradeVersionView>
 
-    fun appendDeliveryRecord(scheduleId: UUID, quantity: BigDecimal, deliveredOn: LocalDate, reference: String?, recordedBy: String)
+    /** Appends a delivery record and returns its id. */
+    fun appendDeliveryRecord(
+        scheduleId: UUID,
+        quantity: BigDecimal,
+        deliveredOn: LocalDate,
+        reference: String?,
+        idempotencyKey: String?,
+        recordedBy: String,
+    ): UUID
+
+    /** True when a delivery with this idempotency key has already been recorded. */
+    fun deliveryRecorded(idempotencyKey: String): Boolean
 
     fun openObligations(legalEntityId: UUID, side: Side?, productFamily: ProductFamily?): List<DeliveryObligationView>
 

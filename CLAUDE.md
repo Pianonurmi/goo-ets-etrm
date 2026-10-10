@@ -35,6 +35,10 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew :apps:api:bootRun   # Swagger UI at /swagge
 - Jackson 3 (`tools.jackson.*`). Enums travel by constant name (`Json.configure`); do not override `toString()` on enums used in JSON.
 - No floating point in the domain. Periods are closed-open `LocalDateRange`. Instants are UTC. Ids are UUIDv7 (`Ids`).
 - Append-only tables (lot events, journal, audit) are protected by triggers and hash-chained. Correct by reversal, never by update.
+- A caller that catches a `DomainException` from another `@Transactional` service must run that call in `Savepoints.attempt { }` (platform `tx`); otherwise the whole transaction is already marked rollback-only. Hand-wired tests pass `Savepoints.NONE`, so cover such paths with a Spring-context test (see `AllocationStaleIT`).
+- Deliveries are idempotent: pass `RecordDelivery.idempotencyKey` (e.g. `instruction:<id>`); `DeliveryRecorded.deliveryId` is the key downstream modules use.
+- CSV in and out goes through `platform.text.Csv` (RFC 4180). PDFs and other issued documents go through the `document` module; templates live in `src/main/resources/documents/templates/`.
+- Scheduled jobs use `@SchedulerLock`; the lock provider is configured in `apps/api` (`SchedulingConfiguration`).
 - Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers in the `dev` and `test` profiles.
 
 ## Lint

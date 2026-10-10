@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.registry.adapter.gateway
 
-import com.pianonurmi.etrm.platform.json.Json
+import com.pianonurmi.etrm.platform.text.Csv
+import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.registry.domain.GatewayResult
 import com.pianonurmi.etrm.registry.domain.RegistryGateway
@@ -45,6 +46,7 @@ class ManualRegistryGateway : RegistryGateway {
 @Order(30)
 class FileRegistryGateway(
     @Value("\${etrm.registry.outbox-dir:build/registry-outbox}") private val outboxDir: String,
+    private val referenceData: ReferenceDataQuery,
 ) : RegistryGateway {
     private val log = LoggerFactory.getLogger(FileRegistryGateway::class.java)
 
@@ -54,28 +56,59 @@ class FileRegistryGateway(
         val dir = Path.of(outboxDir, instruction.registryCode)
         Files.createDirectories(dir)
         val file = dir.resolve("${DateTimeFormatter.ISO_INSTANT.format(instruction.createdAt).replace(":", "")}-${instruction.instructionKey}.csv")
-        Files.writeString(file, InstructionPack.csv(instruction))
+        val fromAccount = referenceData.requireRegistryAccount(instruction.fromAccountId).accountNumber
+        Files.writeString(file, InstructionPack.csv(instruction, fromAccount))
         log.info("Wrote registry instruction pack {}", file)
         GatewayResult.Sent(null, mapOf("file" to file.toString()))
     }.getOrElse { GatewayResult.Failed("Could not write instruction pack: ${it.message}") }
 }
 
+/**
+ * One instruction as an RFC 4180 CSV pack for upload or manual execution in the registry. Accounts are registry
+ * account numbers (never internal ids); cancellation details are spread over their own columns.
+ */
 object InstructionPack {
-    fun csv(i: RegistryInstructionView): String = buildString {
-        appendLine("instruction_key,type,registry,from_account,to_registry,to_account,cert_no_start,cert_no_end,quantity_mwh,cancellation")
-        appendLine(
+    val HEADER = listOf(
+        "instruction_key",
+        "type",
+        "registry",
+        "from_account",
+        "to_registry",
+        "to_account",
+        "cert_no_start",
+        "cert_no_end",
+        "quantity_mwh",
+        "cancellation_purpose",
+        "beneficiary_name",
+        "beneficiary_id",
+        "consumption_country",
+        "consumption_period_start",
+        "consumption_period_end",
+    )
+
+    fun csv(i: RegistryInstructionView, fromAccountNumber: String): String {
+        val c = i.cancellation
+        return Csv.write(
+            HEADER,
             listOf(
-                i.instructionKey,
-                i.type.name,
-                i.registryCode,
-                i.fromAccountId,
-                i.toRegistryCode ?: "",
-                i.toAccountRef ?: "",
-                i.range.start,
-                i.range.end,
-                i.quantityMwh,
-                i.cancellation?.let { Json.mapper.writeValueAsString(it).replace("\"", "'") } ?: "",
-            ).joinToString(","),
+                listOf(
+                    i.instructionKey,
+                    i.type.name,
+                    i.registryCode,
+                    fromAccountNumber,
+                    i.toRegistryCode,
+                    i.toAccountRef,
+                    i.range.start,
+                    i.range.end,
+                    i.quantityMwh,
+                    c?.purpose?.name,
+                    c?.beneficiaryName,
+                    c?.beneficiaryId,
+                    c?.consumptionCountry,
+                    c?.consumptionPeriod?.start,
+                    c?.consumptionPeriod?.endExclusive,
+                ),
+            ),
         )
     }
 }

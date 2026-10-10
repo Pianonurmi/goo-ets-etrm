@@ -267,3 +267,9 @@ interface ReconciliationQuery {
 }
 
 data class ReconciliationBreakDetected(val breakView: ReconciliationBreakView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata
+
+data class ReconciliationBreakResolved(
+    val breakView: ReconciliationBreakView,
+    val resolvedBy: String,
+    val metadata: EventMetadata = EventMetadata(),
+) : DomainEvent by metadata

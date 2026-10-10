@@ -40,6 +40,7 @@ import com.pianonurmi.etrm.trade.api.CaptureTrade
 import com.pianonurmi.etrm.trade.api.ConfirmTrade
 import com.pianonurmi.etrm.trade.api.DeliveryObligationClosed
 import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
+import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.Side
@@ -154,8 +155,13 @@ class TradeServiceIT {
         } shouldBe listOf(BigDecimal("2500.000"), BigDecimal("2500.000"))
 
         val q3 = confirmed.legs.single().deliveries.first()
-        val partial = trades.recordDelivery(trade.id, RecordDelivery(q3.id, BigDecimal(1_000), LocalDate.of(2026, 9, 10), "TX-1"))
+        val partial = trades.recordDelivery(trade.id, RecordDelivery(q3.id, BigDecimal(1_000), LocalDate.of(2026, 9, 10), "TX-1", "registry:TX-1"))
         partial.status shouldBe TradeStatus.PARTIALLY_DELIVERED
+        val firstDelivery = published.filterIsInstance<DeliveryRecorded>().single { it.trade.id == trade.id }
+        // A second report of the same delivery (same idempotency key) changes nothing and publishes nothing.
+        trades.recordDelivery(trade.id, RecordDelivery(q3.id, BigDecimal(1_000), LocalDate.of(2026, 9, 10), "TX-1", "registry:TX-1"))
+            .legs.single().deliveries.first().deliveredQuantity.compareTo(BigDecimal(1_000)) shouldBe 0
+        published.filterIsInstance<DeliveryRecorded>().filter { it.trade.id == trade.id }.map { it.deliveryId } shouldBe listOf(firstDelivery.deliveryId)
         partial.legs.single().deliveries.first().status shouldBe DeliveryStatus.PARTIALLY_DELIVERED
         shouldThrow<ValidationException> { trades.recordDelivery(trade.id, RecordDelivery(q3.id, BigDecimal(2_000), LocalDate.of(2026, 9, 11))) }
         trades.recordDelivery(trade.id, RecordDelivery(q3.id, BigDecimal(1_500), LocalDate.of(2026, 9, 11), "TX-2"))

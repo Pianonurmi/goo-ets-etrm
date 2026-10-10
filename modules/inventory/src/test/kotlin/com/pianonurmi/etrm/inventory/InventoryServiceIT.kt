@@ -298,7 +298,15 @@ class InventoryServiceIT {
         byType[BreakType.MISSING_INTERNALLY]!!.map { it.range } shouldBe listOf(CertificateRange.of(50_000, 50_009))
         byType[BreakType.ATTRIBUTE_MISMATCH]!! shouldHaveSize 1
         reconciliation.openBreaks(gooAccountId).size shouldBe result.breaks.size
-        reconciliation.resolveBreak(result.breaks.first().id, com.pianonurmi.etrm.inventory.api.BreakStatus.ACCEPTED, "known timing difference")
+        // Reconciling the same statement again returns the recorded result and adds no breaks.
+        reconciliation.reconcile(statement.id).breaks.map { it.id }.toSet() shouldBe result.breaks.map { it.id }.toSet()
+        reconciliation.openBreaks(gooAccountId).size shouldBe result.breaks.size
+        val first = result.breaks.first().id
+        reconciliation.resolveBreak(first, com.pianonurmi.etrm.inventory.api.BreakStatus.ACCEPTED, "known timing difference")
         reconciliation.openBreaks(gooAccountId).size shouldBe result.breaks.size - 1
+        published.filterIsInstance<com.pianonurmi.etrm.inventory.api.ReconciliationBreakResolved>().single().breakView.id shouldBe first
+        shouldThrow<com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException> {
+            reconciliation.resolveBreak(first, com.pianonurmi.etrm.inventory.api.BreakStatus.RESOLVED, "again")
+        }
     }
 }

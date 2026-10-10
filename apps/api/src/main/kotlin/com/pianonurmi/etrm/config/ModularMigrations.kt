@@ -58,6 +58,7 @@ data class MigrationProperties(
     companion object {
         val DEFAULT_ORDER = listOf(
             "platform",
+            "document",
             "referencedata",
             "taxonomy",
             "product",

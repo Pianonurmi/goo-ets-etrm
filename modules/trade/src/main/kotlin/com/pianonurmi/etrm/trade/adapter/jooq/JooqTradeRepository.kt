@@ -133,15 +133,29 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             )
         }
 
-    override fun appendDeliveryRecord(scheduleId: UUID, quantity: BigDecimal, deliveredOn: LocalDate, reference: String?, recordedBy: String) {
+    override fun appendDeliveryRecord(
+        scheduleId: UUID,
+        quantity: BigDecimal,
+        deliveredOn: LocalDate,
+        reference: String?,
+        idempotencyKey: String?,
+        recordedBy: String,
+    ): UUID {
+        val id = Ids.newId()
         dsl.insertInto(DELIVERY_RECORD)
+            .set(DELIVERY_RECORD.ID, id)
+            .set(DELIVERY_RECORD.IDEMPOTENCY_KEY, idempotencyKey)
             .set(DELIVERY_RECORD.SCHEDULE_ID, scheduleId)
             .set(DELIVERY_RECORD.QUANTITY, quantity)
             .set(DELIVERY_RECORD.DELIVERED_ON, deliveredOn)
             .set(DELIVERY_RECORD.REFERENCE, reference)
             .set(DELIVERY_RECORD.RECORDED_BY, recordedBy)
             .execute()
+        return id
     }
+
+    override fun deliveryRecorded(idempotencyKey: String): Boolean =
+        dsl.fetchExists(DELIVERY_RECORD, DELIVERY_RECORD.IDEMPOTENCY_KEY.eq(idempotencyKey))
 
     override fun openObligations(legalEntityId: UUID, side: Side?, productFamily: ProductFamily?): List<DeliveryObligationView> = dsl
         .select(

@@ -7,6 +7,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 object TestWiring {
     private val modules = listOf(
         "platform",
+        "document",
         "referencedata",
         "taxonomy",
         "product",

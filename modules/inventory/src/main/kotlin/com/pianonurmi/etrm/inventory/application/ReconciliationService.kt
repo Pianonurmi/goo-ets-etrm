@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.inventory.api.ImportStatement
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakDetected
+import com.pianonurmi.etrm.inventory.api.ReconciliationBreakResolved
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakView
 import com.pianonurmi.etrm.inventory.api.ReconciliationCommand
 import com.pianonurmi.etrm.inventory.api.ReconciliationQuery
@@ -16,6 +17,7 @@ import com.pianonurmi.etrm.inventory.api.StatementView
 import com.pianonurmi.etrm.inventory.domain.LotRepository
 import com.pianonurmi.etrm.inventory.domain.RangeArithmetic
 import com.pianonurmi.etrm.inventory.domain.ReconciliationRepository
+import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -61,6 +63,8 @@ class ReconciliationService(
 
     override fun reconcile(statementId: UUID): StatementView {
         val statement = repository.statement(statementId) ?: throw NotFoundException("RegistryStatement", statementId)
+        // A statement is reconciled once; running it again returns the recorded result instead of duplicating breaks.
+        if (statement.status != StatementStatus.IMPORTED) return statement
         val lines = repository.lines(statementId)
         val liveLots = lots.liveInAccount(statement.registryAccountId).filter { it.status != LotStatus.IN_TRANSFER }
         val breaks = mutableListOf<ReconciliationBreakView>()
@@ -94,9 +98,12 @@ class ReconciliationService(
 
     override fun resolveBreak(breakId: UUID, status: BreakStatus, resolution: String): ReconciliationBreakView {
         if (status == BreakStatus.OPEN) throw ValidationException("Resolution status must be RESOLVED or ACCEPTED")
+        if (resolution.isBlank()) throw ValidationException("A resolution note is required")
         val current = repository.findBreak(breakId) ?: throw NotFoundException("ReconciliationBreak", breakId)
+        if (current.status != BreakStatus.OPEN) throw IllegalStateTransitionException("ReconciliationBreak", current.status.name, status.name)
         val updated = current.copy(status = status, resolution = resolution)
         repository.updateBreak(updated, actorProvider.current().userId)
+        events.publishEvent(ReconciliationBreakResolved(updated, actorProvider.current().userId))
         return updated
     }
 

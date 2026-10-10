@@ -2,13 +2,18 @@ package com.pianonurmi.etrm
 
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
+import net.javacrumbs.shedlock.core.LockConfiguration
+import net.javacrumbs.shedlock.core.LockProvider
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.web.client.RestClient
+import java.time.Duration
+import java.time.Instant
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -22,6 +27,9 @@ class ApplicationContextIT {
     @LocalServerPort
     private var port: Int = 0
 
+    @Autowired
+    private lateinit var lockProvider: LockProvider
+
     @Test
     fun `application starts, migrates every module schema and serves the API`() {
         val client = RestClient.create("http://localhost:$port")
@@ -31,5 +39,15 @@ class ApplicationContextIT {
         (buckets.size >= 17) shouldBe true
         val health = client.get().uri("/actuator/health").retrieve().body(Map::class.java)!!
         health["status"] shouldBe "UP"
+    }
+
+    @Test
+    fun `scheduled jobs take cluster-wide locks`() {
+        val config = LockConfiguration(Instant.now(), "context-it-lock", Duration.ofMinutes(1), Duration.ZERO)
+        val first = lockProvider.lock(config)
+        first.isPresent shouldBe true
+        lockProvider.lock(config).isPresent shouldBe false
+        first.get().unlock()
+        lockProvider.lock(config).also { it.isPresent shouldBe true }.get().unlock()
     }
 }

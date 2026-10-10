@@ -27,6 +27,7 @@ import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
@@ -136,6 +137,7 @@ class AllocationServiceIT {
             actor,
             bus,
             clock,
+            Savepoints.NONE,
         )
 
         entityId = referenceData.createLegalEntity(CreateLegalEntity("ALLOC-CO", "Allocation Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id

@@ -158,6 +158,12 @@ data class InstructionConfirmed(
     val metadata: EventMetadata = EventMetadata(),
 ) : InstructionEvent, DomainEvent by metadata
 
+data class InstructionCancelled(
+    override val instruction: RegistryInstructionView,
+    val reason: String,
+    val metadata: EventMetadata = EventMetadata(),
+) : InstructionEvent, DomainEvent by metadata
+
 data class InstructionFailed(
     override val instruction: RegistryInstructionView,
     val reason: String,

@@ -33,6 +33,7 @@ import com.pianonurmi.etrm.platform.errors.StaleVersionException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
@@ -78,6 +79,7 @@ class AllocationService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    private val savepoints: Savepoints,
 ) : AllocationCommand, AllocationQuery {
     private val log = LoggerFactory.getLogger(AllocationService::class.java)
     private val greedy: Solver = GreedySolver(criteria::evaluate)
@@ -201,7 +203,7 @@ class AllocationService(
             try {
                 val lot = lotQuery.requireLot(line.lotId)
                 val quantity = if (lot.quantityMwh == line.quantityMwh) null else line.quantityMwh
-                val reserved = lotCommand.reserve(line.lotId, quantity, planId)
+                val reserved = savepoints.attempt { lotCommand.reserve(line.lotId, quantity, planId) }
                 reservedLines += line.copy(status = LineStatus.RESERVED, reservedLotId = reserved.id)
             } catch (ex: DomainException) {
                 log.warn("Plan {} is stale: lot {} could not be reserved ({})", planId, line.lotId, ex.message)
@@ -232,37 +234,44 @@ class AllocationService(
         val obligation = obligations.find(line.obligationId) ?: throw NotFoundException("Obligation", line.obligationId)
         val key = "plan:${plan.id}:line:${line.id}"
         return try {
-            val instruction = when (obligation.kind) {
-                ObligationKind.SALE, ObligationKind.INTERCOMPANY -> instructions.submitTransfer(
-                    SubmitTransfer(
-                        lotId = line.reservedLotId!!,
-                        quantityMwh = null,
-                        toRegistryCode = obligation.targetRegistryCode ?: lotQuery.requireLot(line.reservedLotId).registryCode,
-                        toAccountRef = obligation.targetAccountRef ?: throw ValidationException("Obligation ${obligation.id} has no target account"),
-                        idempotencyKey = key,
-                        planRef = plan.id,
-                        lineRef = line.id,
-                        obligationRef = obligation.id,
-                    ),
-                )
-                ObligationKind.DISCLOSURE, ObligationKind.OWN_CONSUMPTION -> instructions.submitCancellation(
-                    SubmitCancellation(
-                        lotId = line.reservedLotId!!,
-                        quantityMwh = null,
-                        details = (obligation.cancellation ?: throw ValidationException("Obligation ${obligation.id} has no cancellation details"))
-                            .copy(obligationRef = obligation.id),
-                        idempotencyKey = key,
-                        planRef = plan.id,
-                        lineRef = line.id,
-                        obligationRef = obligation.id,
-                    ),
-                )
-            }
+            val instruction = savepoints.attempt { submit(plan, line, obligation, key) }
             line.copy(status = LineStatus.INSTRUCTED, instructionId = instruction.id, externalRef = instruction.externalRef)
         } catch (ex: DomainException) {
             log.warn("Plan {} line {} could not be instructed: {}", plan.id, line.lineNo, ex.message)
             line.copy(status = LineStatus.FAILED, failureReason = ex.message)
         }
+    }
+
+    private fun submit(
+        plan: AllocationPlanView,
+        line: AllocationLineView,
+        obligation: ObligationView,
+        key: String,
+    ): RegistryInstructionView = when (obligation.kind) {
+        ObligationKind.SALE, ObligationKind.INTERCOMPANY -> instructions.submitTransfer(
+            SubmitTransfer(
+                lotId = line.reservedLotId!!,
+                quantityMwh = null,
+                toRegistryCode = obligation.targetRegistryCode ?: lotQuery.requireLot(line.reservedLotId).registryCode,
+                toAccountRef = obligation.targetAccountRef ?: throw ValidationException("Obligation ${obligation.id} has no target account"),
+                idempotencyKey = key,
+                planRef = plan.id,
+                lineRef = line.id,
+                obligationRef = obligation.id,
+            ),
+        )
+        ObligationKind.DISCLOSURE, ObligationKind.OWN_CONSUMPTION -> instructions.submitCancellation(
+            SubmitCancellation(
+                lotId = line.reservedLotId!!,
+                quantityMwh = null,
+                details = (obligation.cancellation ?: throw ValidationException("Obligation ${obligation.id} has no cancellation details"))
+                    .copy(obligationRef = obligation.id),
+                idempotencyKey = key,
+                planRef = plan.id,
+                lineRef = line.id,
+                obligationRef = obligation.id,
+            ),
+        )
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -312,6 +321,7 @@ class AllocationService(
                 java.math.BigDecimal(line.quantityMwh),
                 LocalDate.ofInstant(instruction.confirmedAt ?: clock.instant(), clock.zone),
                 instruction.externalRef,
+                idempotencyKey = "instruction:${instruction.id}",
             ),
         )
     }

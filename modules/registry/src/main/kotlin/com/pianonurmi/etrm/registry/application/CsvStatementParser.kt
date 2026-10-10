@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.ImportStatement
 import com.pianonurmi.etrm.inventory.api.StatementLine
 import com.pianonurmi.etrm.platform.errors.ValidationException
+import com.pianonurmi.etrm.platform.text.Csv
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.registry.api.StatementParser
 import org.springframework.stereotype.Component
@@ -21,16 +22,16 @@ class CsvStatementParser : StatementParser {
     override val registryCode: String = "*"
 
     override fun parse(registryAccountId: UUID, statementDate: LocalDate, source: String, content: String): ImportStatement {
-        val rows = content.lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toList()
+        val rows = Csv.parse(content).filterNot { it.first().trimStart().startsWith("#") }
         if (rows.isEmpty()) throw ValidationException("Statement is empty")
-        val header = rows.first().split(',').map { it.trim().lowercase() }
+        val header = rows.first().map { it.trim().lowercase() }
         val required = listOf("issuance_ref", "cert_no_start", "cert_no_end")
         required.filter { it !in header }.takeIf { it.isNotEmpty() }?.let { throw ValidationException("Statement is missing columns $it") }
         val lines = rows.drop(1).mapIndexed { index, row ->
-            val cells = row.split(',').map { it.trim() }
+            val cells = row.map { it.trim() }
             if (cells.size < header.size) throw ValidationException("Line ${index + 2} has ${cells.size} cells, expected ${header.size}")
             val col = header.zip(cells).toMap()
-            val start = col.getValue("production_start").takeIf { it.isNotBlank() }?.let(LocalDate::parse)
+            val start = col["production_start"]?.takeIf { it.isNotBlank() }?.let(LocalDate::parse)
             val end = col["production_end"]?.takeIf { it.isNotBlank() }?.let(LocalDate::parse)
             StatementLine(
                 lineNo = index + 1,

@@ -9,6 +9,8 @@ kotest = "6.2.5"
 archunit = "1.5.1"
 springdoc = "3.1.1"
 shedlock = "7.10.1"
+openhtmltopdf = "1.1.97"
+jmustache = "1.16"
 ortools = "9.15.6755"
 roaringbitmap = "1.6.24"
 uuid-generator = "5.2.0"
@@ -70,6 +72,8 @@ postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql-d
 hikari = { module = "com.zaxxer:HikariCP" }
 
 springdoc-openapi = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+openhtmltopdf-pdfbox = { module = "io.github.openhtmltopdf:openhtmltopdf-pdfbox", version.ref = "openhtmltopdf" }
+jmustache = { module = "com.samskivert:jmustache", version.ref = "jmustache" }
 shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
 shedlock-jdbc = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
 ortools = { module = "com.google.ortools:ortools-java", version.ref = "ortools" }

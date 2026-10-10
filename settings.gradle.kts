@@ -33,6 +33,7 @@ listOf(
     "ledger",
     "workflow",
     "audit",
+    "document",
 ).forEach { module ->
     include("modules:$module")
 }

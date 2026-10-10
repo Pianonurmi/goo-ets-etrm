@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>{{title}}</title>
+  <style>@page { size: A4; margin: 20mm; } body { font-family: Helvetica, sans-serif; font-size: 10pt; }</style>
+</head>
+<body>
+  <h1>{{title}}</h1>
+  <p>Dear {{recipient}},</p>
+  <table>{{#lines}}<tr><td>{{item}}</td><td>{{amount}}</td></tr>{{/lines}}</table>
+</body>
+</html>
