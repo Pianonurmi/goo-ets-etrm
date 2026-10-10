@@ -117,7 +117,11 @@ data class RegistryAccountView(
     val trusted: Boolean,
     val active: Boolean,
     val version: Int,
-)
+    /** First day the account counts as trusted (Union Registry trusted account list activation). */
+    val trustedSince: java.time.LocalDate? = null,
+) {
+    fun trustedOn(date: java.time.LocalDate): Boolean = trusted && trustedSince != null && !date.isBefore(trustedSince)
+}
 
 enum class OwnerType { LEGAL_ENTITY, COUNTERPARTY, THIRD_PARTY }
 

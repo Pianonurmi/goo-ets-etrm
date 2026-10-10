@@ -77,6 +77,8 @@ data class TradeLegView(
     val deliveryAccountId: UUID?,
     val counterpartyAccountRef: String?,
     val deliveries: List<DeliveryScheduleView>,
+    /** The counterparty's registered account (reference data); [counterpartyAccountRef] mirrors it as text. */
+    val counterpartyAccountId: UUID? = null,
 ) {
     val notional: BigDecimal get() = quantity * price
 }
@@ -143,6 +145,9 @@ data class CaptureLeg(
     val priceIndex: String? = null,
     /** Our registry account for delivery or receipt. */
     val deliveryAccountId: UUID? = null,
+    /** The counterparty's registered account; preferred over [counterpartyAccountRef]. */
+    val counterpartyAccountId: UUID? = null,
+    /** `REGISTRY_CODE:account`; resolved to a registered account when one exists, otherwise kept as free text. */
     val counterpartyAccountRef: String? = null,
     val deliveries: List<CaptureDelivery>,
 )
@@ -243,6 +248,7 @@ data class DeliveryObligationView(
     val priceCurrency: Currency,
     val priceType: PriceType,
     val status: DeliveryStatus,
+    val counterpartyAccountId: UUID? = null,
 ) {
     val remainingQuantity: BigDecimal get() = quantity - deliveredQuantity
 }

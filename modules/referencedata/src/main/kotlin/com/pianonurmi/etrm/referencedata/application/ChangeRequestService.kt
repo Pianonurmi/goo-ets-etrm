@@ -7,11 +7,13 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.referencedata.api.AccountChangeAction
 import com.pianonurmi.etrm.referencedata.api.ChangeEntityType
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestCommand
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestQuery
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestStatus
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestView
+import com.pianonurmi.etrm.referencedata.api.CounterpartyAccountChange
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataChangeApplied
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataChangeCancelled
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataChangeRequested
@@ -87,6 +89,29 @@ class ChangeRequestService(
             expectedVersion = change.expectedVersion,
         ),
     )
+
+    override fun requestCounterpartyAccountChange(counterpartyId: UUID, change: CounterpartyAccountChange): ChangeRequestView {
+        val key = when (change.action) {
+            AccountChangeAction.CREATE -> "$counterpartyId/${change.registryCode?.uppercase()}/${change.accountNumber?.trim()}"
+            else -> change.accountId?.toString() ?: throw ValidationException("${change.action} needs accountId")
+        }
+        return request(
+            RequestChange(
+                entityType = ChangeEntityType.COUNTERPARTY_REGISTRY_ACCOUNT,
+                entityKey = key,
+                change = buildMap {
+                    put("action", change.action.name)
+                    put("counterpartyId", counterpartyId.toString())
+                    change.accountId?.let { put("accountId", it.toString()) }
+                    change.registryCode?.let { put("registryCode", it.uppercase()) }
+                    change.accountNumber?.let { put("accountNumber", it.trim()) }
+                    change.name?.let { put("name", it.trim()) }
+                    change.accountType?.let { put("accountType", it.name) }
+                },
+                reason = change.reason,
+            ),
+        )
+    }
 
     override fun cancel(id: UUID, note: String): ChangeRequestView {
         val actor = actorProvider.current()

@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.referencedata.api.ChangeRequestCommand
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestQuery
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestStatus
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestView
+import com.pianonurmi.etrm.referencedata.api.CounterpartyAccountChange
 import com.pianonurmi.etrm.referencedata.api.RegistryChange
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
@@ -32,6 +33,14 @@ class ChangeRequestController(private val query: ChangeRequestQuery, private val
         @PathVariable code: String,
         @RequestBody body: RegistryChange,
     ): ChangeRequestView = command.requestRegistryChange(code, body)
+
+    /** Requests a change to a counterparty's registry accounts (add, deactivate, trusted account list); four-eyes. */
+    @PostMapping("/counterparties/{id}/registry-accounts/change-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun requestCounterpartyAccountChange(
+        @PathVariable id: UUID,
+        @RequestBody body: CounterpartyAccountChange,
+    ): ChangeRequestView = command.requestCounterpartyAccountChange(id, body)
 
     @GetMapping("/change-requests")
     fun changeRequests(

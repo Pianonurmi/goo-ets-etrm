@@ -12,7 +12,9 @@ import com.pianonurmi.etrm.product.api.ProductCatalogueQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
+import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
+import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
 import com.pianonurmi.etrm.trade.api.AmendTrade
 import com.pianonurmi.etrm.trade.api.CaptureLeg
 import com.pianonurmi.etrm.trade.api.CaptureTrade
@@ -94,7 +96,10 @@ class TradeService(
             legalEntityId = mirrorEntityId,
             bookId = mirrorBook,
             counterpartyId = mirrorCounterparty.id,
-            legs = command.legs.map { it.copy(side = it.side.opposite(), deliveryAccountId = null, counterpartyAccountRef = it.deliveryAccountId?.toString()) },
+            // The mirror delivers to (or receives from) the original entity's own account.
+            legs = command.legs.map {
+                it.copy(side = it.side.opposite(), deliveryAccountId = null, counterpartyAccountId = it.deliveryAccountId, counterpartyAccountRef = null)
+            },
             mirrorBookId = null,
         )
         val mirror = build(mirrorCommand, actor).copy(intercompanyLinkId = original.id)
@@ -135,11 +140,11 @@ class TradeService(
             confirmedAt = null,
             confirmationRef = null,
             createdBy = actor,
-            legs = command.legs.mapIndexed { index, leg -> buildLeg(command.productFamily, command.legalEntityId, index + 1, leg) },
+            legs = command.legs.mapIndexed { index, leg -> buildLeg(command.productFamily, command.legalEntityId, command.counterpartyId, index + 1, leg) },
         )
     }
 
-    private fun buildLeg(family: ProductFamily, legalEntityId: UUID, legNo: Int, leg: CaptureLeg): TradeLegView {
+    private fun buildLeg(family: ProductFamily, legalEntityId: UUID, counterpartyId: UUID, legNo: Int, leg: CaptureLeg): TradeLegView {
         if (leg.quantity.signum() <= 0) throw ValidationException("Leg $legNo quantity must be positive")
         if (leg.price.signum() < 0) throw ValidationException("Leg $legNo price must not be negative")
         if (leg.deliveries.isEmpty()) throw ValidationException("Leg $legNo needs a delivery schedule")
@@ -170,6 +175,7 @@ class TradeService(
             }
         }
         val bucket = criteriaRef?.let { ref -> buckets.buckets().firstOrNull { it.criteriaId == ref.id }?.code }
+        val counterpartyAccount = counterpartyAccount(counterpartyId, legNo, leg)
         return TradeLegView(
             id = Ids.newId(),
             legNo = legNo,
@@ -187,18 +193,50 @@ class TradeService(
             priceType = leg.priceType,
             priceIndex = leg.priceIndex,
             deliveryAccountId = leg.deliveryAccountId,
-            counterpartyAccountRef = leg.counterpartyAccountRef,
+            counterpartyAccountRef = counterpartyAccount?.let { "${it.registryCode}:${it.accountNumber}" } ?: leg.counterpartyAccountRef,
+            counterpartyAccountId = counterpartyAccount?.id,
             deliveries = leg.deliveries.sortedBy { it.deliveryDate }.mapIndexed { i, d ->
                 DeliveryScheduleView(Ids.newId(), i + 1, d.deliveryWindow, d.deliveryDate, d.quantity, BigDecimal.ZERO, d.paymentDate, DeliveryStatus.PENDING)
             },
         )
     }
 
+    /**
+     * The counterparty's registry account for a leg: the explicit account (which must belong to the counterparty, or
+     * for intercompany counterparties to the represented legal entity, and be active), or the account a textual
+     * reference resolves to. Free-text references that match no registered account stay text.
+     */
+    private fun counterpartyAccount(counterpartyId: UUID, legNo: Int, leg: CaptureLeg): RegistryAccountView? {
+        val counterparty = referenceData.requireCounterparty(counterpartyId)
+
+        fun belongs(account: RegistryAccountView) = when (account.holderType) {
+            HolderType.COUNTERPARTY -> account.holderId == counterparty.id
+            HolderType.LEGAL_ENTITY -> account.holderId == counterparty.linkedLegalEntityId
+        }
+        leg.counterpartyAccountId?.let { id ->
+            val account = referenceData.requireRegistryAccount(id)
+            if (!belongs(
+                    account,
+                )
+            ) {
+                throw ValidationException("Leg $legNo: account ${account.accountNumber} does not belong to counterparty ${counterparty.code}")
+            }
+            if (!account.active) throw ValidationException("Leg $legNo: counterparty account ${account.accountNumber} is inactive")
+            return account
+        }
+        return leg.counterpartyAccountRef?.let(referenceData::registryAccountByRef)?.takeIf { belongs(it) && it.active }
+    }
+
     override fun amend(tradeId: UUID, command: AmendTrade): TradeView {
         val actor = actorProvider.current().userId
         val current = locked(tradeId)
         if (current.version != command.expectedVersion) throw StaleVersionException("Trade", tradeId, command.expectedVersion, current.version)
-        val legs = command.legs?.mapIndexed { index, leg -> buildLeg(current.productFamily, current.legalEntityId, index + 1, leg) } ?: current.legs
+        val legs = command.legs?.mapIndexed {
+            index,
+            leg,
+            ->
+            buildLeg(current.productFamily, current.legalEntityId, current.counterpartyId, index + 1, leg)
+        } ?: current.legs
         val amended = current.copy(
             tradeDate = command.tradeDate ?: current.tradeDate,
             brokerId = command.brokerId ?: current.brokerId,
@@ -347,6 +385,7 @@ class TradeService(
                 deliveryDate = d.deliveryDate,
                 deliveryAccountId = leg.deliveryAccountId,
                 counterpartyAccountRef = leg.counterpartyAccountRef,
+                counterpartyAccountId = leg.counterpartyAccountId,
                 price = leg.price,
                 priceCurrency = leg.priceCurrency,
                 priceType = leg.priceType,

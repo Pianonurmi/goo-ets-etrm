@@ -239,6 +239,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
                 .set(TRADE_LEG.PRICE_INDEX, leg.priceIndex)
                 .set(TRADE_LEG.DELIVERY_ACCOUNT_ID, leg.deliveryAccountId)
                 .set(TRADE_LEG.COUNTERPARTY_ACCOUNT_REF, leg.counterpartyAccountRef)
+                .set(TRADE_LEG.COUNTERPARTY_ACCOUNT_ID, leg.counterpartyAccountId)
                 .onConflict(TRADE_LEG.ID)
                 .doUpdate()
                 .set(TRADE_LEG.CRITERIA_ID, leg.criteriaId)
@@ -251,6 +252,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
                 .set(TRADE_LEG.PRICE_INDEX, leg.priceIndex)
                 .set(TRADE_LEG.DELIVERY_ACCOUNT_ID, leg.deliveryAccountId)
                 .set(TRADE_LEG.COUNTERPARTY_ACCOUNT_REF, leg.counterpartyAccountRef)
+                .set(TRADE_LEG.COUNTERPARTY_ACCOUNT_ID, leg.counterpartyAccountId)
                 .execute()
             leg.deliveries.forEach { d ->
                 dsl.insertInto(DELIVERY_SCHEDULE)
@@ -301,6 +303,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             deliveryDate = s.deliveryDate,
             deliveryAccountId = l.deliveryAccountId,
             counterpartyAccountRef = l.counterpartyAccountRef,
+            counterpartyAccountId = l.counterpartyAccountId,
             price = l.price,
             priceCurrency = Currency.getInstance(l.priceCurrency),
             priceType = com.pianonurmi.etrm.trade.api.PriceType.valueOf(l.priceType),

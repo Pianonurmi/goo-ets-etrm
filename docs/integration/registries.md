@@ -54,5 +54,16 @@ days; otherwise infeasible. Overrides in `etrm_registry.transfer_route`.
 - The AIB Hub has no account-holder interface: cross-border transfers are instructed in the exporting registry.
 - The Union Registry has no account-holder API: instructions are MANUAL (trusted account list, 26-hour delay to non-trusted accounts, registry four-eyes); holdings statements are imported as files.
 
-Counterparty accounts on trades use the form `REGISTRY_CODE:account-number` until structured counterparty registry
-accounts arrive (M3).
+## Counterparty registry accounts
+
+Counterparty accounts are reference data records held by the counterparty (`holderType = COUNTERPARTY`). They are
+created, deactivated and put on or taken off the trusted account list only through a four-eyes change request:
+`POST /api/v1/reference/counterparties/{id}/registry-accounts/change-requests` with an action (`CREATE`,
+`DEACTIVATE`, `REACTIVATE`, `ADD_TO_TRUSTED_LIST`, `REMOVE_FROM_TRUSTED_LIST`). For Union Registry accounts a
+trusted-list entry becomes effective four TARGET2 working days after approval (`trustedSince`); transfers to accounts
+not trusted on the delivery date are delayed 26 hours by the registry.
+
+Trade legs reference the account by id (`counterpartyAccountId`); `counterpartyAccountRef` (`REGISTRY_CODE:account`)
+is filled from it. A textual reference that matches a registered account of the counterparty is linked
+automatically; one that matches nothing stays free text. Intercompany mirror trades point at the original entity's
+own delivery account.

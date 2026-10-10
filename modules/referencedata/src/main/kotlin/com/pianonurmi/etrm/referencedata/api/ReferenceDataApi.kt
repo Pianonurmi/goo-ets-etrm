@@ -41,6 +41,11 @@ interface ReferenceDataQuery {
 
     fun registryAccountByNumber(registryCode: String, accountNumber: String): RegistryAccountView?
 
+    /**
+     * Resolves a `REGISTRY_CODE:account-number` reference to a registered account, or null if it is free text.
+     */
+    fun registryAccountByRef(ref: String): RegistryAccountView?
+
     fun productionDevice(id: UUID): ProductionDeviceView?
 
     fun requireProductionDevice(id: UUID): ProductionDeviceView

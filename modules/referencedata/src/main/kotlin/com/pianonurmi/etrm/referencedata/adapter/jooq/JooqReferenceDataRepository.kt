@@ -262,8 +262,22 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
             .set(REGISTRY_ACCOUNT.CAN_IMPORT, account.canImport)
             .set(REGISTRY_ACCOUNT.CAN_EXPORT, account.canExport)
             .set(REGISTRY_ACCOUNT.TRUSTED, account.trusted)
+            .set(REGISTRY_ACCOUNT.TRUSTED_SINCE, account.trustedSince)
+            .set(REGISTRY_ACCOUNT.ACTIVE, account.active)
             .execute()
     }
+
+    override fun updateRegistryAccount(account: RegistryAccountView, expectedVersion: Int): Boolean = dsl.update(REGISTRY_ACCOUNT)
+        .set(REGISTRY_ACCOUNT.NAME, account.name)
+        .set(REGISTRY_ACCOUNT.CAN_IMPORT, account.canImport)
+        .set(REGISTRY_ACCOUNT.CAN_EXPORT, account.canExport)
+        .set(REGISTRY_ACCOUNT.TRUSTED, account.trusted)
+        .set(REGISTRY_ACCOUNT.TRUSTED_SINCE, account.trustedSince)
+        .set(REGISTRY_ACCOUNT.ACTIVE, account.active)
+        .set(REGISTRY_ACCOUNT.VERSION, account.version)
+        .set(REGISTRY_ACCOUNT.UPDATED_AT, Instant.now())
+        .where(REGISTRY_ACCOUNT.ID.eq(account.id), REGISTRY_ACCOUNT.VERSION.eq(expectedVersion))
+        .execute() == 1
 
     private fun toAccount(r: Record): RegistryAccountView {
         val a = r.into(REGISTRY_ACCOUNT)
@@ -281,6 +295,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
             trusted = a.trusted,
             active = a.active,
             version = a.version,
+            trustedSince = a.trustedSince,
         )
     }
 

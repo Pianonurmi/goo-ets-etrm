@@ -59,6 +59,8 @@ interface ReferenceDataRepository {
 
     fun insertRegistryAccount(account: RegistryAccountView)
 
+    fun updateRegistryAccount(account: RegistryAccountView, expectedVersion: Int): Boolean
+
     fun findProductionDevice(id: UUID): ProductionDeviceView?
 
     fun findProductionDeviceByGsrn(gsrn: String): ProductionDeviceView?

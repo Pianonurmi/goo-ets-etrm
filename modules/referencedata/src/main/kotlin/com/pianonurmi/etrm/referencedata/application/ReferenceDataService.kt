@@ -254,7 +254,8 @@ class ReferenceDataService(
         validateAccountType(registry, command.accountType)
         when (command.holderType) {
             HolderType.LEGAL_ENTITY -> requireLegalEntity(command.holderId)
-            HolderType.COUNTERPARTY -> requireCounterparty(command.holderId)
+            // Counterparty accounts are where our certificates and allowances go: four-eyes only.
+            HolderType.COUNTERPARTY -> throw ValidationException("Counterparty registry accounts are added through a change request")
         }
         if (repository.findRegistryAccountByNumber(registry.id, command.accountNumber.trim()) != null) {
             throw ConflictException("Account ${command.accountNumber} already exists in registry ${registry.code}")
@@ -343,7 +344,13 @@ class ReferenceDataService(
         return updated
     }
 
-    private fun validateAccountType(registry: RegistryView, type: RegistryAccountType) {
+    override fun registryAccountByRef(ref: String): RegistryAccountView? {
+        val parts = ref.split(":", limit = 2).map { it.trim() }
+        if (parts.size != 2 || parts.any { it.isEmpty() }) return null
+        return registryAccountByNumber(parts[0].uppercase(), parts[1])
+    }
+
+    fun validateAccountType(registry: RegistryView, type: RegistryAccountType) {
         val gooTypes = setOf(RegistryAccountType.HOLDING, RegistryAccountType.PRODUCTION, RegistryAccountType.CANCELLATION_ONLY)
         val valid = when (registry.registryType) {
             RegistryType.GOO -> type in gooTypes

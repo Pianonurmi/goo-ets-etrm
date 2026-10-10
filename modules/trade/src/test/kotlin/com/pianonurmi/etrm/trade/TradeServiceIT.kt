@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.trade
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
+import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -29,6 +30,7 @@ import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
 import com.pianonurmi.etrm.referencedata.api.CreateRegistryAccount
 import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
+import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
@@ -76,6 +78,8 @@ class TradeServiceIT {
     private lateinit var external: UUID
     private lateinit var icoB: UUID
     private lateinit var accountA: UUID
+    private lateinit var externalAccount: UUID
+    private lateinit var otherCounterparty: UUID
 
     @BeforeAll
     fun setUp() {
@@ -103,6 +107,56 @@ class TradeServiceIT {
         accountA = referenceData.createRegistryAccount(
             CreateRegistryAccount("FINGRID", "FI-A-1", "A holding", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityA),
         ).id
+        otherCounterparty = referenceData.createCounterparty(CreateCounterparty("OTHER-CP", "Other Energy", "DE")).id
+        // Counterparty accounts normally arrive through a four-eyes change request; inserted directly here.
+        val hknr = referenceData.requireRegistry("HKNR")
+        externalAccount = Ids.newId()
+        JooqReferenceDataRepository(dsl).insertRegistryAccount(
+            RegistryAccountView(
+                externalAccount,
+                hknr.id,
+                "HKNR",
+                "DE-4711",
+                "External holding",
+                RegistryAccountType.HOLDING,
+                HolderType.COUNTERPARTY,
+                external,
+                canImport = true,
+                canExport = false,
+                trusted = false,
+                active = true,
+                version = 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `counterparty accounts are linked as records and must belong to the counterparty`() {
+        val byRef = trades.capture(gooSale().let { it.copy(legs = it.legs.map { leg -> leg.copy(counterpartyAccountRef = "hknr:DE-4711") }) })
+        byRef.legs.single().let {
+            it.counterpartyAccountId shouldBe externalAccount
+            it.counterpartyAccountRef shouldBe "HKNR:DE-4711"
+        }
+        val byId = trades.capture(
+            gooSale().let {
+                it.copy(
+                    legs = it.legs.map { leg ->
+                        leg.copy(counterpartyAccountRef = null, counterpartyAccountId = externalAccount)
+                    },
+                )
+            },
+        )
+        byId.legs.single().counterpartyAccountRef shouldBe "HKNR:DE-4711"
+        shouldThrow<ValidationException> {
+            trades.capture(
+                gooSale(counterparty = otherCounterparty).let { it.copy(legs = it.legs.map { leg -> leg.copy(counterpartyAccountId = externalAccount) }) },
+            )
+        }
+        // Free text that matches no registered account stays text.
+        trades.capture(gooSale()).legs.single().let {
+            it.counterpartyAccountId shouldBe null
+            it.counterpartyAccountRef shouldBe "DE-HKNR-4711"
+        }
     }
 
     private fun gooSale(quantity: Long = 5_000, counterparty: UUID = external, mirrorBook: UUID? = null) = CaptureTrade(
@@ -209,6 +263,9 @@ class TradeServiceIT {
         mirror.legalEntityId shouldBe entityB
         mirror.bookId shouldBe bookB
         mirror.legs.single().side shouldBe Side.BUY
+        // The mirror's counterparty account is entity A's own registry account, as a record.
+        mirror.legs.single().counterpartyAccountId shouldBe accountA
+        mirror.legs.single().counterpartyAccountRef shouldBe "FINGRID:FI-A-1"
         mirror.intercompanyLinkId shouldBe trade.id
         currentUser = "approver"
         trades.approve(trade.id)

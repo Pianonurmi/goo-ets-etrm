@@ -18,3 +18,6 @@
 | Surrender | Delivery of allowances to the Union Registry against verified emissions |
 | Transfer route | Feasibility, fee and expected days of moving certificates between registries |
 | Vintage | Production period window of certificates |
+| Trusted account list | Union Registry list of accounts an account holder may transfer to without the 26-hour delay; entries activate after four working days |
+| Change request | A four-eyes change to sensitive master data, applied when a second person approves it in the inbox |
+| Outbox | Instructions stored first and dispatched to the registry afterwards, outside any database transaction |

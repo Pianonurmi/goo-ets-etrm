@@ -8,7 +8,7 @@ import java.util.UUID
 enum class ChangeRequestStatus { PENDING, APPLIED, REJECTED, CANCELLED }
 
 /** Sensitive master data that only changes with a second person's approval. */
-enum class ChangeEntityType { REGISTRY, }
+enum class ChangeEntityType { REGISTRY, COUNTERPARTY_REGISTRY_ACCOUNT }
 
 /**
  * A requested change to sensitive master data. [change] holds the new values (only the fields that change);
@@ -48,10 +48,28 @@ data class RegistryChange(
     val expectedVersion: Int,
 )
 
+enum class AccountChangeAction { CREATE, DEACTIVATE, REACTIVATE, ADD_TO_TRUSTED_LIST, REMOVE_FROM_TRUSTED_LIST }
+
+/**
+ * A change to a counterparty's registry account. CREATE needs [registryCode], [accountNumber], [name] and
+ * [accountType]; the other actions need [accountId].
+ */
+data class CounterpartyAccountChange(
+    val action: AccountChangeAction,
+    val reason: String,
+    val accountId: UUID? = null,
+    val registryCode: String? = null,
+    val accountNumber: String? = null,
+    val name: String? = null,
+    val accountType: RegistryAccountType? = null,
+)
+
 interface ChangeRequestCommand {
     fun request(command: RequestChange): ChangeRequestView
 
     fun requestRegistryChange(code: String, change: RegistryChange): ChangeRequestView
+
+    fun requestCounterpartyAccountChange(counterpartyId: UUID, change: CounterpartyAccountChange): ChangeRequestView
 
     fun cancel(id: UUID, note: String): ChangeRequestView
 }
