@@ -4,6 +4,11 @@ plugins {
 
 dependencies {
     implementation(project(":platform"))
+    implementation(project(":modules:taxonomy"))
+    implementation(project(":modules:referencedata"))
+    implementation(project(":modules:product"))
+    implementation(libs.springdoc.openapi)
+    implementation(libs.shedlock.spring)
 
     testImplementation(testFixtures(project(":platform")))
 }

@@ -59,7 +59,7 @@ class CriteriaSqlEquivalenceIT {
 
         override fun taxonomyPath(attribute: LotAttribute): Field<*> = DSL.field(DSL.name("etrm_product", "criteria_fixture", attribute.name.lowercase()))
 
-        override val labels: Field<Array<String?>?> = f("labels", SQLDataType.VARCHAR.arrayDataType)
+        override val labels: Field<*> = DSL.field(DSL.name("etrm_product", "criteria_fixture", "labels"))
 
         override val productionPeriod: Field<*> = DSL.field(DSL.name("etrm_product", "criteria_fixture", "production_period"))
     }
@@ -218,14 +218,20 @@ class CriteriaSqlEquivalenceIT {
     }
 
     @Test
-    fun `compiled SQL selects exactly the rows the in-memory evaluator accepts`() = runBlocking {
-        checkAll(PropTestConfig(iterations = 300, seed = 20261010L), treeArb(3)) { criterion ->
-            val bound = CriteriaBinder.bind(CriteriaCodec.parse(CriteriaCodec.toJson(criterion)), ctx)
-            val expected = rows.filter { CriteriaEvaluator.matches(bound, it) }.map { it.id }.toSet()
-            val actual = dsl.select(
-                DSL.field("id", Int::class.java),
-            ).from(table).where(JooqCriteriaCompiler.compile(bound, Columns)).fetchSet(0, Int::class.java)
-            actual shouldBe expected
+    fun `compiled SQL selects exactly the rows the in-memory evaluator accepts`() {
+        var evaluated = 0
+        runBlocking {
+            checkAll(PropTestConfig(iterations = 300, seed = 20261010L), treeArb(3)) { criterion ->
+                evaluated++
+                val bound = CriteriaBinder.bind(CriteriaCodec.parse(CriteriaCodec.toJson(criterion)), ctx)
+                val expected = rows.filter { CriteriaEvaluator.matches(bound, it) }.map { it.id }.toSet()
+                val actual = dsl.select(DSL.field("id", Int::class.java))
+                    .from(table)
+                    .where(JooqCriteriaCompiler.compile(bound, Columns))
+                    .fetchSet(0, Int::class.java)
+                actual shouldBe expected
+            }
         }
+        evaluated shouldBe 300
     }
 }

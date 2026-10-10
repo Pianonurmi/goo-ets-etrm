@@ -81,7 +81,7 @@ interface CriteriaColumns {
     fun taxonomyPath(attribute: LotAttribute): org.jooq.Field<*>
 
     /** text[] column. */
-    val labels: org.jooq.Field<Array<String?>?>
+    val labels: org.jooq.Field<*>
 
     /** daterange typed column. */
     val productionPeriod: org.jooq.Field<*>

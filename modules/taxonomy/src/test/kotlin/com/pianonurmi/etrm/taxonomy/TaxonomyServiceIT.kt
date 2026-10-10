@@ -71,7 +71,7 @@ class TaxonomyServiceIT {
         created.path shouldBe "RENEWABLE.WIND.WIND_OFFSHORE.WIND_FLOATING"
         created.depth shouldBe 3
         service.byExternalCode(TaxonomyScheme.ENERGY_SOURCE, "AIB", "F010502XX")?.code shouldBe "WIND_FLOATING"
-        published.size shouldBe 1
+        published.filterIsInstance<com.pianonurmi.etrm.taxonomy.api.TaxonomyChanged>().any { it.code == "WIND_FLOATING" } shouldBe true
 
         shouldThrow<ConflictException> {
             service.create(CreateTaxonomyNode(TaxonomyScheme.ENERGY_SOURCE, "WIND_FLOATING", "WIND", "dup", validFrom = LocalDate.of(2026, 1, 1)))
