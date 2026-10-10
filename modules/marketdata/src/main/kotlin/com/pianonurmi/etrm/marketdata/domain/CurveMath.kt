@@ -20,7 +20,7 @@ object CurveMath {
         val points = snapshot.points.filter { it.pillarDate != null }.sortedBy { it.pillarDate }
         if (points.isEmpty()) return null
 
-        fun price(value: BigDecimal, origin: PriceOrigin) = CurvePrice(value, snapshot.currency, origin, snapshot.curveCode, snapshot.id)
+        fun price(value: BigDecimal, origin: PriceOrigin) = CurvePrice(value, snapshot.currency, origin, snapshot.curveCode, snapshot.id, snapshot.asOfDate)
         val exact = points.firstOrNull { it.pillarDate == date }
         val first = points.first()
         val last = points.last()
@@ -44,9 +44,9 @@ object CurveMath {
         require(snapshot.kind == CurveKind.GOO_VINTAGE) { "${snapshot.curveCode} is not a vintage curve" }
         val points = snapshot.points.filter { it.productionYear != null }
         points.firstOrNull { it.productionYear == productionYear }
-            ?.let { return CurvePrice(it.price, snapshot.currency, PriceOrigin.POINT, snapshot.curveCode, snapshot.id) }
+            ?.let { return CurvePrice(it.price, snapshot.currency, PriceOrigin.POINT, snapshot.curveCode, snapshot.id, snapshot.asOfDate) }
         return points.filter { it.productionYear!! < productionYear }.maxByOrNull { it.productionYear!! }
-            ?.let { CurvePrice(it.price, snapshot.currency, PriceOrigin.EARLIER_VINTAGE, snapshot.curveCode, snapshot.id) }
+            ?.let { CurvePrice(it.price, snapshot.currency, PriceOrigin.EARLIER_VINTAGE, snapshot.curveCode, snapshot.id, snapshot.asOfDate) }
     }
 
     private const val SCALE = 10

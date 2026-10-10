@@ -69,6 +69,7 @@ data class MigrationProperties(
             "registry",
             "position",
             "settlement",
+            "valuation",
             "ledger",
             "workflow",
             "audit",

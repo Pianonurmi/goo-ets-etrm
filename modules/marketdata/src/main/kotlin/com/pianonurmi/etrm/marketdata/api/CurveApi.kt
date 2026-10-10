@@ -72,7 +72,15 @@ data class CurvePointView(
     val note: String?,
 )
 
-data class CurvePrice(val value: BigDecimal, val currency: String, val origin: PriceOrigin, val curveCode: String, val snapshotId: UUID)
+/** A price read from an official snapshot; [curveDate] is the snapshot's date, earlier than asked when that was the latest. */
+data class CurvePrice(
+    val value: BigDecimal,
+    val currency: String,
+    val origin: PriceOrigin,
+    val curveCode: String,
+    val snapshotId: UUID,
+    val curveDate: LocalDate,
+)
 
 data class CurveSnapshotView(
     val id: UUID,
@@ -108,7 +116,7 @@ interface CurveQuery {
     /** The official snapshot of the latest date on or before [onOrBefore]. */
     fun latestOfficial(curveCode: String, onOrBefore: LocalDate, knownAt: Instant? = null): CurveSnapshotView?
 
-    /** Price of an allowance for delivery on [deliveryDate] from the official forward curve of [asOfDate]. */
+    /** Price of an allowance for delivery on [deliveryDate] from the latest official forward curve on or before [asOfDate]. */
     fun forwardPrice(allowanceProductCode: String, deliveryDate: LocalDate, asOfDate: LocalDate, knownAt: Instant? = null): CurvePrice?
 
     /** Price of a GoO bucket's vintage from the latest official vintage curve on or before [asOf]. */

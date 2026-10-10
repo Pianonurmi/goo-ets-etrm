@@ -244,7 +244,7 @@ class CurveService(
         val curve = curves.curves(true).firstOrNull {
             it.kind == CurveKind.EUA_FORWARD && it.allowanceProductCode == allowanceProductCode.uppercase()
         } ?: return null
-        return official(curve.code, asOfDate, knownAt)?.let { CurveMath.priceOn(it, deliveryDate) }
+        return latestOfficial(curve.code, asOfDate, knownAt)?.let { CurveMath.priceOn(it, deliveryDate) }
     }
 
     @Transactional(readOnly = true)

@@ -36,6 +36,7 @@ listOf(
     "document",
     "settlement",
     "marketdata",
+    "valuation",
 ).forEach { module ->
     include("modules:$module")
 }

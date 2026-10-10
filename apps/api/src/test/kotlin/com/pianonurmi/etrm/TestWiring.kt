@@ -18,6 +18,7 @@ object TestWiring {
         "registry",
         "position",
         "settlement",
+        "valuation",
         "ledger",
         "workflow",
         "audit",
