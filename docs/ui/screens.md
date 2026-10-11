@@ -36,7 +36,10 @@ legal-entity scope; the UI only mirrors them.
 | Inventory: certificates | `/inventory` | `inventory_lots` (selected entity; status and expiry filters in the URL) | everyone in scope |
 | Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
 | Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |
-| Lot detail | `/inventory/lots/:lotId` | `inventory_lot`, `inventory_history`, `inventory_asOf`, `inventory_split`, `inventory_cancel`, `inventory_withdraw` | operations: BACK_OFFICE, REGISTRY_OPERATOR |
+| Lot detail | `/inventory/lots/:lotId` | `inventory_lot`, `inventory_history`, `inventory_asOf`, `inventory_split`, `inventory_cancel`, `inventory_withdraw`, `registry_transfer` (new transfer with the route shown) | operations: BACK_OFFICE, REGISTRY_OPERATOR |
+| Registry instructions | `/registry` (`view`, `registry` and `asset` in the URL) | `registry_search` (keyset cursor, the selected entity), `referenceData_registries`, `registry_transfer` | read: REGISTRY_OPERATOR, BACK_OFFICE, MIDDLE_OFFICE, ACCOUNTANT, RISK, AUDITOR in scope; transfer: REGISTRY_OPERATOR, BACK_OFFICE, MIDDLE_OFFICE (approval by another person in the inbox) |
+| Instruction detail | `/registry/instructions/:instructionId` | `registry_instruction`, `registry_confirm`, `registry_fail`, `registry_cancel`, `registry_retry`, links to `INSTRUCTION_APPROVAL` and `INSTRUCTION_FOLLOW_UP` tasks | REGISTRY_OPERATOR, BACK_OFFICE on the holder |
+| Transfer routes, statement formats | `/registry?tab=routes` (`from` in the URL), `/registry?tab=formats` | `registry_routes`, `registry_upsertRoute`, `registry_formats` | routes: MIDDLE_OFFICE, BACK_OFFICE |
 | Settlement items | `/settlement` (`view` in the URL: needs attention, open, invoiced, all) | `settlement_items`, `settlement_fixPrice`, `settlement_reevaluate`, `settlement_run` (invoice run), `settlement_registerPurchaseInvoice` | fix price: MIDDLE_OFFICE, BACK_OFFICE; evaluate again: ACCOUNTANT, BACK_OFFICE, MIDDLE_OFFICE; runs and purchase invoices: BACK_OFFICE, ACCOUNTANT; read: BACK_OFFICE, ACCOUNTANT, MIDDLE_OFFICE, RISK, AUDITOR in scope |
 | Invoices | `/settlement?tab=invoices` (status, kind and counterparty in the URL) | `settlement_invoices`, `settlement_export` (issued, CSV) | read as settlement items |
 | Invoice detail | `/settlement/invoices/:invoiceId` | `settlement_invoice`, `settlement_submit`, `settlement_discard`, `payment_creditNote`, `payment_allocations`, `document_content` (PDF), link to the `INVOICE_APPROVAL` task | BACK_OFFICE, ACCOUNTANT; approval (inbox) by another person |
@@ -129,3 +132,16 @@ legal-entity scope; the UI only mirrors them.
 - Rules mirrored in the UI: `model/settlement.ts` (actions per invoice state, item views, purchase candidates) and
   `model/payments.ts` (netting actions and four eyes, payments that fit a statement, invoices a payment can go to,
   report defaults).
+
+## Registry (`features/registry`)
+
+- The instruction queue opens on open work (waiting for approval, pending, with the registry, unknown); "needs
+  attention" shows unknown and failed ones. Paging uses the search endpoint's cursor.
+- Actions follow the instruction's state (`model/instructions.ts`, mirroring `RegistryInstruction`): confirm and
+  fail while the registry has it (or a pending manual-channel instruction), cancel before it is sent or after it
+  failed, retry after a failure or an unknown outcome (back through approval). An instruction being dispatched is
+  left to the dispatcher.
+- A manual transfer, from the registry screen or a lot, shows the route between the registries (fee, days, or that
+  it cannot be done) before it is submitted, and waits for a second person in the inbox.
+- Statement formats are shown read-only; they change through the API (`registry_upsertFormat`, middle or back
+  office).

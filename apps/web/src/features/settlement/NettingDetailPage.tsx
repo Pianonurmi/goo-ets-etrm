@@ -24,6 +24,7 @@ import { useSession } from '@/shared/auth/SessionContext';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { ReasonModal } from '@/shared/components/ReasonModal';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { useCounterparties } from '@/features/trades/hooks';
 import { useInvalidateSettlement } from './hooks';
@@ -34,7 +35,6 @@ import {
   settlementPayments,
   type Netting,
 } from './model/payments';
-import { ReasonModal } from './SettlementModals';
 import { StatusBadge } from './SettlementPage';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

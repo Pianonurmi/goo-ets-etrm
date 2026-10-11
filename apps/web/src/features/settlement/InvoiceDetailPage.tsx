@@ -9,6 +9,7 @@ import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
 import { QueryState } from '@/shared/components/QueryState';
+import { ReasonModal } from '@/shared/components/ReasonModal';
 import { formatDate, formatDateTime, formatDecimal, formatMoney, formatQuantity } from '@/shared/format/format';
 import { useCounterparties } from '@/features/trades/hooks';
 import { useInvalidateSettlement } from './hooks';
@@ -19,7 +20,6 @@ import {
   paymentStatus,
   type Invoice,
 } from './model/settlement';
-import { ReasonModal } from './SettlementModals';
 import { StatusBadge } from './SettlementPage';
 
 type Party = Schema<'PartySnapshot'>;

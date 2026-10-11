@@ -30,7 +30,8 @@
     "products": "Products",
     "changeRequests": "Change requests",
     "audit": "Audit trail",
-    "settlement": "Settlement"
+    "settlement": "Settlement",
+    "registry": "Registry"
   },
   "header": {
     "entity": "Legal entity",
@@ -66,7 +67,8 @@
     "no": "No",
     "empty": "Nothing to show",
     "cancel": "Cancel",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "reason": "Reason"
   },
   "inbox": {
     "title": "Approval inbox",
@@ -1301,5 +1303,114 @@
     "validTo": "Valid until (exclusive)",
     "valueDate": "Value date",
     "version": "Version"
+  },
+  "registry": {
+    "title": "Registry",
+    "description": "Registry instructions of {{entity}}, transfer routes and statement formats",
+    "back": "Back to instructions",
+    "tabs": {
+      "instructions": "Instructions",
+      "routes": "Transfer routes",
+      "formats": "Statement formats"
+    },
+    "views": {
+      "open": "Open",
+      "attention": "Needs attention",
+      "done": "Done",
+      "all": "All"
+    },
+    "registry": "Registry",
+    "allRegistries": "All registries",
+    "assetKind": "Asset",
+    "allAssets": "All assets",
+    "assets": {
+      "GOO_LOT": "Guarantees of origin",
+      "ALLOWANCE": "Allowances"
+    },
+    "key": "Instruction",
+    "type": "Type",
+    "types": {
+      "TRANSFER": "Transfer",
+      "CANCELLATION": "Cancellation",
+      "ALLOWANCE_TRANSFER": "Allowance transfer",
+      "SURRENDER": "Surrender"
+    },
+    "what": "What",
+    "route": "From → to",
+    "channel": "Channel",
+    "attempts": "Attempts",
+    "lastError": "Last error",
+    "expectedEffective": "Expected in effect",
+    "submitted": "Submitted",
+    "submittedBy": "Submitted by",
+    "shown_one": "{{count}} instruction shown",
+    "shown_other": "{{count}} instructions shown",
+    "newTransfer": "New transfer",
+    "transferHint": "Moves certificates to another account. A part of a lot is split off first. The transfer waits for a second person's approval in the inbox before it is sent.",
+    "transferOf": "Lot {{issuance}}, certificates {{start}}–{{end}}",
+    "lot": "Lot",
+    "quantityMwh": "Quantity (MWh)",
+    "quantityHint": "Empty: the whole lot ({{max}} MWh)",
+    "toRegistry": "To registry",
+    "toAccount": "To account",
+    "fromRegistry": "From registry",
+    "noRoute": "No route on record between these registries; the registry decides whether it can be done.",
+    "routeFeasible": "Route available: fee {{fee}} per MWh, about {{days}} days",
+    "routeInfeasible": "These registries cannot transfer to each other.",
+    "transferSubmitted": "Transfer submitted; it waits for approval",
+    "routesHint": "Used by the allocation engine to score sources, and shown before manual transfers.",
+    "feasible": "Feasible",
+    "feePerMwh": "Fee per MWh",
+    "expectedDays": "Expected days",
+    "edit": "Edit",
+    "saveRoute": "Save route",
+    "routeSaved": "Route saved",
+    "formatsHint": "How each registry's statement and transaction exports are read. Changes go through the API for now.",
+    "profile": "Profile",
+    "kind": "Kind",
+    "layout": "Layout",
+    "columns": "Columns",
+    "updated": "Updated",
+    "inactive": "inactive",
+    "statementKinds": {
+      "GOO_HOLDINGS": "GoO holdings",
+      "GOO_TRANSACTIONS": "GoO transactions",
+      "ALLOWANCE_HOLDINGS": "Allowance holdings",
+      "ALLOWANCE_TRANSACTIONS": "Allowance transactions"
+    },
+    "layoutText": "Separator {{delimiter}}, skip {{skip}} lines, dates {{date}}",
+    "viaChannel": "via {{channel}}",
+    "tasks": {
+      "INSTRUCTION_APPROVAL": "Approval task",
+      "INSTRUCTION_FOLLOW_UP": "Follow-up task"
+    },
+    "cancel": "Cancel instruction",
+    "cancelHint": "A lot in transfer is released; reserved allowances are given back.",
+    "cancelled": "Instruction cancelled",
+    "retry": "Retry",
+    "resubmitted": "Instruction submitted again",
+    "markFailed": "Mark failed",
+    "failHint": "The registry refused the instruction or it cannot be completed. It can be retried or cancelled afterwards.",
+    "failed": "Instruction marked failed",
+    "confirm": "Confirm executed",
+    "confirmTitle": "Confirm the registry executed it",
+    "confirmHint": "Record this only when the registry shows the transaction as completed.",
+    "confirmed": "Instruction confirmed",
+    "externalRef": "Registry reference",
+    "plan": "Allocation plan",
+    "openPlan": "Open the plan",
+    "unplanned": "Unplanned",
+    "openLot": "Open the lot",
+    "nextAttempt": "Next attempt",
+    "lifecycle": "Lifecycle",
+    "notYet": "Not yet",
+    "steps": {
+      "submitted": "Submitted",
+      "approved": "Approved",
+      "sent": "Sent to the registry",
+      "confirmed": "Confirmed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
   }
 }

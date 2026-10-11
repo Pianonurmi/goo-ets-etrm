@@ -7,6 +7,7 @@ import {
   IconCategory,
   IconFileCheck,
   IconFileInvoice,
+  IconBuildingArch,
   IconListDetails,
   IconPackages,
   IconBook2,
@@ -48,6 +49,14 @@ const FINANCE: readonly Role[] = ['ACCOUNTANT', 'AUDITOR', 'BACK_OFFICE'];
 const AUDIT_READERS: readonly Role[] = ['AUDITOR', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'];
 const MASTER_DATA: readonly Role[] = ['MIDDLE_OFFICE', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'ACCOUNTANT', 'AUDITOR'];
 const SETTLEMENT_READERS: readonly Role[] = ['BACK_OFFICE', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'RISK', 'AUDITOR'];
+const REGISTRY_READERS: readonly Role[] = [
+  'REGISTRY_OPERATOR',
+  'BACK_OFFICE',
+  'MIDDLE_OFFICE',
+  'ACCOUNTANT',
+  'RISK',
+  'AUDITOR',
+];
 const RISK_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'TRADER', 'AUDITOR'];
 
 export const NAVIGATION: NavSection[] = [
@@ -71,6 +80,12 @@ export const NAVIGATION: NavSection[] = [
       { path: '/inventory', label: 'nav.inventory', icon: <IconCertificate size={ICON} /> },
       { path: '/allocation', label: 'nav.allocation', icon: <IconPuzzle size={ICON} /> },
       { path: '/positions', label: 'nav.positions', icon: <IconChartBar size={ICON} /> },
+      {
+        path: '/registry',
+        label: 'nav.registry',
+        icon: <IconBuildingArch size={ICON} />,
+        roles: REGISTRY_READERS,
+      },
       {
         path: '/settlement',
         label: 'nav.settlement',

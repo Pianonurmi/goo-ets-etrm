@@ -23,6 +23,7 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
+import { TransferModal } from '@/features/registry/TransferModal';
 import type { Schema } from '@/shared/api/types';
 import { useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
@@ -44,7 +45,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-type Action = 'withdraw' | 'split' | 'cancel' | null;
+type Action = 'withdraw' | 'split' | 'cancel' | null | 'transfer';
 type Purpose = Schema<'CancellationDetails'>['purpose'];
 const PURPOSES: Purpose[] = ['DISCLOSURE', 'OWN_CONSUMPTION', 'VOLUNTARY', 'COMPLIANCE', 'ON_BEHALF_OF_THIRD_PARTY'];
 
@@ -62,6 +63,7 @@ function LotActions({ lot }: { lot: Lot }) {
   const canWithdraw = useCan('inventory_withdraw');
   const canSplit = useCan('inventory_split');
   const canCancel = useCan('inventory_cancel');
+  const canTransfer = useCan('registry_transfer');
   const [action, setAction] = useState<Action>(null);
   const [reason, setReason] = useState('');
   const [quantity, setQuantity] = useState<number | string>('');
@@ -91,13 +93,18 @@ function LotActions({ lot }: { lot: Lot }) {
   });
   const live = lot.status === 'HELD';
   const path = { params: { path: { id: lot.id } } };
-  if (!live || !(canWithdraw || canSplit || canCancel)) return null;
+  if (!live || !(canWithdraw || canSplit || canCancel || canTransfer)) return null;
   return (
     <Card withBorder>
       <Title order={5} mb="sm">
         {t('inventory.actions')}
       </Title>
       <Group>
+        {canTransfer && (
+          <Button variant="light" size="xs" onClick={() => setAction('transfer')} data-testid="lot-transfer">
+            {t('registry.newTransfer')}
+          </Button>
+        )}
         {canSplit && (
           <Button variant="light" size="xs" onClick={() => setAction('split')}>
             {t('inventory.split')}
@@ -114,6 +121,9 @@ function LotActions({ lot }: { lot: Lot }) {
           </Button>
         )}
       </Group>
+      {action === 'transfer' && (
+        <TransferModal entityId={lot.holderEntityId} lot={lot} onClose={() => setAction(null)} />
+      )}
       <Modal opened={action === 'withdraw'} onClose={() => setAction(null)} title={t('inventory.withdraw')}>
         <Stack>
           <Text size="sm">{t('inventory.withdrawHint')}</Text>
