@@ -22,7 +22,7 @@ test.describe('payments, netting and VAT', () => {
     await expect(page.getByRole('gridcell', { name: `E2E-BANK-${invoiceId.slice(-8)}` })).toBeVisible();
 
     await page.goto(`/settlement/invoices/${invoiceId}`);
-    await expect(page.getByTestId('invoice-payment-status')).toHaveText('PAID');
+    await expect(page.getByTestId('invoice-payment-status')).toHaveText(/^paid$/i);
   });
 
   test('the demo netting is agreed by a second accountant and settled with the net payment', async ({ page }) => {
@@ -32,7 +32,7 @@ test.describe('payments, netting and VAT', () => {
       .getByRole('gridcell', { name: /Nordvind/ })
       .first()
       .click();
-    await expect(page.getByTestId('netting-status')).toHaveText('DRAFT');
+    await expect(page.getByTestId('netting-status')).toHaveText(/^draft$/i);
     await expect(page.getByTestId('netting-own')).toBeVisible();
     await expect(page.getByTestId('netting-agree')).toBeHidden();
     await expect(page.getByTestId('netting-net')).toContainText('The counterparty pays us 245.00 EUR');
@@ -42,7 +42,7 @@ test.describe('payments, netting and VAT', () => {
     await page.getByTestId('netting-agree').click();
     await page.getByTestId('agree-reference').fill('NV e-mail 2026-10');
     await page.getByTestId('agree-submit').click();
-    await expect(page.getByTestId('netting-status')).toHaveText('AGREED');
+    await expect(page.getByTestId('netting-status')).toHaveText(/^agreed$/i);
 
     // Nordvind pays the net amount; nothing in the remittance, so it stays unapplied for the netting.
     await page.goto('/settlement?tab=payments');
@@ -57,7 +57,7 @@ test.describe('payments, netting and VAT', () => {
     await page.getByTestId('netting-settle').click();
     await choose(page, 'settle-payment', /E2E-NETTING-NV/);
     await page.getByTestId('settle-submit').click();
-    await expect(page.getByTestId('netting-status')).toHaveText('SETTLED');
+    await expect(page.getByTestId('netting-status')).toHaveText(/^settled$/i);
   });
 
   test('VAT rules: the determination finds the domestic rate; a proposal waits for approval', async ({ page }) => {

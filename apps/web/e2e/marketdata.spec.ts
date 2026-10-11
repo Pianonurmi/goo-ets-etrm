@@ -14,9 +14,9 @@ test.describe('market data and valuation', () => {
     await page.goto(`/market-data/curves?curve=EUA_FWD&asOf=${lastWeekday()}`);
     await page.getByTestId('build-snapshot').click();
     await expect(page).toHaveURL(/\/market-data\/snapshots\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('snapshot-status')).toHaveText('DRAFT');
+    await expect(page.getByTestId('snapshot-status')).toHaveText(/^draft$/i);
     await page.getByTestId('submit-snapshot').click();
-    await expect(page.getByTestId('snapshot-status')).toHaveText('PENDING SIGN OFF');
+    await expect(page.getByTestId('snapshot-status')).toHaveText(/^pending sign off$/i);
 
     await page.getByTestId('sign-off-task').click();
     await expect(page.getByTestId('own-request')).toBeVisible();
@@ -31,7 +31,7 @@ test.describe('market data and valuation', () => {
     await expect(page.getByRole('gridcell', { name: 'CLOSE' }).first()).toBeVisible();
     await page.goto('/valuation');
     await page.getByRole('gridcell', { name: 'OFFICIAL' }).first().click();
-    await expect(page.getByTestId('run-status')).toHaveText('OFFICIAL');
+    await expect(page.getByTestId('run-status')).toHaveText(/^official$/i);
     await page.goto('/valuation?tab=explain');
     await expect(page.getByText('P&L explain').last()).toBeVisible();
     await expect(page.locator('.recharts-bar-rectangle').first()).toBeVisible();

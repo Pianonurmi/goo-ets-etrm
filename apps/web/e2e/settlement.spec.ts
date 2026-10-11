@@ -23,10 +23,10 @@ test.describe('settlement', () => {
     await expect(page.getByTestId('run-result')).toContainText('1 draft created');
     await page.getByTestId('run-result').getByRole('link').click();
 
-    await expect(page.getByTestId('invoice-status')).toHaveText('DRAFT');
+    await expect(page.getByTestId('invoice-status')).toHaveText(/^draft$/i);
     await expect(page.getByTestId('invoice-lines')).toContainText(tradeNumber);
     await page.getByTestId('invoice-submit').click();
-    await expect(page.getByTestId('invoice-status')).toHaveText('PENDING APPROVAL');
+    await expect(page.getByTestId('invoice-status')).toHaveText(/^pending approval$/i);
     const invoiceUrl = page.url();
 
     await page.getByTestId('invoice-task').click();
@@ -38,9 +38,9 @@ test.describe('settlement', () => {
     await expect(page.getByText('Decided by controller', { exact: false })).toBeVisible();
 
     await page.goto(invoiceUrl);
-    await expect(page.getByTestId('invoice-status')).toHaveText('ISSUED');
+    await expect(page.getByTestId('invoice-status')).toHaveText(/^issued$/i);
     await expect(page.getByTestId('invoice-number')).toHaveText(/^INV-\d{4}-\d{6}$/);
-    await expect(page.getByTestId('invoice-payment-status')).toHaveText('UNPAID');
+    await expect(page.getByTestId('invoice-payment-status')).toHaveText(/^unpaid$/i);
     await expect(page.getByTestId('invoice-pdf')).toBeVisible();
   });
 
@@ -51,7 +51,7 @@ test.describe('settlement', () => {
     await page.goto('/settlement?tab=invoices&status=ISSUED');
     await page.getByRole('gridcell', { name: 'PAID', exact: true }).first().click();
     await expect(page).toHaveURL(/\/settlement\/invoices\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('invoice-payment-status')).toHaveText('PAID');
+    await expect(page.getByTestId('invoice-payment-status')).toHaveText(/^paid$/i);
     await expect(page.getByTestId('invoice-paid')).toBeVisible();
 
     await switchPersona(page, 'trader');

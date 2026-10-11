@@ -36,6 +36,7 @@ import { $api } from '@/shared/api/client';
 import { decimal, type Body, type Schema } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
@@ -62,12 +63,7 @@ function useInvalidateMonthEnd() {
 }
 
 export function PeriodStatusBadge({ status }: { status: Period['status'] }) {
-  const colors: Record<Period['status'], string> = { OPEN: 'blue', SOFT_CLOSED: 'yellow', CLOSED: 'gray' };
-  return (
-    <Badge color={colors[status]} variant="light" data-testid="period-status">
-      {status.replace(/_/g, ' ')}
-    </Badge>
-  );
+  return <StatusBadge status={status} data-testid="period-status" />;
 }
 
 function PeriodCard({ entityId, period }: { entityId: string; period: string }) {

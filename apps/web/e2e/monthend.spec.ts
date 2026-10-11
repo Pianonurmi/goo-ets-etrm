@@ -14,11 +14,11 @@ test.describe('ledger, month end and reports', () => {
     await expect(page.getByTestId('period-picker')).toHaveValue(previousPeriod());
     await expect(page.getByTestId('hard-close-checklist')).toBeVisible();
     await expect(page.getByTestId('period-end-run')).toBeVisible();
-    await expect(page.getByTestId('period-status')).toHaveText('OPEN');
+    await expect(page.getByTestId('period-status')).toHaveText(/^open$/i);
     await page.getByTestId('soft-close').click();
-    await expect(page.getByTestId('period-status')).toHaveText('SOFT CLOSED');
+    await expect(page.getByTestId('period-status')).toHaveText(/^soft closed$/i);
     await page.getByRole('button', { name: 'Reopen' }).click();
-    await expect(page.getByTestId('period-status')).toHaveText('OPEN');
+    await expect(page.getByTestId('period-status')).toHaveText(/^open$/i);
     await page.getByRole('tab', { name: 'GL interface' }).click();
     await expect(page.getByText('Reconciliation with the general ledger')).toBeVisible();
   });

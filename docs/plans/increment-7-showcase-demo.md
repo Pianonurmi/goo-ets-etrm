@@ -43,7 +43,7 @@ What the code does today:
 | Help renderer | `markdown-to-jsx` with raw HTML disabled, inside the lazy help chunk only. The CSP is untouched. |
 | Tour | A small homegrown component: `@floating-ui/react` (already a Mantine dependency) plus a Mantine Overlay, lazy-loaded. |
 | Image | CI pushes to GHCR on `main` after the Trivy gate; the VPS pulls it. |
-| Design system | Built on the existing Mantine theme (`app/theme.ts`), not a new UI library. Inter as a variable font, self-hosted (CSP `font-src 'self'`). Tabular numerals for all figures. One accent colour plus neutral greys, with semantic colours for gain, loss, warning and status, all kept at WCAG AA in both modes. Tokens for spacing, radius, shadow and motion. AG Grid themed through its theming API to match. |
+| Design system | Built on the existing Mantine theme (`app/theme.ts`), not a new UI library. Geist and Geist Mono as variable fonts, self-hosted (CSP `font-src 'self'`; Inter in the first draft, Geist after the design review). Tabular numerals for all figures. One accent colour plus neutral greys, with semantic colours for gain, loss, warning and status, all kept at WCAG AA in both modes. Tokens for spacing, radius, shadow and motion. AG Grid themed through its theming API to match. |
 
 ## Milestones
 
@@ -71,7 +71,7 @@ Comes before every new screen in this increment, so the login page, help, tours 
 - Presented as a one-page design board (a design artifact) for approval before code changes.
 
 **Theme** (`app/theme.ts` plus `app/tokens.ts`)
-- Typography: Inter, type scale, tabular numerals.
+- Typography: Geist and Geist Mono, type scale, tabular numerals.
 - Colour: accent and neutrals; semantic tokens for buy/sell, gain/loss and each status.
 - Spacing, radius, shadows, focus rings, motion with `prefers-reduced-motion` honoured.
 - Dark mode tuned, not just inverted.
@@ -101,7 +101,7 @@ Comes before every new screen in this increment, so the login page, help, tours 
 **Guards**
 - Tokens and components documented in `docs/ui/design-system.md` with a screenshot board.
 - The axe and contrast checks stay green in both modes.
-- Bundle: the font is about 30–40 kB as WOFF2 and is outside the JS budget; the first-page JS must stay under 330 kB.
+- Bundle: the fonts are about 70 kB as WOFF2 and is outside the JS budget; the first-page JS must stay under 330 kB.
 
 ### M1: Showcase authentication (ADR 0032)
 
@@ -370,7 +370,7 @@ M0 to M9 plus the screenshots of M12. Help, tours and the deck can follow while 
 - `README.md`, `docs/roadmap.md`
 
 **Create**
-- `apps/web/src/app/tokens.ts`, `public/fonts/` (Inter WOFF2), logo SVGs, shared components (`KpiCard`, `StatusBadge`, `EmptyState`, `DetailLayout`, skeletons), `docs/ui/design-system.md`, ADR 0034
+- `apps/web/src/app/tokens.ts`, Geist via `@fontsource-variable`, logo SVGs, shared components (`KpiCard`, `StatusBadge`, `EmptyState`, `DetailLayout`, skeletons), `docs/ui/design-system.md`, ADR 0034
 - `config/ShowcaseSecurityConfiguration.kt`, `Personas.kt`, `ProfileGuard.kt`
 - `showcase/` (wipe, reset, nightly job)
 - `application-showcase.yml`, `application-demo.yml`, `db/demo-migration/`

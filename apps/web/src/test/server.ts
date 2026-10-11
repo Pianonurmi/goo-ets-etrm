@@ -37,4 +37,12 @@ export const server = setupServer(
   http.get(`${ORIGIN}/api/v1/workflow/task-types`, () => HttpResponse.json([])),
   http.get(`${ORIGIN}/api/v1/workflow/tasks/counts`, () => HttpResponse.json({ TRADE_APPROVAL: 2 })),
   http.get(`${ORIGIN}/api/v1/workflow/tasks`, () => HttpResponse.json({ items: [], nextCursor: null })),
+  http.get(`${ORIGIN}/api/v1/home/summary`, ({ request }) =>
+    HttpResponse.json({
+      legalEntityId: new URL(request.url).searchParams.get('legalEntityId') ?? 'e1',
+      asOf: '2026-10-11',
+      tasks: { actionable: 2, recent: [] },
+      deadlines: [],
+    } satisfies Schema<'HomeSummaryView'>),
+  ),
 );

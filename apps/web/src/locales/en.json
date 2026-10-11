@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "ETRM",
-    "subtitle": "GoO and EU ETS",
+    "title": "Provena",
+    "subtitle": "Guarantees of Origin and EU ETS",
     "loading": "Loading…",
     "startFailed": "The application could not start",
     "retry": "Retry"
@@ -33,7 +33,10 @@
     "settlement": "Settlement",
     "registry": "Registry",
     "reconciliation": "Reconciliation",
-    "confirmations": "Confirmations"
+    "confirmations": "Confirmations",
+    "main": "Main navigation",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "header": {
     "entity": "Legal entity",
@@ -46,15 +49,66 @@
     "roles": "Roles",
     "demoBanner": "Public demo: shared with other visitors, reset every night. All companies, counterparties and prices are fictitious.",
     "account": "Account",
-    "signedInAs": "Signed in as"
+    "signedInAs": "Signed in as",
+    "demoBadge": "Demo · resets nightly",
+    "inbox": "Inbox: {{count}} to do",
+    "help": "Help and keyboard shortcuts",
+    "display": "Display",
+    "density": "Density",
+    "comfortable": "Comfortable",
+    "compact": "Compact"
   },
   "home": {
-    "welcome": "Welcome, {{name}}",
-    "intro": "Pick an area from the navigation. Actions you may not take are hidden or disabled; the server checks every action again.",
-    "yourRoles": "Your roles",
-    "yourEntities": "Legal entities",
-    "allEntities": "All legal entities",
-    "selectedEntity": "Working on"
+    "greetingMorning": "Good morning, {{name}}",
+    "greetingAfternoon": "Good afternoon, {{name}}",
+    "greetingEvening": "Good evening, {{name}}",
+    "newTrade": "New trade",
+    "noEntity": "No legal entity to show",
+    "noEntityHint": "Your user has no legal entity in scope yet.",
+    "myWork": "My work",
+    "noWork": "Nothing waiting for you",
+    "noWorkHint": "Approvals and follow-ups you can decide appear here.",
+    "overdue": "Overdue",
+    "due": "Due {{date}}",
+    "coverageTitle": "GoO coverage by delivery month",
+    "coverageUnit": "MWh · open demand vs covered",
+    "demand": "Open demand",
+    "covered": "Covered",
+    "noObligations": "No open delivery obligations",
+    "noObligationsHint": "Confirmed GoO sales create obligations. Capture a trade to see one here.",
+    "upcoming": "Coming up",
+    "nothingUpcoming": "No deadlines in the next four months.",
+    "closePeriod": "Close {{period}}",
+    "activity": "Recent activity",
+    "auditTrail": "Audit trail",
+    "deadline": {
+      "VERIFIED_EMISSIONS": "Verified emissions {{year}}",
+      "FREE_ALLOCATION": "Free allocation {{year}}",
+      "SURRENDER": "Surrender allowances {{year}}"
+    },
+    "kpi": {
+      "tasks": "Open tasks for you",
+      "overdue": "{{count}} overdue",
+      "nothingOverdue": "Nothing overdue",
+      "coverage": "GoO coverage",
+      "shortfall": "{{mwh}} MWh short",
+      "covered": "Fully covered",
+      "live": "GoO certificates held",
+      "expiring": "{{mwh}} MWh expire within 90 days",
+      "mtm": "Mark-to-market ({{date}})",
+      "firstRun": "First official run",
+      "eua": "EUA net position {{year}}",
+      "surrender": "Surrender due {{date}}",
+      "noObligation": "No compliance obligation",
+      "breaks": "Registry breaks open",
+      "oldest": "Oldest since {{date}}",
+      "allReconciled": "All reconciled",
+      "overdueInvoices": "Overdue invoices",
+      "allPaid": "Nothing overdue",
+      "breaches": "Limit breaches",
+      "review": "Review in risk",
+      "withinLimits": "Within limits"
+    }
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -1066,7 +1120,8 @@
     "screens": "Screens",
     "trades": "Trades",
     "searching": "Searching…",
-    "nothing": "Nothing found"
+    "nothing": "Nothing found",
+    "placeholderShort": "Search screens and trades…"
   },
   "settlement": {
     "title": "Settlement",
@@ -1630,5 +1685,25 @@
     "title": "Preparing the demo data",
     "text": "The example portfolio is being created through the application's own API. This takes a minute or two after a start or a reset.",
     "progress": "Step {{done}} of {{total}}"
+  },
+  "roles": {
+    "TRADER": "Trader",
+    "MIDDLE_OFFICE": "Middle office",
+    "BACK_OFFICE": "Back office",
+    "REGISTRY_OPERATOR": "Registry operator",
+    "ACCOUNTANT": "Accountant",
+    "RISK": "Risk",
+    "AUDITOR": "Auditor",
+    "ADMIN": "Administrator",
+    "SYSTEM": "System"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "palette": "Search screens and trades",
+    "sheet": "Show these shortcuts",
+    "sidebar": "Collapse or expand the sidebar",
+    "density": "Switch density",
+    "scheme": "Switch light and dark",
+    "close": "Close a dialog or menu"
   }
 }

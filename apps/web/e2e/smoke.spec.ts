@@ -6,12 +6,12 @@ test.describe('application shell', () => {
     await actAs(page, 'trader');
     await page.goto('/');
     await expectShell(page);
-    await expect(page.getByRole('heading', { name: 'Welcome, trader' })).toBeVisible();
-    await expect(page.getByTestId('my-roles')).toContainText('TRADER');
+    await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), Tia$/ })).toBeVisible();
+    await expect(page.getByTestId('my-roles')).toContainText('Trader');
 
     await switchPersona(page, 'accountant');
-    await expect(page.getByRole('heading', { name: 'Welcome, accountant' })).toBeVisible();
-    await expect(page.getByTestId('my-roles')).toContainText('ACCOUNTANT');
+    await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), Ada$/ })).toBeVisible();
+    await expect(page.getByTestId('my-roles')).toContainText('Accountant');
   });
 
   test('offers the demo legal entities', async ({ page }) => {

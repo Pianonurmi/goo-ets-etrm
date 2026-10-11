@@ -2,7 +2,6 @@ import { BarChart } from '@mantine/charts';
 import {
   Alert,
   Anchor,
-  Badge,
   Button,
   Card,
   Group,
@@ -25,6 +24,7 @@ import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
@@ -38,18 +38,7 @@ type Run = Schema<'ValuationRunView'>;
 type Result = Schema<'ValuationResultView'>;
 
 export function RunStatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    DRAFT: 'gray',
-    PENDING_SIGN_OFF: 'yellow',
-    OFFICIAL: 'teal',
-    SUPERSEDED: 'gray',
-    REJECTED: 'red',
-  };
-  return (
-    <Badge color={colors[status] ?? 'gray'} variant="light" data-testid="run-status">
-      {status.replace(/_/g, ' ')}
-    </Badge>
-  );
+  return <StatusBadge status={status} data-testid="run-status" />;
 }
 
 function Runs({ entityId }: { entityId: string }) {

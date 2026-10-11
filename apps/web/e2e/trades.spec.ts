@@ -25,7 +25,7 @@ test.describe('trades', () => {
     await expect(page).toHaveURL(/\/trades\/[0-9a-f-]{36}$/);
     const tradeNumber = (await page.getByTestId('trade-number').textContent()) ?? '';
     expect(tradeNumber).toMatch(/^T-\d{4}-\d+$/);
-    await expect(page.getByTestId('trade-status')).toHaveText('PENDING APPROVAL');
+    await expect(page.getByTestId('trade-status')).toHaveText(/^pending approval$/i);
 
     // The trader cannot decide their own trade: the approval task is not theirs to take.
     await page.getByTestId('approval-task').click();
@@ -41,11 +41,11 @@ test.describe('trades', () => {
     // Wait for the search to narrow the blotter, so the click does not land on a row being replaced.
     await expect(page.getByTestId('trade-status')).toHaveCount(1);
     await page.getByRole('gridcell', { name: tradeNumber }).click();
-    await expect(page.getByTestId('trade-status')).toHaveText('APPROVED');
+    await expect(page.getByTestId('trade-status')).toHaveText(/^approved$/i);
     await page.getByTestId('confirm-trade').click();
     await page.getByTestId('confirmation-ref').fill(`E2E-${tradeNumber}`);
     await page.getByTestId('confirm-submit').click();
-    await expect(page.getByTestId('trade-status')).toHaveText('CONFIRMED');
+    await expect(page.getByTestId('trade-status')).toHaveText(/^confirmed$/i);
   });
 
   test('refuses an invalid trade with field messages', async ({ page }) => {

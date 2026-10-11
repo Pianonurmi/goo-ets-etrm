@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Center, List, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Center, List, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asProblemError } from '@/shared/api/problem';
+import { ProvenaLogo } from '@/app/brand/Logo';
 import { signInShowcase, takeSessionExpired } from '@/shared/auth/showcase';
 
 interface Credentials {
@@ -40,14 +41,17 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
   };
 
   return (
-    <Center mih="100vh" p="md" bg="var(--mantine-color-body)">
+    <Center mih="100vh" p="md" className="etrm-canvas">
       <Stack w="100%" maw={440} gap="lg">
-        <Box ta="center">
-          <Title order={1} size="h2">
+        <Stack align="center" gap={6}>
+          <ProvenaLogo size={40} fz={28} />
+          <Title order={1} className="visually-hidden">
             {t('app.title')}
           </Title>
-          <Text c="dimmed">{t('login.tagline')}</Text>
-        </Box>
+          <Text c="dimmed" ta="center">
+            {t('login.tagline')}
+          </Text>
+        </Stack>
         <Paper withBorder radius="md" p="xl" component="main">
           <form onSubmit={form.onSubmit((values) => void submit(values))} noValidate>
             <Stack>

@@ -1,0 +1,124 @@
+/* Provena global styles (ADR 0034). Colours come from the --etrm-* tokens the theme defines for both schemes. */
+
+body {
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Figures line up in columns: every number in the product uses tabular numerals. */
+.etrm-figure,
+.ag-cell,
+.ag-header-cell,
+table,
+input[inputmode='decimal'],
+input[inputmode='numeric'] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compact density: everything sized in rem shrinks a step (the grid row height follows in DataGrid). */
+html[data-density='compact'] {
+  font-size: 93.75%;
+}
+
+.etrm-canvas {
+  background: var(--etrm-canvas);
+}
+
+.etrm-page-title {
+  letter-spacing: -0.02em;
+}
+
+.etrm-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.etrm-card-link {
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.etrm-card-link:hover {
+  border-color: var(--etrm-accent);
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+.etrm-nav-link {
+  border-radius: var(--mantine-radius-md);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.etrm-nav-link[data-active] {
+  font-weight: 600;
+}
+
+.etrm-kbd {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 11px;
+  border: 1px solid var(--etrm-line);
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--etrm-muted);
+}
+
+:focus-visible {
+  outline-color: var(--etrm-focus);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+.etrm-search-button {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  width: 100%;
+  max-width: 400px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--etrm-line);
+  border-radius: var(--mantine-radius-md);
+  background: var(--etrm-canvas);
+  color: var(--etrm-muted);
+}
+
+.etrm-search-button:hover {
+  border-color: var(--mantine-color-gray-4);
+}
+
+.etrm-persona-button {
+  padding: 4px 8px;
+  border-radius: var(--mantine-radius-md);
+}
+
+.etrm-persona-button:hover,
+.etrm-task-row:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.etrm-task-row {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--etrm-line);
+  border-radius: 10px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

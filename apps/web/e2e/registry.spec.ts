@@ -13,7 +13,7 @@ test.describe('registry instructions', () => {
     await page.goto('/registry');
     await page.getByRole('gridcell', { name: 'PENDING APPROVAL' }).first().click();
     await expect(page).toHaveURL(/\/registry\/instructions\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('instruction-status')).toHaveText('PENDING APPROVAL');
+    await expect(page.getByTestId('instruction-status')).toHaveText(/^pending approval$/i);
     const instructionUrl = page.url();
 
     await page.getByTestId('task-INSTRUCTION_APPROVAL').click();
@@ -25,7 +25,7 @@ test.describe('registry instructions', () => {
     await expect(page.getByText('Decided by middle', { exact: false })).toBeVisible();
 
     await page.goto(instructionUrl);
-    await expect(page.getByTestId('instruction-status')).toHaveText('CONFIRMED');
+    await expect(page.getByTestId('instruction-status')).toHaveText(/^confirmed$/i);
     await expect(page.getByTestId('instruction-lifecycle')).toContainText('middle');
   });
 
@@ -49,11 +49,11 @@ test.describe('registry instructions', () => {
     await page.getByTestId('transfer-submit').click();
 
     await expect(page).toHaveURL(/\/registry\/instructions\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('instruction-status')).toHaveText('PENDING APPROVAL');
+    await expect(page.getByTestId('instruction-status')).toHaveText(/^pending approval$/i);
     await page.getByTestId('instruction-cancel').click();
     await page.getByTestId('reason').fill('Entered by mistake');
     await page.getByTestId('reason-submit').click();
-    await expect(page.getByTestId('instruction-status')).toHaveText('CANCELLED');
+    await expect(page.getByTestId('instruction-status')).toHaveText(/^cancelled$/i);
     await expect(page.getByTestId('instruction-error')).toContainText('Entered by mistake');
   });
 

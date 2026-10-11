@@ -17,7 +17,7 @@ test.describe('allocation and positions', () => {
 
     await page.getByTestId('propose').click();
     await expect(page).toHaveURL(/\/allocation\/plans\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('plan-status')).toHaveText('PROPOSED');
+    await expect(page.getByTestId('plan-status')).toHaveText(/^proposed$/i);
     await expect(page.getByTestId('plan-approval-task')).toBeVisible();
   });
 

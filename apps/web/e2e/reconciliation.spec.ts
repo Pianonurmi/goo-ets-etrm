@@ -52,16 +52,16 @@ test.describe('reconciliation', () => {
     await page.goto('/reconciliation');
     await expect(page.getByTestId('break-ageing')).toBeVisible();
     await page.getByRole('gridcell', { name: 'In our books, not in the registry' }).first().click();
-    await expect(page.getByTestId('break-status')).toHaveText('OPEN');
+    await expect(page.getByTestId('break-status')).toHaveText(/^open$/i);
     const breakUrl = page.url();
 
     await page.getByTestId('break-take').click();
-    await expect(page.getByTestId('break-status')).toHaveText('INVESTIGATING');
+    await expect(page.getByTestId('break-status')).toHaveText(/^investigating$/i);
     await expect(page.getByTestId('break-withdraw')).toBeVisible();
     await page.getByTestId('break-accept').click();
     await page.getByTestId('break-note').fill('Registry statement cut off; the certificates are ours');
     await page.getByTestId('break-note-submit').click();
-    await expect(page.getByTestId('break-status')).toHaveText('PENDING ACCEPTANCE');
+    await expect(page.getByTestId('break-status')).toHaveText(/^pending acceptance$/i);
 
     await page.getByTestId('task-BREAK_ACCEPTANCE').click();
     await expect(page.getByTestId('own-request')).toBeVisible();
@@ -70,7 +70,7 @@ test.describe('reconciliation', () => {
     await expect(page.getByText('Decided by middle', { exact: false })).toBeVisible();
 
     await page.goto(breakUrl);
-    await expect(page.getByTestId('break-status')).toHaveText('ACCEPTED');
+    await expect(page.getByTestId('break-status')).toHaveText(/^accepted$/i);
   });
 
   test('a break from one upload clears itself when the next statement shows the certificates', async ({
@@ -94,6 +94,6 @@ test.describe('reconciliation', () => {
 
     await upload(page, statement(lots));
     await page.goto(`/reconciliation/breaks/${created.id}`);
-    await expect(page.getByTestId('break-status')).toHaveText('AUTO CLEARED');
+    await expect(page.getByTestId('break-status')).toHaveText(/^auto cleared$/i);
   });
 });

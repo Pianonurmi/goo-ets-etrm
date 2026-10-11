@@ -24,6 +24,8 @@
     "sbom": "cyclonedx-npm --omit dev --output-format JSON --output-file build/sbom/etrm-web.cdx.json"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
     "@mantine/charts": "9.7.1",
     "@mantine/core": "9.7.1",
     "@mantine/dates": "9.7.1",

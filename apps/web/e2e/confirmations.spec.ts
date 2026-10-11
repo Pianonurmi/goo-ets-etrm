@@ -8,7 +8,7 @@ test.describe('counterparty confirmations', () => {
     await page.goto('/confirmations');
     await page.getByRole('gridcell', { name: 'MISMATCHED' }).first().click();
     await expect(page).toHaveURL(/\/confirmations\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('confirmation-status')).toHaveText('MISMATCHED');
+    await expect(page.getByTestId('confirmation-status')).toHaveText(/^mismatched$/i);
     await expect(page.getByTestId('term-price')).toContainText('MISMATCH');
     await expect(page.getByTestId('term-quantity')).not.toContainText('MISMATCH');
     const confirmationUrl = page.url();
@@ -20,10 +20,10 @@ test.describe('counterparty confirmations', () => {
     await expect(page.getByText('Decided by middle2', { exact: false })).toBeVisible();
 
     await page.goto(confirmationUrl);
-    await expect(page.getByTestId('confirmation-status')).toHaveText('OVERRIDDEN');
+    await expect(page.getByTestId('confirmation-status')).toHaveText(/^overridden$/i);
     await page.getByTestId('confirmation-trade').click();
     await expect(page).toHaveURL(/\/trades\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('trade-status')).toHaveText('CONFIRMED');
+    await expect(page.getByTestId('trade-status')).toHaveText(/^confirmed$/i);
   });
 
   test('their confirmation entered by hand matches ours', async ({ page, request }) => {
@@ -37,6 +37,6 @@ test.describe('counterparty confirmations', () => {
     await page.getByTestId('theirs-reference').fill(`AURORA-${tradeId.slice(-6)}`);
     await page.getByTestId('theirs-submit').click();
     await expect(page).toHaveURL(/\/confirmations\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('confirmation-status')).toHaveText('MATCHED');
+    await expect(page.getByTestId('confirmation-status')).toHaveText(/^matched$/i);
   });
 });

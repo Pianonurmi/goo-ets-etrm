@@ -37,7 +37,7 @@ test.describe('showcase', () => {
     await expect(page.getByTestId('criteria-summary')).not.toHaveText('…');
     await page.getByTestId('submit-trade').click();
     await expect(page).toHaveURL(/\/trades\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('trade-status')).toHaveText('PENDING APPROVAL');
+    await expect(page.getByTestId('trade-status')).toHaveText(/^pending approval$/i);
 
     // Four eyes hold in the showcase too: the persona, not the sign-in, is the person.
     await page.getByTestId('approval-task').click();

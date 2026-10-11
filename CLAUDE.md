@@ -91,7 +91,8 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - All visible text goes through `src/locales/en.json`. Personas (served by the API, fallback in `shared/auth/personas.ts`) have two users per approving role for four-eyes paths.
 - Every API operation has a UI caller or an entry in `apps/web/api-only.json` (`apiOnly` with a reason, or `planned` with the milestone). `npm run coverage:api` runs in `check`; a new endpoint needs a screen or a reason.
 - `npm run format` (Prettier) and `npm run lint` before committing web changes.
-- Colours come from the theme (`c="red"`, `color="teal"`): `app/theme.ts` keeps them at WCAG AA contrast and `e2e/hardening.spec.ts` runs axe and a CSP check. Keep new screens lazy; `npm run budget` guards the bundle size.
+- Design system (ADR 0034, `docs/ui/design-system.md`): Provena brand, tokens in `app/tokens.ts` (`token('gain')`), Geist fonts, shared components (`PageHeader`, `KpiCard`, `StatusBadge`, `Money`/`Quantity`, `EmptyState`, skeletons, `DetailLayout`). Use them for new screens; statuses go through `StatusBadge`, never hand-picked colours. The home page reads one call, `GET /api/v1/home/summary`.
+- Colours come from the theme (`c="red"`, `color="brand"`): `app/theme.ts` keeps them at WCAG AA contrast and `e2e/hardening.spec.ts` runs axe and a CSP check. Keep new screens lazy; `npm run budget` guards the bundle size.
 - Demo data (`demo` profile, `apps/api/.../demo`) goes through the REST API as the dev personas; extend it when a screen needs data to show, as a named `DemoStep` in `DemoScenario.steps()` (values for later steps go through `DemoContext.put`/`get`; the run log in `etrm_demo` makes a failed run resumable). Its test runs on a sibling database (`SiblingDatabase`) because its market data would clash with `MonthEndIT`.
 
 ## Lint

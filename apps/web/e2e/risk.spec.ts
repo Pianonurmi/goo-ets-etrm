@@ -24,7 +24,7 @@ test.describe('risk and EU ETS compliance', () => {
       .first()
       .click();
     await expect(page).toHaveURL(/\/risk\/limits\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId('limit-status')).toHaveText('PENDING APPROVAL');
+    await expect(page.getByTestId('limit-status')).toHaveText(/^pending approval$/i);
     await page.getByRole('link', { name: 'Approval task' }).click();
     await expect(page.getByTestId('own-request')).toBeVisible();
     await switchPersona(page, 'risk2');

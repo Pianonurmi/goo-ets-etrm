@@ -16,3 +16,31 @@ describe('contrast', () => {
     expect(contrast(orange, '#fff4e6')).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe('Provena tokens (ADR 0034)', () => {
+  it('keeps every text colour at WCAG AA on the canvas and surface of its scheme', async () => {
+    const { tokens } = await import('./tokens');
+    for (const scheme of [tokens.light, tokens.dark]) {
+      for (const text of [
+        scheme.ink,
+        scheme.muted,
+        scheme.accentText,
+        scheme.gain,
+        scheme.loss,
+        scheme.warning,
+        scheme.info,
+        scheme.buy,
+        scheme.sell,
+      ]) {
+        expect(contrast(text, scheme.canvas)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(text, scheme.surface)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('carries white text on the filled accent in both schemes', async () => {
+    const { tokens } = await import('./tokens');
+    expect(contrast('#FFFFFF', tokens.light.accent)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#FFFFFF', tokens.dark.accent)).toBeGreaterThanOrEqual(4.5);
+  });
+});

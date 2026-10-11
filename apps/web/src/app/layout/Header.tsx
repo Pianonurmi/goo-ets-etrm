@@ -1,44 +1,52 @@
 import {
   ActionIcon,
+  Avatar,
   Badge,
   Box,
   Burger,
   Group,
+  Indicator,
   Menu,
+  SegmentedControl,
   Select,
+  Stack,
   Text,
-  Title,
   Tooltip,
   UnstyledButton,
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core';
-import { IconChevronDown, IconId, IconLogout, IconMoon, IconSun, IconUserCircle } from '@tabler/icons-react';
+import {
+  IconAdjustmentsHorizontal,
+  IconBell,
+  IconChevronDown,
+  IconHelp,
+  IconId,
+  IconLogout,
+  IconMoon,
+  IconSearch,
+  IconSun,
+} from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
+import { spotlight } from '@mantine/spotlight';
+import type { Role } from '@/shared/api/types';
 import { signOut } from '@/shared/auth/oidc';
-import { signOutShowcase } from '@/shared/auth/showcase';
 import { choosePersona, currentPersona, personas } from '@/shared/auth/personas';
 import { useSession } from '@/shared/auth/SessionContext';
+import { signOutShowcase } from '@/shared/auth/showcase';
 import { useEntity } from '@/shared/context/EntityContext';
-import { PaletteButton } from './CommandPalette';
+import { setDensity, useDensity } from '@/shared/context/preferences';
+import { useActionableCounts } from '@/features/inbox/hooks';
 
-function ColorSchemeToggle() {
-  const { t } = useTranslation();
-  const { setColorScheme } = useMantineColorScheme();
-  const computed = useComputedColorScheme('light');
-  return (
-    <Tooltip label={t('header.toggleColorScheme')}>
-      <ActionIcon
-        variant="default"
-        size="lg"
-        aria-label={t('header.toggleColorScheme')}
-        onClick={() => setColorScheme(computed === 'dark' ? 'light' : 'dark')}
-      >
-        {computed === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-      </ActionIcon>
-    </Tooltip>
-  );
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((part) => part.charAt(0))
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 function EntitySelect() {
@@ -58,10 +66,148 @@ function EntitySelect() {
       }}
       allowDeselect={false}
       searchable
-      w={280}
+      w={260}
       visibleFrom="sm"
       data-testid="entity-select"
     />
+  );
+}
+
+/** Opens the command palette; looks like a search field, as in the design. */
+function SearchButton() {
+  const { t } = useTranslation();
+  return (
+    <>
+      <UnstyledButton
+        onClick={() => spotlight.open()}
+        aria-label={t('palette.open')}
+        data-testid="palette-button"
+        visibleFrom="md"
+        className="etrm-search-button"
+      >
+        <Group gap={8} wrap="nowrap" justify="space-between" w="100%">
+          <Group gap={8} wrap="nowrap">
+            <IconSearch size={16} />
+            <Text size="sm" c="dimmed" truncate>
+              {t('palette.placeholderShort')}
+            </Text>
+          </Group>
+          <span className="etrm-kbd">Ctrl K</span>
+        </Group>
+      </UnstyledButton>
+      <ActionIcon
+        variant="default"
+        size="lg"
+        hiddenFrom="md"
+        onClick={() => spotlight.open()}
+        aria-label={t('palette.open')}
+      >
+        <IconSearch size={18} />
+      </ActionIcon>
+    </>
+  );
+}
+
+function EnvironmentBadge() {
+  const { t } = useTranslation();
+  const { config } = useSession();
+  if (config.authMode === 'SHOWCASE') {
+    return (
+      <Tooltip label={t('header.demoBanner')} multiline w={300}>
+        <Badge variant="light" tt="none" radius="xl" data-testid="demo-banner" visibleFrom="sm">
+          {t('header.demoBadge')}
+        </Badge>
+      </Tooltip>
+    );
+  }
+  if (!config.environment) return null;
+  return (
+    <Badge color={config.authMode === 'DEV_HEADERS' ? 'orange' : 'gray'} variant="light" radius="xl" visibleFrom="sm">
+      {config.environment}
+    </Badge>
+  );
+}
+
+function InboxButton() {
+  const { t } = useTranslation();
+  const { total } = useActionableCounts();
+  return (
+    <Tooltip label={t('header.inbox', { count: total })}>
+      <Indicator label={total} size={16} disabled={total === 0} offset={4} color="red" inline>
+        <ActionIcon
+          component={Link}
+          to="/inbox"
+          variant="default"
+          size="lg"
+          aria-label={t('header.inbox', { count: total })}
+        >
+          <IconBell size={18} />
+        </ActionIcon>
+      </Indicator>
+    </Tooltip>
+  );
+}
+
+function HelpButton({ onOpen }: { onOpen: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Tooltip label={t('header.help')}>
+      <ActionIcon variant="default" size="lg" onClick={onOpen} aria-label={t('header.help')} data-testid="help-button">
+        <IconHelp size={18} />
+      </ActionIcon>
+    </Tooltip>
+  );
+}
+
+/** Colour scheme and density. */
+function DisplayMenu() {
+  const { t } = useTranslation();
+  const { setColorScheme } = useMantineColorScheme();
+  const computed = useComputedColorScheme('light');
+  const density = useDensity();
+  return (
+    <Menu position="bottom-end" width={240} closeOnItemClick={false}>
+      <Menu.Target>
+        <ActionIcon variant="default" size="lg" aria-label={t('header.display')} data-testid="display-menu">
+          <IconAdjustmentsHorizontal size={18} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t('header.display')}</Menu.Label>
+        <Menu.Item
+          leftSection={computed === 'dark' ? <IconSun size={16} /> : <IconMoon size={16} />}
+          onClick={() => setColorScheme(computed === 'dark' ? 'light' : 'dark')}
+          data-testid="toggle-color-scheme"
+        >
+          {t('header.toggleColorScheme')}
+        </Menu.Item>
+        <Box px="sm" py={6}>
+          <Text size="xs" c="dimmed" mb={4}>
+            {t('header.density')}
+          </Text>
+          <SegmentedControl
+            size="xs"
+            fullWidth
+            value={density}
+            onChange={(value) => setDensity(value)}
+            data={[
+              { value: 'comfortable', label: t('header.comfortable') },
+              { value: 'compact', label: t('header.compact') },
+            ]}
+            data-testid="density"
+          />
+        </Box>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+function RoleLine({ roles }: { roles: readonly Role[] }) {
+  const { t } = useTranslation();
+  return (
+    <Text size="xs" c="dimmed" lh={1.2} truncate>
+      {roles.map((role) => t(`roles.${role}`)).join(', ')}
+    </Text>
   );
 }
 
@@ -74,18 +220,18 @@ function PersonaMenu() {
   const queryClient = useQueryClient();
   const persona = currentPersona();
   return (
-    <Menu position="bottom-end" width={280}>
+    <Menu position="bottom-end" width={300}>
       <Menu.Target>
-        <UnstyledButton aria-label={t('header.actAs')} data-testid="persona-menu">
-          <Group gap={6} wrap="nowrap">
-            <IconUserCircle size={22} />
-            <Box visibleFrom="sm">
-              <Text size="sm" fw={500} lh={1.1}>
+        <UnstyledButton aria-label={t('header.actAs')} data-testid="persona-menu" className="etrm-persona-button">
+          <Group gap={10} wrap="nowrap">
+            <Avatar size={30} radius="xl" color="brand" variant="filled">
+              {initials(persona.name)}
+            </Avatar>
+            <Box visibleFrom="sm" maw={160}>
+              <Text size="sm" fw={500} lh={1.2} truncate>
                 {persona.name}
               </Text>
-              <Text size="xs" c="dimmed" lh={1.1}>
-                {persona.roles.join(', ')}
-              </Text>
+              <RoleLine roles={persona.roles} />
             </Box>
             <IconChevronDown size={14} />
           </Group>
@@ -101,14 +247,19 @@ function PersonaMenu() {
               choosePersona(candidate.id);
               void queryClient.resetQueries();
             }}
-            rightSection={
-              <Text size="xs" c="dimmed">
-                {candidate.roles.join(', ')}
-              </Text>
+            leftSection={
+              <Avatar size={24} radius="xl" color={candidate.id === persona.id ? 'brand' : 'gray'} variant="light">
+                {initials(candidate.name)}
+              </Avatar>
             }
-            fw={candidate.id === persona.id ? 700 : undefined}
+            fw={candidate.id === persona.id ? 600 : undefined}
           >
-            {candidate.name}
+            <Stack gap={0}>
+              <Text size="sm" fw="inherit">
+                {candidate.name}
+              </Text>
+              <RoleLine roles={candidate.roles} />
+            </Stack>
           </Menu.Item>
         ))}
       </Menu.Dropdown>
@@ -147,24 +298,24 @@ function UserMenu() {
   const { t } = useTranslation();
   const { me } = useSession();
   return (
-    <Menu position="bottom-end" width={240}>
+    <Menu position="bottom-end" width={260}>
       <Menu.Target>
-        <UnstyledButton aria-label={me.displayName}>
-          <Group gap={6} wrap="nowrap">
-            <IconUserCircle size={22} />
-            <Text size="sm" fw={500} visibleFrom="sm">
-              {me.displayName}
-            </Text>
+        <UnstyledButton aria-label={me.displayName} className="etrm-persona-button">
+          <Group gap={10} wrap="nowrap">
+            <Avatar size={30} radius="xl" color="brand" variant="filled">
+              {initials(me.displayName)}
+            </Avatar>
+            <Box visibleFrom="sm" maw={160}>
+              <Text size="sm" fw={500} lh={1.2} truncate>
+                {me.displayName}
+              </Text>
+              <RoleLine roles={me.roles} />
+            </Box>
             <IconChevronDown size={14} />
           </Group>
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>{t('header.roles')}</Menu.Label>
-        <Box px="sm" pb="xs">
-          <Text size="xs">{me.roles.join(', ')}</Text>
-        </Box>
-        <Menu.Divider />
         <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => void signOut()}>
           {t('header.signOut')}
         </Menu.Item>
@@ -173,31 +324,24 @@ function UserMenu() {
   );
 }
 
-export function Header({ opened, toggle }: { opened: boolean; toggle: () => void }) {
+export function Header({ opened, toggle, onHelp }: { opened: boolean; toggle: () => void; onHelp: () => void }) {
   const { t } = useTranslation();
   const { config } = useSession();
-  const dev = config.authMode === 'DEV_HEADERS';
-  const showcase = config.authMode === 'SHOWCASE';
+  const personasOn = config.authMode === 'DEV_HEADERS' || config.authMode === 'SHOWCASE';
   return (
-    <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-      <Group gap="sm" wrap="nowrap">
+    <Group h="100%" px="md" justify="space-between" wrap="nowrap" gap="sm">
+      <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
         <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('header.toggleNavigation')} />
-        <Title order={4}>{t('app.title')}</Title>
-        <Text size="sm" c="dimmed" visibleFrom="md">
-          {t('app.subtitle')}
-        </Text>
-        {config.environment && (
-          <Badge color={dev ? 'orange' : showcase ? 'teal' : 'gray'} variant="light">
-            {config.environment}
-          </Badge>
-        )}
-      </Group>
-      <Group gap="sm" wrap="nowrap">
-        <PaletteButton />
         <EntitySelect />
-        <ColorSchemeToggle />
-        {dev || showcase ? <PersonaMenu /> : <UserMenu />}
-        {showcase && <ShowcaseUserMenu />}
+        <SearchButton />
+      </Group>
+      <Group gap="xs" wrap="nowrap">
+        <EnvironmentBadge />
+        <InboxButton />
+        <HelpButton onOpen={onHelp} />
+        <DisplayMenu />
+        {personasOn ? <PersonaMenu /> : <UserMenu />}
+        {config.authMode === 'SHOWCASE' && <ShowcaseUserMenu />}
       </Group>
     </Group>
   );

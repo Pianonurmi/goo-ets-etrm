@@ -7,6 +7,8 @@ import io.restassured.RestAssured
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
 import org.hamcrest.Matchers.greaterThanOrEqualTo
+import org.hamcrest.Matchers.notNullValue
+import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -71,6 +73,7 @@ class DemoDataSeederIT {
             .body("size()", equalTo(1))
 
         operations(finland)
+        home(finland)
 
         // The run log is public progress: the UI waits on it while the data is being created.
         RestAssured.given().baseUri("http://localhost").port(port).get("/api/v1/ui-config").then().statusCode(200)
@@ -80,6 +83,30 @@ class DemoDataSeederIT {
 
         seeder.seed() shouldBe false
         asUser("trader", "TRADER").get("/api/v1/trades?legalEntityId=$finland").then().body("size()", equalTo(TRADES))
+    }
+
+    /** The home dashboard shows each section only to roles that may read it (ADR 0034). */
+    private fun home(finland: String) {
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/home/summary?legalEntityId=$finland").then().statusCode(200)
+            .body("tasks.actionable", greaterThanOrEqualTo(2))
+            .body("valuation.totalMtm", notNullValue())
+            .body("valuation.history.size()", greaterThan(1))
+            .body("reconciliation.open", equalTo(1))
+            .body("settlement", notNullValue())
+            .body("risk", notNullValue())
+            .body("goo.liveMwh", greaterThan(0))
+            .body("eua.complianceYear", notNullValue())
+            .body("ledger", nullValue())
+            .body("activity.size()", greaterThan(0))
+        asUser("trader", "TRADER").get("/api/v1/home/summary?legalEntityId=$finland").then().statusCode(200)
+            .body("valuation", notNullValue())
+            .body("reconciliation", nullValue())
+            .body("settlement", nullValue())
+            .body("activity", nullValue())
+        asUser("accountant", "ACCOUNTANT").get("/api/v1/home/summary?legalEntityId=$finland").then().statusCode(200)
+            .body("ledger.period", notNullValue())
+        asUser("scoped", "TRADER").header("X-Entities", "00000000-0000-0000-0000-000000000000")
+            .get("/api/v1/home/summary?legalEntityId=$finland").then().statusCode(403)
     }
 
     private fun operations(finland: String) {

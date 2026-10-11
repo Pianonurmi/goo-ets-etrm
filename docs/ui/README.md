@@ -4,7 +4,8 @@ React and TypeScript single-page application in `apps/web`, served by the API ja
 Sign-in uses OIDC with PKCE in production and dev personas in the `dev` and `test` profiles (ADR 0026). The public
 showcase (`showcase` profile, ADR 0032) has a sign-in page with demo accounts, then the same persona menu. The API
 client is generated from the committed OpenAPI document (ADR 0027). Actions are offered by role through a table
-keyed by operation id (ADR 0028).
+keyed by operation id (ADR 0028). The look, tokens and shared components are in [design-system.md](design-system.md)
+(ADR 0034).
 
 ## Run it
 

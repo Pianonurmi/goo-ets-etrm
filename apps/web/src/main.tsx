@@ -3,6 +3,9 @@ import '@mantine/dates/styles.layer.css';
 import '@mantine/notifications/styles.layer.css';
 import '@mantine/spotlight/styles.layer.css';
 import '@mantine/charts/styles.layer.css';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+import './app/global.css';
 import './app/i18n';
 import { Alert, Button, Center, Loader, MantineProvider, Stack } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
@@ -14,6 +17,9 @@ import { App } from './app/App';
 import { PreparingDemo } from './app/pages/PreparingDemo';
 import { cssVariablesResolver, theme } from './app/theme';
 import { startSession, type UiConfig } from './shared/auth/session';
+import { applyDensity } from './shared/context/preferences';
+
+applyDensity();
 
 const LoginPage = lazy(() => import('./app/pages/LoginPage'));
 

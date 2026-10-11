@@ -3692,6 +3692,405 @@
         "required" : [ "data", "recordedFrom", "version" ],
         "type" : "object"
       },
+      "HomeActivity" : {
+        "properties" : {
+          "actor" : {
+            "type" : "string"
+          },
+          "aggregateRef" : {
+            "type" : [ "string", "null" ]
+          },
+          "aggregateType" : {
+            "type" : [ "string", "null" ]
+          },
+          "eventType" : {
+            "type" : "string"
+          },
+          "occurredAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "actor", "eventType", "occurredAt" ],
+        "type" : "object"
+      },
+      "HomeAmount" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "currency" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "currency" ],
+        "type" : "object"
+      },
+      "HomeBreaks" : {
+        "properties" : {
+          "oldestFirstSeen" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "open" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "open" ],
+        "type" : "object"
+      },
+      "HomeCoverageMonth" : {
+        "properties" : {
+          "coveredMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "demandMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "month" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "coveredMwh", "demandMwh", "month" ],
+        "type" : "object"
+      },
+      "HomeDatedAmount" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "date" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "date" ],
+        "type" : "object"
+      },
+      "HomeDeadline" : {
+        "properties" : {
+          "complianceYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "dueOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "installationName" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "complianceYear", "dueOn", "installationName", "kind" ],
+        "type" : "object"
+      },
+      "HomeEua" : {
+        "properties" : {
+          "complianceYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "heldAllowances" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "netPosition" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "obligationOutstanding" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "surrenderDeadline" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "complianceYear", "heldAllowances", "netPosition", "obligationOutstanding" ],
+        "type" : "object"
+      },
+      "HomeGoo" : {
+        "properties" : {
+          "byMonth" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeCoverageMonth"
+            },
+            "type" : "array"
+          },
+          "coveragePct" : {
+            "type" : [ "number", "null" ]
+          },
+          "coveredMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "demandMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "expiring30Mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "expiring60Mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "expiring90Mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "liveMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "openObligationMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shortfallMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "byMonth", "coveredMwh", "demandMwh", "expiring30Mwh", "expiring60Mwh", "expiring90Mwh", "liveMwh", "openObligationMwh", "shortfallMwh" ],
+        "type" : "object"
+      },
+      "HomeLedger" : {
+        "properties" : {
+          "blockers" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "period" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "blockers", "period", "status" ],
+        "type" : "object"
+      },
+      "HomeRisk" : {
+        "properties" : {
+          "openBreaches" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "openBreaches" ],
+        "type" : "object"
+      },
+      "HomeSettlement" : {
+        "properties" : {
+          "overdueAmounts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeAmount"
+            },
+            "type" : "array"
+          },
+          "overdueInvoices" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "overdueAmounts", "overdueInvoices" ],
+        "type" : "object"
+      },
+      "HomeSummaryView" : {
+        "properties" : {
+          "activity" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeActivity"
+            },
+            "type" : [ "array", "null" ]
+          },
+          "asOf" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "deadlines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeDeadline"
+            },
+            "type" : "array"
+          },
+          "eua" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeEua"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "goo" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeGoo"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "ledger" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeLedger"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "reconciliation" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeBreaks"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "risk" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeRisk"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "settlement" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeSettlement"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "tasks" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeTasks"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "trades" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeTrades"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "valuation" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HomeValuation"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "asOf", "deadlines", "legalEntityId" ],
+        "type" : "object"
+      },
+      "HomeTask" : {
+        "properties" : {
+          "dueAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "overdue" : {
+            "type" : "boolean"
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requestedBy" : {
+            "type" : "string"
+          },
+          "summary" : {
+            "type" : [ "string", "null" ]
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "typeName" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "overdue", "requestedAt", "requestedBy", "type", "typeName" ],
+        "type" : "object"
+      },
+      "HomeTasks" : {
+        "properties" : {
+          "actionable" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "recent" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeTask"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "actionable", "recent" ],
+        "type" : "object"
+      },
+      "HomeTrades" : {
+        "properties" : {
+          "lastSevenDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pendingApproval" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "lastSevenDays", "pendingApproval" ],
+        "type" : "object"
+      },
+      "HomeValuation" : {
+        "properties" : {
+          "change" : {
+            "type" : [ "number", "null" ]
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "history" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeDatedAmount"
+            },
+            "type" : "array"
+          },
+          "previousDate" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "previousMtm" : {
+            "type" : [ "number", "null" ]
+          },
+          "totalMtm" : {
+            "type" : "number"
+          },
+          "valuationDate" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "currency", "history", "totalMtm", "valuationDate" ],
+        "type" : "object"
+      },
       "ImportError" : {
         "properties" : {
           "lineNo" : {
@@ -11423,6 +11822,43 @@
           }
         },
         "tags" : [ "ETS compliance" ]
+      }
+    },
+    "/api/v1/home/summary" : {
+      "get" : {
+        "operationId" : "home_summary",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HomeSummaryView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "home-controller" ]
       }
     },
     "/api/v1/inventory/breaks" : {
