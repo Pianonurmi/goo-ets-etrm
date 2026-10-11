@@ -47,6 +47,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - A caller that catches a `DomainException` from another `@Transactional` service must run that call in `Savepoints.attempt { }` (platform `tx`); otherwise the whole transaction is already marked rollback-only. Hand-wired tests pass `Savepoints.NONE`, so cover such paths with a Spring-context test (see `AllocationStaleIT`).
 - Deliveries are idempotent: pass `RecordDelivery.idempotencyKey` (e.g. `instruction:<id>`); `DeliveryRecorded.deliveryId` is the key downstream modules use.
 - CSV in and out goes through `platform.text.Csv` (RFC 4180). PDFs and other issued documents go through the `document` module; templates live in `src/main/resources/documents/templates/`.
+- Virtual threads stay off while the runtime is Java 21 (`application.yml`): pinning in `synchronized` deadlocked request threads. Revisit on Java 24+.
 - Scheduled jobs use `@SchedulerLock`; the lock provider is configured in `apps/api` (`SchedulingConfiguration`).
 - Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers (and optionally `X-Entities`, default all entities) in the `dev` and `test` profiles.
 - Approvals go through the workflow inbox: the owning module registers a `TaskHandler` and applies the decision in the same transaction.
