@@ -15,7 +15,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconArrowLeft, IconHammer, IconInbox } from '@tabler/icons-react';
+import { IconArrowLeft, IconHammer, IconInbox, IconPlus } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
@@ -29,6 +29,7 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
+import { CreateCurveModal, OfficialCurve, PriceLookupPanel } from './CurveTools';
 
 export function SnapshotStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -55,7 +56,10 @@ function useRefreshCurves() {
     });
 }
 
-/** Curves and their snapshots for a date; building a snapshot starts the sign-off (four eyes). */
+/**
+ * Curves and their snapshots for a date, the official one, and a price lookup; building a snapshot starts the sign-off
+ * (four eyes).
+ */
 export function CurvesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -69,6 +73,7 @@ export function CurvesPage() {
     { params: { path: { code }, query: { asOf } } },
     { enabled: Boolean(code) },
   );
+  const [creating, setCreating] = useState(false);
   const build = $api.useMutation('post', '/api/v1/market-data/curves/{code}/snapshots', {
     meta: { notify: false },
     onSuccess: (snapshot) => void navigate(`/market-data/snapshots/${snapshot.id}`),
@@ -80,7 +85,22 @@ export function CurvesPage() {
   };
   return (
     <Stack>
-      <PageHeader title={t('curves.title')} description={t('curves.description')} />
+      <PageHeader
+        title={t('curves.title')}
+        description={t('curves.description')}
+        actions={
+          <Can op="curve_create">
+            <Button
+              variant="default"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setCreating(true)}
+              data-testid="new-curve"
+            >
+              {t('curves.newCurve')}
+            </Button>
+          </Can>
+        }
+      />
       <Group align="flex-end">
         <Select
           label={t('curves.curve')}
@@ -154,6 +174,22 @@ export function CurvesPage() {
           </Table>
         )}
       </QueryState>
+      {curves.data && (
+        <SimpleGrid cols={{ base: 1, lg: 2 }}>
+          <OfficialCurve code={code} asOf={asOf} />
+          <PriceLookupPanel curves={curves.data} asOf={asOf} />
+        </SimpleGrid>
+      )}
+      {creating && (
+        <CreateCurveModal
+          curves={curves.data ?? []}
+          onClose={() => setCreating(false)}
+          onCreated={(curve) => {
+            setCreating(false);
+            set('curve', curve.code);
+          }}
+        />
+      )}
     </Stack>
   );
 }

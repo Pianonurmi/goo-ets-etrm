@@ -109,6 +109,7 @@ class ObligationService(
 
     override fun setConstraints(obligationId: UUID, constraints: List<AllocationConstraint>): ObligationView {
         val current = repository.lock(obligationId) ?: throw NotFoundException("Obligation", obligationId)
+        if (current.status != ObligationStatus.OPEN) throw ConflictException("Obligation $obligationId is ${current.status}; its constraints are fixed")
         val updated = current.copy(constraints = constraints, version = current.version + 1)
         if (!repository.update(updated)) throw ConflictException("Obligation $obligationId changed concurrently")
         events.publishEvent(ObligationChanged(updated))

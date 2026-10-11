@@ -12,6 +12,7 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { ladderSeries } from './model/ladder';
+import { SnapshotsTab } from './SnapshotsTab';
 
 type BucketPosition = Schema<'BucketPosition'>;
 
@@ -161,7 +162,7 @@ function EtsPosition({ entityId }: { entityId: string }) {
   );
 }
 
-/** Coverage, expiry and ETS dashboards of the selected entity. */
+/** Coverage, expiry and ETS dashboards of the selected entity, and their end-of-day snapshots. */
 export function PositionsPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
@@ -184,12 +185,18 @@ export function PositionsPage() {
           <Tabs.List>
             <Tabs.Tab value="goo">{t('positions.goo')}</Tabs.Tab>
             <Tabs.Tab value="ets">{t('positions.ets')}</Tabs.Tab>
+            <Tabs.Tab value="snapshots" data-testid="tab-snapshots">
+              {t('positions.snapshots')}
+            </Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="goo" pt="md">
             <GooPosition entityId={entity.id} />
           </Tabs.Panel>
           <Tabs.Panel value="ets" pt="md">
             <EtsPosition entityId={entity.id} />
+          </Tabs.Panel>
+          <Tabs.Panel value="snapshots" pt="md">
+            <SnapshotsTab entityId={entity.id} />
           </Tabs.Panel>
         </Tabs>
       )}

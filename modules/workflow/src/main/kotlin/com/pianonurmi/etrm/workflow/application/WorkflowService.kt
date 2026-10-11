@@ -204,6 +204,16 @@ class WorkflowService(
         if (task.status != TaskStatus.OPEN) return task
         actor.requireEntity(task.legalEntityId)
         if (actor.userId != task.requestedBy && !mayManage(actor, task)) throw ForbiddenException("User ${actor.userId} may not cancel task $taskId")
+        val handler = handlers[task.type]
+        if (handler != null) {
+            if (!handler.onWithdraw(task, reason)) {
+                throw ConflictException("A ${handler.definition.displayName.lowercase()} cannot be cancelled; approve or reject it instead")
+            }
+            // Withdrawing the subject usually closes the task already (closeFor).
+            val after = locked(taskId)
+            if (after.status != TaskStatus.OPEN) return after
+            return close(after, TaskStatus.CANCELLED, actor.userId, reason)
+        }
         return close(task, TaskStatus.CANCELLED, actor.userId, reason)
     }
 

@@ -65,6 +65,12 @@ export function canReevaluate(item: Pick<Item, 'status'>): boolean {
   return item.status === 'NEEDS_ATTENTION';
 }
 
+/** The VAT rule that determined an item's treatment, with its version (`FI_STANDARD v2`); null until determined. */
+export function vatRuleLabel(item: Pick<Item, 'vatRuleCode' | 'vatRuleVersion'>): string | null {
+  if (!item.vatRuleCode) return null;
+  return item.vatRuleVersion == null ? item.vatRuleCode : `${item.vatRuleCode} v${item.vatRuleVersion}`;
+}
+
 /** What may be done to an invoice in its current state; the API checks roles and four eyes again. */
 export interface InvoiceActions {
   submit: boolean;

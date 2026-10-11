@@ -43,6 +43,12 @@ class TradeApprovalTasks(private val workflow: WorkflowCommand, private val trad
         return DecisionOutcome.Applied
     }
 
+    /** Withdrawing a trade approval cancels the trade that waits for it. */
+    override fun onWithdraw(task: ApprovalTaskView, reason: String): Boolean {
+        trades.cancel(task.subjectRef, "withdrawn from approval: $reason")
+        return true
+    }
+
     @EventListener
     fun on(event: TradeCaptured) = open(event.trade)
 

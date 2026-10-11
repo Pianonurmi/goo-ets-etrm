@@ -128,7 +128,9 @@
     "empty": "Nothing to show",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "reason": "Reason"
+    "reason": "Reason",
+    "save": "Save",
+    "invalidJson": "Not valid JSON"
   },
   "inbox": {
     "title": "Approval inbox",
@@ -211,7 +213,13 @@
       "dueAt": "Due",
       "assignee": "Assignee",
       "status": "Status"
-    }
+    },
+    "cancelTask": "Cancel task",
+    "cancelTitle": "Cancel this task",
+    "cancelOwnHint": "Withdraw your request; nobody can decide it afterwards.",
+    "cancelOtherHint": "You may cancel this task as its assignee, an escalation role or an administrator.",
+    "cancelReasonHint": "The reason is kept in the task history.",
+    "cancelled": "Task cancelled"
   },
   "criteria": {
     "builder": "Builder",
@@ -377,6 +385,78 @@
       "VOLUNTARY": "Voluntary",
       "COMPLIANCE": "Compliance",
       "ON_BEHALF_OF_THIRD_PARTY": "On behalf of a third party"
+    },
+    "allowancesHint": "Allowance balances by registry account. Choose a holding to see its movements and to preselect it for a movement or a transfer.",
+    "ops": {
+      "inRegistry": "In the registry",
+      "inBooks": "In our books",
+      "registryCancel": "Cancel in the registry",
+      "reserve": "Reserve",
+      "reserveHint": "Earmarks the certificates so that allocation and transfers leave them alone. A part of the lot is split off first.",
+      "reserveQuantity": "Certificates to reserve",
+      "reserveQuantityHint": "Empty: the whole lot ({{quantity}} MWh)",
+      "reservationRef": "Reservation reference {{ref}}",
+      "reserved": "Certificates reserved",
+      "release": "Release",
+      "releaseHint": "Releases reservation {{ref}}; the certificates become free for allocation and transfers again. If an allocation plan made it, the plan no longer holds them.",
+      "released": "Reservation released",
+      "correct": "Correct",
+      "correctHint": "Corrects what a registry may correct in place: expiry, support, labels and cost. Other attributes need a replacement lot.",
+      "corrected": "Lot corrected",
+      "nothingChanged": "Nothing changed yet.",
+      "costBasis": "Cost per MWh",
+      "currency": "Currency",
+      "supportScheme": "Support scheme"
+    },
+    "receive": {
+      "title": "Receive certificates",
+      "hint": "Records certificates in one of the entity's GoO accounts as a new lot: an issuance, a transfer in or an opening balance.",
+      "account": "Registry account",
+      "rangeStart": "First certificate",
+      "rangeEnd": "Last certificate",
+      "certificates_one": "{{count}} certificate",
+      "certificates_other": "{{count}} certificates",
+      "unknownDevice": "This GSRN is not in the device register. Describe the device so the lot can be classified.",
+      "deviceName": "Device name",
+      "expiryHint": "Empty: twelve months after the production period",
+      "acquisitionRef": "Acquisition reference",
+      "submit": "Receive",
+      "done": "{{quantity}} MWh received"
+    },
+    "movement": {
+      "title": "Record movement",
+      "hint": "Books a movement on an allowance holding. Transfers the registry executes are sent as registry instructions instead.",
+      "quantity": "Allowances",
+      "addsHint": "Adds to the holding",
+      "takesHint": "Takes from the holding",
+      "signedHint": "Positive adds, negative takes away",
+      "effectiveDate": "Effective date",
+      "costPerUnit": "Cost per allowance",
+      "submit": "Record",
+      "recorded": "Movement recorded; {{product}} holding now {{quantity}}",
+      "types": {
+        "PURCHASE": "Purchase",
+        "FREE_ALLOCATION": "Free allocation",
+        "TRANSFER_IN": "Transfer in",
+        "SALE": "Sale",
+        "TRANSFER_OUT": "Transfer out",
+        "SURRENDER": "Surrender",
+        "DELETION": "Deletion",
+        "OPENING_BALANCE": "Opening balance",
+        "CORRECTION": "Correction"
+      }
+    },
+    "ladder": {
+      "title": "Expiry ladder",
+      "hint": "Held and reserved MWh by month of expiry, next {{months}} months",
+      "empty": "Nothing expires in this period"
+    },
+    "journal": {
+      "verify": "Verify journal",
+      "title": "Lot journal check",
+      "hint": "Recomputes the hash chain of every lot's journal. A broken chain means an event was changed outside the application.",
+      "intact": "Every lot's journal chain is intact.",
+      "broken": "These lots' journal chains do not verify"
     }
   },
   "trades": {
@@ -602,6 +682,68 @@
     "solvers": {
       "GREEDY": "Greedy",
       "EXACT": "Exact"
+    },
+    "openObligation": "Open obligation",
+    "openObligationTitle": "Open a delivery obligation",
+    "openObligationHint": "A disclosure or own-consumption need, or a sale delivered outside a trade. Allocation serves it like any other obligation.",
+    "obligationOpened": "Obligation opened",
+    "kinds": {
+      "SALE": "Sale",
+      "INTERCOMPANY": "Intercompany",
+      "DISCLOSURE": "Disclosure",
+      "OWN_CONSUMPTION": "Own consumption"
+    },
+    "quantityMwh": "Quantity (MWh)",
+    "windowStart": "Window from",
+    "windowEnd": "Window until (exclusive)",
+    "priorityClass": "Priority class",
+    "priorityHint": "Lower is served first; empty uses the kind's default",
+    "targetRegistry": "Target registry",
+    "targetAccount": "Target account",
+    "cancellation": "Cancellation details",
+    "purpose": "Purpose",
+    "beneficiary": "Beneficiary",
+    "consumptionCountry": "Consumption country",
+    "consumptionStart": "Consumption from",
+    "consumptionEnd": "Consumption until (exclusive)",
+    "purposes": {
+      "DISCLOSURE": "Disclosure",
+      "OWN_CONSUMPTION": "Own consumption",
+      "VOLUNTARY": "Voluntary",
+      "COMPLIANCE": "Compliance",
+      "ON_BEHALF_OF_THIRD_PARTY": "On behalf of a third party"
+    },
+    "obligationTitle": "{{kind}} obligation due {{date}}",
+    "quantity": "Quantity",
+    "fulfilled": "Fulfilled",
+    "trade": "Trade",
+    "window": "Delivery window",
+    "priority": "Priority",
+    "constraints": "Share constraints",
+    "noConstraints": "No share constraints",
+    "editConstraints": "Edit constraints",
+    "constraintsHint": "Limit how much of the obligation one production device may supply, and require a minimum share of certificates that match a criterion.",
+    "maxSharePerDevice": "Max share per device (%)",
+    "maxShareHint": "Empty for no limit",
+    "minShares": "Minimum shares",
+    "addMinShare": "Add a minimum share",
+    "minSharePercent": "Minimum share (%)",
+    "removeMinShare": "Remove",
+    "constraintsSaved": "Constraints saved",
+    "constraintMax": "At most {{percent}} % from one device",
+    "constraintMin": "At least {{percent}} % matching",
+    "closeObligation": "Close obligation",
+    "closeHint": "Closing takes the remaining {{mwh}} MWh out of allocation; plans that include it become stale. What was delivered stays.",
+    "closeHintTrade": "Closing takes the remaining {{mwh}} MWh of trade {{trade}} out of allocation; plans that include it become stale. If the delivery itself changed, amend or cancel the trade instead.",
+    "obligationClosed": "Obligation closed",
+    "errors": {
+      "quantity": "Enter a whole number of MWh above zero",
+      "window": "The window must end after it starts",
+      "date": "Pick a date",
+      "target": "A sale needs a target account",
+      "country": "Enter a two-letter country code",
+      "percent": "Enter a whole percentage from 1 to 100",
+      "criterion": "Complete the criterion"
     }
   },
   "positions": {
@@ -631,7 +773,18 @@
     "surrendered": "Surrendered",
     "noInstallations": "No installations registered",
     "installation": "Installation",
-    "basis": "Basis"
+    "basis": "Basis",
+    "snapshots": "Snapshots",
+    "takeSnapshots": "Take snapshots now",
+    "snapshotsTaken": "Snapshots taken for {{date}}",
+    "kind": "Kind",
+    "from": "From",
+    "to": "To",
+    "asOf": "As of",
+    "takenAt": "Taken",
+    "noSnapshots": "No snapshots in this period",
+    "noSnapshotsHint": "Snapshots are taken every evening; take one now to record the current position.",
+    "shortfall": "Shortfall"
   },
   "marketData": {
     "title": "Market data",
@@ -641,7 +794,8 @@
       "suspect": "Suspect quotes",
       "fx": "FX rates",
       "instruments": "Instruments",
-      "imports": "File imports"
+      "imports": "File imports",
+      "indices": "Indices"
     },
     "code": "Code",
     "kind": "Kind",
@@ -682,7 +836,65 @@
       "suspect": "Suspect",
       "rejected": "Rejected"
     },
-    "lineError": "Line {{line}}: {{message}}"
+    "lineError": "Line {{line}}: {{message}}",
+    "newInstrument": "New instrument",
+    "instrumentCreated": "Instrument {{code}} created",
+    "codeHint": "Letters, digits and underscores",
+    "kinds": {
+      "EUA_SPOT": "EUA spot",
+      "EUA_FUTURE": "EUA future",
+      "EUA_FORWARD": "EUA forward",
+      "GOO_VINTAGE": "GoO vintage",
+      "INDEX": "Index",
+      "RATE": "Rate"
+    },
+    "allowanceProduct": "Allowance product",
+    "futuresContract": "Futures contract",
+    "bucket": "Product bucket",
+    "productionYear": "Production year",
+    "currency": "Currency",
+    "unit": "Unit",
+    "addAlias": "Add alias",
+    "aliasHint": "Maps a source's own code to an instrument, so imports from that source find it.",
+    "aliasSource": "Source",
+    "externalCode": "Code at the source",
+    "aliasAdded": "Alias {{source}} {{external}} saved for {{instrument}}",
+    "formats": "Import formats",
+    "newFormat": "New format",
+    "editFormat": "Edit",
+    "formatTitleNew": "New import format",
+    "formatTitle": "Import format {{code}}",
+    "formatHint": "kind is FX_WIDE_CSV, FX_ECB_XML or QUOTES_LONG_CSV; columnMapping maps fields to the file's columns and constants fill fields the file does not have.",
+    "formatSaved": "Import format {{code}} saved as version {{version}}",
+    "formatCode": "Format code",
+    "version": "Version",
+    "noFormats": "No import formats",
+    "newIndex": "New index",
+    "indexCreated": "Index {{code}} created",
+    "fixingRule": "Fixing rule",
+    "fixingRules": {
+      "ON_DATE": "On the date",
+      "PRIOR_DAY": "Prior day",
+      "MONTH_AVERAGE": "Month average"
+    },
+    "noIndices": "No price indices",
+    "noIndicesHint": "An index fixes a price from an instrument's quotes, for indexed trades.",
+    "fixingTitle": "Fixing lookup",
+    "index": "Index",
+    "fixingDate": "Fixing date",
+    "showFixing": "Show fixing",
+    "fixingOf": "{{index}} fixing for {{date}}",
+    "fixingQuotes_one": "From {{count}} quote",
+    "fixingQuotes_other": "From {{count}} quotes",
+    "noFixing": "No fixing",
+    "noFixingHint": "The index has no usable quote for this date.",
+    "errors": {
+      "required": "Required",
+      "year": "Enter a four-digit year",
+      "currency": "Enter a three-letter currency code",
+      "whole": "Enter a whole number",
+      "decimal": "Enter a number, with a dot for decimals"
+    }
   },
   "curves": {
     "title": "Curves",
@@ -706,7 +918,42 @@
     "pillar": "Pillar",
     "origin": "Origin",
     "override": "Override",
-    "overrideTitle": "Override {{pillar}}"
+    "overrideTitle": "Override {{pillar}}",
+    "newCurve": "New curve",
+    "curveCreated": "Curve {{code}} created",
+    "kind": "Kind",
+    "kinds": {
+      "EUA_FORWARD": "EUA forward",
+      "GOO_VINTAGE": "GoO vintage"
+    },
+    "quoteTypes": "Quote types",
+    "stalenessDays": "Staleness (days)",
+    "proxyCurve": "Proxy curve",
+    "proxySpread": "Proxy spread",
+    "proxyHint": "Fills pillars this curve has no quotes for",
+    "official": "Official curve",
+    "officialOn": "Official curve on {{date}}",
+    "noOfficial": "No official curve on this date",
+    "noOfficialHint": "Build a snapshot and have it signed off, or pick another date.",
+    "openSnapshot": "Open snapshot",
+    "priceLookup": "Price lookup",
+    "priceLookupHint": "The price valuation uses: the latest official curve on or before the date.",
+    "forward": "Forward (EUA)",
+    "vintage": "Vintage (GoO)",
+    "product": "Allowance product",
+    "delivery": "Delivery date",
+    "bucket": "Bucket",
+    "year": "Production year",
+    "lookUp": "Look up",
+    "noPrice": "No price",
+    "noPriceHint": "No official curve covers this on or before the date.",
+    "priceFrom": "{{curve}}, curve date {{date}}",
+    "origins": {
+      "POINT": "Curve point",
+      "INTERPOLATED": "Interpolated",
+      "EXTRAPOLATED": "Extrapolated",
+      "EARLIER_VINTAGE": "Earlier vintage"
+    }
   },
   "valuation": {
     "title": "Valuation",
@@ -730,7 +977,14 @@
     "leg": "Leg",
     "allBooks": "All books",
     "fromRun": "From official run",
-    "toRun": "To official run"
+    "toRun": "To official run",
+    "official": "Official run",
+    "officialAsOf": "As of",
+    "officialHint": "The official run on this date, or the latest one before it.",
+    "noOfficial": "No official run on or before this date",
+    "noOfficialHint": "Runs become official when a second person signs them off.",
+    "openRun": "Open run",
+    "officialTitle": "{{kind}} run of {{date}}"
   },
   "risk": {
     "title": "Risk",
@@ -893,7 +1147,12 @@
     "requestedAt": "Requested at",
     "surrenderHint": "Surrenders allowances for {{year}} from the installation's account through the registry.",
     "allOutstanding": "Everything outstanding",
-    "back": "Back to EU ETS compliance"
+    "back": "Back to EU ETS compliance",
+    "installationRegister": "Installation register",
+    "noInstallations": "No installations",
+    "noInstallationsHint": "Register an installation or aircraft operator to follow its compliance here.",
+    "validPeriod": "Valid",
+    "state": "State"
   },
   "ledger": {
     "title": "Ledger",
@@ -947,7 +1206,21 @@
     "balanceHint": "Debits must equal credits; the server checks.",
     "post": "Post entry",
     "posted": "Posted as entry {{number}}",
-    "descriptionColumn": "Description"
+    "descriptionColumn": "Description",
+    "newRule": "New rule",
+    "changeRule": "Change rule {{rule}}",
+    "proposeChange": "Propose a change",
+    "ruleProposed": "Change of {{rule}} sent for approval",
+    "ruleFourEyes": "The rule changes once a second accountant approves it in the inbox.",
+    "conditions": "Conditions",
+    "conditionsHint": "A JSON object of event attributes that must match, for example {\"movementType\": \"PURCHASE\"}",
+    "ruleAmountHint": "Each line names the event amount it posts, for example amount or cost.",
+    "side": "Side",
+    "sides": {
+      "DEBIT": "Debit",
+      "CREDIT": "Credit"
+    },
+    "ruleSidesHint": "A rule needs at least one debit and one credit line."
   },
   "monthEnd": {
     "title": "Month end",
@@ -1029,7 +1302,9 @@
     "groupPolicy": "Group default",
     "gooCostToSell": "GoO cost to sell (per MWh)",
     "euaCostToSell": "EUA cost to sell (per t)",
-    "expiryDays": "Expiry horizon (days)"
+    "expiryDays": "Expiry horizon (days)",
+    "exportCsv": "Export as CSV file",
+    "csvExported": "Export generated and saved as a file"
   },
   "reports": {
     "title": "Reports",
@@ -1055,7 +1330,13 @@
     "completeness": "Reporting completeness",
     "allComplete": "All {{count}} reportable trades are complete.",
     "eventDate": "Date",
-    "action": "Action"
+    "action": "Action",
+    "downloadAgain": "Download again",
+    "downloadedAgain": "Export {{seq}} downloaded again",
+    "reportError": "Report error",
+    "reportErrorTitle": "Report {{trade}} in error",
+    "reportErrorHint": "Records an EROR event for the trade, for example after the trade repository rejected it. It cannot be undone.",
+    "errorRecorded": "Error report recorded for {{trade}}"
   },
   "admin": {
     "referenceTitle": "Reference data",
@@ -1174,7 +1455,58 @@
       "REJECTED": "Rejected",
       "CANCELLED": "Cancelled",
       "ALL": "All"
-    }
+    },
+    "edit": "Edit",
+    "editTitle": "Edit {{name}}",
+    "accountingPolicyNote": "The accounting policy changes through month end, approved by a second person.",
+    "counterpartySensitiveNote": "Registry and bank accounts change through requests a second person approves; credit limits are risk limits.",
+    "blankKeeps": "A cleared field keeps its stored value.",
+    "emirClassification": "EMIR classification",
+    "emirClassifications": {
+      "FC": "Financial counterparty",
+      "NFC_PLUS": "Non-financial, above the clearing threshold",
+      "NFC_MINUS": "Non-financial, below the clearing threshold",
+      "THIRD_COUNTRY_ENTITY": "Third-country entity",
+      "OTHER": "Other"
+    },
+    "obligationsOpenAt": "Delivery obligations open when a trade is",
+    "obligationsOpenAtOptions": {
+      "APPROVED": "Approved",
+      "CONFIRMED": "Confirmed"
+    },
+    "validTo": "Valid to",
+    "invoiceEmail": "Invoice e-mail",
+    "parentCounterparty": "Group parent",
+    "nettingAgreed": "Netting agreed",
+    "selfBilling": "Self-billing",
+    "recordVersion": "Record version",
+    "newDevice": "New device",
+    "deviceCreated": "Device {{gsrn}} added",
+    "deviceIdentityFixed": "GSRN, location, technology and owner are fixed once a device exists.",
+    "gsrn": "GSRN",
+    "gsrnHint": "18 digits, the last a GS1 check digit",
+    "gsrnInvalid": "The check digit does not match",
+    "decommissioned": "Decommissioned",
+    "supportSchemes": "Support schemes",
+    "labels": "Labels",
+    "externalCodesHint": "A JSON object, for example {\"AIB\": \"123\"}",
+    "owner": "Owner",
+    "ownerType": "Owner type",
+    "ownerTypes": {
+      "LEGAL_ENTITY": "Our legal entity",
+      "COUNTERPARTY": "Counterparty",
+      "THIRD_PARTY": "Third party"
+    },
+    "ownDevice": "Own device",
+    "defaultBook": "Default book",
+    "noDefaultBook": "No default book",
+    "defaultBookSaved": "Default book of {{account}} saved",
+    "asOf": "As of",
+    "asOfHint": "The record as it was known at this time",
+    "showAsOf": "Show",
+    "recordAsOf": "Record as known at {{at}}",
+    "noRecordAsOf": "The record did not exist at that time.",
+    "viewVersion": "View this version"
   },
   "audit": {
     "title": "Audit trail",
@@ -1443,7 +1775,12 @@
     "unappliedOnly": "Only payments with unapplied cash",
     "validTo": "Valid until (exclusive)",
     "valueDate": "Value date",
-    "version": "Version"
+    "version": "Version",
+    "itemDetails": "Item details",
+    "itemTitle": "Settlement item of {{trade}}",
+    "vatRule": "VAT rule",
+    "openInvoice": "Open invoice",
+    "itemReference": "Reference"
   },
   "registry": {
     "title": "Registry",
@@ -1506,7 +1843,7 @@
     "edit": "Edit",
     "saveRoute": "Save route",
     "routeSaved": "Route saved",
-    "formatsHint": "How each registry's statement and transaction exports are read. Changes go through the API for now.",
+    "formatsHint": "How each registry's statement and transaction exports are read.",
     "profile": "Profile",
     "kind": "Kind",
     "layout": "Layout",
@@ -1552,7 +1889,36 @@
       "confirmed": "Confirmed",
       "failed": "Failed",
       "cancelled": "Cancelled"
-    }
+    },
+    "newFormat": "New format",
+    "editFormat": "Edit format {{profile}}",
+    "formatEditorHint": "The column mapping names the column header for each statement field; the server checks the fields against the kind. Registry * makes a profile usable for every registry.",
+    "formatSaved": "Format {{profile}} saved (version {{version}})",
+    "cancellation": "Cancel in the registry",
+    "cancellationHint": "Cancels the certificates in the registry for a beneficiary. The instruction waits for a second person's approval in the inbox; the lot leaves our books when the registry confirms it.",
+    "cancellationSubmitted": "Cancellation submitted; it waits for approval",
+    "beneficiaryId": "Beneficiary identifier",
+    "beneficiaryIdHint": "Optional, e.g. a business ID or metering point",
+    "allowanceTransfer": "Allowance transfer",
+    "allowanceTransferHint": "Moves allowances to another account in the same registry. They are reserved at once; the transfer waits for a second person's approval and is then carried out in the registry.",
+    "allowanceTransferSubmitted": "Allowance transfer submitted; it waits for approval",
+    "fromAccount": "From account",
+    "product": "Product",
+    "productFree": "{{product}} ({{free}} free)",
+    "noFreeAllowances": "This account has no free allowances.",
+    "ownAccount": "Our account",
+    "counterpartyAccount": "Counterparty account",
+    "counterparty": "Counterparty",
+    "sameRegistry": "Accounts in {{registry}}",
+    "noAccounts": "No accounts in this registry",
+    "allowanceQuantity": "Allowances",
+    "freeHint": "{{free}} free",
+    "movementType": "Booked as",
+    "movements": {
+      "TRANSFER_OUT": "Transfer out",
+      "SALE": "Sale to a third party"
+    },
+    "unitPrice": "Price per allowance"
   },
   "reconciliation": {
     "title": "Reconciliation",
@@ -1672,7 +2038,11 @@
     "tasks": {
       "RECONCILIATION_BREAK": "Break task",
       "BREAK_ACCEPTANCE": "Acceptance task"
-    }
+    },
+    "notReconciled": "This statement has been imported but not reconciled yet.",
+    "reconcile": "Reconcile",
+    "reconciled_one": "Statement reconciled: {{count}} break",
+    "reconciled_other": "Statement reconciled: {{count}} breaks"
   },
   "confirmations": {
     "title": "Confirmations",

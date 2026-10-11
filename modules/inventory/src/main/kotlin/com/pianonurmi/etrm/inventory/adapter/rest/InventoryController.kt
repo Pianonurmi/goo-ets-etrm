@@ -25,6 +25,8 @@ import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.inventory.api.SplitResult
 import com.pianonurmi.etrm.inventory.api.StatementView
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -42,6 +44,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
+private val JOURNAL_READERS = arrayOf(Role.AUDITOR, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.MIDDLE_OFFICE, Role.ACCOUNTANT, Role.RISK)
+
 @RestController
 @RequestMapping("/api/v1/inventory")
 @Tag(name = "Inventory", description = "Certificate lots, allowance holdings and registry reconciliation")
@@ -54,6 +58,7 @@ class InventoryController(
     private val reconciliationCommand: ReconciliationCommand,
     private val reconciliationQuery: ReconciliationQuery,
     private val reconciliationAccess: ReconciliationAccess,
+    private val actorProvider: ActorProvider,
 ) {
     @GetMapping("/lots")
     fun lots(
@@ -154,8 +159,15 @@ class InventoryController(
     ) =
         lotQuery.expiryLadder(holderEntityId, from ?: LocalDate.now(), months)
 
+    /** Checks the hash chain of the lot journal; broken lots are named only within the user's legal entities. */
     @GetMapping("/journal/verify")
-    fun verifyJournal(): Map<String, Any> = lotQuery.verifyJournal().let { mapOf("brokenLots" to it, "ok" to it.isEmpty()) }
+    fun verifyJournal(): Map<String, Any> {
+        val actor = actorProvider.current()
+        actor.requireRole(*JOURNAL_READERS)
+        val broken = lotQuery.verifyJournal()
+        val visible = broken.filter { actor.canAccess(lotQuery.lot(it)?.holderEntityId) }
+        return mapOf("brokenLots" to visible, "ok" to broken.isEmpty())
+    }
 
     @GetMapping("/holdings")
     fun holdings(
@@ -165,13 +177,21 @@ class InventoryController(
     @GetMapping("/holdings/{id}/movements")
     fun movements(
         @PathVariable id: UUID,
-    ): List<AllowanceMovementView> = holdingQuery.movements(id)
+    ): List<AllowanceMovementView> {
+        val holding = holdingQuery.holdingById(id) ?: throw NotFoundException("AllowanceHolding", id)
+        actorProvider.current().requireEntity(holding.holderEntityId)
+        return holdingQuery.movements(id)
+    }
 
     @PostMapping("/holdings/movements")
     @ResponseStatus(HttpStatus.CREATED)
     fun recordMovement(
         @Valid @RequestBody body: RecordAllowanceMovement,
-    ): AllowanceHoldingView = holdingCommand.record(body)
+    ): AllowanceHoldingView {
+        // Module flows (deliveries, surrenders) record movements as SYSTEM; people need a lot operator role.
+        lotCommand.requireLotOperator(body.holderEntityId)
+        return holdingCommand.record(body)
+    }
 
     @PostMapping("/statements")
     @ResponseStatus(HttpStatus.CREATED)

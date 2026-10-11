@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Group, MultiSelect, Paper, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
-import { IconSearch } from '@tabler/icons-react';
+import { IconArrowsTransferUp, IconPlus, IconSearch } from '@tabler/icons-react';
 import type { ColDef } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
+import { Can } from '@/shared/auth/Can';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
@@ -14,7 +15,12 @@ import { formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
 import { EXAMPLE, incomplete, type Criterion } from '@/features/criteria/model/tree';
+import { AllowanceTransferModal } from '@/features/registry/AllowanceTransferModal';
+import { ExpiryLadder } from './ExpiryLadder';
+import { JournalCheckButton } from './JournalCheck';
 import { lotColumns, totals, type Lot } from './lotColumns';
+import { ReceiveLotsModal } from './ReceiveLotsModal';
+import { RecordMovementModal } from './RecordMovementModal';
 
 type LotStatus = NonNullable<Schema<'LotSearchRequest'>['statuses']>[number];
 const STATUSES: LotStatus[] = [
@@ -80,6 +86,7 @@ function LotsTab({ entityId }: { entityId: string }) {
   };
   return (
     <Stack>
+      <ExpiryLadder entityId={entityId} />
       <Group align="flex-end">
         <MultiSelect
           label={t('inventory.status')}
@@ -191,6 +198,17 @@ function AllowancesTab({ entityId }: { entityId: string }) {
     params: { query: { holderEntityId: entityId } },
   });
   const [selected, setSelected] = useState<Holding | null>(null);
+  const [dialog, setDialog] = useState<'movement' | 'transfer' | null>(null);
+  const accounts = $api.useQuery(
+    'get',
+    '/api/v1/reference/registry-accounts',
+    { params: { query: { holderType: 'LEGAL_ENTITY', holderId: entityId } } },
+    { staleTime: 60_000 },
+  );
+  const accountNumbers = useMemo(
+    () => new Map((accounts.data ?? []).map((account) => [account.id, account.accountNumber])),
+    [accounts.data],
+  );
   const movements = $api.useQuery(
     'get',
     '/api/v1/inventory/holdings/{id}/movements',
@@ -202,9 +220,14 @@ function AllowancesTab({ entityId }: { entityId: string }) {
       { field: 'productCode', headerName: t('inventory.columns.product'), width: 140 },
       { field: 'quantity', headerName: t('inventory.columns.quantity'), width: 140, type: 'rightAligned' },
       { field: 'reservedQuantity', headerName: t('inventory.columns.reserved'), width: 140, type: 'rightAligned' },
-      { field: 'registryAccountId', headerName: t('inventory.columns.account'), flex: 1 },
+      {
+        field: 'registryAccountId',
+        headerName: t('inventory.columns.account'),
+        flex: 1,
+        valueFormatter: (p) => accountNumbers.get(String(p.value)) ?? String(p.value),
+      },
     ],
-    [t],
+    [t, accountNumbers],
   );
   const movementColumns = useMemo<ColDef<Schema<'AllowanceMovementView'>>[]>(
     () => [
@@ -219,6 +242,32 @@ function AllowancesTab({ entityId }: { entityId: string }) {
   );
   return (
     <Stack>
+      <Group justify="space-between">
+        <Text size="sm" c="dimmed">
+          {t('inventory.allowancesHint')}
+        </Text>
+        <Group gap="xs">
+          <Can op="registry_allowanceTransfer">
+            <Button
+              variant="light"
+              leftSection={<IconArrowsTransferUp size={16} />}
+              onClick={() => setDialog('transfer')}
+              data-testid="allowance-transfer"
+            >
+              {t('registry.allowanceTransfer')}
+            </Button>
+          </Can>
+          <Can op="inventory_recordMovement">
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setDialog('movement')}
+              data-testid="record-movement"
+            >
+              {t('inventory.movement.title')}
+            </Button>
+          </Can>
+        </Group>
+      </Group>
       <QueryState isPending={holdings.isPending} error={holdings.error}>
         <DataGrid<Holding>
           rowData={holdings.data ?? []}
@@ -237,6 +286,22 @@ function AllowancesTab({ entityId }: { entityId: string }) {
           </QueryState>
         </Stack>
       )}
+      {dialog === 'movement' && (
+        <RecordMovementModal
+          entityId={entityId}
+          registryAccountId={selected?.registryAccountId}
+          productCode={selected?.productCode}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'transfer' && (
+        <AllowanceTransferModal
+          entityId={entityId}
+          fromAccountId={selected?.registryAccountId}
+          productCode={selected?.productCode}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </Stack>
   );
 }
@@ -246,11 +311,30 @@ export function InventoryPage() {
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'lots';
+  const [receiving, setReceiving] = useState(false);
   return (
     <Stack>
       <PageHeader
         title={t('inventory.title')}
         description={t('inventory.description', { entity: entity?.code ?? '' })}
+        actions={
+          entity && (
+            <Group gap="xs">
+              <Can op="inventory_verifyJournal">
+                <JournalCheckButton />
+              </Can>
+              <Can op="inventory_receive">
+                <Button
+                  leftSection={<IconPlus size={16} />}
+                  onClick={() => setReceiving(true)}
+                  data-testid="receive-lots"
+                >
+                  {t('inventory.receive.title')}
+                </Button>
+              </Can>
+            </Group>
+          )
+        }
       />
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
@@ -278,6 +362,7 @@ export function InventoryPage() {
           </Tabs.Panel>
         </Tabs>
       )}
+      {receiving && entity && <ReceiveLotsModal entityId={entity.id} onClose={() => setReceiving(false)} />}
     </Stack>
   );
 }

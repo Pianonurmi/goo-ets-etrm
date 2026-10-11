@@ -32,6 +32,7 @@ import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { useEntityAccounts } from '@/features/trades/hooks';
+import { InstallationsCard } from './InstallationsCard';
 import { DEADLINE_COLORS, deadlineCalendar } from './model/deadlines';
 
 type ComplianceStatus = Schema<'InstallationCompliance'>['status'];
@@ -345,6 +346,7 @@ export function EtsPage() {
               </Stack>
             )}
           </QueryState>
+          <InstallationsCard entityId={entity.id} year={year} />
           <Deadlines entityId={entity.id} year={year} />
           {registering && (
             <RegisterInstallationModal

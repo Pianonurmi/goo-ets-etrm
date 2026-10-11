@@ -28,11 +28,12 @@ import {
   IconPlayerPlay,
   IconUpload,
 } from '@tabler/icons-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
+import { download } from '@/shared/api/download';
 import { decimal, type Body, type Schema } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
@@ -42,6 +43,7 @@ import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
+import { glExportCsvUrl, glExportFileName, hasContent } from './model/glExport';
 import { parseGlBalances, previousPeriod } from './model/glBalances';
 
 type Period = Schema<'AccountingPeriodView'>;
@@ -304,14 +306,16 @@ function ExportActions({ glExport }: { glExport: GlExport }) {
   const path = { path: { id: glExport.id } };
   return (
     <Group gap={4} wrap="nowrap">
-      <Button
-        size="compact-xs"
-        variant="subtle"
-        leftSection={<IconDownload size={12} />}
-        onClick={() => saveText(glExport.content, `gl-${glExport.period}-${glExport.exportSeq}.csv`)}
-      >
-        {t('monthEnd.download')}
-      </Button>
+      {hasContent(glExport) && (
+        <Button
+          size="compact-xs"
+          variant="subtle"
+          leftSection={<IconDownload size={12} />}
+          onClick={() => saveText(glExport.content, `gl-${glExport.period}-${glExport.exportSeq}.csv`)}
+        >
+          {t('monthEnd.download')}
+        </Button>
+      )}
       {glExport.status === 'GENERATED' && (
         <Can op="ledger_delivered">
           <Button size="compact-xs" variant="subtle" onClick={() => delivered.mutate({ params: path })}>
@@ -361,6 +365,7 @@ function ExportActions({ glExport }: { glExport: GlExport }) {
 function GlInterface({ entityId, period }: { entityId: string; period: string }) {
   const { t } = useTranslation();
   const invalidate = useInvalidateMonthEnd();
+  const { entity } = useEntity();
   const canRead = useCan('ledger_exports');
   const [format, setFormat] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -382,6 +387,20 @@ function GlInterface({ entityId, period }: { entityId: string; period: string })
     meta: { notify: false },
     onSuccess: (created) => {
       notifySuccess(t('monthEnd.exported', { seq: created.exportSeq, count: created.entryCount }));
+      void invalidate();
+    },
+  });
+  const chosenFormat = format ?? (formats.data ?? []).find((f) => f.active)?.code;
+  const csv = useMutation({
+    meta: { notify: false },
+    mutationFn: () =>
+      download(
+        glExportCsvUrl(period, entityId, chosenFormat),
+        glExportFileName(entity?.code ?? 'entity', period, chosenFormat),
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      notifySuccess(t('monthEnd.csvExported'));
       void invalidate();
     },
   });
@@ -428,10 +447,21 @@ function GlInterface({ entityId, period }: { entityId: string; period: string })
               >
                 {t('monthEnd.createExport')}
               </Button>
+              <Can op="ledger_exportCsv">
+                <Button
+                  variant="light"
+                  leftSection={<IconDownload size={16} />}
+                  loading={csv.isPending}
+                  onClick={() => csv.mutate()}
+                  data-testid="export-csv"
+                >
+                  {t('monthEnd.exportCsv')}
+                </Button>
+              </Can>
             </Group>
           </Can>
         </Group>
-        <ProblemAlert error={create.error} />
+        <ProblemAlert error={create.error ?? csv.error} />
         <QueryState isPending={exports.isPending} error={exports.error}>
           {(exports.data ?? []).length === 0 ? (
             <Text size="sm" c="dimmed">

@@ -1,5 +1,5 @@
 import { Badge, Button, FileInput, Group, Modal, Select, Stack, Table, Tabs, Text, TextInput } from '@mantine/core';
-import { IconCloudDownload, IconPlus, IconUpload } from '@tabler/icons-react';
+import { IconCloudDownload, IconLink, IconPlus, IconUpload } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
@@ -15,6 +15,9 @@ import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { ImportFormats } from './ImportFormats';
+import { IndicesTab } from './IndicesTab';
+import { AliasModal, CreateInstrumentModal } from './InstrumentActions';
 
 type Instrument = Schema<'InstrumentView'>;
 type Quote = Schema<'QuoteView'>;
@@ -34,6 +37,8 @@ function InstrumentsTab() {
   const instruments = $api.useQuery('get', '/api/v1/market-data/instruments', {
     params: { query: { activeOnly: false } },
   });
+  const [creating, setCreating] = useState(false);
+  const [aliasFor, setAliasFor] = useState<string | null>(null);
   const columns = useMemo<ColDef<Instrument>[]>(
     () => [
       { field: 'code', headerName: t('marketData.code'), width: 230 },
@@ -48,9 +53,41 @@ function InstrumentsTab() {
     [t],
   );
   return (
-    <QueryState isPending={instruments.isPending} error={instruments.error}>
-      <DataGrid<Instrument> rowData={instruments.data ?? []} columnDefs={columns} rowId={(i) => i.code} height={520} />
-    </QueryState>
+    <Stack>
+      <Group justify="flex-end">
+        <Can op="marketData_addAlias">
+          <Button
+            variant="default"
+            leftSection={<IconLink size={16} />}
+            onClick={() => setAliasFor('')}
+            data-testid="add-alias"
+          >
+            {t('marketData.addAlias')}
+          </Button>
+        </Can>
+        <Can op="marketData_createInstrument">
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-instrument">
+            {t('marketData.newInstrument')}
+          </Button>
+        </Can>
+      </Group>
+      <QueryState isPending={instruments.isPending} error={instruments.error}>
+        <DataGrid<Instrument>
+          rowData={instruments.data ?? []}
+          columnDefs={columns}
+          rowId={(i) => i.code}
+          height={520}
+        />
+      </QueryState>
+      {creating && <CreateInstrumentModal onClose={() => setCreating(false)} />}
+      {aliasFor !== null && (
+        <AliasModal
+          instruments={(instruments.data ?? []).filter((i) => i.active).map((i) => i.code)}
+          initialInstrument={aliasFor || undefined}
+          onClose={() => setAliasFor(null)}
+        />
+      )}
+    </Stack>
   );
 }
 
@@ -422,65 +459,68 @@ function ImportsTab() {
     }
   };
   return (
-    <Stack maw={720}>
-      <Group align="flex-end">
-        <Select
-          label={t('marketData.format')}
-          data={(formats.data ?? []).map((f) => ({ value: f.code, label: `${f.code} · ${f.description}` }))}
-          value={format}
-          onChange={setFormat}
-          w={320}
-        />
-        <FileInput
-          label={t('marketData.file')}
-          value={file}
-          onChange={setFile}
-          accept=".csv,text/csv"
-          w={260}
-          clearable
-        />
-        <Can op="marketData_importFile">
-          <Button
-            leftSection={<IconUpload size={16} />}
-            disabled={!file || !format}
-            loading={busy}
-            onClick={() => void upload()}
-          >
-            {t('marketData.import')}
-          </Button>
-        </Can>
-      </Group>
-      {result && (
-        <Table withTableBorder>
-          <Table.Tbody>
-            {(['rowsRead', 'accepted', 'suspect', 'rejected'] as const).map((key) => (
-              <Table.Tr key={key}>
-                <Table.Td>{t(`marketData.result.${key}`)}</Table.Td>
-                <Table.Td>{result[key]}</Table.Td>
-              </Table.Tr>
-            ))}
-            {result.duplicate && (
-              <Table.Tr>
-                <Table.Td colSpan={2}>{t('marketData.duplicate')}</Table.Td>
-              </Table.Tr>
-            )}
-            {result.errors.map((error) => (
-              <Table.Tr key={`${error.lineNo}-${error.message}`}>
-                <Table.Td colSpan={2}>
-                  <Text size="sm" c="red">
-                    {t('marketData.lineError', { line: error.lineNo, message: error.message })}
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+    <Stack>
+      <Stack maw={720}>
+        <Group align="flex-end">
+          <Select
+            label={t('marketData.format')}
+            data={(formats.data ?? []).map((f) => ({ value: f.code, label: `${f.code} · ${f.description}` }))}
+            value={format}
+            onChange={setFormat}
+            w={320}
+          />
+          <FileInput
+            label={t('marketData.file')}
+            value={file}
+            onChange={setFile}
+            accept=".csv,text/csv"
+            w={260}
+            clearable
+          />
+          <Can op="marketData_importFile">
+            <Button
+              leftSection={<IconUpload size={16} />}
+              disabled={!file || !format}
+              loading={busy}
+              onClick={() => void upload()}
+            >
+              {t('marketData.import')}
+            </Button>
+          </Can>
+        </Group>
+        {result && (
+          <Table withTableBorder>
+            <Table.Tbody>
+              {(['rowsRead', 'accepted', 'suspect', 'rejected'] as const).map((key) => (
+                <Table.Tr key={key}>
+                  <Table.Td>{t(`marketData.result.${key}`)}</Table.Td>
+                  <Table.Td>{result[key]}</Table.Td>
+                </Table.Tr>
+              ))}
+              {result.duplicate && (
+                <Table.Tr>
+                  <Table.Td colSpan={2}>{t('marketData.duplicate')}</Table.Td>
+                </Table.Tr>
+              )}
+              {result.errors.map((error) => (
+                <Table.Tr key={`${error.lineNo}-${error.message}`}>
+                  <Table.Td colSpan={2}>
+                    <Text size="sm" c="red">
+                      {t('marketData.lineError', { line: error.lineNo, message: error.message })}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Stack>
+      <ImportFormats />
     </Stack>
   );
 }
 
-/** Instruments, quotes (with suspect ones to review), FX rates and file imports. */
+/** Instruments and aliases, quotes (with suspect ones to review), FX rates, price indices, file imports and formats. */
 export function MarketDataPage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
@@ -498,6 +538,7 @@ export function MarketDataPage() {
           <Tabs.Tab value="suspect">{t('marketData.tabs.suspect')}</Tabs.Tab>
           <Tabs.Tab value="fx">{t('marketData.tabs.fx')}</Tabs.Tab>
           <Tabs.Tab value="instruments">{t('marketData.tabs.instruments')}</Tabs.Tab>
+          <Tabs.Tab value="indices">{t('marketData.tabs.indices')}</Tabs.Tab>
           <Tabs.Tab value="imports">{t('marketData.tabs.imports')}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="quotes" pt="md">
@@ -511,6 +552,9 @@ export function MarketDataPage() {
         </Tabs.Panel>
         <Tabs.Panel value="instruments" pt="md">
           <InstrumentsTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="indices" pt="md">
+          <IndicesTab />
         </Tabs.Panel>
         <Tabs.Panel value="imports" pt="md">
           <ImportsTab />

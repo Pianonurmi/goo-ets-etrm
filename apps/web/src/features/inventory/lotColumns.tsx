@@ -18,9 +18,9 @@ const STATUS_COLORS: Record<string, string> = {
   SPLIT: 'gray',
 };
 
-export function LotStatusBadge({ status }: { status: string }) {
+export function LotStatusBadge({ status, testId }: { status: string; testId?: string }) {
   return (
-    <Badge color={STATUS_COLORS[status] ?? 'gray'} variant="light">
+    <Badge color={STATUS_COLORS[status] ?? 'gray'} variant="light" data-testid={testId}>
       {status}
     </Badge>
   );

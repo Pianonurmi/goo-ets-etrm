@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -14,9 +15,9 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconDownload, IconPlayerPlay } from '@tabler/icons-react';
-import { useMutation } from '@tanstack/react-query';
-import type { ColDef } from 'ag-grid-community';
+import { IconAlertTriangle, IconDownload, IconPlayerPlay } from '@tabler/icons-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,12 +25,13 @@ import { useSearchParams } from 'react-router';
 import { $api, authorisedFetch } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
 import type { Schema } from '@/shared/api/types';
-import { useCan } from '@/shared/auth/Can';
+import { Can, useCan } from '@/shared/auth/Can';
 import { useSession } from '@/shared/auth/SessionContext';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { ReasonModal } from '@/shared/components/ReasonModal';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
@@ -41,6 +43,7 @@ import {
   runnableReports,
   type ReportDefinition,
 } from './model/parameters';
+import { canDownloadExport, errorReportableEvents, exportFileName, type EmirEvent } from './model/exports';
 
 type ReportExport = Schema<'ReportExportView'>;
 type Row = Record<string, unknown>;
@@ -212,11 +215,44 @@ function Catalogue({ entityId }: { entityId: string | undefined }) {
   );
 }
 
+function DownloadExport({ reportExport }: { reportExport: ReportExport }) {
+  const { t } = useTranslation();
+  const again = useMutation({
+    mutationFn: () => download(`/api/v1/reports/exports/${reportExport.id}`, exportFileName(reportExport)),
+    onSuccess: () => notifySuccess(t('reports.downloadedAgain', { seq: reportExport.seq })),
+  });
+  return (
+    <ActionIcon
+      variant="subtle"
+      aria-label={t('reports.downloadAgain')}
+      title={t('reports.downloadAgain')}
+      loading={again.isPending}
+      onClick={() => again.mutate()}
+      data-testid={`export-download-${reportExport.id}`}
+    >
+      <IconDownload size={16} />
+    </ActionIcon>
+  );
+}
+
 function ExportLog({ entityId }: { entityId: string | undefined }) {
   const { t } = useTranslation();
+  const { me } = useSession();
   const exports = $api.useQuery('get', '/api/v1/reports/exports', { params: { query: { legalEntityId: entityId } } });
+  const catalogue = $api.useQuery('get', '/api/v1/reports', {}, { staleTime: 5 * 60_000 });
+  const runnable = useMemo(() => runnableReports(catalogue.data ?? [], me.roles), [catalogue.data, me.roles]);
   const columns = useMemo<ColDef<ReportExport>[]>(
     () => [
+      {
+        colId: 'download',
+        headerName: '',
+        width: 64,
+        minWidth: 64,
+        sortable: false,
+        filter: false,
+        cellRenderer: (p: ICellRendererParams<ReportExport>) =>
+          p.data && canDownloadExport(p.data, runnable) ? <DownloadExport reportExport={p.data} /> : null,
+      },
       {
         field: 'exportedAt',
         headerName: t('reports.exportedAt'),
@@ -247,7 +283,7 @@ function ExportLog({ entityId }: { entityId: string | undefined }) {
         valueFormatter: (p) => String(p.value).slice(0, 16),
       },
     ],
-    [t],
+    [t, runnable],
   );
   return (
     <QueryState isPending={exports.isPending} error={exports.error}>
@@ -273,6 +309,19 @@ function Emir({ entityId }: { entityId: string }) {
     params: { query: { legalEntityId: entityId } },
   });
   const rules = $api.useQuery('get', '/api/v1/reports/emir/field-rules');
+  const [reporting, setReporting] = useState<EmirEvent | null>(null);
+  const queryClient = useQueryClient();
+  const reportError = $api.useMutation('post', '/api/v1/reports/emir/trades/{tradeId}/error', {
+    meta: { notify: false },
+    onSuccess: (recorded) => {
+      notifySuccess(t('reports.errorRecorded', { trade: recorded.tradeNumber }));
+      setReporting(null);
+      void queryClient.invalidateQueries({
+        predicate: (q) => typeof q.queryKey[1] === 'string' && q.queryKey[1].startsWith('/api/v1/reports'),
+      });
+    },
+  });
+  const reportable = errorReportableEvents(events.data ?? []);
   const incomplete = (completeness.data ?? []).filter((row) => !row.complete);
   const unverified = (rules.data ?? []).filter((rule) => !rule.verified).length;
   return (
@@ -314,11 +363,12 @@ function Emir({ entityId }: { entityId: string }) {
               <Table.Th>{t('trades.version')}</Table.Th>
               <Table.Th>UTI</Table.Th>
               <Table.Th>{t('reports.exportedBy')}</Table.Th>
+              <Table.Th />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {(events.data ?? []).map((event) => (
-              <Table.Tr key={event.id}>
+              <Table.Tr key={event.id} data-testid={`emir-event-${event.tradeNumber}-${event.action}`}>
                 <Table.Td>{event.eventDate}</Table.Td>
                 <Table.Td>
                   <Badge variant="light">{event.action}</Badge>
@@ -327,11 +377,43 @@ function Emir({ entityId }: { entityId: string }) {
                 <Table.Td>{event.tradeVersion}</Table.Td>
                 <Table.Td>{event.uti ?? '–'}</Table.Td>
                 <Table.Td>{event.recordedBy}</Table.Td>
+                <Table.Td>
+                  {reportable.has(event.id) && (
+                    <Can op="reporting_reportError">
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="red"
+                        leftSection={<IconAlertTriangle size={12} />}
+                        onClick={() => setReporting(event)}
+                        data-testid={`report-error-${event.tradeNumber}`}
+                      >
+                        {t('reports.reportError')}
+                      </Button>
+                    </Can>
+                  )}
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       </QueryState>
+      {reporting && (
+        <ReasonModal
+          title={t('reports.reportErrorTitle', { trade: reporting.tradeNumber })}
+          hint={t('reports.reportErrorHint')}
+          action={t('reports.reportError')}
+          pending={reportError.isPending}
+          error={reportError.error}
+          onSubmit={(reason) =>
+            reportError.mutate({ params: { path: { tradeId: reporting.tradeId } }, body: { reason } })
+          }
+          onClose={() => {
+            reportError.reset();
+            setReporting(null);
+          }}
+        />
+      )}
     </Stack>
   );
 }

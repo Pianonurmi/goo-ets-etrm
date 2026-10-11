@@ -75,6 +75,13 @@ interface TaskHandler {
     val definition: TaskTypeDefinition
 
     fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome
+
+    /**
+     * The task is cancelled (its requester withdraws the request): undo the request on the subject in the same
+     * transaction and return true, or return false when this type cannot be withdrawn, because its subject would be
+     * left waiting for a decision that never comes. The default refuses.
+     */
+    fun onWithdraw(task: ApprovalTaskView, reason: String): Boolean = false
 }
 
 data class ApprovalTaskView(

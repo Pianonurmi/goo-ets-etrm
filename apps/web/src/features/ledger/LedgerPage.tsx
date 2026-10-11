@@ -13,7 +13,7 @@ import {
   TextInput,
   Textarea,
 } from '@mantine/core';
-import { IconPlus, IconRotate2, IconShieldCheck } from '@tabler/icons-react';
+import { IconPencil, IconPlus, IconRotate2, IconShieldCheck } from '@tabler/icons-react';
 import type { ColDef } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
@@ -31,6 +31,7 @@ import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/forma
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useAccounts, useInvalidateLedger } from './hooks';
 import { ManualJournalModal } from './ManualJournalModal';
+import { RuleChangeModal } from './RuleChangeModal';
 
 type Entry = Schema<'JournalEntryView'>;
 type TrialBalanceRow = Schema<'TrialBalanceRow'>;
@@ -424,11 +425,23 @@ function AccountsTab({ entityId }: { entityId: string }) {
   );
 }
 
-function RuleHistory({ ruleCode, onClose }: { ruleCode: string; onClose: () => void }) {
+function RuleHistory({ rule, onPropose, onClose }: { rule: Rule; onPropose: () => void; onClose: () => void }) {
   const { t } = useTranslation();
+  const ruleCode = rule.ruleCode;
   const history = $api.useQuery('get', '/api/v1/ledger/rules/{ruleCode}/history', { params: { path: { ruleCode } } });
   return (
     <Drawer opened onClose={onClose} position="right" size="lg" title={t('ledger.ruleHistory', { rule: ruleCode })}>
+      <Can op="ledger_upsertRule">
+        <Button
+          variant="light"
+          mb="md"
+          leftSection={<IconPencil size={16} />}
+          onClick={onPropose}
+          data-testid="rule-propose-change"
+        >
+          {t('ledger.proposeChange')}
+        </Button>
+      </Can>
       <QueryState isPending={history.isPending} error={history.error}>
         {(history.data ?? []).length === 0 ? (
           <Text size="sm" c="dimmed">
@@ -461,9 +474,11 @@ function RuleHistory({ ruleCode, onClose }: { ruleCode: string; onClose: () => v
 
 function RulesTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<Rule | null>(null);
+  const [proposing, setProposing] = useState<{ rule?: Rule } | null>(null);
   const rules = $api.useQuery('get', '/api/v1/ledger/rules', { params: { query: { legalEntityId: entityId } } });
   const changes = $api.useQuery('get', '/api/v1/ledger/rules/changes', { params: { query: { status: 'PENDING' } } });
+  const eventTypes = useMemo(() => [...new Set((rules.data ?? []).map((rule) => rule.eventType))].sort(), [rules.data]);
   const columns = useMemo<ColDef<Rule>[]>(
     () => [
       { field: 'ruleCode', headerName: t('ledger.rule'), width: 260, sort: 'asc' },
@@ -485,8 +500,15 @@ function RulesTab({ entityId }: { entityId: string }) {
   );
   return (
     <Stack>
+      <Group justify="flex-end">
+        <Can op="ledger_upsertRule">
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setProposing({})} data-testid="rule-new">
+            {t('ledger.newRule')}
+          </Button>
+        </Can>
+      </Group>
       {(changes.data ?? []).length > 0 && (
-        <Alert color="yellow">
+        <Alert color="yellow" data-testid="pending-rule-changes">
           {t('ledger.pendingRuleChanges', { codes: (changes.data ?? []).map((c) => c.ruleCode).join(', ') })}
         </Alert>
       )}
@@ -497,11 +519,28 @@ function RulesTab({ entityId }: { entityId: string }) {
           rowId={(row) => row.id}
           height={520}
           onRowClicked={(event) => {
-            if (event.data) setOpen(event.data.ruleCode);
+            if (event.data) setOpen(event.data);
           }}
         />
       </QueryState>
-      {open && <RuleHistory ruleCode={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <RuleHistory
+          rule={open}
+          onPropose={() => {
+            setProposing({ rule: open });
+            setOpen(null);
+          }}
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {proposing && (
+        <RuleChangeModal
+          entityId={entityId}
+          rule={proposing.rule}
+          eventTypes={eventTypes}
+          onClose={() => setProposing(null)}
+        />
+      )}
     </Stack>
   );
 }

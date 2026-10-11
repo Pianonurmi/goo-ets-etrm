@@ -69,6 +69,19 @@ class ProblemDetailsHandler {
         return problem
     }
 
+    /** A unique key the service did not check first (e.g. a second curve for a bucket) is a conflict, not a crash. */
+    @ExceptionHandler(org.springframework.dao.DuplicateKeyException::class)
+    fun handleDuplicateKey(ex: org.springframework.dao.DuplicateKeyException): ProblemDetail {
+        val constraint = Regex("unique constraint \"([a-z0-9_]+)\"").find(ex.mostSpecificCause.message ?: "")?.groupValues?.get(1)
+        val problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            "This record already exists" + (constraint?.let { " ($it)" } ?: ""),
+        )
+        problem.type = URI.create("urn:etrm:problem:conflict")
+        problem.title = "conflict"
+        return problem
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException::class)
     fun handleTypeMismatch(ex: MethodArgumentTypeMismatchException): ProblemDetail {
         val problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Parameter '${ex.name}' has an invalid value")

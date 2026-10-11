@@ -17,7 +17,7 @@ import {
   Textarea,
   Title,
 } from '@mantine/core';
-import { IconHistory, IconPlus } from '@tabler/icons-react';
+import { IconHistory, IconPencil, IconPlus } from '@tabler/icons-react';
 import type { ColDef } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
@@ -25,14 +25,19 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Body, Schema } from '@/shared/api/types';
-import { Can } from '@/shared/auth/Can';
+import { Can, useCan } from '@/shared/auth/Can';
+import { FactGrid } from '@/shared/components/DetailLayout';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { StatusBadge } from '@/shared/components/StatusBadge';
+import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { HistoryDrawer } from './HistoryDrawer';
+import { defaultBookAssignable } from './model/referenceEdits';
 import { PartyDetails, useInvalidateReference } from './PartyDetails';
+import { EditCounterpartyModal, EditDeviceModal, EditEntityModal, NewDeviceModal } from './ReferenceEditModals';
 
 type LegalEntity = Schema<'LegalEntityView'>;
 type Counterparty = Schema<'CounterpartyView'>;
@@ -65,6 +70,69 @@ function ActiveBadge({ active }: { active: boolean }) {
 
 function useRegistries() {
   return $api.useQuery('get', '/api/v1/reference/registries', {}, { staleTime: 5 * 60_000 });
+}
+
+/** The record whose drawer is open, kept in the URL (`?open=<id>`) so it can be linked and survives a reload. */
+function useOpenRecord(): [string | null, (id: string | null) => void] {
+  const [params, setParams] = useSearchParams();
+  const set = (id: string | null) => {
+    const next = new URLSearchParams(params);
+    if (id) next.set('open', id);
+    else next.delete('open');
+    setParams(next, { replace: true });
+  };
+  return [params.get('open'), set];
+}
+
+const NO_BOOK = 'NONE';
+
+/** The book that inventory on an own registry account belongs to (position limits); middle or back office set it. */
+function DefaultBook({ account, entityId }: { account: Schema<'RegistryAccountView'>; entityId: string }) {
+  const { t } = useTranslation();
+  const invalidate = useInvalidateReference();
+  const canAssign = useCan('referenceData_assignDefaultBook');
+  const books = $api.useQuery('get', '/api/v1/reference/legal-entities/{id}/books', {
+    params: { path: { id: entityId } },
+  });
+  const assign = $api.useMutation('put', '/api/v1/reference/registry-accounts/{id}/default-book', {
+    onSuccess: () => {
+      notifySuccess(t('admin.defaultBookSaved', { account: `${account.registryCode}:${account.accountNumber}` }));
+      void invalidate();
+    },
+  });
+  const current = (books.data ?? []).find((book) => book.id === account.defaultBookId);
+  if (!canAssign) {
+    return (
+      <Text size="sm" c="dimmed" data-testid={`default-book-${account.id}`}>
+        {t('admin.defaultBook')}: {current?.code ?? t('admin.noDefaultBook')}
+      </Text>
+    );
+  }
+  return (
+    <Select
+      size="xs"
+      w={220}
+      aria-label={t('admin.defaultBook')}
+      placeholder={t('admin.defaultBook')}
+      data={[
+        { value: NO_BOOK, label: t('admin.noDefaultBook') },
+        ...(books.data ?? [])
+          .filter((book) => book.active || book.id === account.defaultBookId)
+          .map((book) => ({ value: book.id, label: `${book.code} · ${book.name}` })),
+      ]}
+      value={account.defaultBookId ?? NO_BOOK}
+      allowDeselect={false}
+      disabled={assign.isPending}
+      onChange={(value) =>
+        value &&
+        assign.mutate({
+          params: { path: { id: account.id } },
+          body: { bookId: value === NO_BOOK ? null : value },
+        })
+      }
+      data-testid={`default-book-${account.id}`}
+    />
+  );
 }
 
 function RegistryAccounts({ holderType, holderId }: { holderType: 'LEGAL_ENTITY' | 'COUNTERPARTY'; holderId: string }) {
@@ -124,19 +192,22 @@ function RegistryAccounts({ holderType, holderId }: { holderType: 'LEGAL_ENTITY'
         </Can>
       </Group>
       {(accounts.data ?? []).map((account) => (
-        <Group key={account.id} gap="xs">
-          <Text size="sm" ff="monospace">
-            {account.registryCode}:{account.accountNumber}
-          </Text>
-          <Text size="sm">
-            {account.name} · {account.accountType}
-          </Text>
-          {account.trusted && (
-            <Badge size="xs" variant="light">
-              {t('admin.trusted')}
-            </Badge>
-          )}
-          {!account.active && <ActiveBadge active={false} />}
+        <Group key={account.id} gap="xs" justify="space-between" data-testid={`registry-account-${account.id}`}>
+          <Group gap="xs">
+            <Text size="sm" ff="monospace">
+              {account.registryCode}:{account.accountNumber}
+            </Text>
+            <Text size="sm">
+              {account.name} · {account.accountType}
+            </Text>
+            {account.trusted && (
+              <Badge size="xs" variant="light">
+                {t('admin.trusted')}
+              </Badge>
+            )}
+            {!account.active && <ActiveBadge active={false} />}
+          </Group>
+          {defaultBookAssignable(account) && <DefaultBook account={account} entityId={holderId} />}
         </Group>
       ))}
       <Modal opened={adding} onClose={() => setAdding(false)} title={t('admin.addAccount')}>
@@ -263,36 +334,77 @@ function Books({ entityId }: { entityId: string }) {
   );
 }
 
-function EntityDrawer({ entity, onClose }: { entity: LegalEntity; onClose: () => void }) {
+function EditButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
-  const [history, setHistory] = useState(false);
   return (
-    <Drawer opened onClose={onClose} position="right" size="xl" title={`${entity.code} · ${entity.name}`}>
-      <Stack>
-        <Group gap="xs">
-          <ActiveBadge active={entity.active} />
-          <Text size="sm">
-            {entity.country} · {entity.baseCurrency} · {entity.timeZone} · LEI {entity.lei ?? '–'}
-          </Text>
-          <Button
-            size="compact-sm"
-            variant="subtle"
-            leftSection={<IconHistory size={14} />}
-            onClick={() => setHistory(true)}
-          >
-            {t('admin.history')}
-          </Button>
-        </Group>
-        <Divider />
-        <Books entityId={entity.id} />
-        <Divider />
-        <RegistryAccounts holderType="LEGAL_ENTITY" holderId={entity.id} />
-        <Divider />
-        <PartyDetails partyType="LEGAL_ENTITY" partyId={entity.id} />
-      </Stack>
-      {history && (
+    <Button
+      size="compact-sm"
+      variant="subtle"
+      leftSection={<IconPencil size={14} />}
+      onClick={onClick}
+      data-testid="record-edit"
+    >
+      {t('admin.edit')}
+    </Button>
+  );
+}
+
+function HistoryButton({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Button
+      size="compact-sm"
+      variant="subtle"
+      leftSection={<IconHistory size={14} />}
+      onClick={onClick}
+      data-testid="record-history"
+    >
+      {t('admin.history')}
+    </Button>
+  );
+}
+
+function EntityDrawer({ entityId, onClose }: { entityId: string; onClose: () => void }) {
+  const [history, setHistory] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const detail = $api.useQuery('get', '/api/v1/reference/legal-entities/{id}', { params: { path: { id: entityId } } });
+  const entity = detail.data;
+  return (
+    <Drawer
+      opened
+      onClose={onClose}
+      position="right"
+      size="xl"
+      title={entity ? `${entity.code} · ${entity.name}` : ''}
+      data-testid="entity-drawer"
+    >
+      <QueryState isPending={detail.isPending} error={detail.error}>
+        {entity && (
+          <Stack>
+            <Group gap="xs">
+              <ActiveBadge active={entity.active} />
+              <Text size="sm" data-testid="entity-facts">
+                {entity.country} · {entity.baseCurrency} · {entity.timeZone} · LEI {entity.lei ?? '–'} · EMIR{' '}
+                {entity.emirClassification ?? '–'}
+              </Text>
+              <Can op="referenceData_updateLegalEntity">
+                <EditButton onClick={() => setEditing(true)} />
+              </Can>
+              <HistoryButton onClick={() => setHistory(true)} />
+            </Group>
+            <Divider />
+            <Books entityId={entity.id} />
+            <Divider />
+            <RegistryAccounts holderType="LEGAL_ENTITY" holderId={entity.id} />
+            <Divider />
+            <PartyDetails partyType="LEGAL_ENTITY" partyId={entity.id} />
+          </Stack>
+        )}
+      </QueryState>
+      {entity && history && (
         <HistoryDrawer table="legal_entity" id={entity.id} title={entity.code} onClose={() => setHistory(false)} />
       )}
+      {entity && editing && <EditEntityModal entity={entity} onClose={() => setEditing(false)} />}
     </Drawer>
   );
 }
@@ -376,7 +488,7 @@ function CreateEntityModal({ onClose }: { onClose: () => void }) {
 
 function EntitiesTab() {
   const { t } = useTranslation();
-  const [open, setOpen] = useState<LegalEntity | null>(null);
+  const [open, setOpen] = useOpenRecord();
   const [creating, setCreating] = useState(false);
   const entities = $api.useQuery('get', '/api/v1/reference/legal-entities');
   const columns = useMemo<ColDef<LegalEntity>[]>(
@@ -407,10 +519,10 @@ function EntitiesTab() {
           columnDefs={columns}
           rowId={(row) => row.id}
           height={460}
-          onRowClicked={(event) => setOpen(event.data ?? null)}
+          onRowClicked={(event) => setOpen(event.data?.id ?? null)}
         />
       </QueryState>
-      {open && <EntityDrawer entity={open} onClose={() => setOpen(null)} />}
+      {open && <EntityDrawer entityId={open} onClose={() => setOpen(null)} />}
       {creating && <CreateEntityModal onClose={() => setCreating(false)} />}
     </Stack>
   );
@@ -500,39 +612,80 @@ function CreateCounterpartyModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function CounterpartyDrawer({ counterparty, onClose }: { counterparty: Counterparty; onClose: () => void }) {
+function CounterpartyDrawer({ counterpartyId, onClose }: { counterpartyId: string; onClose: () => void }) {
   const { t } = useTranslation();
   const [history, setHistory] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const detail = $api.useQuery('get', '/api/v1/reference/counterparties/{id}', {
+    params: { path: { id: counterpartyId } },
+  });
+  const counterparties = $api.useQuery('get', '/api/v1/reference/counterparties');
+  const counterparty = detail.data;
+  const parent = (counterparties.data ?? []).find((c) => c.id === counterparty?.parentCounterpartyId);
   return (
-    <Drawer opened onClose={onClose} position="right" size="xl" title={`${counterparty.code} · ${counterparty.name}`}>
-      <Stack>
-        <Group gap="xs">
-          <ActiveBadge active={counterparty.active} />
-          <Text size="sm">
-            {counterparty.counterpartyType} · {counterparty.country} · {counterparty.settlementCurrency} ·{' '}
-            {t('admin.paymentTermsDays', { days: counterparty.paymentTermsDays })}
-          </Text>
-          <Button
-            size="compact-sm"
-            variant="subtle"
-            leftSection={<IconHistory size={14} />}
-            onClick={() => setHistory(true)}
-          >
-            {t('admin.history')}
-          </Button>
-        </Group>
-        {counterparty.masterAgreements.length > 0 && (
-          <Text size="sm">
-            {t('admin.masterAgreements')}:{' '}
-            {counterparty.masterAgreements.map((a) => `${a.type} ${a.reference}`).join(', ')}
-          </Text>
+    <Drawer
+      opened
+      onClose={onClose}
+      position="right"
+      size="xl"
+      title={counterparty ? `${counterparty.code} · ${counterparty.name}` : ''}
+      data-testid="counterparty-drawer"
+    >
+      <QueryState isPending={detail.isPending} error={detail.error}>
+        {counterparty && (
+          <Stack>
+            <Group gap="xs">
+              <ActiveBadge active={counterparty.active} />
+              <Text size="sm">
+                {counterparty.counterpartyType} · {counterparty.country} · {counterparty.settlementCurrency}
+              </Text>
+              <Can op="referenceData_updateCounterparty">
+                <EditButton onClick={() => setEditing(true)} />
+              </Can>
+              <HistoryButton onClick={() => setHistory(true)} />
+            </Group>
+            <FactGrid
+              cols={3}
+              facts={[
+                {
+                  label: t('admin.paymentTerms'),
+                  value: t('admin.paymentTermsDays', { days: counterparty.paymentTermsDays }),
+                  testId: 'counterparty-payment-terms',
+                },
+                {
+                  label: t('admin.invoiceEmail'),
+                  value: counterparty.invoiceEmail ?? '–',
+                  testId: 'counterparty-invoice-email',
+                },
+                { label: 'LEI', value: counterparty.lei ?? '–' },
+                { label: t('admin.vatNumber'), value: counterparty.vatNumber ?? '–' },
+                { label: t('admin.emirClassification'), value: counterparty.emirClassification ?? '–' },
+                { label: t('admin.parentCounterparty'), value: parent ? parent.code : '–' },
+                {
+                  label: t('admin.nettingAgreed'),
+                  value: counterparty.nettingAgreed ? t('common.yes') : t('common.no'),
+                },
+                {
+                  label: t('admin.selfBilling'),
+                  value: counterparty.selfBilling ? t('common.yes') : t('common.no'),
+                },
+                { label: t('admin.recordVersion'), value: counterparty.version },
+              ]}
+            />
+            {counterparty.masterAgreements.length > 0 && (
+              <Text size="sm">
+                {t('admin.masterAgreements')}:{' '}
+                {counterparty.masterAgreements.map((a) => `${a.type} ${a.reference}`).join(', ')}
+              </Text>
+            )}
+            <Divider />
+            <RegistryAccounts holderType="COUNTERPARTY" holderId={counterparty.id} />
+            <Divider />
+            <PartyDetails partyType="COUNTERPARTY" partyId={counterparty.id} />
+          </Stack>
         )}
-        <Divider />
-        <RegistryAccounts holderType="COUNTERPARTY" holderId={counterparty.id} />
-        <Divider />
-        <PartyDetails partyType="COUNTERPARTY" partyId={counterparty.id} />
-      </Stack>
-      {history && (
+      </QueryState>
+      {counterparty && history && (
         <HistoryDrawer
           table="counterparty"
           id={counterparty.id}
@@ -540,13 +693,16 @@ function CounterpartyDrawer({ counterparty, onClose }: { counterparty: Counterpa
           onClose={() => setHistory(false)}
         />
       )}
+      {counterparty && editing && (
+        <EditCounterpartyModal counterparty={counterparty} onClose={() => setEditing(false)} />
+      )}
     </Drawer>
   );
 }
 
 function CounterpartiesTab() {
   const { t } = useTranslation();
-  const [open, setOpen] = useState<Counterparty | null>(null);
+  const [open, setOpen] = useOpenRecord();
   const [creating, setCreating] = useState(false);
   const counterparties = $api.useQuery('get', '/api/v1/reference/counterparties');
   const columns = useMemo<ColDef<Counterparty>[]>(
@@ -576,10 +732,10 @@ function CounterpartiesTab() {
           columnDefs={columns}
           rowId={(row) => row.id}
           height={460}
-          onRowClicked={(event) => setOpen(event.data ?? null)}
+          onRowClicked={(event) => setOpen(event.data?.id ?? null)}
         />
       </QueryState>
-      {open && <CounterpartyDrawer counterparty={open} onClose={() => setOpen(null)} />}
+      {open && <CounterpartyDrawer counterpartyId={open} onClose={() => setOpen(null)} />}
       {creating && <CreateCounterpartyModal onClose={() => setCreating(false)} />}
     </Stack>
   );
@@ -679,10 +835,83 @@ function RegistriesTab() {
   );
 }
 
+function DeviceDrawer({ deviceId, onClose }: { deviceId: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [history, setHistory] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const detail = $api.useQuery('get', '/api/v1/reference/production-devices/{id}', {
+    params: { path: { id: deviceId } },
+  });
+  const registries = useRegistries();
+  const device = detail.data;
+  const registry = (registries.data ?? []).find((candidate) => candidate.id === device?.registryId);
+  const codes = Object.entries(device?.externalCodes ?? {});
+  return (
+    <Drawer
+      opened
+      onClose={onClose}
+      position="right"
+      size="xl"
+      title={device ? `${device.gsrn} · ${device.name}` : ''}
+      data-testid="device-drawer"
+    >
+      <QueryState isPending={detail.isPending} error={detail.error}>
+        {device && (
+          <Stack>
+            <Group gap="xs">
+              <StatusBadge status={device.active ? 'ACTIVE' : 'INACTIVE'} data-testid="device-status" />
+              {device.ownDevice && (
+                <Badge size="sm" variant="light">
+                  {t('admin.ownDevice')}
+                </Badge>
+              )}
+              <Can op="referenceData_updateProductionDevice">
+                <EditButton onClick={() => setEditing(true)} />
+              </Can>
+              <HistoryButton onClick={() => setHistory(true)} />
+            </Group>
+            <FactGrid
+              cols={3}
+              facts={[
+                { label: t('ets.name'), value: device.name, testId: 'device-fact-name' },
+                {
+                  label: t('admin.capacityKw'),
+                  value: formatDecimal(device.capacityKw, 0, 3),
+                  testId: 'device-fact-capacity',
+                },
+                { label: t('ets.country'), value: device.country },
+                { label: t('admin.energySource'), value: device.energySourceCode },
+                { label: t('admin.technology'), value: device.technologyCode },
+                { label: t('admin.commissioned'), value: formatDate(device.commissioningDate) },
+                { label: t('admin.decommissioned'), value: formatDate(device.decommissioningDate) || '–' },
+                { label: t('admin.supportSchemes'), value: device.supportSchemeCodes.join(', ') || '–' },
+                { label: t('admin.labels'), value: device.labelCodes.join(', ') || '–' },
+                { label: t('admin.ownerType'), value: t(`admin.ownerTypes.${device.ownerType}`) },
+                { label: t('admin.registry'), value: registry?.code ?? '–' },
+                { label: t('admin.recordVersion'), value: device.version },
+              ]}
+            />
+            {codes.length > 0 && (
+              <Text size="sm">
+                {t('admin.externalCodes')}: {codes.map(([key, value]) => `${key} ${value}`).join(', ')}
+              </Text>
+            )}
+          </Stack>
+        )}
+      </QueryState>
+      {device && history && (
+        <HistoryDrawer table="production_device" id={device.id} title={device.name} onClose={() => setHistory(false)} />
+      )}
+      {device && editing && <EditDeviceModal device={device} onClose={() => setEditing(false)} />}
+    </Drawer>
+  );
+}
+
 function DevicesTab() {
   const { t } = useTranslation();
   const [own, setOwn] = useState(true);
-  const [history, setHistory] = useState<Device | null>(null);
+  const [open, setOpen] = useOpenRecord();
+  const [creating, setCreating] = useState(false);
   const devices = $api.useQuery('get', '/api/v1/reference/production-devices', { params: { query: { own } } });
   const columns = useMemo<ColDef<Device>[]>(
     () => [
@@ -699,23 +928,32 @@ function DevicesTab() {
   );
   return (
     <Stack>
-      <Switch label={t('admin.ownDevices')} checked={own} onChange={(e) => setOwn(e.currentTarget.checked)} />
+      <Group justify="space-between">
+        <Switch label={t('admin.ownDevices')} checked={own} onChange={(e) => setOwn(e.currentTarget.checked)} />
+        <Can op="referenceData_createProductionDevice">
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-device">
+            {t('admin.newDevice')}
+          </Button>
+        </Can>
+      </Group>
       <QueryState isPending={devices.isPending} error={devices.error}>
         <DataGrid<Device>
           rowData={devices.data ?? []}
           columnDefs={columns}
           rowId={(row) => row.id}
           height={460}
-          onRowClicked={(event) => setHistory(event.data ?? null)}
+          onRowClicked={(event) => setOpen(event.data?.id ?? null)}
           overlayNoRowsTemplate={t('common.empty')}
         />
       </QueryState>
-      {history && (
-        <HistoryDrawer
-          table="production_device"
-          id={history.id}
-          title={history.name}
-          onClose={() => setHistory(null)}
+      {open && <DeviceDrawer deviceId={open} onClose={() => setOpen(null)} />}
+      {creating && (
+        <NewDeviceModal
+          onClose={() => setCreating(false)}
+          onCreated={(id) => {
+            setCreating(false);
+            setOpen(id);
+          }}
         />
       )}
     </Stack>

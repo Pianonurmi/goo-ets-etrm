@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageInDays, breakActions, breakSubject, facts, mismatches, type Break } from './breaks';
+import { ageInDays, breakActions, breakSubject, canReconcile, facts, mismatches, type Break } from './breaks';
 
 describe('reconciliation breaks', () => {
   it('offers the resolutions of each break type', () => {
@@ -46,6 +46,12 @@ describe('reconciliation breaks', () => {
     expect(ageInDays({ firstSeenOn: '2026-10-01' }, '2026-10-11')).toBe(10);
     expect(ageInDays({ firstSeenOn: null, detectedAt: '2026-10-11T08:00:00Z' }, '2026-10-11')).toBe(0);
     expect(ageInDays({ firstSeenOn: null, detectedAt: null }, '2026-10-11')).toBeNull();
+  });
+
+  it('offers reconciling only a statement not yet reconciled', () => {
+    expect(canReconcile({ status: 'IMPORTED' })).toBe(true);
+    expect(canReconcile({ status: 'RECONCILED' })).toBe(false);
+    expect(canReconcile({ status: 'BREAKS' })).toBe(false);
   });
 
   it('separates attribute mismatches from other details', () => {

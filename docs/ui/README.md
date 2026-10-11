@@ -133,6 +133,7 @@ Tests at every level: [testing.md](testing.md).
 - **Content Security Policy:** set by the API (`SecurityConfiguration`): scripts only from the same origin, no
   inline scripts, no framing. The end-to-end suite fails on any CSP violation. Do not add inline `<script>` or
   third-party origins.
-- **Bundle budget:** `npm run budget` (part of `./gradlew :apps:web:check`) fails when the first page (entry,
-  preloaded chunks and CSS) exceeds 330 kB gzip, any chunk exceeds 360 kB, or the whole bundle exceeds 1000 kB.
+- **Bundle budget:** `npm run budget` (part of `./gradlew :apps:web:check`) fails when the first page's script (entry
+  and preloaded chunks) exceeds 330 kB gzip or its stylesheet 50 kB, any chunk exceeds 360 kB, or the whole bundle
+  exceeds 1000 kB. The help manual is content under `/help/` and is not counted.
   Load heavy screens and libraries lazily (`router.tsx`). Raise a budget only in a reviewed change.

@@ -33,6 +33,7 @@ import { formatDateTime, formatDecimal, formatMoney } from '@/shared/format/form
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useBooks } from '@/features/trades/hooks';
 import { explainBars } from './model/explain';
+import { OfficialRun } from './OfficialRun';
 
 type Run = Schema<'ValuationRunView'>;
 type Result = Schema<'ValuationResultView'>;
@@ -199,7 +200,7 @@ function ExplainFor({ entityId, initial }: { entityId: string; initial: [string,
   );
 }
 
-/** Valuation runs of the selected entity and the P&L explain between two official runs. */
+/** Valuation runs of the selected entity, the official run as of a date and the P&L explain between two official runs. */
 export function ValuationPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
@@ -221,10 +222,16 @@ export function ValuationPage() {
         >
           <Tabs.List>
             <Tabs.Tab value="runs">{t('valuation.runs')}</Tabs.Tab>
+            <Tabs.Tab value="official" data-testid="tab-official">
+              {t('valuation.official')}
+            </Tabs.Tab>
             <Tabs.Tab value="explain">{t('valuation.explain')}</Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="runs" pt="md">
             <Runs entityId={entity.id} />
+          </Tabs.Panel>
+          <Tabs.Panel value="official" pt="md">
+            <OfficialRun entityId={entity.id} />
           </Tabs.Panel>
           <Tabs.Panel value="explain" pt="md">
             <Explain entityId={entity.id} />

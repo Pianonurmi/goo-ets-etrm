@@ -16,7 +16,7 @@ import {
   Timeline,
   Title,
 } from '@mantine/core';
-import { IconArrowLeft, IconInfoCircle } from '@tabler/icons-react';
+import { IconArrowLeft, IconBan, IconInfoCircle } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
@@ -24,10 +24,12 @@ import { $api } from '@/shared/api/client';
 import { useSession } from '@/shared/auth/SessionContext';
 import { notifySuccess } from '@/shared/components/notify';
 import { QueryState } from '@/shared/components/QueryState';
+import { ReasonModal } from '@/shared/components/ReasonModal';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { useInvalidateWorkflow, useTaskTypes } from './hooks';
 import {
+  canCancel,
   canWorkOn,
   decisionBlock,
   decisionsOf,
@@ -128,6 +130,58 @@ function DecisionPanel({ task, type }: { task: Task; type: TaskType | undefined 
           ))}
         </Group>
       </Stack>
+    </Card>
+  );
+}
+
+/** The requester withdraws an open request (or the assignee, an escalation role or an admin cancels it). */
+function CancelPanel({ task, type }: { task: Task; type: TaskType | undefined }) {
+  const { t } = useTranslation();
+  const { me } = useSession();
+  const invalidate = useInvalidateWorkflow();
+  const [open, setOpen] = useState(false);
+  const cancel = $api.useMutation('post', '/api/v1/workflow/tasks/{id}/cancel', {
+    meta: { notify: false },
+    onSuccess: () => {
+      notifySuccess(t('inbox.cancelled'));
+      setOpen(false);
+      void invalidate();
+    },
+  });
+  if (!canCancel(task, type, me)) return null;
+  return (
+    <Card withBorder>
+      <Stack gap="xs">
+        <Title order={5}>{t('inbox.cancelTitle')}</Title>
+        <Text size="sm" c="dimmed">
+          {task.requestedBy === me.userId ? t('inbox.cancelOwnHint') : t('inbox.cancelOtherHint')}
+        </Text>
+        <Button
+          variant="light"
+          color="red"
+          size="xs"
+          w="fit-content"
+          leftSection={<IconBan size={14} />}
+          onClick={() => setOpen(true)}
+          data-testid="cancel-task"
+        >
+          {t('inbox.cancelTask')}
+        </Button>
+      </Stack>
+      {open && (
+        <ReasonModal
+          title={t('inbox.cancelTitle')}
+          hint={t('inbox.cancelReasonHint')}
+          action={t('inbox.cancelTask')}
+          pending={cancel.isPending}
+          error={cancel.error}
+          onSubmit={(reason) => cancel.mutate({ params: { path: { id: task.id } }, body: { reason } })}
+          onClose={() => {
+            cancel.reset();
+            setOpen(false);
+          }}
+        />
+      )}
     </Card>
   );
 }
@@ -315,8 +369,9 @@ export function TaskDetailPage() {
                         </SimpleGrid>
                         {task.decidedBy && (
                           <Alert
-                            color={task.status === 'REJECTED' ? 'red' : 'teal'}
+                            color={task.status === 'REJECTED' ? 'red' : task.status === 'CANCELLED' ? 'gray' : 'teal'}
                             title={t(`inbox.status.${task.status}`)}
+                            data-testid="task-outcome"
                           >
                             {t('inbox.decidedBy', { user: task.decidedBy, at: formatDateTime(task.decidedAt) })}
                             {task.reason ? ` — ${task.reason}` : ''}
@@ -358,6 +413,7 @@ export function TaskDetailPage() {
                   <Stack>
                     <DecisionPanel task={task} type={type} />
                     <AssignmentPanel task={task} />
+                    <CancelPanel task={task} type={type} />
                     <Card withBorder>
                       <Title order={5} mb="sm">
                         {t('inbox.history')}

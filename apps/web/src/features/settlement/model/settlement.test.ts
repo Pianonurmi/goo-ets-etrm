@@ -7,6 +7,7 @@ import {
   itemStatuses,
   needsPrice,
   purchaseCandidates,
+  vatRuleLabel,
   type Item,
 } from './settlement';
 
@@ -64,5 +65,11 @@ describe('settlement', () => {
     ];
     expect(purchaseCandidates(items, 'cp-1', 'eur').map((i) => i.id)).toEqual(['a']);
     expect(purchaseCandidates(items, null, 'EUR')).toEqual([]);
+  });
+
+  it('labels the VAT rule of an item with its version', () => {
+    expect(vatRuleLabel({ vatRuleCode: 'FI_STANDARD', vatRuleVersion: 2 })).toBe('FI_STANDARD v2');
+    expect(vatRuleLabel({ vatRuleCode: 'FI_STANDARD', vatRuleVersion: null })).toBe('FI_STANDARD');
+    expect(vatRuleLabel({ vatRuleCode: null, vatRuleVersion: null })).toBeNull();
   });
 });

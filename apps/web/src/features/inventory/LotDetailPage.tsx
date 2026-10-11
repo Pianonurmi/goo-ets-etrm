@@ -6,31 +6,22 @@ import {
   Code,
   Grid,
   Group,
-  Modal,
-  NumberInput,
-  Select,
   SimpleGrid,
   Stack,
   Text,
   TextInput,
-  Textarea,
   Timeline,
   Title,
 } from '@mantine/core';
 import { IconArrowLeft } from '@tabler/icons-react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
-import { TransferModal } from '@/features/registry/TransferModal';
-import type { Schema } from '@/shared/api/types';
-import { useCan } from '@/shared/auth/Can';
-import { notifySuccess } from '@/shared/components/notify';
-import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
-import { daysToExpiry, LotStatusBadge, type Lot } from './lotColumns';
+import { daysToExpiry, LotStatusBadge } from './lotColumns';
+import { LotActions } from './LotOperations';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -42,188 +33,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
         {children ?? '—'}
       </Text>
     </Stack>
-  );
-}
-
-type Action = 'withdraw' | 'split' | 'cancel' | null | 'transfer';
-type Purpose = Schema<'CancellationDetails'>['purpose'];
-const PURPOSES: Purpose[] = ['DISCLOSURE', 'OWN_CONSUMPTION', 'VOLUNTARY', 'COMPLIANCE', 'ON_BEHALF_OF_THIRD_PARTY'];
-
-function useRefreshInventory() {
-  const queryClient = useQueryClient();
-  return () =>
-    queryClient.invalidateQueries({
-      predicate: (query) => typeof query.queryKey[1] === 'string' && query.queryKey[1].startsWith('/api/v1/inventory'),
-    });
-}
-
-function LotActions({ lot }: { lot: Lot }) {
-  const { t } = useTranslation();
-  const refresh = useRefreshInventory();
-  const canWithdraw = useCan('inventory_withdraw');
-  const canSplit = useCan('inventory_split');
-  const canCancel = useCan('inventory_cancel');
-  const canTransfer = useCan('registry_transfer');
-  const [action, setAction] = useState<Action>(null);
-  const [reason, setReason] = useState('');
-  const [quantity, setQuantity] = useState<number | string>('');
-  const [cancellation, setCancellation] = useState({
-    purpose: 'DISCLOSURE' as Purpose,
-    country: lot.deviceCountry,
-    from: '',
-    to: '',
-    beneficiary: '',
-  });
-  const done = (message: string) => () => {
-    notifySuccess(message);
-    setAction(null);
-    void refresh();
-  };
-  const withdraw = $api.useMutation('post', '/api/v1/inventory/lots/{id}/withdraw', {
-    onSuccess: done(t('inventory.withdrawn')),
-    meta: { notify: false },
-  });
-  const split = $api.useMutation('post', '/api/v1/inventory/lots/{id}/split', {
-    onSuccess: done(t('inventory.splitDone')),
-    meta: { notify: false },
-  });
-  const cancel = $api.useMutation('post', '/api/v1/inventory/lots/{id}/cancel', {
-    onSuccess: done(t('inventory.cancelled')),
-    meta: { notify: false },
-  });
-  const live = lot.status === 'HELD';
-  const path = { params: { path: { id: lot.id } } };
-  if (!live || !(canWithdraw || canSplit || canCancel || canTransfer)) return null;
-  return (
-    <Card withBorder>
-      <Title order={5} mb="sm">
-        {t('inventory.actions')}
-      </Title>
-      <Group>
-        {canTransfer && (
-          <Button variant="light" size="xs" onClick={() => setAction('transfer')} data-testid="lot-transfer">
-            {t('registry.newTransfer')}
-          </Button>
-        )}
-        {canSplit && (
-          <Button variant="light" size="xs" onClick={() => setAction('split')}>
-            {t('inventory.split')}
-          </Button>
-        )}
-        {canCancel && (
-          <Button variant="light" size="xs" color="violet" onClick={() => setAction('cancel')}>
-            {t('inventory.cancel')}
-          </Button>
-        )}
-        {canWithdraw && (
-          <Button variant="light" size="xs" color="orange" onClick={() => setAction('withdraw')} data-testid="withdraw">
-            {t('inventory.withdraw')}
-          </Button>
-        )}
-      </Group>
-      {action === 'transfer' && (
-        <TransferModal entityId={lot.holderEntityId} lot={lot} onClose={() => setAction(null)} />
-      )}
-      <Modal opened={action === 'withdraw'} onClose={() => setAction(null)} title={t('inventory.withdraw')}>
-        <Stack>
-          <Text size="sm">{t('inventory.withdrawHint')}</Text>
-          <ProblemAlert error={withdraw.error} />
-          <Textarea
-            label={t('inbox.reason')}
-            required
-            value={reason}
-            onChange={(event) => setReason(event.currentTarget.value)}
-          />
-          <Button
-            color="orange"
-            disabled={!reason.trim()}
-            loading={withdraw.isPending}
-            onClick={() => withdraw.mutate({ ...path, body: { reason: reason.trim() } })}
-          >
-            {t('inventory.withdraw')}
-          </Button>
-        </Stack>
-      </Modal>
-      <Modal opened={action === 'split'} onClose={() => setAction(null)} title={t('inventory.split')}>
-        <Stack>
-          <ProblemAlert error={split.error} />
-          <NumberInput
-            label={t('inventory.splitQuantity')}
-            description={t('inventory.splitHint', { quantity: lot.quantityMwh })}
-            min={1}
-            max={lot.quantityMwh - 1}
-            value={quantity}
-            onChange={setQuantity}
-          />
-          <Button
-            disabled={!quantity}
-            loading={split.isPending}
-            onClick={() => split.mutate({ ...path, body: { quantity: Number(quantity) } })}
-          >
-            {t('inventory.split')}
-          </Button>
-        </Stack>
-      </Modal>
-      <Modal opened={action === 'cancel'} onClose={() => setAction(null)} title={t('inventory.cancel')} size="lg">
-        <Stack>
-          <Text size="sm">{t('inventory.cancelHint')}</Text>
-          <ProblemAlert error={cancel.error} />
-          <Select
-            label={t('inventory.purpose')}
-            data={PURPOSES.map((purpose) => ({ value: purpose, label: t(`inventory.purposes.${purpose}`) }))}
-            value={cancellation.purpose}
-            onChange={(value) => setCancellation({ ...cancellation, purpose: value ?? 'DISCLOSURE' })}
-            allowDeselect={false}
-          />
-          <TextInput
-            label={t('inventory.beneficiary')}
-            value={cancellation.beneficiary}
-            onChange={(e) => setCancellation({ ...cancellation, beneficiary: e.currentTarget.value })}
-          />
-          <Group grow>
-            <TextInput
-              label={t('inventory.consumptionCountry')}
-              value={cancellation.country}
-              onChange={(e) => setCancellation({ ...cancellation, country: e.currentTarget.value.toUpperCase() })}
-              maxLength={2}
-            />
-            <TextInput
-              type="date"
-              label={t('inventory.consumptionFrom')}
-              value={cancellation.from}
-              onChange={(e) => setCancellation({ ...cancellation, from: e.currentTarget.value })}
-            />
-            <TextInput
-              type="date"
-              label={t('inventory.consumptionTo')}
-              value={cancellation.to}
-              onChange={(e) => setCancellation({ ...cancellation, to: e.currentTarget.value })}
-            />
-          </Group>
-          <Button
-            color="violet"
-            disabled={!cancellation.purpose || !cancellation.country || !cancellation.from || !cancellation.to}
-            loading={cancel.isPending}
-            onClick={() =>
-              cancel.mutate({
-                ...path,
-                body: {
-                  quantity: null,
-                  details: {
-                    purpose: cancellation.purpose,
-                    consumptionCountry: cancellation.country,
-                    consumptionPeriod: { start: cancellation.from, endExclusive: cancellation.to },
-                    beneficiaryName: cancellation.beneficiary || null,
-                  },
-                },
-              })
-            }
-          >
-            {t('inventory.cancel')}
-          </Button>
-        </Stack>
-      </Modal>
-    </Card>
   );
 }
 
@@ -319,7 +128,7 @@ export function LotDetailPage() {
                           </Title>
                         </Stack>
                         <Group gap={6}>
-                          <LotStatusBadge status={data.status} />
+                          <LotStatusBadge status={data.status} testId="lot-status" />
                           {days !== null && days <= 60 && (
                             <Badge color="red">{t('inventory.expiresIn', { count: days })}</Badge>
                           )}
@@ -375,7 +184,7 @@ export function LotDetailPage() {
                 <Grid.Col span={{ base: 12, lg: 4 }}>
                   <Stack>
                     <LotActions lot={data} />
-                    <Card withBorder>
+                    <Card withBorder data-testid="lot-history">
                       <Title order={5} mb="sm">
                         {t('inventory.history')}
                       </Title>

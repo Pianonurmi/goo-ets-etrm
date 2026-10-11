@@ -14,14 +14,15 @@ import {
   Tabs,
   Text,
 } from '@mantine/core';
-import { IconArrowsTransferUp, IconPencil } from '@tabler/icons-react';
+import { IconArrowsTransferUp, IconCoins, IconPencil, IconPlus } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
-import { decimal } from '@/shared/api/types';
+import { decimal, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { JsonEditorModal } from '@/shared/components/JsonEditorModal';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
@@ -39,6 +40,8 @@ import {
   type InstructionStatus,
   type Route,
 } from './model/instructions';
+import { AllowanceTransferModal } from './AllowanceTransferModal';
+import { NEW_FORMAT, formatKey, formatToUpsert, upsertBody } from './model/formats';
 import { TransferModal, useInvalidateRegistry, useRegistries } from './TransferModal';
 
 const TABS = ['instructions', 'routes', 'formats'] as const;
@@ -329,14 +332,59 @@ function RoutesTab() {
   );
 }
 
+type Format = Schema<'StatementFormatView'>;
+
+/**
+ * Edits a statement format as JSON: an existing one (keyed by registry, profile and kind), or a new profile from a
+ * template. The server checks the column mapping against the kind and the date pattern.
+ */
+function FormatEditor({ format, onClose }: { format: Format | null; onClose: () => void }) {
+  const { t } = useTranslation();
+  const invalidate = useInvalidateRegistry();
+  const [code, setCode] = useState('');
+  const save = $api.useMutation('put', '/api/v1/registry/statement-formats', {
+    meta: { notify: false },
+    onSuccess: (saved) => {
+      notifySuccess(t('registry.formatSaved', { profile: saved.profileCode, version: saved.version }));
+      void invalidate();
+      onClose();
+    },
+  });
+  return (
+    <JsonEditorModal
+      title={format ? t('registry.editFormat', { profile: format.profileCode }) : t('registry.newFormat')}
+      hint={t('registry.formatEditorHint')}
+      initial={format ? formatToUpsert(format) : NEW_FORMAT}
+      {...(format ? {} : { code, onCodeChange: setCode, codeLabel: t('registry.profile') })}
+      pending={save.isPending}
+      error={save.error}
+      onSubmit={(json) => save.mutate({ body: upsertBody(json, format ? undefined : code) })}
+      onClose={onClose}
+    />
+  );
+}
+
 function FormatsTab() {
   const { t } = useTranslation();
   const formats = $api.useQuery('get', '/api/v1/registry/statement-formats', {});
+  const [editing, setEditing] = useState<Format | 'new' | null>(null);
   return (
     <Stack>
-      <Text size="sm" c="dimmed">
-        {t('registry.formatsHint')}
-      </Text>
+      <Group justify="space-between">
+        <Text size="sm" c="dimmed">
+          {t('registry.formatsHint')}
+        </Text>
+        <Can op="registry_upsertFormat">
+          <Button
+            variant="light"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => setEditing('new')}
+            data-testid="new-format"
+          >
+            {t('registry.newFormat')}
+          </Button>
+        </Can>
+      </Group>
       <QueryState isPending={formats.isPending} error={formats.error}>
         <Table striped data-testid="formats-table">
           <Table.Thead>
@@ -347,11 +395,12 @@ function FormatsTab() {
               <Table.Th>{t('registry.layout')}</Table.Th>
               <Table.Th>{t('registry.columns')}</Table.Th>
               <Table.Th>{t('registry.updated')}</Table.Th>
+              <Table.Th />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {(formats.data ?? []).map((format) => (
-              <Table.Tr key={format.id}>
+              <Table.Tr key={format.id} data-testid={`format-row-${formatKey(format)}`}>
                 <Table.Td>{format.registryCode}</Table.Td>
                 <Table.Td>
                   {format.profileCode}
@@ -385,11 +434,25 @@ function FormatsTab() {
                     v{format.version} · {format.updatedBy} · {formatDateTime(format.updatedAt)}
                   </Text>
                 </Table.Td>
+                <Table.Td ta="right">
+                  <Can op="registry_upsertFormat">
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      leftSection={<IconPencil size={12} />}
+                      onClick={() => setEditing(format)}
+                      data-testid={`format-edit-${formatKey(format)}`}
+                    >
+                      {t('registry.edit')}
+                    </Button>
+                  </Can>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       </QueryState>
+      {editing && <FormatEditor format={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </Stack>
   );
 }
@@ -400,7 +463,7 @@ export function RegistryPage() {
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
   const tab = TABS.find((value) => value === params.get('tab')) ?? 'instructions';
-  const [transferring, setTransferring] = useState(false);
+  const [transferring, setTransferring] = useState<'goo' | 'allowances' | null>(null);
   return (
     <Stack>
       <PageHeader
@@ -408,15 +471,27 @@ export function RegistryPage() {
         description={t('registry.description', { entity: entity?.code ?? '' })}
         actions={
           entity && (
-            <Can op="registry_transfer">
-              <Button
-                leftSection={<IconArrowsTransferUp size={16} />}
-                onClick={() => setTransferring(true)}
-                data-testid="new-transfer"
-              >
-                {t('registry.newTransfer')}
-              </Button>
-            </Can>
+            <Group gap="xs">
+              <Can op="registry_allowanceTransfer">
+                <Button
+                  variant="light"
+                  leftSection={<IconCoins size={16} />}
+                  onClick={() => setTransferring('allowances')}
+                  data-testid="new-allowance-transfer"
+                >
+                  {t('registry.allowanceTransfer')}
+                </Button>
+              </Can>
+              <Can op="registry_transfer">
+                <Button
+                  leftSection={<IconArrowsTransferUp size={16} />}
+                  onClick={() => setTransferring('goo')}
+                  data-testid="new-transfer"
+                >
+                  {t('registry.newTransfer')}
+                </Button>
+              </Can>
+            </Group>
           )
         }
       />
@@ -444,7 +519,10 @@ export function RegistryPage() {
           </Tabs.Panel>
         </Tabs>
       )}
-      {transferring && entity && <TransferModal entityId={entity.id} onClose={() => setTransferring(false)} />}
+      {transferring === 'goo' && entity && <TransferModal entityId={entity.id} onClose={() => setTransferring(null)} />}
+      {transferring === 'allowances' && entity && (
+        <AllowanceTransferModal entityId={entity.id} onClose={() => setTransferring(null)} />
+      )}
     </Stack>
   );
 }

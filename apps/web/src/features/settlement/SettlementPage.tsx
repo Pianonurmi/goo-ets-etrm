@@ -1,5 +1,17 @@
-import { Alert, Anchor, Badge, Button, Group, SegmentedControl, Select, Stack, Tabs, Text } from '@mantine/core';
-import { IconDownload, IconFileInvoice, IconReceipt, IconRefresh, IconTag } from '@tabler/icons-react';
+import {
+  ActionIcon,
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Group,
+  SegmentedControl,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+} from '@mantine/core';
+import { IconDownload, IconEye, IconFileInvoice, IconReceipt, IconRefresh, IconTag } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +45,7 @@ import {
 import { NettingTab } from './NettingTab';
 import { PaymentsTab } from './PaymentsTab';
 import { SettlementReportsTab } from './SettlementReportsTab';
+import { ItemDrawer } from './ItemDrawer';
 import { FixPriceModal, InvoiceRunModal, PurchaseInvoiceModal } from './SettlementModals';
 import { VatRulesTab } from './VatRulesTab';
 
@@ -56,7 +69,15 @@ function useSetFilter() {
   };
 }
 
-function ItemActions({ item, onFix }: { item: Item; onFix: (item: Item) => void }) {
+function ItemActions({
+  item,
+  onFix,
+  onOpen,
+}: {
+  item: Item;
+  onFix: (item: Item) => void;
+  onOpen: (item: Item) => void;
+}) {
   const { t } = useTranslation();
   const invalidate = useInvalidateSettlement();
   const reevaluate = $api.useMutation('post', '/api/v1/settlement/items/{id}/reevaluate', {
@@ -69,6 +90,16 @@ function ItemActions({ item, onFix }: { item: Item; onFix: (item: Item) => void 
   });
   return (
     <Group gap={4} wrap="nowrap">
+      <ActionIcon
+        variant="subtle"
+        size="sm"
+        aria-label={t('settlement.itemDetails')}
+        title={t('settlement.itemDetails')}
+        onClick={() => onOpen(item)}
+        data-testid={`item-details-${item.id}`}
+      >
+        <IconEye size={14} />
+      </ActionIcon>
       {needsPrice(item) && (
         <Can op="settlement_fixPrice">
           <Button size="compact-xs" variant="light" leftSection={<IconTag size={12} />} onClick={() => onFix(item)}>
@@ -100,6 +131,8 @@ function ItemsTab({ entityId }: { entityId: string }) {
   const view = asItemView(params.get('view'));
   const counterparties = useCounterparties();
   const [fixing, setFixing] = useState<Item | null>(null);
+  // A link may open an item (`?item=<id>`); the grid opens one by id from its row.
+  const [openItem, setOpenItem] = useState<string | null>(() => params.get('item'));
   const items = $api.useQuery('get', '/api/v1/settlement/items', {
     params: { query: { legalEntityId: entityId, status: itemStatuses(view) } },
   });
@@ -185,10 +218,11 @@ function ItemsTab({ entityId }: { entityId: string }) {
         pinned: 'right',
         sortable: false,
         filter: false,
-        cellRenderer: (p: ICellRendererParams<Item>) => p.data && <ItemActions item={p.data} onFix={setFixing} />,
+        cellRenderer: (p: ICellRendererParams<Item>) =>
+          p.data && <ItemActions item={p.data} onFix={setFixing} onOpen={(item) => setOpenItem(item.id)} />,
       },
     ],
-    [t, counterparties.byId, setFixing],
+    [t, counterparties.byId, setFixing, setOpenItem],
   );
   return (
     <Stack>
@@ -203,6 +237,15 @@ function ItemsTab({ entityId }: { entityId: string }) {
         <DataGrid<Item> rowData={items.data ?? []} columnDefs={columns} rowId={(row) => row.id} height={480} />
       </QueryState>
       {fixing && <FixPriceModal item={fixing} onClose={() => setFixing(null)} />}
+      {openItem && (
+        <ItemDrawer
+          itemId={openItem}
+          onClose={() => {
+            setOpenItem(null);
+            if (params.has('item')) setFilter('item', null);
+          }}
+        />
+      )}
     </Stack>
   );
 }

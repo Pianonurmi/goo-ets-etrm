@@ -1,6 +1,5 @@
 import {
   Alert,
-  Anchor,
   Badge,
   Button,
   Card,
@@ -22,7 +21,7 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { uploadText } from '@/shared/api/upload';
@@ -31,7 +30,6 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
-import { formatDate } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useRegistries } from '@/features/registry/TransferModal';
 import {
@@ -45,6 +43,7 @@ import {
   type BreakStatus,
   type Statement,
 } from './model/breaks';
+import { StatementModal } from './StatementModal';
 
 type TransactionReport = Schema<'TransactionImportReport'>;
 const TABS = ['breaks', 'statements'] as const;
@@ -468,36 +467,7 @@ function StatementsTab({ entityId }: { entityId: string }) {
           rowStyle={{ cursor: 'pointer' }}
         />
       </QueryState>
-      {open && (
-        <Modal
-          opened
-          onClose={() => setOpen(null)}
-          title={t('reconciliation.statementOf', { date: formatDate(open.statementDate) })}
-          size="lg"
-        >
-          {open.breaks.length === 0 ? (
-            <Text size="sm">{t('reconciliation.noBreaks')}</Text>
-          ) : (
-            <Table>
-              <Table.Tbody>
-                {open.breaks.map((brk) => (
-                  <Table.Tr key={brk.id}>
-                    <Table.Td>
-                      <Anchor component={Link} to={`/reconciliation/breaks/${brk.id}`} size="sm">
-                        {t(`reconciliation.types.${brk.type}`)}
-                      </Anchor>
-                    </Table.Td>
-                    <Table.Td>{breakSubject(brk)}</Table.Td>
-                    <Table.Td>
-                      <BreakStatusBadge status={brk.status} />
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-        </Modal>
-      )}
+      {open && <StatementModal statementId={open.id} onClose={() => setOpen(null)} />}
       {uploading === 'holdings' && accountId && (
         <HoldingsUploadModal accountId={accountId} onClose={() => setUploading(null)} />
       )}

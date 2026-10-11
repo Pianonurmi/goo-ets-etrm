@@ -11,11 +11,11 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { IconFlask, IconSend } from '@tabler/icons-react';
+import { IconFlask, IconPlus, IconSend } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Body, Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -23,11 +23,13 @@ import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { newKey } from '@/shared/ids';
 import { groupLines, type Line } from './model/plan';
+import { ObligationDrawer, OpenObligationModal } from './ObligationPanels';
 
 type Obligation = Schema<'ObligationView'>;
 type Plan = Schema<'AllocationPlanView'>;
@@ -192,6 +194,15 @@ export function AllocationPage() {
     enabled,
   );
   const [solver, setSolver] = useState<Solver>('GREEDY');
+  const [params, setParams] = useSearchParams();
+  const [opening, setOpening] = useState(false);
+  const selectedObligation = params.get('obligation');
+  const showObligation = (id: string | null) => {
+    const next = new URLSearchParams(params);
+    if (id) next.set('obligation', id);
+    else next.delete('obligation');
+    setParams(next, { replace: true });
+  };
   const whatIf = $api.useMutation('post', '/api/v1/allocation/plans/what-if', { meta: { notify: false } });
   const propose = $api.useMutation('post', '/api/v1/allocation/plans', { meta: { notify: false } });
   const byId = useMemo(() => new Map((obligations.data ?? []).map((o) => [o.id, o])), [obligations.data]);
@@ -204,7 +215,12 @@ export function AllocationPage() {
       { field: 'quantityMwh', headerName: 'MWh', width: 110, type: 'rightAligned' },
       { field: 'remainingMwh', headerName: t('allocation.remaining'), width: 130, type: 'rightAligned' },
       { field: 'kind', headerName: t('allocation.kind'), width: 130 },
-      { field: 'status', headerName: t('allocation.status'), width: 120 },
+      {
+        field: 'status',
+        headerName: t('allocation.status'),
+        width: 130,
+        cellRenderer: (p: ICellRendererParams<Obligation>) => (p.data ? <StatusBadge status={p.data.status} /> : null),
+      },
       { field: 'targetAccountRef', headerName: t('allocation.target'), width: 200 },
     ],
     [t],
@@ -238,45 +254,58 @@ export function AllocationPage() {
         title={t('allocation.title')}
         description={t('allocation.description', { entity: entity?.code ?? '' })}
         actions={
-          <Can op="allocation_propose">
-            <SegmentedControl
-              value={solver}
-              onChange={setSolver}
-              data={[
-                { value: 'GREEDY', label: t('allocation.solvers.GREEDY') },
-                { value: 'EXACT', label: t('allocation.solvers.EXACT') },
-              ]}
-              aria-label={t('allocation.solver')}
-              data-testid="solver"
-            />
-            <Button
-              variant="light"
-              leftSection={<IconFlask size={16} />}
-              loading={whatIf.isPending}
-              onClick={() => whatIf.mutate({ body })}
-              data-testid="what-if"
-            >
-              {t('allocation.whatIf')}
-            </Button>
-            <Button
-              leftSection={<IconSend size={16} />}
-              loading={propose.isPending}
-              onClick={() =>
-                propose.mutate(
-                  { body },
-                  {
-                    onSuccess: (plan) => {
-                      notifySuccess(t('allocation.proposed'));
-                      void navigate(`/allocation/plans/${plan.id}`);
+          <>
+            <Can op="allocation_openObligation">
+              <Button
+                variant="default"
+                leftSection={<IconPlus size={16} />}
+                disabled={!entity}
+                onClick={() => setOpening(true)}
+                data-testid="open-obligation"
+              >
+                {t('allocation.openObligation')}
+              </Button>
+            </Can>
+            <Can op="allocation_propose">
+              <SegmentedControl
+                value={solver}
+                onChange={setSolver}
+                data={[
+                  { value: 'GREEDY', label: t('allocation.solvers.GREEDY') },
+                  { value: 'EXACT', label: t('allocation.solvers.EXACT') },
+                ]}
+                aria-label={t('allocation.solver')}
+                data-testid="solver"
+              />
+              <Button
+                variant="light"
+                leftSection={<IconFlask size={16} />}
+                loading={whatIf.isPending}
+                onClick={() => whatIf.mutate({ body })}
+                data-testid="what-if"
+              >
+                {t('allocation.whatIf')}
+              </Button>
+              <Button
+                leftSection={<IconSend size={16} />}
+                loading={propose.isPending}
+                onClick={() =>
+                  propose.mutate(
+                    { body },
+                    {
+                      onSuccess: (plan) => {
+                        notifySuccess(t('allocation.proposed'));
+                        void navigate(`/allocation/plans/${plan.id}`);
+                      },
                     },
-                  },
-                )
-              }
-              data-testid="propose"
-            >
-              {t('allocation.propose')}
-            </Button>
-          </Can>
+                  )
+                }
+                data-testid="propose"
+              >
+                {t('allocation.propose')}
+              </Button>
+            </Can>
+          </>
         }
       />
       <ProblemAlert error={whatIf.error ?? propose.error} />
@@ -306,6 +335,9 @@ export function AllocationPage() {
           columnDefs={obligationColumns}
           rowId={(o) => o.id}
           height={280}
+          onRowClicked={(event) => {
+            if (event.data) showObligation(event.data.id);
+          }}
           overlayNoRowsTemplate={t('allocation.noObligations')}
         />
       </QueryState>
@@ -322,6 +354,17 @@ export function AllocationPage() {
           overlayNoRowsTemplate={t('common.empty')}
         />
       </QueryState>
+      <ObligationDrawer obligationId={selectedObligation} onClose={() => showObligation(null)} />
+      {opening && entity && (
+        <OpenObligationModal
+          entityId={entity.id}
+          onClose={() => setOpening(false)}
+          onOpened={(obligation) => {
+            setOpening(false);
+            showObligation(obligation.id);
+          }}
+        />
+      )}
     </Stack>
   );
 }

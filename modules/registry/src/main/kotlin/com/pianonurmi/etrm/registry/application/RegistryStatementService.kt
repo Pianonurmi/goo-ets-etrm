@@ -56,7 +56,8 @@ class StatementFormatService(
 
     override fun upsert(command: UpsertStatementFormat): StatementFormatView {
         val actor = actorProvider.current()
-        actor.requireRole(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
+        // The maintainers of transfer routes (RegistryAccess.maintainer) and registry operators.
+        actor.requireRole(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
         val code = command.registryCode.uppercase()
         if (code != "*") referenceData.requireRegistry(code)
         val format = StatementFormatView(

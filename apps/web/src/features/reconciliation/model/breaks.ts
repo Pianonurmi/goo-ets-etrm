@@ -114,3 +114,11 @@ export function facts(details: Record<string, unknown>): [string, string][] {
     .filter(([key]) => !mismatched.has(key))
     .map(([key, value]) => [key, text(value)]);
 }
+
+/**
+ * Whether reconciling a statement again does anything: the server reconciles a statement once and afterwards
+ * returns the recorded result (`ReconciliationService.reconcile`), so only an imported one is offered.
+ */
+export function canReconcile(statement: Pick<Statement, 'status'>): boolean {
+  return statement.status === 'IMPORTED';
+}

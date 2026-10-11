@@ -135,6 +135,19 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   inventory_cancel: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],
   inventory_withdraw: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],
   inventory_correct: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],
+  settlement_item: ['BACK_OFFICE', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'RISK', 'AUDITOR'],
+  position_takeSnapshots: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK', 'ACCOUNTANT'],
+  allocation_setConstraints: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  allocation_closeObligation: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  allocation_openObligation: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  valuation_official: ['RISK', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'AUDITOR', 'TRADER'],
+  marketData_createIndex: ['MIDDLE_OFFICE', 'RISK'],
+  marketData_upsertImportFormat: ['MIDDLE_OFFICE', 'RISK'],
+  marketData_addAlias: ['MIDDLE_OFFICE', 'RISK'],
+  inventory_verifyJournal: ['AUDITOR', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'RISK'],
+  inventory_recordMovement: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],
+  registry_allowanceTransfer: ['REGISTRY_OPERATOR', 'BACK_OFFICE', 'MIDDLE_OFFICE'],
+  inventory_statement: ['REGISTRY_OPERATOR', 'BACK_OFFICE', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'RISK', 'AUDITOR'],
 };
 
 export function can(roles: readonly Role[], operation: OperationId): boolean {

@@ -181,3 +181,48 @@ legal-entity scope; the UI only mirrors them.
   the counterparty's quantity, price, amount and first delivery date (`model/confirmations.ts`, `enteredTerms`).
 - A mismatch opens `CONFIRMATION_BREAK`: approving overrides it (the trade is confirmed with method OVERRIDE),
   rejecting disputes it.
+
+## Increment 7 M8: the remaining operations
+
+Every API operation now has a screen, except the ones below (`apps/web/api-only.json`, checked by
+`npm run coverage:api`).
+
+- **Inventory:** receive certificates (header), reserve, release and correct on the lot detail (`LotOperations.tsx`),
+  an expiry ladder chart, the lot journal check, allowance movements and transfers on the Allowances tab.
+- **Registry and reconciliation:** Union Registry allowance transfer, GoO cancellation for a beneficiary from the lot,
+  the statement format editor (`JsonEditorModal`), statement detail with reconcile again.
+- **Allocation:** open a manual obligation, the obligation drawer (`?obligation=<id>`) with share constraints (only
+  while OPEN) and close with a reason.
+- **Market data and curves:** new instrument, aliases, an Indices tab with new index and fixing lookup, import
+  format editor; new curve, official curve as of a date, forward and vintage price lookup.
+- **Valuation and positions:** the official run as of a date; a Snapshots tab with take snapshots.
+- **Reference data:** counterparty, legal entity and device detail and edit (changed fields with the expected
+  version), new device, default book per own registry account, history as of a date. The accounting policy is not
+  edited here: it changes through month end with a second accountant.
+- **Ledger and month end:** propose a posting rule change (approved in the inbox), download a GL export as CSV.
+- **ETS, reports, settlement:** installation register; download a logged export again, record an EMIR rejection;
+  settlement item drawer (`?item=<id>`).
+- **Inbox:** the requester cancels (withdraws) a trade approval, which cancels the trade
+  (`TaskHandler.onWithdraw`). Other approvals are decided, never withdrawn, so their subject never waits.
+
+API-only operations and why:
+
+| Operation | Reason |
+|---|---|
+| `trade_approve` | Approval goes through the TRADE_APPROVAL task in the inbox (workflow_approve), which records the decision; kept for API clients |
+| `trade_reject` | Rejection goes through the TRADE_APPROVAL task in the inbox (workflow_reject); kept for API clients |
+| `allocation_approve` | Plan approval goes through the ALLOCATION_APPROVAL task in the inbox (workflow_approve); kept for API clients |
+| `allocation_reject` | Plan rejection goes through the ALLOCATION_APPROVAL task in the inbox (workflow_reject); kept for API clients |
+| `trade_trades` | Unpaged list for integrations; the blotter uses the keyset-paged trade_search |
+| `registry_open` | Open-instruction list for integrations; the registry screen uses the paged instruction search |
+| `registry_surrender` | EU ETS surrenders are requested from the installation (etsCompliance_requestSurrender), which attributes them; the raw instruction would skip attribution |
+| `inventory_importStatement` | Structured holdings import for registry API adapters; people upload statement files through the registry format profiles (registry statements CSV) |
+| `inventory_expire` | Trigger for the nightly lot expiry job, for operations scripts |
+| `marketData_rate` | FX conversion service for other systems; the market data screen shows the stored rates |
+| `audit_event` | Single audit event by id for integrations; the audit trail shows events in full in its list |
+| `changeRequest_changeRequest` | Single change request by id; the change request list and the inbox task show it in full |
+| `referenceData_book` | Single book by id; books are shown from the legal entity's book list |
+| `product_bucket` | Single product bucket by code; the products screen shows buckets from its list |
+| `taxonomy_get` | Single taxonomy node; the taxonomy editor loads the whole tree |
+| `taxonomy_subtree` | Taxonomy subtree for integrations; the taxonomy editor loads the whole tree |
+| `payment_payment` | Single payment by id; the payments tab shows payments in full in its list |

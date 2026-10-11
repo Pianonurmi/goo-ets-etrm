@@ -1,4 +1,5 @@
 import {
+  canCancel,
   canWorkOn,
   decisionBlock,
   decisionsOf,
@@ -74,5 +75,17 @@ describe('decisions', () => {
     expect(isOverdue(task, new Date('2026-10-01T13:00:00Z'))).toBe(true);
     expect(isOverdue(task, new Date('2026-10-01T11:00:00Z'))).toBe(false);
     expect(isOverdue({ ...task, status: 'APPROVED' }, new Date('2026-10-02T00:00:00Z'))).toBe(false);
+  });
+
+  it('lets the requester, the assignee, an escalation role or an admin cancel an open task', () => {
+    expect(canCancel(task, type, { userId: 'trader', roles: ['TRADER'] })).toBe(true);
+    expect(canCancel(task, type, { userId: 'trader2', roles: ['TRADER'] })).toBe(false);
+    expect(canCancel(task, type, { userId: 'middle', roles: ['MIDDLE_OFFICE'] })).toBe(false);
+    expect(canCancel({ ...task, assignee: 'middle' }, type, { userId: 'middle', roles: ['MIDDLE_OFFICE'] })).toBe(true);
+    expect(canCancel(task, { ...type, escalationRoles: ['RISK'] }, { userId: 'risk', roles: ['RISK'] })).toBe(true);
+    expect(canCancel(task, type, { userId: 'boss', roles: ['ADMIN'] })).toBe(true);
+    expect(canCancel({ ...task, status: 'CANCELLED' }, type, { userId: 'trader', roles: ['TRADER'] })).toBe(false);
+    // Other approvals are decided, never withdrawn: their subject would wait forever.
+    expect(canCancel({ ...task, type: 'POSTING_RULE' }, type, { userId: 'trader', roles: ['TRADER'] })).toBe(false);
   });
 });

@@ -305,6 +305,7 @@ class ReferenceDataService(
         return account
     }
 
+    @Transactional
     override fun assignDefaultBook(accountId: UUID, bookId: UUID?): RegistryAccountView {
         val current = requireRegistryAccount(accountId)
         if (current.holderType != HolderType.LEGAL_ENTITY) throw ValidationException("Only an entity's own accounts belong to its books")

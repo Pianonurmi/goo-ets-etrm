@@ -46,6 +46,8 @@ class WorkflowServiceIT {
     class RecordingHandler(override val definition: TaskTypeDefinition) : TaskHandler {
         val decisions = mutableListOf<Pair<UUID, Decision>>()
         var supersedeNext: String? = null
+        var withdrawable = false
+        val withdrawn = mutableListOf<UUID>()
 
         override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
             decisions += task.subjectRef to decision
@@ -53,6 +55,11 @@ class WorkflowServiceIT {
                 supersedeNext = null
                 DecisionOutcome.Superseded(it)
             } ?: DecisionOutcome.Applied
+        }
+
+        override fun onWithdraw(task: ApprovalTaskView, reason: String): Boolean {
+            if (withdrawable) withdrawn += task.subjectRef
+            return withdrawable
         }
     }
 
@@ -199,7 +206,11 @@ class WorkflowServiceIT {
         asUser("someone-else", Role.TRADER)
         shouldThrow<ForbiddenException> { workflow.cancel(tasks[2].id, "not mine to cancel") }
         asUser("trader", Role.TRADER)
+        // A type that cannot be withdrawn is decided, never cancelled: its subject would wait for nothing.
+        shouldThrow<ConflictException> { workflow.cancel(tasks[2].id, "withdrawn by requester") }
+        approvals.withdrawable = true
         workflow.cancel(tasks[2].id, "withdrawn by requester").status shouldBe TaskStatus.CANCELLED
+        approvals.withdrawn shouldContainExactly listOf(tasks[2].subjectRef)
     }
 
     @Test

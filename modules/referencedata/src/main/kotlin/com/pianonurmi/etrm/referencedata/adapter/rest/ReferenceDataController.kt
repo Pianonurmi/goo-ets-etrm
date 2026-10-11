@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.referencedata.adapter.rest
 
+import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.BookView
@@ -65,7 +66,15 @@ class ReferenceDataController(
     fun updateLegalEntity(
         @PathVariable id: UUID,
         @Valid @RequestBody body: UpdateLegalEntity,
-    ): LegalEntityView = requireMaintainer().let { command.updateLegalEntity(id, body) }
+    ): LegalEntityView {
+        requireMaintainer()
+        actorProvider.current().requireEntity(id)
+        // The accounting policy changes through month end (a policy change approved by a second accountant).
+        if (body.accountingPolicy != null && body.accountingPolicy != query.requireLegalEntity(id).accountingPolicy) {
+            throw ValidationException("The accounting policy changes through a policy change in month end, approved by a second accountant")
+        }
+        return command.updateLegalEntity(id, body)
+    }
 
     @GetMapping("/legal-entities/{id}/books")
     fun books(
@@ -134,7 +143,11 @@ class ReferenceDataController(
     fun assignDefaultBook(
         @PathVariable id: UUID,
         @RequestBody body: DefaultBookRequest,
-    ): RegistryAccountView = requireMaintainer(Role.BACK_OFFICE).let { command.assignDefaultBook(id, body.bookId) }
+    ): RegistryAccountView {
+        requireMaintainer(Role.BACK_OFFICE)
+        actorProvider.current().requireEntity(query.requireRegistryAccount(id).holderId)
+        return command.assignDefaultBook(id, body.bookId)
+    }
 
     @GetMapping("/production-devices")
     fun productionDevices(

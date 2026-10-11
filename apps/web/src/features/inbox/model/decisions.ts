@@ -35,6 +35,23 @@ export function isOverdue(task: Task, now: Date = new Date()): boolean {
   return task.status === 'OPEN' && new Date(task.dueAt).getTime() < now.getTime();
 }
 
+/**
+ * Whether the viewer may cancel the open task (mirrors `WorkflowService.cancel`): the requester withdraws their own
+ * request; the assignee, an escalation role of the type or an administrator may cancel it too.
+ */
+/**
+ * Task types whose request can be withdrawn (TaskHandler.onWithdraw): cancelling a trade approval cancels the trade.
+ * Other approvals are decided, so their subject never waits for a decision that will not come.
+ */
+export const WITHDRAWABLE_TYPES: ReadonlySet<string> = new Set(['TRADE_APPROVAL']);
+
+export function canCancel(task: Task, type: TaskType | undefined, viewer: Viewer): boolean {
+  if (task.status !== 'OPEN' || !WITHDRAWABLE_TYPES.has(task.type)) return false;
+  if (task.requestedBy === viewer.userId || task.assignee === viewer.userId) return true;
+  if (viewer.roles.includes('ADMIN')) return true;
+  return (type?.escalationRoles ?? []).some((role) => viewer.roles.includes(role));
+}
+
 /** Whether the viewer may claim the task (an assignee only marks who is working on it; deciding is open to all candidates). */
 export function canWorkOn(task: Task, viewer: Viewer): boolean {
   return (

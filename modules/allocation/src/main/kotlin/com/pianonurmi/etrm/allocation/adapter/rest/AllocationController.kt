@@ -11,6 +11,8 @@ import com.pianonurmi.etrm.allocation.api.ObligationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.api.OpenObligation
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -35,6 +37,7 @@ class AllocationController(
     private val allocationQuery: AllocationQuery,
     private val obligations: ObligationCommand,
     private val obligationQuery: ObligationQuery,
+    private val actorProvider: ActorProvider,
 ) {
     @GetMapping("/obligations")
     fun obligations(
@@ -44,25 +47,44 @@ class AllocationController(
     @GetMapping("/obligations/{id}")
     fun obligation(
         @PathVariable id: UUID,
-    ): ObligationView = obligationQuery.requireObligation(id)
+    ): ObligationView = obligationQuery.requireObligation(id).also { actorProvider.current().requireEntity(it.holderEntityId) }
 
     @PostMapping("/obligations")
     @ResponseStatus(HttpStatus.CREATED)
     fun openObligation(
         @Valid @RequestBody body: OpenObligation,
-    ): ObligationView = obligations.open(body)
+    ): ObligationView {
+        obligationOperator(body.holderEntityId)
+        return obligations.open(body)
+    }
 
     @PostMapping("/obligations/{id}/close")
     fun closeObligation(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
-    ): ObligationView = obligations.close(id, body.reason)
+    ): ObligationView {
+        obligationOperator(obligationQuery.requireObligation(id).holderEntityId)
+        return obligations.close(id, body.reason)
+    }
 
     @PutMapping("/obligations/{id}/constraints")
     fun setConstraints(
         @PathVariable id: UUID,
         @RequestBody body: List<AllocationConstraint>,
-    ): ObligationView = obligations.setConstraints(id, body)
+    ): ObligationView {
+        obligationOperator(obligationQuery.requireObligation(id).holderEntityId)
+        return obligations.setConstraints(id, body)
+    }
+
+    /**
+     * Manual obligations are kept by middle and back office on their entities. The guard sits here because module
+     * flows (trades, compliance) open and close obligations as SYSTEM.
+     */
+    private fun obligationOperator(holderEntityId: java.util.UUID) {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
+        actor.requireEntity(holderEntityId)
+    }
 
     @GetMapping("/coverage")
     fun coverage(
