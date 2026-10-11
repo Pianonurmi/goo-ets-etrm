@@ -11,7 +11,7 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { App } from './app/App';
-import { theme } from './app/theme';
+import { cssVariablesResolver, theme } from './app/theme';
 import { startSession, type UiConfig } from './shared/auth/session';
 
 type BootState = { kind: 'starting' } | { kind: 'ready'; config: UiConfig } | { kind: 'failed'; message: string };
@@ -56,7 +56,7 @@ if (!root) throw new Error('index.html has no #root');
 
 createRoot(root).render(
   <StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="auto">
+    <MantineProvider theme={theme} cssVariablesResolver={cssVariablesResolver} defaultColorScheme="auto">
       <Notifications position="top-right" />
       <ModalsProvider>
         <Boot />

@@ -1045,5 +1045,13 @@
     "shown_other": "{{count}} events",
     "byAt": "By {{who}} at {{at}} (recorded {{recorded}})",
     "correlation": "Correlation"
+  },
+  "palette": {
+    "open": "Search screens and trades",
+    "placeholder": "Go to a screen, or find a trade by number, reference or UTI",
+    "screens": "Screens",
+    "trades": "Trades",
+    "searching": "Searching…",
+    "nothing": "Nothing found"
   }
 }

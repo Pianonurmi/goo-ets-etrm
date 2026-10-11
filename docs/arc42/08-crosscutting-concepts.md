@@ -24,3 +24,8 @@
 - **Unverified external layouts**: EMIR field rules, the SAP GL layout, registry API mappings and PFE add-ons carry `verified = false` until checked against their specification.
 - **Exports are evidence**: GL exports and reports are numbered and stored with their content and SHA-256, and each publishes an audited event.
 
+- **Web UI contract**: the UI is typed from the committed OpenAPI snapshot; an API change without a regenerated snapshot fails `OpenApiSnapshotIT`, and a renamed operation fails the web typecheck (ADR 0027).
+- **Role-aware UI**: actions and screens are offered by role through a table keyed by operation id; entity scope, four eyes and state rules stay on the server and come back as problems (ADR 0028).
+- **No arithmetic on money in the browser**: amounts are computed by the server, formatted in the UI and sent back as decimal strings.
+- **Accessibility**: WCAG 2.1 AA colour contrast is built into the theme (`app/contrast.ts`); Playwright runs axe on the main screens and fails on serious or critical findings.
+- **Browser security**: same-origin serving, a Content-Security-Policy without inline scripts (inline styles are allowed for Mantine's CSS variables), `Referrer-Policy` and `X-Frame-Options: DENY`; the end-to-end suite fails on any CSP violation.

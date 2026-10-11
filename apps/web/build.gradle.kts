@@ -6,7 +6,17 @@ plugins {
 
 val npm = if (System.getProperty("os.name").lowercase().contains("windows")) "npm.cmd" else "npm"
 val openApiSnapshot = rootProject.layout.projectDirectory.file("apps/api/openapi/etrm-api.json")
-val sources = files("src", "index.html", "public", "package.json", "tsconfig.json", "vite.config.ts", "eslint.config.js", ".prettierrc.json")
+val sources = files(
+    "src",
+    "scripts",
+    "index.html",
+    "public",
+    "package.json",
+    "tsconfig.json",
+    "vite.config.ts",
+    "eslint.config.js",
+    ".prettierrc.json",
+)
 
 fun Exec.npmScript(vararg args: String) {
     workingDir = projectDir
@@ -57,7 +67,19 @@ val viteBuild by tasks.registering(Exec::class) {
     npmScript("run", "build")
 }
 
-tasks.named("check") { dependsOn(lintWeb, formatWeb, typecheckWeb, testWeb) }
+val bundleBudget by tasks.registering(Exec::class) {
+    description = "Fails when the gzip size of the first page, any chunk or the whole bundle exceeds its budget"
+    group = "verification"
+    dependsOn(viteBuild)
+    inputs.dir("build/dist")
+    inputs.file("scripts/check-bundle.mjs")
+    val stamp = layout.buildDirectory.file("checks/bundleBudget.stamp")
+    outputs.file(stamp)
+    npmScript("run", "budget")
+    doLast { stamp.get().asFile.apply { parentFile.mkdirs() }.writeText("ok\n") }
+}
+
+tasks.named("check") { dependsOn(lintWeb, formatWeb, typecheckWeb, testWeb, bundleBudget) }
 tasks.named("assemble") { dependsOn(viteBuild) }
 
 /** The bundle, consumed by :apps:api. */

@@ -20,6 +20,7 @@ import { signOut } from '@/shared/auth/oidc';
 import { choosePersona, currentPersona, PERSONAS } from '@/shared/auth/personas';
 import { useSession } from '@/shared/auth/SessionContext';
 import { useEntity } from '@/shared/context/EntityContext';
+import { PaletteButton } from './CommandPalette';
 
 function ColorSchemeToggle() {
   const { t } = useTranslation();
@@ -160,6 +161,7 @@ export function Header({ opened, toggle }: { opened: boolean; toggle: () => void
         )}
       </Group>
       <Group gap="sm" wrap="nowrap">
+        <PaletteButton />
         <EntitySelect />
         <ColorSchemeToggle />
         {dev ? <PersonaMenu /> : <UserMenu />}

@@ -80,6 +80,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Offer actions through `<Can op=...>` / `useCan` keyed by operation id (`shared/auth/permissions.ts`); the API still checks.
 - All visible text goes through `src/locales/en.json`. Dev personas (`shared/auth/personas.ts`) have two users per approving role for four-eyes paths.
 - `npm run format` (Prettier) and `npm run lint` before committing web changes.
+- Colours come from the theme (`c="red"`, `color="teal"`): `app/theme.ts` keeps them at WCAG AA contrast and `e2e/hardening.spec.ts` runs axe and a CSP check. Keep new screens lazy; `npm run budget` guards the bundle size.
 - Demo data (`demo` profile, `apps/api/.../demo`) goes through the REST API as the dev personas; extend it when a screen needs data to show. Its test runs on a sibling database (`SiblingDatabase`) because its market data would clash with `MonthEndIT`.
 
 ## Lint

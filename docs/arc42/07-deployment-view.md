@@ -11,3 +11,10 @@
 Environment variables: `ETRM_DB_URL`, `ETRM_DB_USER`, `ETRM_DB_PASSWORD`, `ETRM_OIDC_ISSUER`; for the web UI
 `ETRM_OIDC_BROWSER_ISSUER` (when the browser reaches the identity provider under another URL), `ETRM_OIDC_WEB_CLIENT`
 (default `etrm-web`) and `ETRM_ENVIRONMENT` (label in the header); build-time `ETRM_CODEGEN_DB_URL`, `ETRM_TEST_DB_URL`.
+
+The web bundle is built by `:apps:web` (Vite) and copied into the jar under `static/`. Hashed assets are cached as
+immutable; `index.html` is not cached and serves every client route. Responses are compressed. A bundle budget
+(`apps/web/scripts/check-bundle.mjs`, part of `check`) keeps the first page under 330 kB gzip.
+
+Requests run on platform threads: virtual threads are off while the runtime is Java 21, because pinning in
+`synchronized` blocks deadlocked the server under concurrent first requests (see `application.yml`).

@@ -58,6 +58,16 @@ e2e/           Playwright specs
 ```
 
 Screens, their operations and roles: [screens.md](screens.md).
+Tests at every level: [testing.md](testing.md).
+
+## Working in the UI
+
+- **Command palette:** `Ctrl K` (`⌘ K`) or `/` opens a search over the screens the user may see. From two characters
+  on, it also finds trades by number, external reference or UTI in the selected legal entity.
+- **Filters in the URL:** lists keep their filters and tabs in the query string, so a view can be bookmarked or
+  shared.
+- **Legal entity:** the header selector scopes every screen. Its choice is kept per browser.
+
 
 ## Conventions
 
@@ -74,3 +84,17 @@ Screens, their operations and roles: [screens.md](screens.md).
   limited to the user's entities.
 - **Text:** all visible text comes from `src/locales/en.json` through `useTranslation()`.
 - **Large tables:** use `DataGrid` (AG Grid Community with the application theme). Small ones use Mantine `Table`.
+
+## Accessibility, security and size
+
+- **Contrast:** the theme meets WCAG 2.1 AA for normal text (`src/app/theme.ts`, `src/app/contrast.ts`). Light
+  variants, filled buttons, coloured text and dimmed text are darkened where Mantine's defaults fall short. Use
+  theme colours (`c="red"`, `color="teal"`), not hard-coded shades.
+- **Accessibility checks:** ESLint runs `jsx-a11y`. Playwright runs axe (WCAG 2 A and AA) on the main screens and
+  fails on serious or critical findings (`e2e/hardening.spec.ts`). AG Grid's own markup is excluded.
+- **Content Security Policy:** set by the API (`SecurityConfiguration`): scripts only from the same origin, no
+  inline scripts, no framing. The end-to-end suite fails on any CSP violation. Do not add inline `<script>` or
+  third-party origins.
+- **Bundle budget:** `npm run budget` (part of `./gradlew :apps:web:check`) fails when the first page (entry,
+  preloaded chunks and CSS) exceeds 330 kB gzip, any chunk exceeds 360 kB, or the whole bundle exceeds 1000 kB.
+  Load heavy screens and libraries lazily (`router.tsx`). Raise a budget only in a reviewed change.

@@ -7,6 +7,7 @@ import { useSession } from '@/shared/auth/SessionContext';
 import { QueryState } from '@/shared/components/QueryState';
 import { useActionableCounts } from '@/features/inbox/hooks';
 import { visibleSections } from '../navigation';
+import { CommandPalette } from './CommandPalette';
 import { Header } from './Header';
 
 function InboxBadge() {
@@ -23,7 +24,7 @@ function DevBanner() {
   const { config } = useSession();
   if (config.authMode !== 'DEV_HEADERS') return null;
   return (
-    <Box bg="orange.7" c="white" px="md" h={24} data-testid="dev-banner">
+    <Box bg="var(--mantine-color-orange-filled)" c="white" px="md" h={24} data-testid="dev-banner">
       <Text size="xs" fw={500} lh="24px" truncate>
         {t('header.devBanner', { env: config.environment || 'DEV' })}
       </Text>
@@ -95,6 +96,7 @@ export function AppLayout() {
           <Outlet />
         </Suspense>
       </AppShell.Main>
+      <CommandPalette />
     </AppShell>
   );
 }

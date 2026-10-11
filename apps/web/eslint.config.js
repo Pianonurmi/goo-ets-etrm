@@ -26,6 +26,12 @@ export default tseslint.config(
     },
   },
   {
+    // Build scripts run in Node and are not part of the TypeScript project.
+    files: ['scripts/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: { globals: { ...globals.node }, parserOptions: { projectService: false, program: null } },
+  },
+  {
     // Tests build fixtures by index; a missing element fails the test anyway.
     files: ['**/*.test.ts', '**/*.test.tsx'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },

@@ -68,3 +68,28 @@ com.pianonurmi.etrm.<module>
 
 Database: schema `etrm_<module>`, migrations under `src/main/resources/db/migration/<module>`, jOOQ sources
 generated at build time from the migrated schema.
+
+## Web UI (`apps/web`)
+
+A single-page application served by the API jar from the same origin (ADR 0025). It holds no business rules: the
+API decides, the UI shows the decision.
+
+```mermaid
+flowchart LR
+  subgraph browser[Browser]
+    app[app: shell, router, navigation, command palette, theme]
+    features[features: one folder per area<br/>pages, components, model]
+    shared[shared: generated API client, auth, entity context,<br/>grid, formatting, problems]
+  end
+  app --> features --> shared
+  shared -- "REST /api/v1 (typed from the OpenAPI snapshot)" --> api[apps/api]
+  shared -- "OIDC (PKCE) or dev personas" --> idp[Identity provider]
+```
+
+| Part | Responsibility |
+|---|---|
+| `src/app` | Boot (UI config, sign-in), providers, lazy routes, navigation filtered by role, command palette (mod+K), accessible theme |
+| `src/shared/api` | `openapi-fetch` client and TanStack Query hooks typed from `apps/api/openapi/etrm-api.json` (ADR 0027), problem errors, downloads |
+| `src/shared/auth` | OIDC with PKCE or dev personas (ADR 0026), session (`/me`), permissions keyed by operation id (ADR 0028) |
+| `src/features/*` | Screens per area: inbox, trades, criteria, inventory, allocation, positions, market data, valuation, risk, ETS, ledger, month end, reports, admin, audit. Pure logic lives in `model/` with unit tests |
+| `e2e/` | Playwright journeys against the jar with demo data, accessibility (axe) and CSP checks |

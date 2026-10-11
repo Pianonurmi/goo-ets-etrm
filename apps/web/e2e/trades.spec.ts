@@ -38,6 +38,8 @@ test.describe('trades', () => {
     await switchPersona(page, 'backoffice');
     await page.goto('/trades');
     await page.getByTestId('trade-search').fill(tradeNumber);
+    // Wait for the search to narrow the blotter, so the click does not land on a row being replaced.
+    await expect(page.getByTestId('trade-status')).toHaveCount(1);
     await page.getByRole('gridcell', { name: tradeNumber }).click();
     await expect(page.getByTestId('trade-status')).toHaveText('APPROVED');
     await page.getByTestId('confirm-trade').click();
