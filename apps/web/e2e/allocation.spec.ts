@@ -8,6 +8,12 @@ test.describe('allocation and positions', () => {
     await page.getByTestId('what-if').click();
     await expect(page.getByTestId('what-if-result')).toBeVisible();
     await expect(page.getByTestId('what-if-allocated')).toContainText('MWh allocated');
+    await expect(page.getByTestId('what-if-solver')).toHaveText('Solved by GREEDY');
+
+    await page.getByTestId('solver').getByText('Exact').click();
+    await page.getByTestId('what-if').click();
+    await expect(page.getByTestId('what-if-solver')).toHaveText('Solved by CP_SAT');
+    await expect(page.getByTestId('what-if-fallback')).toHaveCount(0);
 
     await page.getByTestId('propose').click();
     await expect(page).toHaveURL(/\/allocation\/plans\/[0-9a-f-]{36}$/);

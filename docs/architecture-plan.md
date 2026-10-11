@@ -16,7 +16,7 @@ Increment 1 is delivered. These points deliberately differ from the plan below:
 | Kotlin explicit API mode | Not enabled; `-Werror` is | Modules expose their API through Modulith named interfaces instead |
 | Kover gate 85 % on domain modules | 70 % total line coverage rule, generated jOOQ code excluded | Raise per module as increments add tests |
 | OWASP dependency check | Weekly workflow when the `NVD_API_KEY` secret is set; Dependabot, a blocking Trivy image scan and CycloneDX SBOMs on every build | Increment 6 ([operations/supply-chain.md](operations/supply-chain.md)) |
-| OR-Tools CP-SAT exact solver | `Solver` port only; `EXACT` falls back to greedy and records it | Native library risk; greedy plus max-flow bounds met the increment 1 needs |
+| OR-Tools CP-SAT exact solver | `CpSatSolver` behind the `Solver` port since increment 6 (ADR 0031), with a size limit, a time limit and greedy fallback | The runtime image moved to Ubuntu so the glibc native library loads |
 | Lot table partitioned by expiry year | Not partitioned; the audit trail and the lot journal are partitioned by month (ADR 0030) | The overlap exclusion constraint must hold across all lots, and PostgreSQL allows exclusion constraints on a partitioned table only from version 17 and only with the partition key. Live lots are a bounded working set, while the journals grow without bound. |
 | Coverage with priority-ordered augmentation per obligation | Augmentation per priority tier | Same guarantee for higher priorities at a fraction of the cost (ADR 0007) |
 | Benchmark 100 k lots × 5 k obligations | Benchmark test defaults to 20 k × 1 k; full size via system properties | Keeps CI fast; see the README for the full-size command |

@@ -1,11 +1,23 @@
-import { Alert, Badge, Button, Card, Group, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from '@mantine/core';
 import { IconFlask, IconSend } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
-import type { Schema } from '@/shared/api/types';
+import type { Body, Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -19,6 +31,7 @@ import { groupLines, type Line } from './model/plan';
 type Obligation = Schema<'ObligationView'>;
 type Plan = Schema<'AllocationPlanView'>;
 type WhatIf = Schema<'AllocationWhatIf'>;
+type Solver = Body<'ProposeAllocation'>['solver'] & string;
 
 export function PlanStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -117,6 +130,9 @@ function WhatIfResult({
 }) {
   const { t } = useTranslation();
   const allocated = Number(result.objective.allocatedMwh ?? 0);
+  const { solver, fallbackReason } = result.objective;
+  const solvedBy = typeof solver === 'string' ? solver : result.solver;
+  const fallback = typeof fallbackReason === 'string' ? fallbackReason : undefined;
   return (
     <Card withBorder data-testid="what-if-result">
       <Group justify="space-between" mb="sm">
@@ -125,6 +141,9 @@ function WhatIfResult({
           <Badge variant="light" color="teal" data-testid="what-if-allocated">
             {t('allocation.allocated', { mwh: formatDecimal(allocated) })}
           </Badge>
+          <Badge variant="outline" color="gray" data-testid="what-if-solver">
+            {t('allocation.solvedBy', { solver: solvedBy })}
+          </Badge>
           {active && (
             <Badge variant="outline">
               {t('allocation.activePlan', { mwh: formatDecimal(active.allocatedMwh ?? 0), status: active.status })}
@@ -132,6 +151,11 @@ function WhatIfResult({
           )}
         </Group>
       </Group>
+      {fallback && (
+        <Alert color="gray" mb="sm" data-testid="what-if-fallback">
+          {t('allocation.fallback', { reason: fallback })}
+        </Alert>
+      )}
       {result.coverage.totalShortfallMwh > 0 && (
         <Alert color="orange" mb="sm">
           {t('allocation.shortfall', { mwh: formatDecimal(result.coverage.totalShortfallMwh) })}
@@ -166,6 +190,7 @@ export function AllocationPage() {
     { params: { query: { holderEntityId: entityId, activeOnly: false } } },
     enabled,
   );
+  const [solver, setSolver] = useState<Solver>('GREEDY');
   const whatIf = $api.useMutation('post', '/api/v1/allocation/plans/what-if', { meta: { notify: false } });
   const propose = $api.useMutation('post', '/api/v1/allocation/plans', { meta: { notify: false } });
   const byId = useMemo(() => new Map((obligations.data ?? []).map((o) => [o.id, o])), [obligations.data]);
@@ -205,7 +230,7 @@ export function AllocationPage() {
     [t],
   );
 
-  const body = { holderEntityId: entityId, idempotencyKey: `ui-${crypto.randomUUID()}` };
+  const body = { holderEntityId: entityId, idempotencyKey: `ui-${crypto.randomUUID()}`, solver };
   return (
     <Stack>
       <PageHeader
@@ -213,6 +238,16 @@ export function AllocationPage() {
         description={t('allocation.description', { entity: entity?.code ?? '' })}
         actions={
           <Can op="allocation_propose">
+            <SegmentedControl
+              value={solver}
+              onChange={setSolver}
+              data={[
+                { value: 'GREEDY', label: t('allocation.solvers.GREEDY') },
+                { value: 'EXACT', label: t('allocation.solvers.EXACT') },
+              ]}
+              aria-label={t('allocation.solver')}
+              data-testid="solver"
+            />
             <Button
               variant="light"
               leftSection={<IconFlask size={16} />}

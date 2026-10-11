@@ -13,6 +13,11 @@ dependencies {
     implementation(project(":modules:registry"))
     implementation(libs.springdoc.openapi)
     implementation(libs.shedlock.spring)
+    // Exact solver (ADR 0031). Natives for Linux and Apple silicon only; the others would add 60 MB to the jar.
+    implementation(libs.ortools) {
+        exclude(group = "com.google.ortools", module = "ortools-win32-x86-64")
+        exclude(group = "com.google.ortools", module = "ortools-darwin-x86-64")
+    }
 
     testImplementation(testFixtures(project(":platform")))
     testImplementation(project(":modules:taxonomy"))

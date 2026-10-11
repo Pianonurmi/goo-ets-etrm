@@ -44,4 +44,19 @@ class AllocationWhatIfIT {
         s.asUser("outsider", "MIDDLE_OFFICE").header("X-Entities", ApiScenario(port).referenceData().entityId)
             .body(body).post("/api/v1/allocation/plans/what-if").then().statusCode(403)
     }
+
+    @Test
+    fun `the exact solver runs through the API and records its status`() {
+        val s = ApiScenario(port).referenceData()
+        s.receiveLot(1, 1000)
+        s.confirmedHydroSale(400)
+        val body = """{"holderEntityId":"${s.entityId}","idempotencyKey":"ignored","solver":"EXACT"}"""
+
+        s.asUser("planner", "MIDDLE_OFFICE").body(body).post("/api/v1/allocation/plans/what-if").then().statusCode(200)
+            .body("solver", equalTo("EXACT"))
+            .body("objective.requestedSolver", equalTo("EXACT"))
+            .body("objective.solver", equalTo("CP_SAT"))
+            .body("objective.status", equalTo("OPTIMAL"))
+            .body("objective.allocatedMwh", equalTo(400))
+    }
 }

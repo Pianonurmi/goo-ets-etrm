@@ -22,6 +22,7 @@ import com.pianonurmi.etrm.allocation.domain.AllocationPlan
 import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.Assignment
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
+import com.pianonurmi.etrm.allocation.domain.CpSatSolver
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.allocation.domain.Solver
@@ -49,6 +50,7 @@ import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.TradeCommand
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import org.slf4j.LoggerFactory
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
@@ -66,6 +68,7 @@ import java.util.UUID
  */
 @Service
 @Transactional
+@EnableConfigurationProperties(AllocationSolverSettings::class)
 class AllocationService(
     private val plans: AllocationPlanRepository,
     private val obligations: ObligationRepository,
@@ -82,9 +85,11 @@ class AllocationService(
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
     private val savepoints: Savepoints,
+    solverSettings: AllocationSolverSettings = AllocationSolverSettings(),
 ) : AllocationCommand, AllocationQuery {
     private val log = LoggerFactory.getLogger(AllocationService::class.java)
     private val greedy: Solver = GreedySolver(criteria::evaluate)
+    private val exact: Solver = CpSatSolver(criteria::evaluate, solverSettings.toDomain(), greedy)
 
     // ----------------------------------------------------------------------------------------------------------
     // Propose
@@ -130,8 +135,8 @@ class AllocationService(
         val softReserved = plans.activeSoftReservations(command.holderEntityId, now)
         val built = problemBuilder.build(snapshot, open, softReserved, command.asOf ?: LocalDate.now(clock))
         val problem = built.problem
-        val solver = solverFor(command.solver)
-        val assignments = solver.solve(problem)
+        val solved = solverFor(command.solver).solveDetailed(problem)
+        val assignments = solved.assignments
         val coverage = CoverageAnalyser(built.scoring::bestBucketCode).analyse(problem, command.holderEntityId, snapshot.seq, now)
         val lines = disaggregate(problem, assignments)
         return AllocationPlanView(
@@ -149,13 +154,13 @@ class AllocationService(
             decisionReason = null,
             reservationExpiresAt = now.plus(Duration.ofHours(command.softReservationHours.toLong())),
             objective = mapOf(
-                "solver" to solver.name,
+                "solver" to solved.solver,
                 "requestedSolver" to command.solver.name,
                 "obligations" to problem.obligations.size,
                 "lotClasses" to problem.classes.size,
                 "allocatedMwh" to lines.sumOf { it.quantityMwh },
                 "totalScore" to lines.sumOf { it.score * java.math.BigDecimal(it.quantityMwh) },
-            ),
+            ) + solved.details,
             coverage = coverage,
             lines = lines,
             version = 1,
@@ -164,10 +169,7 @@ class AllocationService(
 
     private fun solverFor(kind: SolverKind): Solver = when (kind) {
         SolverKind.GREEDY -> greedy
-        SolverKind.EXACT -> {
-            log.warn("Exact solver requested but not configured; falling back to greedy")
-            greedy
-        }
+        SolverKind.EXACT -> exact
     }
 
     /** Turns class-level assignments into lot-level lines: earliest expiring lots first, splitting the last one. */

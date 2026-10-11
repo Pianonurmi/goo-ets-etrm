@@ -32,7 +32,7 @@ together the second one waits and then finds nothing to do. A rolling update kee
 | Profiles | `kubernetes,json`: actuator on the management port (9090), readiness includes the database, ECS JSON logs, forwarded headers from the ingress |
 | Probes | startup and liveness on `/actuator/health/liveness`, readiness on `/actuator/health/readiness`, all on the management port |
 | Shutdown | `preStop` sleep of 10 s so the endpoints drop the pod first; 30 s per shutdown phase in the application; 60 s grace period |
-| Security | non-root user 10001 (numeric in the image), read-only root file system with `emptyDir` for `/tmp`, all capabilities dropped, `RuntimeDefault` seccomp, no service account token |
+| Security | non-root user 10001 (numeric in the image), read-only root file system with `emptyDir` for `/tmp`, all capabilities dropped, `RuntimeDefault` seccomp, no service account token. `/tmp` must allow exec: the exact allocation solver unpacks its native library there. An `emptyDir` does, and otherwise exact allocation falls back to greedy and says so. |
 | Secrets | database URL and credentials from `database.existingSecret` (default `etrm-db-app` from CloudNativePG); nothing secret in values |
 | Scaling | HPA on CPU (2–6 replicas); scheduled jobs run once across replicas through ShedLock; PDB keeps one pod during node drains; pods spread across zones and nodes |
 | Network | ingress routes only the HTTP port. The network policy admits the ingress controller's namespace to HTTP and the monitoring namespace to the management port. |

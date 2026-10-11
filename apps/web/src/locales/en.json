@@ -464,7 +464,13 @@
     "cancelled": "Plan cancelled",
     "reservedUntil": "Soft reservation until",
     "snapshot": "Inventory snapshot",
-    "decision": "Decision"
+    "decision": "Decision",
+    "solvedBy": "Solved by {{solver}}",
+    "fallback": "The exact solver was not used: {{reason}}. The plan comes from the greedy solver.",
+    "solvers": {
+      "GREEDY": "Greedy",
+      "EXACT": "Exact"
+    }
   },
   "positions": {
     "title": "Positions",

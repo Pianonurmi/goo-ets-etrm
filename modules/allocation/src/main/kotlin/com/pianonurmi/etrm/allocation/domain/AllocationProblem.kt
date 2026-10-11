@@ -67,8 +67,13 @@ class AllocationProblem(
 /** Solver output: quantity of a class assigned to an obligation. */
 data class Assignment(val classIndex: Int, val obligationIndex: Int, val quantityMwh: Long, val score: ScoreBreakdown)
 
+/** A solver's assignments, the solver that actually produced them, and what it reports (status, fallback reason). */
+data class SolveResult(val assignments: List<Assignment>, val solver: String, val details: Map<String, Any?> = emptyMap())
+
 interface Solver {
     val name: String
 
     fun solve(problem: AllocationProblem): List<Assignment>
+
+    fun solveDetailed(problem: AllocationProblem): SolveResult = SolveResult(solve(problem), name)
 }

@@ -8,6 +8,12 @@
 6. **Coverage**: Dinic max-flow augmented per priority tier → covered / shortfall per obligation, shortage groups (connected components of exhausted supply), surplus by bucket and production year.
 7. **Plan**: lines at lot level (earliest expiry first, last lot split), `PROPOSED` with soft reservations (default 48 h), four-eyes `approve` under a per-entity advisory lock → hard reservations (`RESERVED` lots, splits) → registry instructions → confirmations fulfil obligations and record trade deliveries → `CONFIRMED` or `PARTIALLY_FAILED`. Lots that can no longer be reserved mark the plan `STALE`.
 
-Exact solver: the `Solver` port allows a CP-SAT adapter; the `EXACT` request currently falls back to greedy and records it.
+Exact solver (`solver: EXACT`, ADR 0031): OR-Tools CP-SAT over the same lot classes and eligibility. It solves three
+objectives in order: most MWh covered, least `MinShare` shortfall, then lowest total score. Class supply, demand and
+`MaxSharePerDevice` are hard limits. It starts from the greedy solution and is never worse than greedy on coverage.
+Greedy's result is used instead, with the reason in the plan's `objective.fallbackReason`, when the problem has more
+than `etrm.allocation.exact.max-pairs` pairs, when no solution is found within `etrm.allocation.exact.time-limit`
+(10 s), or when the native library cannot load. `objective.solver` says which solver ran, and `objective.status`
+whether CP-SAT proved the result optimal.
 
 Invariants (property-tested): never over-allocate a class, only eligible classes, never over-fill an obligation, device caps hold, greedy allocation ≤ max-flow coverage, same input → identical plan.
