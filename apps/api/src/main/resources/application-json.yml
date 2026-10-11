@@ -1,0 +1,9 @@
+# JSON logs for log shippers (Elastic Common Schema), with trace and span ids from the current observation.
+logging:
+  structured:
+    format:
+      console: ecs
+    ecs:
+      service:
+        name: goo-ets-etrm
+        environment: ${ETRM_ENVIRONMENT:local}

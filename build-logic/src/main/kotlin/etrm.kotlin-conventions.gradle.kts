@@ -60,6 +60,8 @@ tasks.withType<Test>().configureEach {
     listOf("ETRM_TEST_DB_URL", "ETRM_DB_USER", "ETRM_DB_PASSWORD").forEach { key ->
         System.getenv(key)?.let { environment(key, it) }
     }
+    // `./gradlew test -Detrm.benchmark.lots=100000` sizes the allocation benchmark: pass those flags to the test JVM.
+    systemProperties(providers.systemPropertiesPrefixedBy("etrm.benchmark.").get())
     testLogging {
         events("failed", "skipped")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

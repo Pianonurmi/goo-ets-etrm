@@ -1,0 +1,12 @@
+# Inside Kubernetes: actuator on its own port, reachable by probes and Prometheus but not through the ingress.
+management:
+  server:
+    port: ${ETRM_MANAGEMENT_PORT:9090}
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db
+server:
+  # Behind the ingress: X-Forwarded-* headers set the scheme and host the browser used.
+  forward-headers-strategy: framework

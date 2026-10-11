@@ -3,6 +3,9 @@ spring:
     name: goo-ets-etrm
   main:
     banner-mode: off
+  lifecycle:
+    # Graceful shutdown: requests in flight and scheduled jobs get this long before the context closes.
+    timeout-per-shutdown-phase: 30s
   threads:
     virtual:
       # Off on Java 21: a virtual thread that blocks in a synchronized block pins its carrier. Concurrent first
@@ -87,7 +90,24 @@ management:
       show-details: when_authorized
   tracing:
     sampling:
-      probability: 0.1
+      probability: ${ETRM_TRACE_SAMPLING:0.1}
+  # Traces go to an OTLP collector only when one is configured:
+  # MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT=http://collector:4318/v1/traces
+  opentelemetry:
+    resource-attributes:
+      service.name: goo-ets-etrm
+      deployment.environment: ${ETRM_ENVIRONMENT:local}
+  metrics:
+    tags:
+      application: goo-ets-etrm
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,250ms,500ms,1s,2s
+  observations:
+    key-values:
+      application: goo-ets-etrm
 
 springdoc:
   default-produces-media-type: application/json

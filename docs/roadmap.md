@@ -7,7 +7,7 @@
 | 3 | Valuation and market data (file imports, ECB FX), curves, MtM and P&L explain, period-end accounting, risk limits and credit exposure, ETS compliance (installations, verified emissions, free allocation, surrender), EMIR/MiFID data, reporting, GL interface | delivered (vendor feeds, EMIR layout and SAP layout wait for specifications; see the architecture plan's status) |
 | 4 | Web UI (React + TypeScript, bundled in the API jar): approval inbox, trade blotter and capture, inventory explorer with criteria builder, allocation workbench, coverage and expiry dashboards, market data and curves, valuation, risk, ETS compliance, ledger, month end, reports, admin | delivered (out of scope, for a later increment: settlement, invoice and payment screens; registry instructions and breaks; confirmation file matching) |
 | 5 | Operations screens: settlement items, invoices, payments, netting and VAT rules; registry instructions and transfer routes; statements and reconciliation breaks; counterparty confirmation matching. Backend first: role and entity guards on these areas, the missing read endpoints and demo data | delivered (statement formats are changed through the API; their editor is left for a later increment) |
-| 6 | Scale and operations: observability (Prometheus registry, tracing, JSON logs) and supply chain (SBOM, blocking image scan); Java 25 with virtual threads; Kafka externalisation of events through Spring Modulith; Helm/Kubernetes, HA PostgreSQL; partitioning of version and event tables; exact (CP-SAT) solver; load tests, DR drills, penetration test | planned |
+| 6 | Scale and operations: observability (Prometheus registry, tracing, JSON logs) and supply chain (SBOM, blocking image scan); Java 25 with virtual threads; Kafka externalisation of events through Spring Modulith; Helm/Kubernetes, HA PostgreSQL; partitioning of version and event tables; exact (CP-SAT) solver; load tests, DR drills, penetration test preparation | in progress |
 
 Known gaps to close before production: AIB and registry external code lists; sign-off of accounting policies (MtM by
 book type, NRV, provision), VAT rules and PFE add-ons; the receiving GL's file specification; market data vendors for
@@ -72,3 +72,17 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M4 | Reconciliation screen: break queue (open or closed, type filter, ageing figures), statements by account with holdings and transaction uploads, break detail (registry against our values, resolutions by type, take, accept with four eyes, task links); inbox links for `RECONCILIATION_BREAK` | done |
 | M5 | Confirmations screen: queue of counterparty confirmations (views and counterparty in the URL, CSV upload), detail with their terms against ours field by field and our PDF; on the trade, issue ours and enter theirs by hand; override and dispute through `CONFIRMATION_BREAK`; inbox links for `TRADE_CONFIRMATION`; confirmations carry the trade's counterparty and legal entity | done |
 | M6 | Entity scope on document reads and downloads and on the break ageing figures (by the selected entity); axe on the operations detail pages; bundle within budget (921 of 1000 kB); arc42 section 5, UI docs | done |
+
+## Increment 6 milestones
+
+| Milestone | Scope | Status |
+|---|---|---|
+| M0 | Observability: Prometheus registry, OpenTelemetry tracing (OTLP export when configured), `X-Trace-Id` on responses, JSON (ECS) logs in the `json` profile, `kubernetes` profile with the actuator on its own port, shutdown and readiness settings, `ObservabilityIT`; benchmark flags reach the test JVM | done |
+| M1 | Supply chain: CycloneDX SBOM for the backend and the web bundle, blocking image scan (critical, fixable) with an ignore file, Dependabot for npm and Docker, OWASP dependency check when an NVD key is configured | planned |
+| M2 | Java 25: toolchain, runtime image and CI on 25; virtual threads on again, with a concurrency test of the case that hung on Java 21 | planned |
+| M3 | Events: the Modulith publication registry, externalisation of selected `api` events to Kafka (off unless configured), republishing incomplete and purging completed publications, Kafka integration test with Testcontainers | planned |
+| M4 | Kubernetes: Helm chart (probes, resources, non-root, secrets, HPA, PDB, network policy), HA PostgreSQL with CloudNativePG, chart lint and schema validation in CI | planned |
+| M5 | Partitioning of the append-only event tables by time (audit, lot events, journal-side events where they grow), constraints redesigned around the partition key, partition maintenance job | planned |
+| M6 | Load tests: k6 scenarios for the main reads and writes with thresholds, a baseline recorded in the docs, a manual CI workflow | planned |
+| M7 | Exact allocation: CP-SAT model behind the `Solver` port (time limit, fallback to greedy), tests where greedy is not optimal | planned |
+| M8 | Disaster recovery runbook with a scripted drill (backup, restore, start, verify hash chains), penetration test preparation (scope, accounts, ZAP baseline); increment 6 delivered | planned |

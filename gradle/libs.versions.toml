@@ -82,6 +82,7 @@ roaringbitmap = { module = "org.roaringbitmap:RoaringBitmap", version.ref = "roa
 uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", version.ref = "uuid-generator" }
 json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "json-schema-validator" }
 micrometer-core = { module = "io.micrometer:micrometer-core" }
+micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
 slf4j-api = { module = "org.slf4j:slf4j-api" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

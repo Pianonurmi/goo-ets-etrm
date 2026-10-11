@@ -40,12 +40,19 @@ class SecurityConfiguration {
      */
     @Bean
     @Profile("!dev & !test")
-    fun resourceServerChain(http: HttpSecurity, properties: SecurityProperties, ui: UiProperties): SecurityFilterChain = http
+    fun resourceServerChain(
+        http: HttpSecurity,
+        properties: SecurityProperties,
+        ui: UiProperties,
+        managementPort: ManagementPort,
+    ): SecurityFilterChain = http
         .csrf { it.disable() }
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
         .headers { browserHeaders(it, ui) }
         .authorizeHttpRequests {
             it.requestMatchers("/actuator/health/**", "/actuator/info", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+            // A separate management port (Kubernetes) is reachable only inside the cluster: Prometheus scrapes it.
+            it.requestMatchers(managementPortOnly(managementPort)).permitAll()
             it.requestMatchers(HttpMethod.GET, "/api/v1/ui-config").permitAll()
             it.requestMatchers("/error").permitAll()
             it.requestMatchers(SPA_ROUTES).permitAll()
@@ -78,9 +85,17 @@ class SecurityConfiguration {
         .build()
 
     @Bean
+    fun managementPort(): ManagementPort = ManagementPort()
+
+    @Bean
     fun actorProvider(properties: SecurityProperties): ActorProvider = SpringSecurityActorProvider(properties)
 
     companion object {
+        /** Actuator requests that arrive on the separate management port; nothing when the port is shared. */
+        fun managementPortOnly(managementPort: ManagementPort) = RequestMatcher { request ->
+            managementPort.matches(request.localPort) && request.requestURI.startsWith("/actuator")
+        }
+
         /** GET requests for the UI shell: anything outside the API, actuator and OpenAPI paths. */
         val SPA_ROUTES = RequestMatcher { request ->
             request.method == HttpMethod.GET.name() && !SpaConfiguration.isServerPath(request.requestURI.removePrefix(request.contextPath))

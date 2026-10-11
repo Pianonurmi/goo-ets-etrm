@@ -48,6 +48,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Deliveries are idempotent: pass `RecordDelivery.idempotencyKey` (e.g. `instruction:<id>`); `DeliveryRecorded.deliveryId` is the key downstream modules use.
 - CSV in and out goes through `platform.text.Csv` (RFC 4180). PDFs and other issued documents go through the `document` module; templates live in `src/main/resources/documents/templates/`.
 - Virtual threads stay off while the runtime is Java 21 (`application.yml`): pinning in `synchronized` deadlocked request threads. Revisit on Java 24+.
+- Observability (`docs/operations/observability.md`): Prometheus metrics, OpenTelemetry traces (OTLP when configured), `X-Trace-Id` on every response, ECS JSON logs in the `json` profile; the `kubernetes` profile moves the actuator to its own port, open only there.
 - Scheduled jobs use `@SchedulerLock`; the lock provider is configured in `apps/api` (`SchedulingConfiguration`).
 - Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers (and optionally `X-Entities`, default all entities) in the `dev` and `test` profiles.
 - Approvals go through the workflow inbox: the owning module registers a `TaskHandler` and applies the decision in the same transaction.
