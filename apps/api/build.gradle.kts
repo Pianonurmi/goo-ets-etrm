@@ -1,5 +1,6 @@
 plugins {
     id("etrm.application-conventions")
+    alias(libs.plugins.cyclonedx)
 }
 
 /** `-Petrm.skipWeb` builds the backend without the web UI (faster local loops). */
@@ -44,4 +45,21 @@ tasks.register<Test>("updateOpenApiSnapshot") {
     systemProperty("etrm.openapi.snapshot", openApiSnapshot.asFile.absolutePath)
     systemProperty("etrm.openapi.write", "true")
     outputs.upToDateWhen { false }
+}
+
+// Software bill of materials of what the jar ships (runtime classpath), CycloneDX JSON; CI publishes it.
+tasks.named<org.cyclonedx.gradle.CyclonedxDirectTask>("cyclonedxDirectBom") {
+    includeConfigs.set(listOf("runtimeClasspath"))
+    projectType.set(org.cyclonedx.model.Component.Type.APPLICATION)
+    componentName.set("goo-ets-etrm")
+    jsonOutput.set(layout.buildDirectory.file("reports/sbom/etrm-backend.cdx.json"))
+    xmlOutput.unsetConvention()
+}
+
+// The SBOM travels in the jar, where /actuator/sbom serves it (management port in Kubernetes).
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    from(tasks.named("cyclonedxDirectBom")) {
+        into("META-INF/sbom")
+        rename { "application.cdx.json" }
+    }
 }

@@ -92,4 +92,4 @@ Kotlin warnings are errors. detekt config is `config/detekt/detekt.yml` (max lin
 
 ## Commits
 
-Small, descriptive commit messages in the imperative. CI (`.github/workflows/ci.yml`) runs the full build with a PostgreSQL 17 service, then builds the image and scans it.
+Small, descriptive commit messages in the imperative. CI (`.github/workflows/ci.yml`) runs the full build with a PostgreSQL 17 service, publishes SBOMs, then builds the image and scans it: a critical vulnerability with a fix fails the build (accepted ones go in `.trivyignore` with a reason). See `docs/operations/supply-chain.md`.

@@ -78,7 +78,7 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | Observability: Prometheus registry, OpenTelemetry tracing (OTLP export when configured), `X-Trace-Id` on responses, JSON (ECS) logs in the `json` profile, `kubernetes` profile with the actuator on its own port, shutdown and readiness settings, `ObservabilityIT`; benchmark flags reach the test JVM | done |
-| M1 | Supply chain: CycloneDX SBOM for the backend and the web bundle, blocking image scan (critical, fixable) with an ignore file, Dependabot for npm and Docker, OWASP dependency check when an NVD key is configured | planned |
+| M1 | Supply chain: CycloneDX SBOMs for the backend (also in the jar, `/actuator/sbom`), the web bundle and the image, published by CI; image scan fails on critical fixable vulnerabilities (`.trivyignore` for accepted ones); Dependabot for npm and Docker; weekly OWASP dependency check when `NVD_API_KEY` is set ([operations/supply-chain.md](operations/supply-chain.md)) | done |
 | M2 | Java 25: toolchain, runtime image and CI on 25; virtual threads on again, with a concurrency test of the case that hung on Java 21 | planned |
 | M3 | Events: the Modulith publication registry, externalisation of selected `api` events to Kafka (off unless configured), republishing incomplete and purging completed publications, Kafka integration test with Testcontainers | planned |
 | M4 | Kubernetes: Helm chart (probes, resources, non-root, secrets, HPA, PDB, network policy), HA PostgreSQL with CloudNativePG, chart lint and schema validation in CI | planned |

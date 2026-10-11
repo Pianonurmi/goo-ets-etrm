@@ -1,0 +1,2 @@
+# Image vulnerabilities accepted after review. One CVE id per line, with the reason and a review date above it.
+# CI fails on critical vulnerabilities that have a fix; everything critical or high is reported.

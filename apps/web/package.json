@@ -19,7 +19,8 @@
     "build": "vite build",
     "budget": "node scripts/check-bundle.mjs",
     "preview": "vite preview",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "sbom": "cyclonedx-npm --omit dev --output-format JSON --output-file build/sbom/etrm-web.cdx.json"
   },
   "dependencies": {
     "@mantine/charts": "9.7.1",
@@ -47,6 +48,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
+    "@cyclonedx/cyclonedx-npm": "6.0.1",
     "@eslint/js": "9.39.5",
     "@playwright/test": "1.64.0",
     "@testing-library/dom": "10.4.2",

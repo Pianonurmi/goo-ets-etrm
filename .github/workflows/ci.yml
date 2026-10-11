@@ -51,6 +51,10 @@ jobs:
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_e2e;"
       - name: Build, lint and test
         run: ./gradlew build koverXmlReport --no-daemon --stacktrace
+      - name: Software bills of materials (backend runtime classpath, web bundle)
+        run: |
+          ./gradlew :apps:api:cyclonedxDirectBom --no-daemon
+          (cd apps/web && npm run sbom)
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,10 +87,40 @@ jobs:
           retention-days: 14
       - name: Build container image
         run: docker build -t goo-ets-etrm:${{ github.sha }} -f ops/Dockerfile .
-      - name: SBOM and vulnerability scan
+      - name: Image vulnerabilities (report critical and high)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: goo-ets-etrm:${{ github.sha }}
           format: table
           exit-code: "0"
           severity: CRITICAL,HIGH
+          trivyignores: .trivyignore
+      - name: Image vulnerabilities (fail on critical with a fix available)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: goo-ets-etrm:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+          trivyignores: .trivyignore
+          skip-setup-trivy: true
+      - name: Image SBOM
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: goo-ets-etrm:${{ github.sha }}
+          format: cyclonedx
+          output: etrm-image.cdx.json
+          exit-code: "0"
+          skip-setup-trivy: true
+      - name: Upload SBOMs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            apps/api/build/reports/sbom/etrm-backend.cdx.json
+            apps/web/build/sbom/etrm-web.cdx.json
+            etrm-image.cdx.json
+          retention-days: 90
