@@ -36,7 +36,8 @@
     "confirmations": "Confirmations",
     "main": "Main navigation",
     "collapse": "Collapse sidebar",
-    "expand": "Expand sidebar"
+    "expand": "Expand sidebar",
+    "demo": "Demo"
   },
   "header": {
     "entity": "Legal entity",
@@ -1705,5 +1706,28 @@
     "density": "Switch density",
     "scheme": "Switch light and dark",
     "close": "Close a dialog or menu"
+  },
+  "demo": {
+    "title": "Demo",
+    "description": "The public demo's example portfolio: when it was created and when it is reset.",
+    "data": "Example data",
+    "seededAt": "Created",
+    "steps": "Steps",
+    "nextReset": "Next nightly reset",
+    "resetAllowed": "Reset allowed from",
+    "resetTitle": "Reset the demo now",
+    "resetExplain": "The application restarts and rebuilds the example portfolio from scratch. Everything visitors changed is lost, and everyone has to sign in again. It takes a minute or two.",
+    "typeReset": "Type RESET to confirm",
+    "reset": "Reset the demo",
+    "resetting": "Resetting the demo",
+    "resetHint": "You return to the sign-in page when the new data is ready.",
+    "cooling": "The demo started recently; a reset is possible from {{at}}.",
+    "notShowcase": "Only the public demo (showcase profile) can be reset. Here, drop the database to start over.",
+    "phase": {
+      "stopping": "Stopping the application…",
+      "starting": "Starting again…",
+      "seeding": "Creating the example data: step {{done}} of {{total}}",
+      "done": "Ready. Opening the sign-in page…"
+    }
   }
 }

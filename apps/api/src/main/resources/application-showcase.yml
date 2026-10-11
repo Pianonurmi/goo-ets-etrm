@@ -23,5 +23,10 @@ etrm:
   showcase:
     users: ${ETRM_DEMO_USERS:}
     password: ${ETRM_DEMO_PASSWORD:}
+    # Every start wipes this database and seeds it again (ADR 0033); it must be the database's own name.
+    database: ${ETRM_SHOWCASE_DATABASE:}
+    wipe-on-start: ${ETRM_SHOWCASE_WIPE_ON_START:true}
+    reset-cron: ${ETRM_SHOWCASE_RESET_CRON:0 15 4 * * *}
+    reset-zone: ${ETRM_SHOWCASE_RESET_ZONE:Europe/Helsinki}
   security:
     public-api-docs: false

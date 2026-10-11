@@ -54,6 +54,21 @@ test.describe('showcase', () => {
     await expect(page.getByTestId('login-submit')).toBeVisible();
   });
 
+  test('the admin persona sees the reset schedule; a reset right after a start is refused', async ({ page }) => {
+    await signIn(page);
+    await switchPersona(page, 'admin');
+    await page.goto('/admin/demo');
+    await expect(page.getByTestId('seed-state')).toHaveText(/^completed$/i);
+    await expect(page.getByTestId('next-reset')).not.toHaveText('—');
+    await page.getByTestId('reset-demo').click();
+    await page.getByTestId('reset-reason').fill('End-to-end check of the cool-down');
+    await expect(page.getByTestId('reset-submit')).toBeDisabled();
+    await page.getByTestId('reset-confirm').fill('RESET');
+    await page.getByTestId('reset-submit').click();
+    // The demo has just started: the cool-down refuses the reset and the server keeps running.
+    await expect(page.getByTestId('problem-alert')).toBeVisible();
+  });
+
   test('a wrong password is refused, and repeated failures lock the sign-in', async ({ page }) => {
     // A user name and documentation address of its own, so the lockout reaches no other test (the jar trusts
     // loopback proxies, as it trusts Caddy on the Docker network).

@@ -20,7 +20,7 @@ lists what protects it and what is accepted.
 ## Accepted risks
 
 - **Shared sandbox.** Every visitor can act as any persona, ADMIN included, and change shared data until the
-  nightly reset.
+  nightly reset (ADR 0033). The ADMIN persona can also reset at once, but not within ten minutes of a start.
 - **Audit identity.** The audit trail records the persona, not the visitor; the sign-in name is in the logs only.
   Two visitors acting as one persona count as one person for four eyes.
 - **Write abuse.** There is no write throttle; the nightly reset and the container memory limit contain it.

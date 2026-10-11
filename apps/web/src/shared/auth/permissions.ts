@@ -29,6 +29,7 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   product_deactivateFuturesContract: ['MIDDLE_OFFICE'],
   audit_events: ['AUDITOR', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'],
   audit_event: ['AUDITOR', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'],
+  showcase_reset: ['ADMIN'],
   trade_capture: ['TRADER', 'MIDDLE_OFFICE'],
   trade_amend: ['TRADER', 'MIDDLE_OFFICE'],
   trade_cancel: ['TRADER', 'MIDDLE_OFFICE'],

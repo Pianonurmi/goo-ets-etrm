@@ -2,6 +2,7 @@ package com.pianonurmi.etrm
 
 import com.pianonurmi.etrm.config.SeedToken
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
@@ -118,6 +119,24 @@ class ShowcaseSecurityIT {
         browser.send("POST", "/api/v1/auth/logout").statusCode() shouldBe 403
         browser.send("POST", "/api/v1/auth/logout", headers = mapOf("X-XSRF-TOKEN" to browser.xsrf()!!)).statusCode() shouldBe 204
         browser.get("/api/v1/me").statusCode() shouldBe 401
+    }
+
+    @Test
+    fun `only the admin persona may reset, never right after a start, and ui-config shows the schedule`() {
+        val config = json.readValue(Browser().get("/api/v1/ui-config").body(), Map::class.java)
+        val showcase = config["showcase"] as Map<*, *>
+        showcase["nextResetAt"].shouldNotBeNull()
+        showcase["resetAllowedAt"].shouldNotBeNull()
+
+        val browser = Browser()
+        browser.login("demo", "demo-password-for-tests").statusCode() shouldBe 204
+        browser.get("/api/v1/me")
+        val csrf = mapOf("X-XSRF-TOKEN" to browser.xsrf()!!)
+        val body = """{"reason":"Visitor left a mess"}"""
+        browser.send("POST", "/api/v1/showcase/reset", body, headers = csrf + ("X-Persona" to "trader")).statusCode() shouldBe 403
+        // Within the cool-down after a start: refused, so the process keeps running here.
+        browser.send("POST", "/api/v1/showcase/reset", body, headers = csrf + ("X-Persona" to "admin")).statusCode() shouldBe 409
+        browser.send("POST", "/api/v1/showcase/reset", body, headers = mapOf("X-Persona" to "admin")).statusCode() shouldBe 403
     }
 
     @Test

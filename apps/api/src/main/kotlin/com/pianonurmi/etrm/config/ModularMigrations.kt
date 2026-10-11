@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.config
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.InitializingBean
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.BeanDefinition
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
@@ -22,8 +23,8 @@ import javax.sql.DataSource
 @EnableConfigurationProperties(MigrationProperties::class)
 class ModularMigrationsConfiguration {
     @Bean
-    fun modularMigrations(dataSource: DataSource, properties: MigrationProperties): ModularMigrations =
-        ModularMigrations(dataSource, properties)
+    fun modularMigrations(dataSource: DataSource, properties: MigrationProperties, hooks: ObjectProvider<MigrationHook>): ModularMigrations =
+        ModularMigrations(dataSource, properties, hooks.orderedStream().toList())
 
     companion object {
         /**
@@ -82,7 +83,11 @@ data class MigrationProperties(
     }
 }
 
-class ModularMigrations(private val dataSource: DataSource, private val properties: MigrationProperties) : InitializingBean {
+class ModularMigrations(
+    private val dataSource: DataSource,
+    private val properties: MigrationProperties,
+    private val hooks: List<MigrationHook> = emptyList(),
+) : InitializingBean {
     private val log = LoggerFactory.getLogger(ModularMigrations::class.java)
 
     override fun afterPropertiesSet() {
@@ -90,6 +95,7 @@ class ModularMigrations(private val dataSource: DataSource, private val properti
             log.warn("Database migrations are disabled (etrm.migrations.enabled=false)")
             return
         }
+        hooks.forEach { it.beforeMigrations(dataSource) }
         val resolver = PathMatchingResourcePatternResolver()
         (properties.modules + properties.additionalModules).forEach { module ->
             val location = "classpath:db/migration/$module"

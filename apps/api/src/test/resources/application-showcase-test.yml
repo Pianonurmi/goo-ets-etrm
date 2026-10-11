@@ -13,6 +13,8 @@ etrm:
   showcase:
     users: "visitor:correct-horse-battery"
     password: "demo-password-for-tests"
+    # The test shares the test database: no wipe on start (ShowcaseWipeIT covers it on a database of its own).
+    wipe-on-start: false
   registry:
     outbox-dir: build/test-registry-outbox
 logging:

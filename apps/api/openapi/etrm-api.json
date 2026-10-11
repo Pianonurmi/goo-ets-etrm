@@ -8044,6 +8044,28 @@
         "required" : [ "reservationRef" ],
         "type" : "object"
       },
+      "ResetAccepted" : {
+        "properties" : {
+          "message" : {
+            "type" : "string"
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "message", "requestedAt" ],
+        "type" : "object"
+      },
+      "ResetRequest" : {
+        "properties" : {
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "reason" ],
+        "type" : "object"
+      },
       "RiskLimitView" : {
         "properties" : {
           "amount" : {
@@ -8343,6 +8365,24 @@
           }
         },
         "required" : [ "demandMwh", "eligibleSupplyMwh", "obligationIds", "shortfallMwh" ],
+        "type" : "object"
+      },
+      "ShowcaseStatusView" : {
+        "properties" : {
+          "nextResetAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "resetAllowedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "resetRequestedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "resetAllowedAt" ],
         "type" : "object"
       },
       "SplitResult" : {
@@ -9339,6 +9379,13 @@
               "$ref" : "#/components/schemas/PersonaView"
             },
             "type" : [ "array", "null" ]
+          },
+          "showcase" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/ShowcaseStatusView"
+            }, {
+              "type" : "null"
+            } ]
           },
           "version" : {
             "type" : "string"
@@ -20840,6 +20887,44 @@
           }
         },
         "tags" : [ "Settlement" ]
+      }
+    },
+    "/api/v1/showcase/reset" : {
+      "post" : {
+        "operationId" : "showcase_reset",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ResetRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResetAccepted"
+                }
+              }
+            },
+            "description" : "Accepted"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "showcase-controller" ]
       }
     },
     "/api/v1/taxonomy/REGION/{code}/countries" : {

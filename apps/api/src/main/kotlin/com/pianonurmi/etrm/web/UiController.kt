@@ -21,6 +21,8 @@ data class UiConfigView(
     val demo: Boolean,
     /** Progress of the demo data (demo profile only); the UI waits while it is RUNNING. */
     val demoSeed: DemoSeedView?,
+    /** The public showcase's reset schedule (showcase profile only). */
+    val showcase: ShowcaseStatusView?,
     /** Personas the user can act as (development headers only); absent with real sign-in. */
     val personas: List<PersonaView>?,
 )
@@ -39,6 +41,20 @@ data class DemoSeedView(
 /** Implemented by the demo seeder; absent without the demo profile. Keeps `web` free of a dependency on `demo`. */
 fun interface DemoSeedStatus {
     fun current(): DemoSeedView?
+}
+
+data class ShowcaseStatusView(
+    /** The next nightly reset. */
+    val nextResetAt: Instant?,
+    /** An administrator's reset is refused before this time (cool-down after a start). */
+    val resetAllowedAt: Instant,
+    /** Set once a reset was requested in this process: the restart follows within seconds. */
+    val resetRequestedAt: Instant?,
+)
+
+/** Implemented by the showcase reset service; absent outside the showcase profile. */
+fun interface ShowcaseStatus {
+    fun current(): ShowcaseStatusView
 }
 
 data class PersonaView(val id: String, val name: String, val roles: List<Role>)
@@ -65,6 +81,7 @@ class UiController(
     private val environment: Environment,
     private val build: ObjectProvider<BuildProperties>,
     private val demoSeed: ObjectProvider<DemoSeedStatus>,
+    private val showcase: ObjectProvider<ShowcaseStatus>,
 ) {
     /** Public: the browser reads it before signing in. */
     @GetMapping("/ui-config")
@@ -77,6 +94,7 @@ class UiController(
         version = build.ifAvailable?.version ?: "dev",
         demo = environment.matchesProfiles("demo"),
         demoSeed = demoSeed.ifAvailable?.current(),
+        showcase = showcase.ifAvailable?.current(),
         personas = Personas.ALL
             .takeIf { properties.authMode != UiProperties.AuthMode.OIDC }
             ?.map { PersonaView(it.id, it.name, it.roles.sorted()) },

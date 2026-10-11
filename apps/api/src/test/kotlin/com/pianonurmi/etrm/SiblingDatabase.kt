@@ -1,8 +1,10 @@
 package com.pianonurmi.etrm
 
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.test.context.DynamicPropertyRegistry
 import java.sql.DriverManager
+import javax.sql.DataSource
 
 /**
  * A database next to the shared test database (`<name>_<suffix>` on the same server), emptied of ETRM schemas, for
@@ -10,6 +12,19 @@ import java.sql.DriverManager
  */
 object SiblingDatabase {
     fun register(registry: DynamicPropertyRegistry, suffix: String) {
+        val (siblingUrl, user, password) = prepare(suffix)
+        registry.add("spring.datasource.url") { siblingUrl }
+        registry.add("spring.datasource.username") { user }
+        registry.add("spring.datasource.password") { password }
+    }
+
+    /** A plain data source on the emptied sibling database, for tests without a Spring context. */
+    fun dataSource(suffix: String): DataSource {
+        val (url, user, password) = prepare(suffix)
+        return DriverManagerDataSource(url, user, password)
+    }
+
+    private fun prepare(suffix: String): Triple<String, String, String> {
         val properties = TestDatabase.springProperties()
         val url = properties.getValue("spring.datasource.url")
         val user = properties.getValue("spring.datasource.username")
@@ -32,8 +47,6 @@ object SiblingDatabase {
             }
             connection.createStatement().use { statement -> schemas.forEach { statement.execute("DROP SCHEMA \"$it\" CASCADE") } }
         }
-        registry.add("spring.datasource.url") { siblingUrl }
-        registry.add("spring.datasource.username") { user }
-        registry.add("spring.datasource.password") { password }
+        return Triple(siblingUrl, user, password)
     }
 }

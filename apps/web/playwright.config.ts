@@ -14,6 +14,8 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
 const showcaseURL = process.env.E2E_SHOWCASE_URL ?? `http://127.0.0.1:${showcasePort}`;
 const executablePath = process.env.PW_CHROMIUM_PATH;
 const java = process.env.ETRM_JAVA ?? 'java';
+const showcaseDatabaseUrl = process.env.E2E_SHOWCASE_DB_URL ?? 'jdbc:postgresql://localhost:5432/etrm_showcase_e2e';
+const showcaseDatabase = /\/([^/?]+)(\?.*)?$/.exec(showcaseDatabaseUrl)?.[1] ?? 'etrm_showcase_e2e';
 const database = {
   ETRM_DB_USER: process.env.ETRM_DB_USER ?? 'etrm',
   ETRM_DB_PASSWORD: process.env.ETRM_DB_PASSWORD ?? 'etrm',
@@ -76,7 +78,9 @@ export default defineConfig({
             stderr: 'pipe' as const,
             env: {
               ...database,
-              ETRM_DB_URL: process.env.E2E_SHOWCASE_DB_URL ?? 'jdbc:postgresql://localhost:5432/etrm_showcase_e2e',
+              ETRM_DB_URL: showcaseDatabaseUrl,
+              // The showcase wipes its database on every start (ADR 0033); it must be named to be wiped.
+              ETRM_SHOWCASE_DATABASE: showcaseDatabase,
               ETRM_DEMO_PASSWORD: SHOWCASE_PASSWORD,
             },
           },

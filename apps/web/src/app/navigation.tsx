@@ -20,6 +20,7 @@ import {
   IconHome,
   IconInbox,
   IconPuzzle,
+  IconRefresh,
   IconScale,
   IconTimeline,
 } from '@tabler/icons-react';
@@ -137,6 +138,7 @@ export const NAVIGATION: NavSection[] = [
         roles: MASTER_DATA,
       },
       { path: '/audit', label: 'nav.audit', icon: <IconListDetails size={ICON} />, roles: AUDIT_READERS },
+      { path: '/admin/demo', label: 'nav.demo', icon: <IconRefresh size={ICON} />, roles: ['ADMIN'] },
     ],
   },
 ];
