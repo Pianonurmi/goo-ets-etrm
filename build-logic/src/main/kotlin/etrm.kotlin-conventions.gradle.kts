@@ -15,9 +15,9 @@ group = "com.pianonurmi.etrm"
 version = rootProject.version
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_21)
+        jvmTarget.set(JvmTarget.JVM_25)
         allWarningsAsErrors.set(true)
         freeCompilerArgs.addAll(
             "-Xjsr305=strict",
@@ -29,7 +29,7 @@ kotlin {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
 }
 
@@ -86,6 +86,7 @@ detekt {
 }
 
 tasks.withType<Detekt>().configureEach {
+    // detekt's own Kotlin compiler predates JVM 25 targets; analysing as 21 changes nothing for the rules we run.
     jvmTarget = "21"
     reports {
         html.required.set(true)

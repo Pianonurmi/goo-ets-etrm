@@ -16,5 +16,6 @@ The web bundle is built by `:apps:web` (Vite) and copied into the jar under `sta
 immutable; `index.html` is not cached and serves every client route. Responses are compressed. A bundle budget
 (`apps/web/scripts/check-bundle.mjs`, part of `check`) keeps the first page under 330 kB gzip.
 
-Requests run on platform threads: virtual threads are off while the runtime is Java 21, because pinning in
-`synchronized` blocks deadlocked the server under concurrent first requests (see `application.yml`).
+Requests, scheduled jobs and async work run on virtual threads (Java 25). On Java 21 they were off: a virtual thread
+blocking in `synchronized` pinned its carrier, and concurrent first requests hung the server. JEP 491 (Java 24) removed
+that pinning; `ConcurrencyIT` replays the burst with two carrier threads.

@@ -31,7 +31,7 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: `java -jar ../api/build/libs/api.jar --spring.profiles.active=${process.env.E2E_PROFILES ?? 'dev,demo'} --server.port=${port}`,
+        command: `${process.env.ETRM_JAVA ?? 'java'} -jar ../api/build/libs/api.jar --spring.profiles.active=${process.env.E2E_PROFILES ?? 'dev,demo'} --server.port=${port}`,
         url: `${baseURL}/actuator/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,

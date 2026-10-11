@@ -8,10 +8,10 @@ spring:
     timeout-per-shutdown-phase: 30s
   threads:
     virtual:
-      # Off on Java 21: a virtual thread that blocks in a synchronized block pins its carrier. Concurrent first
-      # serialisations (Jackson's serializer cache with kotlin-reflect's locks) pinned every carrier and hung the
-      # server. Turn back on with Java 24+ (JEP 491, no pinning in synchronized).
-      enabled: false
+      # Requests, scheduled jobs and async work run on virtual threads. This needs Java 24 or later (JEP 491): on Java 21 a
+      # virtual thread blocking inside synchronized pinned its carrier, and concurrent first serialisations
+      # (Jackson's serializer cache with kotlin-reflect's locks) hung the server. ConcurrencyIT covers that case.
+      enabled: true
   datasource:
     url: ${ETRM_DB_URL:jdbc:postgresql://localhost:5432/etrm}
     username: ${ETRM_DB_USER:etrm}

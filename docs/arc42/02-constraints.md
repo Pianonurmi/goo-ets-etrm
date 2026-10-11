@@ -2,7 +2,7 @@
 
 | Constraint | Background |
 |---|---|
-| Kotlin on the JVM (JDK 21 LTS), Spring Boot 4, PostgreSQL | Team and ecosystem decision; mature tooling for enterprise energy trading |
+| Kotlin on the JVM (JDK 25 LTS), Spring Boot 4, PostgreSQL | Team and ecosystem decision; mature tooling for enterprise energy trading |
 | Single deployable (modular monolith) in increment 1 | One team, strong consistency between trade, inventory and ledger |
 | No JPA; jOOQ with Flyway-migrated schemas | Explicit SQL, type-safe criteria compilation (ADR 0002) |
 | One schema per module, no cross-schema foreign keys | Modules reference each other by id only, so each can be extracted with its data |

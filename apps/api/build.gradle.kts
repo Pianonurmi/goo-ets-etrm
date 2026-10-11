@@ -33,6 +33,8 @@ val openApiSnapshot = layout.projectDirectory.file("openapi/etrm-api.json")
 
 tasks.named<Test>("test") {
     systemProperty("etrm.openapi.snapshot", openApiSnapshot.asFile.absolutePath)
+    // Two carrier threads for virtual threads: pinning or a lock held across blocking calls shows up as a hang.
+    jvmArgs("-Djdk.virtualThreadScheduler.parallelism=2", "-Djdk.virtualThreadScheduler.maxPoolSize=4")
     inputs.files(openApiSnapshot).withPropertyName("openApiSnapshot")
 }
 

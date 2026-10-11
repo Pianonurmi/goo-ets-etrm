@@ -10,7 +10,6 @@ Increment 1 is delivered. These points deliberately differ from the plan below:
 
 | Plan | Built | Why |
 |---|---|---|
-| JDK 25 LTS | JDK 21 LTS | Toolchain available in the build environments; moving to 25 is a toolchain change in `build-logic` |
 | PostgreSQL 17 | 17 in docker-compose and CI; also verified on 16 | Both carry `ltree`, `btree_gist` and range types |
 | Taxonomy closure table | `ltree` paths with GiST indexes | One mechanism for both the taxonomy and the criteria compiler (`path <@ ancestor`) |
 | ArchUnit plus Spring Modulith verification | Spring Modulith verification only (`ModularityTests`) | Modulith already enforces named interfaces and allowed dependencies; ArchUnit stays in the version catalog for finer rules |

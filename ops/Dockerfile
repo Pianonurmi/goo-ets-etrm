@@ -1,5 +1,5 @@
 # Runtime image for the assembled application. Build the jar first: ./gradlew :apps:api:bootJar
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM eclipse-temurin:25-jre-alpine AS runtime
 RUN addgroup -S etrm && adduser -S etrm -G etrm
 WORKDIR /app
 COPY apps/api/build/libs/api.jar /app/app.jar

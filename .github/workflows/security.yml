@@ -45,7 +45,9 @@ jobs:
         if: steps.key.outputs.present == 'true'
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: |
+            25
+            21
       - uses: gradle/actions/setup-gradle@v4
         if: steps.key.outputs.present == 'true'
       - name: Build the jar

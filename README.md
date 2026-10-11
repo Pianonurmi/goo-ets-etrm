@@ -31,7 +31,7 @@ positions and a double-entry sub-ledger, for a European company group with sever
 
 ## Build and run
 
-Prerequisites: JDK 21, Node.js 22 with npm (for the web UI), Docker (for PostgreSQL and Keycloak).
+Prerequisites: JDK 25 (the application's toolchain; Gradle itself runs on JDK 21 or later), Node.js 22 with npm (for the web UI), Docker (for PostgreSQL and Keycloak).
 
 ```bash
 # 1. Infrastructure: PostgreSQL 17 (databases etrm, etrm_codegen, etrm_test, etrm_e2e) and Keycloak
@@ -71,7 +71,7 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 ./gradlew build
 ```
 
-- You need JDK 21, Node.js 22 and Docker. The Gradle wrapper downloads Gradle itself.
+- You need JDK 25 (and JDK 21 or later to run Gradle), Node.js 22 and Docker. The Gradle wrapper downloads Gradle itself.
 - `ops/postgres-init.sql` creates the code-generation and test databases on the first start of the PostgreSQL container. If the volume already exists, create them by hand.
 - Work happens on `main`, the default branch.
 - `CLAUDE.md` summarises commands and conventions for working on the code with Claude Code.
