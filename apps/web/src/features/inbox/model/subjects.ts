@@ -16,6 +16,7 @@ const SUBJECT_ROUTES: Record<string, (ref: string) => string> = {
   POSTING_RULE: () => '/ledger?tab=rules',
   CHANGE_REQUEST: () => '/admin/change-requests',
   INVOICE: (ref) => `/settlement/invoices/${ref}`,
+  VAT_RULE: () => '/settlement?tab=vat-rules',
 };
 
 /** Subject types whose screens exist; extended as screens are added. */

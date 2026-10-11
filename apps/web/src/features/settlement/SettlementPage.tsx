@@ -30,9 +30,13 @@ import {
   type Invoice,
   type Item,
 } from './model/settlement';
+import { NettingTab } from './NettingTab';
+import { PaymentsTab } from './PaymentsTab';
+import { SettlementReportsTab } from './SettlementReportsTab';
 import { FixPriceModal, InvoiceRunModal, PurchaseInvoiceModal } from './SettlementModals';
+import { VatRulesTab } from './VatRulesTab';
 
-const TABS = ['items', 'invoices'] as const;
+const TABS = ['items', 'invoices', 'payments', 'netting', 'vat-rules', 'reports'] as const;
 
 export function StatusBadge({ label, color, testId }: { label: string; color: string; testId?: string }) {
   return (
@@ -389,12 +393,28 @@ export function SettlementPage() {
             <Tabs.List>
               <Tabs.Tab value="items">{t('settlement.tabs.items')}</Tabs.Tab>
               <Tabs.Tab value="invoices">{t('settlement.tabs.invoices')}</Tabs.Tab>
+              <Tabs.Tab value="payments">{t('settlement.tabs.payments')}</Tabs.Tab>
+              <Tabs.Tab value="netting">{t('settlement.tabs.netting')}</Tabs.Tab>
+              <Tabs.Tab value="vat-rules">{t('settlement.tabs.vatRules')}</Tabs.Tab>
+              <Tabs.Tab value="reports">{t('settlement.tabs.reports')}</Tabs.Tab>
             </Tabs.List>
             <Tabs.Panel value="items" pt="md">
               <ItemsTab entityId={entity.id} />
             </Tabs.Panel>
             <Tabs.Panel value="invoices" pt="md">
               <InvoicesTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="payments" pt="md">
+              <PaymentsTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="netting" pt="md">
+              <NettingTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="vat-rules" pt="md">
+              <VatRulesTab />
+            </Tabs.Panel>
+            <Tabs.Panel value="reports" pt="md">
+              <SettlementReportsTab entityId={entity.id} />
             </Tabs.Panel>
           </Tabs>
           {running && <InvoiceRunModal entityId={entity.id} onClose={() => setRunning(false)} />}

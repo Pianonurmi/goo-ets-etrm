@@ -112,3 +112,45 @@ export async function deliveredDemoSale(
   });
   return { tradeId, tradeNumber: trade.tradeNumber };
 }
+
+interface DraftInvoice {
+  id: string;
+  lines: { description: string }[];
+}
+
+/**
+ * A delivered demo sale invoiced and issued through four eyes (submitted by `accountant`, approved by `controller`);
+ * returns the invoice id, number and gross amount.
+ */
+export async function issuedDemoInvoice(
+  request: APIRequestContext,
+  quantity = 60,
+): Promise<{ invoiceId: string; number: string; grossTotal: number }> {
+  const { tradeNumber } = await deliveredDemoSale(request, quantity);
+  const accountant = asPersona(request, 'accountant', 'ACCOUNTANT');
+  const admin = asPersona(request, 'admin', 'ADMIN');
+  const entity = (await admin.get<Identified[]>('/api/v1/reference/legal-entities')).find((e) => e.code === 'DEMO-FI');
+  const aurora = (await admin.get<Identified[]>('/api/v1/reference/counterparties')).find(
+    (c) => c.code === 'CP-AURORA',
+  );
+  if (!entity || !aurora) throw new Error('Demo reference data incomplete');
+  const drafts = await accountant.post<DraftInvoice[]>('/api/v1/settlement/invoice-runs', {
+    legalEntityId: entity.id,
+    upTo: new Date().toISOString().slice(0, 10),
+    counterpartyId: aurora.id,
+  });
+  const draft = drafts.find((invoice) => invoice.lines.some((line) => line.description.includes(tradeNumber)));
+  if (!draft) throw new Error(`No draft invoice for ${tradeNumber}`);
+  await accountant.post(`/api/v1/settlement/invoices/${draft.id}/submit`, {});
+  const controller = asPersona(request, 'controller', 'ACCOUNTANT');
+  const tasks = await controller.get<{ items: { id: string }[] }>(
+    `/api/v1/workflow/tasks?subjectRef=${draft.id}&type=INVOICE_APPROVAL&status=OPEN`,
+  );
+  const task = tasks.items[0];
+  if (!task) throw new Error(`No approval task for invoice ${draft.id}`);
+  await controller.post(`/api/v1/workflow/tasks/${task.id}/approve`, {});
+  const issued = await controller.get<{ number: string; grossTotal: number }>(
+    `/api/v1/settlement/invoices/${draft.id}`,
+  );
+  return { invoiceId: draft.id, number: issued.number, grossTotal: issued.grossTotal };
+}

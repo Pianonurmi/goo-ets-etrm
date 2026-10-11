@@ -18,6 +18,7 @@ registerSubjectScreens(
   'POSTING_RULE',
   'CHANGE_REQUEST',
   'INVOICE',
+  'VAT_RULE',
 );
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
@@ -122,6 +123,12 @@ export const router = createBrowserRouter([
         path: 'settlement/invoices/:invoiceId',
         lazy: async () => ({
           Component: (await import('@/features/settlement/InvoiceDetailPage')).InvoiceDetailPage,
+        }),
+      },
+      {
+        path: 'settlement/netting/:nettingId',
+        lazy: async () => ({
+          Component: (await import('@/features/settlement/NettingDetailPage')).NettingDetailPage,
         }),
       },
       {

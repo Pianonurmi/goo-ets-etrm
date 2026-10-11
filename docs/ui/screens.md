@@ -40,6 +40,10 @@ legal-entity scope; the UI only mirrors them.
 | Settlement items | `/settlement` (`view` in the URL: needs attention, open, invoiced, all) | `settlement_items`, `settlement_fixPrice`, `settlement_reevaluate`, `settlement_run` (invoice run), `settlement_registerPurchaseInvoice` | fix price: MIDDLE_OFFICE, BACK_OFFICE; evaluate again: ACCOUNTANT, BACK_OFFICE, MIDDLE_OFFICE; runs and purchase invoices: BACK_OFFICE, ACCOUNTANT; read: BACK_OFFICE, ACCOUNTANT, MIDDLE_OFFICE, RISK, AUDITOR in scope |
 | Invoices | `/settlement?tab=invoices` (status, kind and counterparty in the URL) | `settlement_invoices`, `settlement_export` (issued, CSV) | read as settlement items |
 | Invoice detail | `/settlement/invoices/:invoiceId` | `settlement_invoice`, `settlement_submit`, `settlement_discard`, `payment_creditNote`, `payment_allocations`, `document_content` (PDF), link to the `INVOICE_APPROVAL` task | BACK_OFFICE, ACCOUNTANT; approval (inbox) by another person |
+| Payments | `/settlement?tab=payments` (`unapplied` in the URL) | `payment_list`, `payment_record` (applied to chosen invoices or to numbers in the remittance), `payment_importCsv` (bank statement lines as `text/csv`), `payment_allocate` | BACK_OFFICE, ACCOUNTANT |
+| Netting | `/settlement?tab=netting`, `/settlement/netting/:nettingId` | `payment_nettingStatements`, `payment_prepareNetting` (counterparties with a netting agreement), `payment_nettingStatement`, `payment_agree` (never the preparer), `payment_settle` (with the net payment), `payment_cancelNetting`, `document_content` (PDF) | BACK_OFFICE, ACCOUNTANT |
+| VAT rules | `/settlement?tab=vat-rules` | `settlement_vatRules`, `settlement_proposeVatRule` (`VAT_RULE_APPROVAL` in the inbox), `settlement_determine` | propose: ACCOUNTANT, BACK_OFFICE; approve: another ACCOUNTANT |
+| Settlement reports | `/settlement?tab=reports` (`report` and its parameters in the URL) | `payment_ageing`, `payment_cashForecast`, `payment_vat`, `payment_ecSalesList` | ACCOUNTANT, BACK_OFFICE, MIDDLE_OFFICE, RISK, AUDITOR in scope |
 | Task detail | `/inbox/:taskId` | `workflow_task`, `workflow_approve`, `workflow_reject`, `workflow_acknowledge`, `workflow_claim`, `workflow_release`, `workflow_assign`, `workflow_comment` | candidates; never the requester when the type is four-eyes |
 
 ## Inbox rules mirrored in the UI (`features/inbox/model/decisions.ts`)
@@ -118,4 +122,10 @@ legal-entity scope; the UI only mirrors them.
 - A purchase invoice is matched to the supplier's open purchases (all by default, or the ones ticked); the server
   checks net and VAT within its tolerance. No amounts are added up in the browser.
 - A credit note reverses an issued invoice in full and goes through the same approval.
-- Rules mirrored in the UI: `model/settlement.ts` (actions per invoice state, item views, purchase candidates).
+- Payments: a recorded payment is applied to the invoices chosen, else to invoice numbers in the remittance text;
+  what is left stays unapplied and can be allocated later. Bank statement CSV goes up as text (`shared/api/upload.ts`).
+- Netting: one person prepares a statement, another records the counterparty's agreement; settling needs an
+  unapplied payment of the net amount in the right direction (none when the invoices offset exactly).
+- Rules mirrored in the UI: `model/settlement.ts` (actions per invoice state, item views, purchase candidates) and
+  `model/payments.ts` (netting actions and four eyes, payments that fit a statement, invoices a payment can go to,
+  report defaults).
