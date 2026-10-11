@@ -3,6 +3,11 @@ import {
   IconCertificate,
   IconChartBar,
   IconChartLine,
+  IconBuildingBank,
+  IconCategory,
+  IconFileCheck,
+  IconListDetails,
+  IconPackages,
   IconBook2,
   IconCalendarCheck,
   IconReportAnalytics,
@@ -39,6 +44,8 @@ const ICON = 18;
 /** Navigation; each milestone of increment 4 adds its screens here. */
 const VALUATION_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'AUDITOR', 'TRADER'];
 const FINANCE: readonly Role[] = ['ACCOUNTANT', 'AUDITOR', 'BACK_OFFICE'];
+const AUDIT_READERS: readonly Role[] = ['AUDITOR', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'];
+const MASTER_DATA: readonly Role[] = ['MIDDLE_OFFICE', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'ACCOUNTANT', 'AUDITOR'];
 const RISK_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'TRADER', 'AUDITOR'];
 
 export const NAVIGATION: NavSection[] = [
@@ -73,6 +80,26 @@ export const NAVIGATION: NavSection[] = [
       { path: '/ledger', label: 'nav.ledger', icon: <IconBook2 size={ICON} />, roles: FINANCE },
       { path: '/month-end', label: 'nav.monthEnd', icon: <IconCalendarCheck size={ICON} />, roles: FINANCE },
       { path: '/reports', label: 'nav.reports', icon: <IconReportAnalytics size={ICON} /> },
+    ],
+  },
+  {
+    title: 'nav.sectionAdmin',
+    items: [
+      {
+        path: '/admin/reference',
+        label: 'nav.referenceData',
+        icon: <IconBuildingBank size={ICON} />,
+        roles: MASTER_DATA,
+      },
+      { path: '/admin/taxonomy', label: 'nav.taxonomy', icon: <IconCategory size={ICON} />, roles: MASTER_DATA },
+      { path: '/admin/products', label: 'nav.products', icon: <IconPackages size={ICON} />, roles: MASTER_DATA },
+      {
+        path: '/admin/change-requests',
+        label: 'nav.changeRequests',
+        icon: <IconFileCheck size={ICON} />,
+        roles: MASTER_DATA,
+      },
+      { path: '/audit', label: 'nav.audit', icon: <IconListDetails size={ICON} />, roles: AUDIT_READERS },
     ],
   },
 ];

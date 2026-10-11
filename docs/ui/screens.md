@@ -28,6 +28,11 @@ legal-entity scope; the UI only mirrors them.
 | Month end: GL interface | `/month-end?tab=gl` | `ledger_exportFormats`, `ledger_exports`, `ledger_export`, `ledger_delivered`, `ledger_acknowledge`, `ledger_reject`, `ledger_reconciliation`, `ledger_importBalances` (pasted lines) | writes: ACCOUNTANT; read: ACCOUNTANT, AUDITOR |
 | Month end: policies | `/month-end?tab=policies` | `periodEnd_mtmPolicies`, `periodEnd_nrvPolicy`, `periodEnd_policyChanges`, `periodEnd_requestPolicyChange` | request: ACCOUNTANT (approval by another in the inbox) |
 | Reports | `/reports` (`report` in the URL) | `reporting_catalogue` (filtered by the user's roles), `reporting_report` (JSON into a grid, or CSV download; run number and hash from the response headers), `reporting_exports`, `reporting_emirEvents`, `reporting_emirCompleteness`, `reporting_emirFieldRules` | the roles each report names |
+| Reference data | `/admin/reference` (tabs: entities, counterparties, registries, devices) | `referenceData_legalEntities`, `referenceData_createLegalEntity`, `referenceData_books`, `referenceData_createBook`, `referenceData_registryAccounts`, `referenceData_createRegistryAccount`, `referenceData_counterparties`, `referenceData_createCounterparty`, `changeRequest_requestCounterpartyAccountChange`, `referenceData_registries`, `changeRequest_requestRegistryChange`, `referenceData_productionDevices`, `referenceData_history`, `partyDetails_*` | create: MIDDLE_OFFICE (accounts and devices also BACK_OFFICE, REGISTRY_OPERATOR); addresses and VAT: MIDDLE_OFFICE, BACK_OFFICE, ACCOUNTANT; change requests: MIDDLE_OFFICE, BACK_OFFICE, REGISTRY_OPERATOR, ACCOUNTANT (approved by another person in the inbox) |
+| Taxonomy | `/admin/taxonomy` (`scheme` in the URL) | `taxonomy_list` (`all=true`), `taxonomy_create`, `taxonomy_update`, `taxonomy_regionCountries`, `taxonomy_setRegionCountries` | MIDDLE_OFFICE |
+| Products | `/admin/products` (tabs: buckets, allowances, futures) | `product_buckets`, `product_createBucket` (criteria builder), `product_updateBucket`, `product_allowances`, `product_futuresContracts`, `product_createFuturesContract`, `product_deactivateFuturesContract` | MIDDLE_OFFICE |
+| Change requests | `/admin/change-requests` (`status` in the URL) | `changeRequest_changeRequests`, `changeRequest_cancel`, link to the `REFERENCE_DATA_CHANGE` task | cancel: the requester or ADMIN |
+| Audit trail | `/audit` (filters in the URL) | `audit_events` (paged by `afterSeq`), payload of one event | AUDITOR, ACCOUNTANT, MIDDLE_OFFICE, BACK_OFFICE, RISK |
 | Inventory: certificates | `/inventory` | `inventory_lots` (selected entity; status and expiry filters in the URL) | everyone in scope |
 | Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
 | Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |
@@ -87,3 +92,14 @@ legal-entity scope; the UI only mirrors them.
 - GL balances are pasted as `account;balance;currency` lines (`model/glBalances.ts`) and reconciled by the server.
 - A report's parameters are generated from its definition. The legal entity comes from the header selector. Every
   run, on screen or as CSV, is logged with its number and content hash.
+
+## Administration (`features/admin`, `features/audit`)
+
+- Reference data is versioned by the database. History drawers show each version with the fields it changed
+  (`model/history.ts`).
+- Registry integration modes, counterparty registry accounts and bank accounts change only through change requests
+  approved by a second person in the inbox. Our own registry accounts, books, addresses and VAT numbers change
+  directly, by the roles above.
+- A bucket's criterion is fixed once created. To change it, retire the bucket and create a new one, so positions
+  stay explainable.
+- Taxonomy nodes are retired by an end date, never deleted.

@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.taxonomy.adapter.rest
 
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.taxonomy.api.CreateTaxonomyNode
 import com.pianonurmi.etrm.taxonomy.api.TaxonomyCommand
 import com.pianonurmi.etrm.taxonomy.api.TaxonomyNodeView
@@ -26,7 +28,14 @@ import java.time.LocalDate
 @RestController
 @RequestMapping("/api/v1/taxonomy")
 @Tag(name = "Taxonomy", description = "Hierarchical code sets: energy sources, technologies, labels, regions, support schemes")
-class TaxonomyController(private val query: TaxonomyQuery, private val command: TaxonomyCommand) {
+class TaxonomyController(
+    private val query: TaxonomyQuery,
+    private val command: TaxonomyCommand,
+    private val actorProvider: ActorProvider,
+) {
+    /** Code sets drive eligibility and criteria everywhere: middle office maintains them. */
+    private fun requireMaintainer() = actorProvider.current().requireRole(Role.MIDDLE_OFFICE)
+
     /** Children of [parent] (roots without it); `all=true` returns every node of the scheme in path order, for pickers. */
     @GetMapping("/{scheme}")
     fun list(
@@ -58,32 +67,35 @@ class TaxonomyController(private val query: TaxonomyQuery, private val command: 
     fun create(
         @PathVariable scheme: TaxonomyScheme,
         @Valid @RequestBody body: CreateNodeRequest,
-    ): TaxonomyNodeView = command.create(
-        CreateTaxonomyNode(
-            scheme = scheme,
-            code = body.code,
-            parentCode = body.parentCode,
-            name = body.name,
-            description = body.description,
-            externalCodes = body.externalCodes,
-            validFrom = body.validFrom ?: LocalDate.now(),
-            validTo = body.validTo,
-        ),
-    )
+    ): TaxonomyNodeView = requireMaintainer().let {
+        command.create(
+            CreateTaxonomyNode(
+                scheme = scheme,
+                code = body.code,
+                parentCode = body.parentCode,
+                name = body.name,
+                description = body.description,
+                externalCodes = body.externalCodes,
+                validFrom = body.validFrom ?: LocalDate.now(),
+                validTo = body.validTo,
+            ),
+        )
+    }
 
     @PatchMapping("/{scheme}/{code}")
     fun update(
         @PathVariable scheme: TaxonomyScheme,
         @PathVariable code: String,
         @Valid @RequestBody body: UpdateNodeRequest,
-    ): TaxonomyNodeView =
+    ): TaxonomyNodeView = requireMaintainer().let {
         command.update(scheme, code, UpdateTaxonomyNode(body.name, body.description, body.externalCodes, body.validTo, body.expectedVersion))
+    }
 
     @PutMapping("/REGION/{code}/countries")
     fun setRegionCountries(
         @PathVariable code: String,
         @RequestBody countries: Set<String>,
-    ): Set<String> = command.setRegionMembers(code, countries)
+    ): Set<String> = requireMaintainer().let { command.setRegionMembers(code, countries) }
 }
 
 data class CreateNodeRequest(

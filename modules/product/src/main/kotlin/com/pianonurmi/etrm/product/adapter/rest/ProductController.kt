@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.product.adapter.rest
 
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.AllowanceProductView
 import com.pianonurmi.etrm.product.api.CreateFuturesContract
 import com.pianonurmi.etrm.product.api.CreateProductBucket
@@ -38,7 +40,11 @@ class ProductController(
     private val criteria: CriteriaService,
     private val futures: FuturesContractQuery,
     private val futuresCommand: FuturesContractCommand,
+    private val actorProvider: ActorProvider,
 ) {
+    /** Buckets decide which certificates count for which position: middle office maintains them. */
+    private fun requireMaintainer() = actorProvider.current().requireRole(Role.MIDDLE_OFFICE)
+
     @GetMapping("/buckets")
     fun buckets(
         @RequestParam(defaultValue = "true") activeOnly: Boolean,
@@ -53,13 +59,13 @@ class ProductController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createBucket(
         @Valid @RequestBody body: CreateProductBucket,
-    ): ProductBucketView = bucketCommand.create(body)
+    ): ProductBucketView = requireMaintainer().let { bucketCommand.create(body) }
 
     @PatchMapping("/buckets/{code}")
     fun updateBucket(
         @PathVariable code: String,
         @Valid @RequestBody body: UpdateProductBucket,
-    ): ProductBucketView = bucketCommand.update(code, body)
+    ): ProductBucketView = requireMaintainer().let { bucketCommand.update(code, body) }
 
     @GetMapping("/allowances")
     fun allowances(

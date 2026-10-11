@@ -2,7 +2,8 @@ import { can, PERMISSIONS } from './permissions';
 
 describe('permissions', () => {
   it('lets the listed roles and ADMIN call an operation', () => {
-    expect(PERMISSIONS.referenceData_createLegalEntity).toEqual(['ADMIN']);
+    expect(PERMISSIONS.referenceData_createLegalEntity).toEqual(['MIDDLE_OFFICE']);
+    expect(can(['MIDDLE_OFFICE'], 'referenceData_createLegalEntity')).toBe(true);
     expect(can(['ADMIN'], 'referenceData_createLegalEntity')).toBe(true);
     expect(can(['TRADER'], 'referenceData_createLegalEntity')).toBe(false);
   });

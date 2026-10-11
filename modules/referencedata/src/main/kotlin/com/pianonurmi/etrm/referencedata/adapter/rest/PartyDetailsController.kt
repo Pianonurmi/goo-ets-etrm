@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.referencedata.adapter.rest
 
+import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.AddressView
 import com.pianonurmi.etrm.referencedata.api.BankAccountChange
 import com.pianonurmi.etrm.referencedata.api.BankAccountView
@@ -26,7 +28,18 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/reference/parties/{partyType}/{partyId}")
 @Tag(name = "Party details", description = "Addresses, VAT registrations and bank accounts")
-class PartyDetailsController(private val command: PartyDetailsCommand, private val query: PartyDetailsQuery) {
+class PartyDetailsController(
+    private val command: PartyDetailsCommand,
+    private val query: PartyDetailsQuery,
+    private val actorProvider: ActorProvider,
+) {
+    /** Addresses and VAT numbers feed invoices and tax reporting; a legal entity's own details stay within scope. */
+    private fun requireMaintainer(partyType: PartyType, partyId: UUID) {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.ACCOUNTANT)
+        if (partyType == PartyType.LEGAL_ENTITY) actor.requireEntity(partyId)
+    }
+
     @GetMapping("/addresses")
     fun addresses(
         @PathVariable partyType: PartyType,
@@ -38,7 +51,10 @@ class PartyDetailsController(private val command: PartyDetailsCommand, private v
         @PathVariable partyType: PartyType,
         @PathVariable partyId: UUID,
         @RequestBody body: UpsertAddress,
-    ): AddressView = command.upsertAddress(partyType, partyId, body)
+    ): AddressView {
+        requireMaintainer(partyType, partyId)
+        return command.upsertAddress(partyType, partyId, body)
+    }
 
     @GetMapping("/vat-registrations")
     fun vatRegistrations(
@@ -51,7 +67,10 @@ class PartyDetailsController(private val command: PartyDetailsCommand, private v
         @PathVariable partyType: PartyType,
         @PathVariable partyId: UUID,
         @RequestBody body: UpsertVatRegistration,
-    ): VatRegistrationView = command.upsertVatRegistration(partyType, partyId, body)
+    ): VatRegistrationView {
+        requireMaintainer(partyType, partyId)
+        return command.upsertVatRegistration(partyType, partyId, body)
+    }
 
     @GetMapping("/bank-accounts")
     fun bankAccounts(

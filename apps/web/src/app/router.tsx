@@ -16,6 +16,7 @@ registerSubjectScreens(
   'COMPLIANCE_DEADLINE',
   'ACCOUNTING_POLICY_CHANGE',
   'POSTING_RULE',
+  'CHANGE_REQUEST',
 );
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
@@ -111,6 +112,26 @@ export const router = createBrowserRouter([
       {
         path: 'reports',
         lazy: async () => ({ Component: (await import('@/features/reports/ReportsPage')).ReportsPage }),
+      },
+      {
+        path: 'admin/reference',
+        lazy: async () => ({ Component: (await import('@/features/admin/ReferenceDataPage')).ReferenceDataPage }),
+      },
+      {
+        path: 'admin/taxonomy',
+        lazy: async () => ({ Component: (await import('@/features/admin/TaxonomyPage')).TaxonomyPage }),
+      },
+      {
+        path: 'admin/products',
+        lazy: async () => ({ Component: (await import('@/features/admin/ProductsPage')).ProductsPage }),
+      },
+      {
+        path: 'admin/change-requests',
+        lazy: async () => ({ Component: (await import('@/features/admin/ChangeRequestsPage')).ChangeRequestsPage }),
+      },
+      {
+        path: 'audit',
+        lazy: async () => ({ Component: (await import('@/features/audit/AuditPage')).AuditPage }),
       },
       {
         path: 'inventory',

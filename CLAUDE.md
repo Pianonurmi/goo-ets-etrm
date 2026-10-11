@@ -67,6 +67,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Allocation commands check roles and entity scope in the service: propose and what-if for TRADER, MIDDLE_OFFICE or BACK_OFFICE; approve and reject for MIDDLE_OFFICE or BACK_OFFICE (never the proposer); cancel for all three.
 - Manual trade operations over REST (recording deliveries, settling, issuing our confirmation) need MIDDLE_OFFICE or BACK_OFFICE (`TradeCommand.requireTradeOperator`).
 - Manual lot operations over REST (receive, split, reserve, release, cancel, withdraw, correct) need BACK_OFFICE or REGISTRY_OPERATOR on the holder (`LotCommand.requireLotOperator`); module flows call the commands directly.
+- Master data writes check roles in the controller: taxonomy and product buckets need MIDDLE_OFFICE; party addresses and VAT need MIDDLE_OFFICE, BACK_OFFICE or ACCOUNTANT (and entity scope for a legal entity); the audit trail is read by AUDITOR, ACCOUNTANT, MIDDLE_OFFICE, BACK_OFFICE and RISK.
 - Read endpoints respect entity scope: unfiltered lists use `Actor.entityFilter` (see `TradeQuery.visibleTrades`, `LotQuery.visibleLots`), single records call `requireEntity`, and `EntityScopeInterceptor` refuses a `legalEntityId`/`holderEntityId` parameter outside the user's scope.
 - External layouts not checked against their specification are marked `verified = false`: EMIR field rules, the SAP GL layout, PFE add-ons and registry API mappings.
 
