@@ -1,19 +1,23 @@
 package com.pianonurmi.etrm.demo
 
+import com.pianonurmi.etrm.web.Personas
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 
-/** A dev persona the demo data acts as; the same ids as the web UI's personas, so tasks land in their inboxes. */
-enum class DemoUser(val id: String, val roles: String) {
-    TRADER("trader", "TRADER"),
-    MIDDLE("middle", "MIDDLE_OFFICE"),
-    BACKOFFICE("backoffice", "BACK_OFFICE,REGISTRY_OPERATOR"),
-    ACCOUNTANT("accountant", "ACCOUNTANT"),
-    CONTROLLER("controller", "ACCOUNTANT"),
-    RISK("risk", "RISK,MIDDLE_OFFICE"),
-    RISK2("risk2", "RISK,MIDDLE_OFFICE"),
-    ADMIN("admin", "ADMIN"),
+/** A persona the demo data acts as; its roles come from the shared catalogue, so tasks land where the UI shows them. */
+enum class DemoUser(val id: String) {
+    TRADER("trader"),
+    MIDDLE("middle"),
+    BACKOFFICE("backoffice"),
+    ACCOUNTANT("accountant"),
+    CONTROLLER("controller"),
+    RISK("risk"),
+    RISK2("risk2"),
+    ADMIN("admin"),
+    ;
+
+    val roles: String get() = Personas.byId(id).roles.sorted().joinToString(",")
 }
 
 class DemoRequestFailed(message: String) : RuntimeException(message)

@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
+import org.springframework.core.env.Environment
 import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
@@ -89,8 +90,10 @@ class SecurityConfiguration {
     @Bean
     fun managementPort(): ManagementPort = ManagementPort()
 
+    /** Dev persona headers are honoured only in the dev and test profiles; elsewhere they are ignored even if sent. */
     @Bean
-    fun actorProvider(properties: SecurityProperties): ActorProvider = SpringSecurityActorProvider(properties)
+    fun actorProvider(properties: SecurityProperties, environment: Environment): ActorProvider =
+        SpringSecurityActorProvider(properties, headersAllowed = environment.matchesProfiles("dev | test"))
 
     companion object {
         /** Actuator requests that arrive on the separate management port; nothing when the port is shared. */
@@ -150,7 +153,10 @@ data class SecurityProperties(
     val publicApiDocs: Boolean = false,
 )
 
-class SpringSecurityActorProvider(private val properties: SecurityProperties) : ActorProvider {
+class SpringSecurityActorProvider(
+    private val properties: SecurityProperties,
+    private val headersAllowed: Boolean = false,
+) : ActorProvider {
     override fun current(): Actor {
         val authentication: Authentication? = SecurityContextHolder.getContext().authentication
         if (authentication is JwtAuthenticationToken) {
@@ -165,7 +171,7 @@ class SpringSecurityActorProvider(private val properties: SecurityProperties) : 
                 allEntities = "*" in entityClaim(jwt),
             )
         }
-        return HeaderActorResolver.resolve() ?: Actor.SYSTEM
+        return (if (headersAllowed) HeaderActorResolver.resolve() else null) ?: Actor.SYSTEM
     }
 
     private fun entityClaim(jwt: Jwt): Set<String> = when (val raw = jwt.claims[properties.legalEntitiesClaim]) {

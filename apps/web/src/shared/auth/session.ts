@@ -1,7 +1,7 @@
 import { configureApiAuth } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { accessToken, reauthenticate, startOidc } from './oidc';
-import { currentPersona, personaHeaders } from './personas';
+import { currentPersona, personaHeaders, setPersonas } from './personas';
 
 export type UiConfig = Schema<'UiConfigView'>;
 
@@ -19,6 +19,7 @@ export async function startSession(): Promise<{ config: UiConfig; ready: boolean
   const config = (await response.json()) as UiConfig;
 
   if (config.authMode === 'DEV_HEADERS') {
+    setPersonas(config.personas);
     configureApiAuth(
       (request) => {
         Object.entries(personaHeaders(currentPersona())).forEach(([name, value]) => {

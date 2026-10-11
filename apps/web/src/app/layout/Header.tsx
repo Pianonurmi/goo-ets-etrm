@@ -17,7 +17,7 @@ import { IconChevronDown, IconLogout, IconMoon, IconSun, IconUserCircle } from '
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { signOut } from '@/shared/auth/oidc';
-import { choosePersona, currentPersona, PERSONAS } from '@/shared/auth/personas';
+import { choosePersona, currentPersona, personas } from '@/shared/auth/personas';
 import { useSession } from '@/shared/auth/SessionContext';
 import { useEntity } from '@/shared/context/EntityContext';
 import { PaletteButton } from './CommandPalette';
@@ -89,7 +89,7 @@ function PersonaMenu() {
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>{t('header.actAs')}</Menu.Label>
-        {PERSONAS.map((candidate) => (
+        {personas().map((candidate) => (
           <Menu.Item
             key={candidate.id}
             data-testid={`persona-${candidate.id}`}

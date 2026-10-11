@@ -64,6 +64,7 @@ class SecuredChainIT {
         config["authMode"] shouldBe "OIDC"
         (config["oidc"] as Map<*, *>)["clientId"] shouldBe "etrm-web"
         (config["oidc"] as Map<*, *>)["authority"] shouldBe "https://login.example.test/realms/etrm"
+        config["personas"] shouldBe null
     }
 
     @Test

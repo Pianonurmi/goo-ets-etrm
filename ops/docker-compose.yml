@@ -49,8 +49,12 @@ services:
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8081/realms/etrm/protocol/openid-connect/certs
       # dev: persona headers instead of tokens; demo: seeds DEMO-FI and DEMO-SE on first start.
       SPRING_PROFILES_ACTIVE: dev,demo
+      # The dev profile has no authentication and binds loopback; inside this local container it must listen on all
+      # interfaces for the published port. Never set these two on a server others can reach.
+      SERVER_ADDRESS: 0.0.0.0
+      ETRM_DEV_ALLOW_REMOTE: "true"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
 volumes:
   postgres-data:

@@ -18,6 +18,7 @@
     "test:coverage": "vitest run --coverage",
     "build": "vite build",
     "budget": "node scripts/check-bundle.mjs",
+    "coverage:api": "node scripts/check-api-coverage.mjs",
     "preview": "vite preview",
     "e2e": "playwright test",
     "sbom": "cyclonedx-npm --omit dev --output-format JSON --output-file build/sbom/etrm-web.cdx.json"

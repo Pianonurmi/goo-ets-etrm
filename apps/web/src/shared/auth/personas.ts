@@ -7,7 +7,10 @@ export interface Persona {
   roles: Role[];
 }
 
-/** Two users per approving role, so four-eyes paths can be walked through in the browser. */
+/**
+ * The catalogue the API serves in `/api/v1/ui-config` (one source for the UI and the demo data). This copy is the
+ * fallback until the configuration is read, and the fixture for unit tests.
+ */
 export const PERSONAS: Persona[] = [
   { id: 'trader', name: 'Tia Trader', roles: ['TRADER'] },
   { id: 'trader2', name: 'Theo Trader', roles: ['TRADER'] },
@@ -22,6 +25,17 @@ export const PERSONAS: Persona[] = [
   { id: 'admin', name: 'Adam Admin', roles: ['ADMIN'] },
 ];
 
+let catalogue: Persona[] = PERSONAS;
+
+/** Uses the server's catalogue; an empty or missing list keeps the built-in one. */
+export function setPersonas(personas: Persona[] | null | undefined): void {
+  if (personas && personas.length > 0) catalogue = personas;
+}
+
+export function personas(): Persona[] {
+  return catalogue;
+}
+
 const STORAGE_KEY = 'etrm.persona';
 const DEFAULT_PERSONA = 'trader';
 
@@ -35,7 +49,7 @@ function read(key: string): string | null {
 
 export function currentPersona(): Persona {
   const id = read(STORAGE_KEY) ?? DEFAULT_PERSONA;
-  return PERSONAS.find((persona) => persona.id === id) ?? (PERSONAS[0] as Persona);
+  return catalogue.find((persona) => persona.id === id) ?? (catalogue[0] as Persona);
 }
 
 export function choosePersona(id: string): void {

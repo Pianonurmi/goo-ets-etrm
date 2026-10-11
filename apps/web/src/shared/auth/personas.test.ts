@@ -1,4 +1,4 @@
-import { choosePersona, currentPersona, personaHeaders, PERSONAS } from './personas';
+import { choosePersona, currentPersona, personaHeaders, personas, PERSONAS, setPersonas } from './personas';
 
 describe('personas', () => {
   beforeEach(() => window.localStorage.clear());
@@ -20,5 +20,14 @@ describe('personas', () => {
   it('falls back to the first persona for an unknown id', () => {
     choosePersona('nobody');
     expect(currentPersona()).toEqual(PERSONAS[0]);
+  });
+
+  it('uses the catalogue the server sends and keeps the built-in one for an empty list', () => {
+    setPersonas([]);
+    expect(personas()).toBe(PERSONAS);
+    setPersonas([{ id: 'risk', name: 'Rhea Risk', roles: ['RISK'] }]);
+    expect(personas().map((persona) => persona.id)).toEqual(['risk']);
+    expect(currentPersona().id).toBe('risk');
+    setPersonas(PERSONAS);
   });
 });

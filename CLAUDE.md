@@ -55,6 +55,8 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Kubernetes (`docs/operations/kubernetes.md`): Helm chart `ops/helm/etrm`, PostgreSQL from `ops/k8s/postgres-cluster.yaml` (CloudNativePG). A new environment variable or port goes into the chart too; CI lints it and validates the rendered manifests with kubeconform.
 - Scheduled jobs use `@SchedulerLock`; the lock provider is configured in `apps/api` (`SchedulingConfiguration`).
 - Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers (and optionally `X-Entities`, default all entities) in the `dev` and `test` profiles.
+- The `dev` profile has no authentication: it binds 127.0.0.1 (`application-dev.yml`) and `ProfileGuard` refuses it on another address (unless `etrm.dev.allow-remote`, local container only) or together with `showcase`/`kubernetes`. Persona headers are honoured only in `dev` and `test`. Use `127.0.0.1` rather than `localhost` in local URLs.
+- Personas come from one catalogue, `web/Personas.kt`, served in `/api/v1/ui-config`; the web persona menu and the demo data (`DemoUser`) both use it.
 - Approvals go through the workflow inbox: the owning module registers a `TaskHandler` and applies the decision in the same transaction.
 - Listeners triggered by deliveries or receipts must not fail the transaction that published the event: park the problem (`NEEDS_ATTENTION`, unmatched) or call through `Savepoints.attempt`.
 - Registry calls never run inside a database transaction (outbox, ADR 0012). Registry API mappings stay `verified = false` until checked against the registry's own specification.
@@ -85,7 +87,8 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Calls go through `$api` / `api` in `shared/api/client.ts`; failures are `ProblemError`. Map 422 violations onto forms with `applyProblemToForm`.
 - No money arithmetic in the browser: format with `shared/format`, send decimals back with `decimal()` (strings).
 - Offer actions through `<Can op=...>` / `useCan` keyed by operation id (`shared/auth/permissions.ts`); the API still checks.
-- All visible text goes through `src/locales/en.json`. Dev personas (`shared/auth/personas.ts`) have two users per approving role for four-eyes paths.
+- All visible text goes through `src/locales/en.json`. Personas (served by the API, fallback in `shared/auth/personas.ts`) have two users per approving role for four-eyes paths.
+- Every API operation has a UI caller or an entry in `apps/web/api-only.json` (`apiOnly` with a reason, or `planned` with the milestone). `npm run coverage:api` runs in `check`; a new endpoint needs a screen or a reason.
 - `npm run format` (Prettier) and `npm run lint` before committing web changes.
 - Colours come from the theme (`c="red"`, `color="teal"`): `app/theme.ts` keeps them at WCAG AA contrast and `e2e/hardening.spec.ts` runs axe and a CSP check. Keep new screens lazy; `npm run budget` guards the bundle size.
 - Demo data (`demo` profile, `apps/api/.../demo`) goes through the REST API as the dev personas; extend it when a screen needs data to show. Its test runs on a sibling database (`SiblingDatabase`) because its market data would clash with `MonthEndIT`.

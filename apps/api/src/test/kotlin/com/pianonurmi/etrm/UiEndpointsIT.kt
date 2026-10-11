@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm
 
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
@@ -32,6 +33,10 @@ class UiEndpointsIT {
         config["authMode"] shouldBe "DEV_HEADERS"
         config["environment"] shouldBe "TEST"
         config["oidc"] shouldBe null
+        @Suppress("UNCHECKED_CAST")
+        val personas = config["personas"] as List<Map<String, Any?>>
+        personas.map { it["id"] } shouldContainAll listOf("trader", "middle", "middle2", "risk", "risk2", "admin")
+        personas.single { it["id"] == "backoffice" }["roles"] shouldBe listOf("BACK_OFFICE", "REGISTRY_OPERATOR")
     }
 
     @Test

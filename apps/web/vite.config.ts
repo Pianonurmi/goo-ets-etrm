@@ -3,7 +3,8 @@ import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-const backend = process.env.ETRM_API_URL ?? 'http://localhost:8080';
+// 127.0.0.1, not localhost: the dev profile listens on IPv4 loopback only.
+const backend = process.env.ETRM_API_URL ?? 'http://127.0.0.1:8080';
 
 // The UI is served by the API jar from the same origin (ADR 0025); in development Vite proxies the API.
 export default defineConfig({

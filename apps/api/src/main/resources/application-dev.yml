@@ -1,3 +1,7 @@
+# Development: persona headers instead of sign-in (ADR 0026). No authentication, so the server listens on
+# loopback only; ProfileGuard refuses anything else unless etrm.dev.allow-remote is set (local container only).
+server:
+  address: 127.0.0.1
 spring:
   jackson:
     serialization:

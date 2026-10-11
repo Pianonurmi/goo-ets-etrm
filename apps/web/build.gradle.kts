@@ -57,6 +57,11 @@ val lintWeb = registerCheck("lintWeb", "lint", "ESLint over the web sources")
 val formatWeb = registerCheck("formatCheckWeb", "format:check", "Prettier check over the web sources")
 val typecheckWeb = registerCheck("typecheckWeb", "typecheck", "TypeScript type check")
 val testWeb = registerCheck("testWeb", "test:coverage", "Vitest unit and component tests")
+val apiCoverage = registerCheck("apiCoverageWeb", "coverage:api", "Every API operation has a UI caller or a reason in api-only.json")
+apiCoverage.configure {
+    inputs.file(openApiSnapshot)
+    inputs.file("api-only.json")
+}
 
 val viteBuild by tasks.registering(Exec::class) {
     description = "Builds the production bundle into build/dist"
@@ -79,7 +84,7 @@ val bundleBudget by tasks.registering(Exec::class) {
     doLast { stamp.get().asFile.apply { parentFile.mkdirs() }.writeText("ok\n") }
 }
 
-tasks.named("check") { dependsOn(lintWeb, formatWeb, typecheckWeb, testWeb, bundleBudget) }
+tasks.named("check") { dependsOn(lintWeb, formatWeb, typecheckWeb, testWeb, apiCoverage, bundleBudget) }
 tasks.named("assemble") { dependsOn(viteBuild) }
 
 /** The bundle, consumed by :apps:api. */

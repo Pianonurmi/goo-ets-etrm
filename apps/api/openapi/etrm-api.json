@@ -5778,6 +5778,25 @@
         "required" : [ "components", "entryIds", "id", "legalEntityId", "period", "runAt", "runBy", "seq", "warnings" ],
         "type" : "object"
       },
+      "PersonaView" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "roles" : {
+            "items" : {
+              "enum" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR", "ACCOUNTANT", "RISK", "AUDITOR", "ADMIN", "SYSTEM" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "id", "name", "roles" ],
+        "type" : "object"
+      },
       "PfeAddOnView" : {
         "properties" : {
           "calibrated" : {
@@ -8880,6 +8899,12 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "personas" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PersonaView"
+            },
+            "type" : [ "array", "null" ]
           },
           "version" : {
             "type" : "string"

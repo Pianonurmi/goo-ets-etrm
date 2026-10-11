@@ -16,7 +16,11 @@ data class UiConfigView(
     val environment: String,
     val version: String,
     val demo: Boolean,
+    /** Personas the user can act as (development headers only); absent with real sign-in. */
+    val personas: List<PersonaView>?,
 )
+
+data class PersonaView(val id: String, val name: String, val roles: List<Role>)
 
 data class OidcView(val authority: String, val clientId: String, val scope: String)
 
@@ -48,6 +52,9 @@ class UiController(
         environment = properties.environment,
         version = build.ifAvailable?.version ?: "dev",
         demo = environment.matchesProfiles("demo"),
+        personas = Personas.ALL
+            .takeIf { properties.authMode == UiProperties.AuthMode.DEV_HEADERS }
+            ?.map { PersonaView(it.id, it.name, it.roles.sorted()) },
     )
 
     @GetMapping("/me")
