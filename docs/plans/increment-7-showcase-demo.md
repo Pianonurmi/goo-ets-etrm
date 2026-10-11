@@ -37,8 +37,8 @@ What the code does today:
 |---|---|
 | Visitor login | New `showcase` profile. A session cookie plus a JSON form login on `/api/v1/auth/login`, with CSRF via `csrf().spa()`. Demo users come from `ETRM_DEMO_USERS` (`user:pass,…`, BCrypt-hashed at start) or `ETRM_DEMO_PASSWORD` (user `demo`). Weak passwords are refused at start. The persona travels as `X-Persona: <id>`, and the server resolves its roles from its own catalogue. `X-Actor`/`X-Roles` are ignored. |
 | Persona catalogue | One server-side `Personas.kt`, served in `/api/v1/ui-config`. `DemoUser` and the web read it. This also fixes the risk/risk2 role mismatch. |
-| Seeder without `dev` | A random seed token made per start and kept only in memory. It is accepted only from loopback as `X-Etrm-Seed`, and `DemoClient` adds that one header. The seeder keeps going through the REST API and all of its checks. |
-| Protecting `dev` | `HeaderActorResolver` is gated to dev/test. A `ProfileGuard` (EnvironmentPostProcessor) refuses `dev` combined with `showcase` or `kubernetes`, and `dev` on a non-loopback address unless `ETRM_DEV_ALLOW_REMOTE=true` (set in the local compose). Playwright binds 127.0.0.1. |
+| Seeder without `dev` | A random 256-bit seed token made per start and kept only in memory. `DemoClient` sends it as `X-Etrm-Seed`. The token is the secret; the loopback check is defence in depth and uses the socket address, never forwarded headers. Caddy must not trust client-supplied `X-Forwarded-For` (its default). The seeder keeps going through the REST API and all of its checks. |
+| Protecting `dev` | `HeaderActorResolver` is gated to dev/test. `application-dev.yml` sets `server.address: 127.0.0.1`, so `bootRun`, Vite's proxy and Playwright keep working unchanged. A `ProfileGuard` (EnvironmentPostProcessor) refuses `dev` combined with `showcase` or `kubernetes`, and refuses `dev` on a non-loopback address unless `ETRM_DEV_ALLOW_REMOTE=true` (set only in the local `ops/docker-compose.yml`). |
 | Reset | In showcase, every start wipes all `etrm_*` schemas, then migrates and seeds. It refuses unless `current_database()` equals `ETRM_SHOWCASE_DATABASE`. A reset is a controlled process exit (code 75) and Docker `restart: unless-stopped` brings the app back. A nightly ShedLock job runs at 04:15 Europe/Helsinki. The admin button needs the ADMIN persona and a reason, and is refused within 10 minutes of start. Wiping inside a running app is rejected: caches, jobs mid-run and event publications make it unsafe. |
 | Help renderer | `markdown-to-jsx` with raw HTML disabled, inside the lazy help chunk only. The CSP is untouched. |
 | Tour | A small homegrown component: `@floating-ui/react` (already a Mantine dependency) plus a Mantine Overlay, lazy-loaded. |
@@ -59,10 +59,12 @@ Every milestone ends the same way as before:
   - It maps OpenAPI operation ids to the call sites in `src/`.
   - It fails on any operation that has no caller and is not listed in `api-only.json`, which records a reason for each entry.
 - Persona catalogue (`apps/api/.../config/Personas.kt`) sent in `ui-config`. `personas.ts` reads it, with the static list kept as a test fixture.
-- `HeaderActorResolver` limited to dev/test, `ProfileGuard`, and Playwright `--server.address=127.0.0.1`.
+- `HeaderActorResolver` limited to dev/test; `server.address: 127.0.0.1` in `application-dev.yml`; `ProfileGuard`.
 
 ### M0b: Design system and app shell (ADR 0034)
 Comes before every new screen in this increment, so the login page, help, tours and new actions are built on it.
+
+**Approval gate:** implementation pauses after the design board until the brand and tokens are approved.
 
 **Brand proposal**
 - Product name, SVG wordmark and logo mark, favicon, palette and type scale.
@@ -94,6 +96,7 @@ Comes before every new screen in this increment, so the login page, help, tours 
   - "My work" from the inbox;
   - recent activity.
 - Charts with Mantine charts and recharts, both already in the bundle.
+- Backend: one summary endpoint per role (`GET /api/v1/home/summary`) that aggregates existing queries with entity scope, so the home page needs one call. OpenAPI snapshot updated.
 
 **Guards**
 - Tokens and components documented in `docs/ui/design-system.md` with a screenshot board.
@@ -121,12 +124,12 @@ Comes before every new screen in this increment, so the login page, help, tours 
 
 **Web**
 - `session.ts` gets a SHOWCASE branch: a 401 from `/me` leads to the login page; `X-Persona` and `X-XSRF-TOKEN` headers are sent.
-- A lazy `LoginPage`, a teal DEMO banner, `PersonaMenu` shown in showcase, and a user menu with the login name and Sign out.
+- A lazy `LoginPage` with a short explanation: personas, the shared sandbox (other visitors see your changes), the nightly reset, and that all companies, counterparties and prices are fictitious. A teal DEMO banner, `PersonaMenu` shown in showcase, and a user menu with the login name and Sign out.
 - A "Preparing demo data… step x/y" overlay while seeding.
 
 **Tests**
 - `ShowcaseSecurityIT`: CSRF is required; `X-Actor` is ignored; an unknown persona gets 403; 429 after 5 failures; the seed token is refused off loopback.
-- Playwright `showcase` project (`e2e/showcase.spec.ts`): log in, capture as trader, switch persona, approve as middle; axe on the login page.
+- Playwright `showcase` project (`e2e/showcase.spec.ts`) on its own database `etrm_showcase_e2e` (added to `ops/postgres-init.sql`), run after the default project since both use one worker: log in, capture as trader, switch persona, approve as middle; wrong password then lockout; axe on the login page.
 
 ### M2: Seeder restructure
 - `DemoStep(name, run(DemoContext))` steps in an ordered `DemoPlan`, with `DemoContext` carrying `DemoCalendar` and the ids created so far.
@@ -171,8 +174,10 @@ Six months of history, with all dates relative to today (`DemoCalendar`). The or
 | Inbox | At least 1 actionable task for every persona (asserted in the IT) |
 
 Targets:
-- The seed runs in under 120 s on 2 vCPUs, measured in the IT.
+- The seed runs in under 120 s on 2 vCPUs, measured in the IT. If the full dataset cannot meet that, the nightly window simply takes longer (readiness stays down, Caddy shows the maintenance page) and the admin reset dialog states the expected duration. Fallback if it grows past about 5 minutes: wipe-on-start restores a `pg_dump` taken after the last good seed, and only the nightly job runs the seeder.
 - The IT asserts counts per area.
+
+**Spike first (start of M3, before the dataset is promised):** confirm with small ITs that the backend accepts what the dataset needs: back-dated valuation runs (`asOf`), period-end runs and GL exports for past months, hard close with its blocker checklist, which trade family and instrument combinations `TradeValidation` allows, and index-priced trades with fixings. Trim the dataset table to what passes.
 
 Risk: business dates in the past against records stamped today. Do every business event first, then close months last, oldest first.
 
@@ -238,7 +243,28 @@ Reuse `Can`, `permissions.ts`, `ReasonModal`, `uploadText`, `ProblemAlert` and `
 
 `api-only.json` shrinks to the operations that should stay API-only, each with its reason, also listed in `docs/ui/screens.md`. One example is `registry_surrender`: the UI goes through the ETS surrender request, which carries attribution. Playwright and axe cover each area.
 
-### M9: In-app help manual
+### M9: Screen-by-screen design pass
+Runs before the help, tours and screenshots, so the help text, tour anchors and pictures describe the final screens. Every screen in `docs/ui/screens.md` moves to the M0b components and patterns:
+- page headers;
+- KPI strips on overview pages: trades, positions, allocation, risk, ETS, settlement, month end;
+- detail pages using `DetailLayout`, with timelines for lifecycles (trade, instruction, invoice, plan);
+- empty states and skeleton loaders;
+- consistent number formats and status colours;
+- forms in sections with inline help;
+- charts where they explain more than a table: expiry ladder, coverage, P&L explain, ageing, ETS compliance.
+
+Method:
+- Before/after screenshots for every screen, from the screenshot spec (M12) run early, reviewed by eye.
+- A short heuristic checklist per screen:
+  - the primary action is obvious;
+  - the most important figure is first;
+  - no more than one dense grid above the fold;
+  - errors are actionable;
+  - it works at 1280 px and on a tablet.
+
+Tests: existing Playwright selectors kept stable (`data-testid`), so the e2e suite stays green; axe in both modes.
+
+### M10: In-app help manual
 - `docs/user-guide/*.md` is the single source (one page per area, plus the glossary from `docs/glossary.md`).
 - Each page becomes a lazy chunk via `import.meta.glob(..., {query: '?raw'})`.
 - Images:
@@ -251,7 +277,7 @@ Reuse `Can`, `permissions.ts`, `ReasonModal`, `uploadText`, `ProblemAlert` and `
 - Help search in `CommandPalette` from a build-time `help-index.json`.
 - An image size check: each image at most 300 kB, all images at most 12 MB.
 
-### M10: Tutorial and demo guide
+### M11: Tutorial and demo guide
 - Under `shared/tour/` (lazy):
   - **`TourHost`:** finds the anchor through `MutationObserver` and `data-tour` attributes; spotlight plus overlay; a floating popover with `role=dialog`, focus trap, Esc and arrow keys; a "Switch to <persona>" button when a step needs a different persona; a centred fallback with Skip when the anchor is missing.
   - **Progress:** kept in localStorage.
@@ -272,28 +298,7 @@ Reuse `Can`, `permissions.ts`, `ReasonModal`, `uploadText`, `ProblemAlert` and `
 - Welcome modal on first login: personas, four eyes, the nightly reset; Start orientation, Open guide or Skip.
 - Playwright runs every tour to the end as the right personas; axe on an open tour step.
 
-### M10b: Screen-by-screen design pass
-Every screen in `docs/ui/screens.md` moves to the M0b components and patterns:
-- page headers;
-- KPI strips on overview pages: trades, positions, allocation, risk, ETS, settlement, month end;
-- detail pages using `DetailLayout`, with timelines for lifecycles (trade, instruction, invoice, plan);
-- empty states and skeleton loaders;
-- consistent number formats and status colours;
-- forms in sections with inline help;
-- charts where they explain more than a table: expiry ladder, coverage, P&L explain, ageing, ETS compliance.
-
-Method:
-- Before/after screenshots for every screen, from the M11 spec run early, reviewed by eye.
-- A short heuristic checklist per screen:
-  - the primary action is obvious;
-  - the most important figure is first;
-  - no more than one dense grid above the fold;
-  - errors are actionable;
-  - it works at 1280 px and on a tablet.
-
-Tests: existing Playwright selectors kept stable (`data-testid`), so the e2e suite stays green; axe in both modes.
-
-### M11: Screenshots, user guide and README
+### M12: Screenshots, user guide and README
 - `apps/web/e2e/docs/screenshots.spec.ts`, in a separate Playwright `docs` project:
   - It runs the jar with `showcase,demo` on database `etrm_docs` (added to `ops/postgres-init.sql`).
   - It logs in properly, so no dev banner appears.
@@ -318,7 +323,7 @@ Tests: existing Playwright selectors kept stable (`data-testid`), so the e2e sui
   - Security notes: the showcase threat model, shared personas, the shared-data caveat.
   - The roadmap.
 
-### M12: Deck and close
+### M13: Deck and close
 - `docs/presentation/outline.md`: 10 slides, each with content, speaker notes and image names.
   The deck uses the M0b brand: name, logo, palette and type.
 
@@ -335,6 +340,19 @@ Tests: existing Playwright selectors kept stable (`data-testid`), so the e2e sui
 - Build the slide artifact from it with embedded screenshots, exportable to PPTX/PDF, and link it from the README.
 - Roadmap: increment 7 delivered.
 - Final redeploy on the VPS. Smoke test as a fresh visitor: welcome modal, the orientation tour, one full scenario.
+
+## Minimum before the first external visitors
+
+M0 to M9 plus the screenshots of M12. Help, tours and the deck can follow while the first visitors already use the demo. The roadmap row stays "in progress" until M13.
+
+## Accepted risks
+
+- **Shared sandbox.** Every visitor can pick the ADMIN persona and change shared data until the nightly reset. The reset cooldown, the reset-user allowlist and the login notice limit the damage. Any crash or redeploy also resets the data.
+- **Write abuse.** A visitor could script thousands of trades. There is no write throttle; the nightly reset and `mem_limit` contain it. A per-session write limit is an option if it happens.
+- **Audit identity.** The audit trail records the persona, not the visitor's login; the login is only in the access log and MDC. Two visitors acting as the same persona count as one person for four-eyes checks. Both are stated in the guide.
+- **Plain HTTP on the IP.** The password travels unencrypted until a domain is set. The deploy guide says so.
+- **Seed duration.** See M3: a long seed means a longer maintenance window, not a failed demo.
+- **Scope.** Fourteen milestones with a full CI run (about 25 minutes) between pushes. The milestone order puts the deployable demo first.
 
 ## Critical files
 
