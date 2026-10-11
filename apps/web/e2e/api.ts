@@ -89,13 +89,13 @@ export async function captureDemoTrade(
 }
 
 /**
- * A demo GoO sale to Aurora, approved, confirmed and delivered today, so it waits as an open settlement item;
- * returns the trade id and number.
+ * A demo GoO sale to Aurora, approved by `middle2` and confirmed by back office, so its delivery is open; returns
+ * the trade id, number and delivery schedule.
  */
-export async function deliveredDemoSale(
+export async function confirmedDemoSale(
   request: APIRequestContext,
   quantity = 80,
-): Promise<{ tradeId: string; tradeNumber: string }> {
+): Promise<{ tradeId: string; tradeNumber: string; scheduleId: string }> {
   const { tradeId, taskId } = await captureDemoTrade(request, quantity);
   await asPersona(request, 'middle2', 'MIDDLE_OFFICE').post(`/api/v1/workflow/tasks/${taskId}/approve`, {});
   const backOffice = asPersona(request, 'backoffice', 'BACK_OFFICE,REGISTRY_OPERATOR');
@@ -105,12 +105,25 @@ export async function deliveredDemoSale(
   );
   const scheduleId = trade.legs[0]?.deliveries[0]?.id;
   if (!scheduleId) throw new Error(`Trade ${tradeId} has no delivery schedule`);
+  return { tradeId, tradeNumber: trade.tradeNumber, scheduleId };
+}
+
+/**
+ * A demo GoO sale to Aurora, approved, confirmed and delivered today, so it waits as an open settlement item;
+ * returns the trade id and number.
+ */
+export async function deliveredDemoSale(
+  request: APIRequestContext,
+  quantity = 80,
+): Promise<{ tradeId: string; tradeNumber: string }> {
+  const { tradeId, tradeNumber, scheduleId } = await confirmedDemoSale(request, quantity);
+  const backOffice = asPersona(request, 'backoffice', 'BACK_OFFICE,REGISTRY_OPERATOR');
   await backOffice.post(`/api/v1/trades/${tradeId}/deliveries`, {
     scheduleId,
     quantity,
     deliveredOn: new Date().toISOString().slice(0, 10),
   });
-  return { tradeId, tradeNumber: trade.tradeNumber };
+  return { tradeId, tradeNumber };
 }
 
 interface DraftInvoice {

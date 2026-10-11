@@ -37,3 +37,20 @@ export function useAllowanceProducts() {
   const { data } = $api.useQuery('get', '/api/v1/products/allowances', {}, { staleTime: Infinity });
   return data ?? [];
 }
+
+/** Active futures contracts, optionally of one allowance product. */
+export function useFuturesContracts(enabled: boolean) {
+  const { data } = $api.useQuery(
+    'get',
+    '/api/v1/products/futures-contracts',
+    { params: { query: { activeOnly: true } } },
+    { enabled, staleTime: 5 * 60_000 },
+  );
+  return data ?? [];
+}
+
+/** Price indices an index-priced leg can refer to. */
+export function usePriceIndices(enabled: boolean) {
+  const { data } = $api.useQuery('get', '/api/v1/market-data/indices', {}, { enabled, staleTime: 5 * 60_000 });
+  return useMemo(() => (data ?? []).filter((index) => index.active), [data]);
+}

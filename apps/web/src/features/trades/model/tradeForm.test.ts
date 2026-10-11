@@ -1,5 +1,21 @@
 import { diffVersions } from './diff';
-import { emptyTrade, fromTrade, toAmendTrade, toCaptureTrade, validateTrade, type TradeView } from './tradeForm';
+import {
+  brokersOf,
+  counterpartiesFor,
+  emptyTrade,
+  fromTrade,
+  isIntercompany,
+  toAmendTrade,
+  toCaptureTrade,
+  validateTrade,
+  withFuture,
+  type FuturesContract,
+  type TradeView,
+} from './tradeForm';
+
+type Counterparty = Parameters<typeof brokersOf>[0][number];
+const party = (code: string, counterpartyType: Counterparty['counterpartyType'], linked?: string) =>
+  ({ id: code, code, counterpartyType, linkedLegalEntityId: linked ?? null }) as unknown as Counterparty;
 
 describe('trade form', () => {
   it('builds a capture request with decimals as strings and family-specific legs', () => {
@@ -41,7 +57,7 @@ describe('trade form', () => {
   });
 
   it('validates required fields, numbers and windows', () => {
-    const errors = validateTrade(emptyTrade('2026-10-10'), true);
+    const errors = validateTrade(emptyTrade('2026-10-10'), { amend: true, intercompany: false });
     expect(errors).toMatchObject({
       bookId: 'Required',
       counterpartyId: 'Required',
@@ -50,7 +66,76 @@ describe('trade form', () => {
     });
     const values = emptyTrade('2026-10-10');
     values.legs[0]!.deliveries[0]!.endExclusive = '2026-01-01';
-    expect(validateTrade(values, false)['legs.0.deliveries.0.endExclusive']).toBeDefined();
+    expect(
+      validateTrade(values, { amend: false, intercompany: false })['legs.0.deliveries.0.endExclusive'],
+    ).toBeDefined();
+  });
+
+  it('sends an index-priced leg with its index and the spread as price', () => {
+    const values = emptyTrade('2026-10-10');
+    values.legs[0] = { ...values.legs[0]!, priceType: 'INDEX', priceIndex: '', quantity: '100', price: '0.15' };
+    expect(validateTrade(values, { amend: false, intercompany: false })['legs.0.priceIndex']).toBe('Required');
+    values.legs[0].priceIndex = 'GOO_NORDIC_HYDRO_IDX';
+    expect(toCaptureTrade(values, 'e1').legs[0]).toMatchObject({
+      priceType: 'INDEX',
+      priceIndex: 'GOO_NORDIC_HYDRO_IDX',
+      futuresContractCode: null,
+    });
+  });
+
+  it('takes the product, currency and single delivery of a future from its contract', () => {
+    const contract = {
+      code: 'EUA-DEC27',
+      allowanceProductCode: 'EUA',
+      currency: 'EUR',
+      deliveryDate: '2027-12-20',
+      contractSize: 1000,
+      venueMic: 'XEEE',
+    } as FuturesContract;
+    const values = {
+      ...emptyTrade('2026-10-10'),
+      productFamily: 'EMISSION_ALLOWANCE' as const,
+      instrumentType: 'FUTURE' as const,
+    };
+    expect(validateTrade(values, { amend: false, intercompany: false })['legs.0.futuresContractCode']).toBe('Required');
+    values.legs[0] = withFuture({ ...values.legs[0]!, quantity: '5000', priceType: 'INDEX' }, contract);
+    const leg = toCaptureTrade(values, 'e1').legs[0];
+    expect(JSON.parse(JSON.stringify(leg))).toMatchObject({
+      futuresContractCode: 'EUA-DEC27',
+      allowanceProductCode: 'EUA',
+      priceType: 'FIXED',
+      deliveries: [
+        {
+          deliveryDate: '2027-12-20',
+          quantity: '5000',
+          deliveryWindow: { start: '2027-12-20', endExclusive: '2027-12-21' },
+        },
+      ],
+    });
+  });
+
+  it('offers counterparties by instrument and needs a mirror book for an intercompany trade', () => {
+    const list = [
+      party('CP-A', 'EXTERNAL'),
+      party('CP-ICE', 'EXCHANGE'),
+      party('CP-BRK', 'BROKER'),
+      party('DEMO-SE', 'INTERCOMPANY', 'se'),
+    ];
+    expect(counterpartiesFor(list, 'FUTURE').map((c) => c.code)).toEqual(['CP-ICE']);
+    expect(counterpartiesFor(list, 'FORWARD').map((c) => c.code)).toEqual(['CP-A', 'CP-ICE', 'DEMO-SE']);
+    expect(brokersOf(list).map((c) => c.code)).toEqual(['CP-BRK']);
+    expect(isIntercompany(list[3])).toBe(true);
+    expect(isIntercompany(list[0])).toBe(false);
+    const values = emptyTrade('2026-10-10');
+    expect(validateTrade(values, { amend: false, intercompany: true }).mirrorBookId).toBe('Required');
+    expect(validateTrade(values, { amend: true, intercompany: true }).mirrorBookId).toBeUndefined();
+    values.mirrorBookId = 'se-book';
+    values.brokerId = 'CP-BRK';
+    expect(toCaptureTrade(values, 'e1')).toMatchObject({
+      mirrorBookId: 'se-book',
+      brokerId: 'CP-BRK',
+      masterAgreementRef: null,
+    });
   });
 
   it('round-trips an existing trade into an amendment', () => {

@@ -27,10 +27,12 @@ import { Can, useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime, formatDecimal, formatMoney } from '@/shared/format/format';
 import { useBooks, useCounterparties } from './hooks';
 import { diffVersions } from './model/diff';
 import type { TradeView } from './model/tradeForm';
+import { CheckLimitsButton, DeliveryActions, SettleButton, TradeDocuments } from './TradeOperations';
 import { TradeStatusBadge } from './TradeStatusBadge';
 
 const OPEN = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED', 'PARTIALLY_DELIVERED'];
@@ -91,6 +93,8 @@ function Lifecycle({ trade }: { trade: TradeView }) {
 
   return (
     <Group>
+      <SettleButton trade={trade} />
+      <CheckLimitsButton trade={trade} />
       {approvalTask && (
         <Button
           component={Link}
@@ -176,6 +180,14 @@ function Legs({ trade }: { trade: TradeView }) {
           </Group>
           <SimpleGrid cols={{ base: 2, md: 4 }} mb="sm">
             <Field label={t('trades.columns.product')}>{leg.allowanceProductCode ?? leg.criteriaSummary}</Field>
+            <Field label={t('trades.form.priceType')}>
+              {leg.priceType === 'INDEX'
+                ? t('trades.ops.indexPrice', { index: leg.priceIndex ?? '', spread: formatDecimal(leg.price, 2, 6) })
+                : t('trades.form.fixed')}
+            </Field>
+            {leg.futuresContractCode && (
+              <Field label={t('trades.form.futuresContract')}>{leg.futuresContractCode}</Field>
+            )}
             <Field label={t('trades.bucket')}>
               {leg.bucketCode ? `${leg.bucketCode} (${leg.bucketMatch ?? ''})` : null}
             </Field>
@@ -192,6 +204,7 @@ function Legs({ trade }: { trade: TradeView }) {
                 <Table.Th ta="right">{t('trades.scheduled')}</Table.Th>
                 <Table.Th ta="right">{t('trades.delivered')}</Table.Th>
                 <Table.Th>{t('trades.columns.status')}</Table.Th>
+                <Table.Th />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -203,7 +216,12 @@ function Legs({ trade }: { trade: TradeView }) {
                   <Table.Td>{formatDate(delivery.deliveryDate)}</Table.Td>
                   <Table.Td ta="right">{formatDecimal(delivery.quantity, 0, 3)}</Table.Td>
                   <Table.Td ta="right">{formatDecimal(delivery.deliveredQuantity, 0, 3)}</Table.Td>
-                  <Table.Td>{delivery.status}</Table.Td>
+                  <Table.Td>
+                    <StatusBadge status={delivery.status} />
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <DeliveryActions trade={trade} leg={leg} schedule={delivery} />
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -459,6 +477,17 @@ export function TradeDetailPage() {
                       {data.notional != null ? formatMoney(data.notional, data.legs[0]?.priceCurrency) : null}
                     </Field>
                     <Field label={t('trades.columns.externalRef')}>{data.externalRef}</Field>
+                    <Field label={t('trades.form.broker')}>
+                      {data.brokerId ? (counterparties.byId.get(data.brokerId)?.name ?? data.brokerId) : null}
+                    </Field>
+                    <Field label={t('trades.form.masterAgreement')}>{data.masterAgreementRef}</Field>
+                    {data.intercompanyLinkId && (
+                      <Field label={t('trades.ops.intercompany')}>
+                        <Badge variant="light" color="grape" data-testid="intercompany">
+                          {t('trades.ops.mirrored')}
+                        </Badge>
+                      </Field>
+                    )}
                     <Field label="UTI">{data.regulatory?.uti ?? null}</Field>
                     <Field label={t('trades.approved')}>
                       {data.approvedBy ? `${data.approvedBy} · ${formatDateTime(data.approvedAt)}` : null}
@@ -488,6 +517,9 @@ export function TradeDetailPage() {
                     <Tabs.Tab value="versions">{t('trades.tabs.versions')}</Tabs.Tab>
                     <Tabs.Tab value="confirmations">{t('trades.tabs.confirmations')}</Tabs.Tab>
                     <Tabs.Tab value="mtm">{t('trades.tabs.mtm')}</Tabs.Tab>
+                    <Tabs.Tab value="documents" data-testid="tab-documents">
+                      {t('trades.tabs.documents')}
+                    </Tabs.Tab>
                   </Tabs.List>
                   <Tabs.Panel value="legs" pt="md">
                     <Legs trade={data} />
@@ -500,6 +532,9 @@ export function TradeDetailPage() {
                   </Tabs.Panel>
                   <Tabs.Panel value="mtm" pt="md">
                     <MarkToMarket tradeId={data.id} />
+                  </Tabs.Panel>
+                  <Tabs.Panel value="documents" pt="md">
+                    <TradeDocuments tradeId={data.id} />
                   </Tabs.Panel>
                 </Tabs>
               </Stack>

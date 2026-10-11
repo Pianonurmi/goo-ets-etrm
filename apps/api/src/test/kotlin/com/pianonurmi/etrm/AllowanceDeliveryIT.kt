@@ -11,6 +11,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 /**
  * EU ETS deliveries end to end: an EUA sale delivered through a four-eyes Union Registry instruction to the buyer's
@@ -57,6 +58,22 @@ class AllowanceDeliveryIT {
         asUser("middle-$entityId").post("/api/v1/workflow/tasks/$task/approve").then().statusCode(200)
         asUser("backoffice").body("""{"confirmationRef":"CONF-$tradeId"}""").post("/api/v1/trades/$tradeId/confirm").then().statusCode(200)
         return tradeId
+    }
+
+    @Test
+    fun `only operators of the trade's legal entity transfer allowances, match receipts or read the obligation`() {
+        val s = ApiScenario(port).referenceData()
+        val tradeId = s.confirmedEuaTrade("SELL", 10, "70.00", s.ownUnionAccount(), s.buyerUnionAccount())
+        val scheduleId: String = s.asUser("backoffice").get("/api/v1/trades/$tradeId").then().extract().path("legs[0].deliveries[0].id")
+        val body = """{"scheduleId":"$scheduleId"}"""
+        s.asUser("trader", "TRADER").body(body).post("/api/v1/deliveries/allowances").then().statusCode(403)
+        s.asUser("auditor", "AUDITOR").body(body).post("/api/v1/deliveries/receipts").then().statusCode(403)
+        val elsewhere = UUID.randomUUID().toString()
+        s.asUser("ops", "REGISTRY_OPERATOR").header("X-Entities", elsewhere).body(body).post("/api/v1/deliveries/allowances").then().statusCode(403)
+        s.asUser("scoped", "BACK_OFFICE").header("X-Entities", elsewhere).get("/api/v1/trades/obligations/$scheduleId").then().statusCode(403)
+        s.asUser("scoped", "BACK_OFFICE").header("X-Entities", s.entityId).get("/api/v1/trades/obligations/$scheduleId").then().statusCode(200)
+            .body("remainingQuantity", equalTo(10.0f))
+        s.asUser("backoffice").get("/api/v1/trades/obligations/${UUID.randomUUID()}").then().statusCode(404)
     }
 
     @Test

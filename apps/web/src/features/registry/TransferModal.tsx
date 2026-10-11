@@ -8,6 +8,7 @@ import type { Schema } from '@/shared/api/types';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { formatDecimal } from '@/shared/format/format';
+import { newKey } from '@/shared/ids';
 import { routeSummary } from './model/instructions';
 
 type Lot = Schema<'LotView'>;
@@ -41,7 +42,7 @@ export function TransferModal({ entityId, lot, onClose }: { entityId: string; lo
   const [quantity, setQuantity] = useState<number | ''>('');
   const [toRegistry, setToRegistry] = useState<string | null>(lot?.registryCode ?? null);
   const [toAccount, setToAccount] = useState('');
-  const [key] = useState(() => `manual-${crypto.randomUUID()}`);
+  const [key] = useState(() => newKey('manual'));
   const lots = $api.useQuery(
     'get',
     '/api/v1/inventory/lots',

@@ -1,4 +1,4 @@
-import { Button, Group, MultiSelect, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Group, MultiSelect, Select, Stack, Tabs, Text, TextInput } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { IconPlus, IconSearch } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
@@ -14,6 +14,7 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDecimal, formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useBooks, useCounterparties } from './hooks';
+import { ObligationsPanel } from './ObligationsPanel';
 import { TradeStatusBadge } from './TradeStatusBadge';
 
 type Row = Schema<'TradeSummaryView'>;
@@ -32,7 +33,7 @@ const STATUSES: Status[] = [
   'DISPUTED',
 ];
 
-/** Trade blotter: one query per page (`trade_search`), filters in the URL, newest first. */
+/** Trade blotter (one query per page, `trade_search`, filters in the URL, newest first) and open deliveries. */
 export function TradesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -44,6 +45,7 @@ export function TradesPage() {
   const [q] = useDebouncedValue(text.trim(), 300);
   const statuses = params.getAll('status') as Status[];
   const family = (params.get('family') ?? null) as Family | null;
+  const view = params.get('view') === 'deliveries' ? 'deliveries' : 'blotter';
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
 
@@ -71,7 +73,7 @@ export function TradesPage() {
       },
     },
     {
-      enabled: Boolean(entity),
+      enabled: Boolean(entity) && view === 'blotter',
       initialPageParam: null as string | null,
       getNextPageParam: (page) => page.nextCursor ?? undefined,
       pageParamName: 'cursor',
@@ -146,77 +148,90 @@ export function TradesPage() {
           </Can>
         }
       />
-      <Group align="flex-end">
-        <TextInput
-          label={t('trades.search')}
-          placeholder={t('trades.searchHint')}
-          leftSection={<IconSearch size={14} />}
-          value={text}
-          onChange={(event) => {
-            setText(event.currentTarget.value);
-            set('q', [event.currentTarget.value.trim()]);
-          }}
-          w={260}
-          data-testid="trade-search"
-        />
-        <MultiSelect
-          label={t('trades.columns.status')}
-          data={STATUSES.map((status) => ({ value: status, label: status.replace(/_/g, ' ') }))}
-          value={statuses}
-          onChange={(value) => set('status', value)}
-          placeholder={t('trades.allStatuses')}
-          clearable
-          w={320}
-        />
-        <Select
-          label={t('trades.family')}
-          data={[
-            { value: 'GUARANTEE_OF_ORIGIN', label: t('trades.families.GUARANTEE_OF_ORIGIN') },
-            { value: 'EMISSION_ALLOWANCE', label: t('trades.families.EMISSION_ALLOWANCE') },
-          ]}
-          value={family}
-          onChange={(value) => set('family', value ? [value] : [])}
-          placeholder={t('trades.allFamilies')}
-          clearable
-          w={200}
-        />
-        <TextInput
-          type="date"
-          label={t('trades.from')}
-          value={from}
-          onChange={(e) => set('from', [e.currentTarget.value])}
-          w={160}
-        />
-        <TextInput
-          type="date"
-          label={t('trades.to')}
-          value={to}
-          onChange={(e) => set('to', [e.currentTarget.value])}
-          w={160}
-        />
-      </Group>
-      <QueryState isPending={search.isPending && Boolean(entity)} error={search.error}>
-        <DataGrid<Row>
-          rowData={rows}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          onRowClicked={(event) => {
-            if (event.data) void navigate(`/trades/${event.data.id}`);
-          }}
-          overlayNoRowsTemplate={t('common.empty')}
-          height={600}
-        />
-        <Group justify="space-between">
-          <Text size="sm" c="dimmed">
-            {t('trades.shown', { count: rows.length })}
-          </Text>
-          {search.hasNextPage && (
-            <Button variant="light" loading={search.isFetchingNextPage} onClick={() => void search.fetchNextPage()}>
-              {t('inbox.loadMore')}
-            </Button>
-          )}
-        </Group>
-      </QueryState>
+      <Tabs value={view} onChange={(value) => set('view', value === 'deliveries' ? ['deliveries'] : [])}>
+        <Tabs.List>
+          <Tabs.Tab value="blotter">{t('trades.ops.blotter')}</Tabs.Tab>
+          <Tabs.Tab value="deliveries" data-testid="tab-deliveries">
+            {t('trades.ops.openDeliveries')}
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+      {view === 'deliveries' && entity && <ObligationsPanel entityId={entity.id} />}
+      {view === 'blotter' && (
+        <>
+          <Group align="flex-end">
+            <TextInput
+              label={t('trades.search')}
+              placeholder={t('trades.searchHint')}
+              leftSection={<IconSearch size={14} />}
+              value={text}
+              onChange={(event) => {
+                setText(event.currentTarget.value);
+                set('q', [event.currentTarget.value.trim()]);
+              }}
+              w={260}
+              data-testid="trade-search"
+            />
+            <MultiSelect
+              label={t('trades.columns.status')}
+              data={STATUSES.map((status) => ({ value: status, label: status.replace(/_/g, ' ') }))}
+              value={statuses}
+              onChange={(value) => set('status', value)}
+              placeholder={t('trades.allStatuses')}
+              clearable
+              w={320}
+            />
+            <Select
+              label={t('trades.family')}
+              data={[
+                { value: 'GUARANTEE_OF_ORIGIN', label: t('trades.families.GUARANTEE_OF_ORIGIN') },
+                { value: 'EMISSION_ALLOWANCE', label: t('trades.families.EMISSION_ALLOWANCE') },
+              ]}
+              value={family}
+              onChange={(value) => set('family', value ? [value] : [])}
+              placeholder={t('trades.allFamilies')}
+              clearable
+              w={200}
+            />
+            <TextInput
+              type="date"
+              label={t('trades.from')}
+              value={from}
+              onChange={(e) => set('from', [e.currentTarget.value])}
+              w={160}
+            />
+            <TextInput
+              type="date"
+              label={t('trades.to')}
+              value={to}
+              onChange={(e) => set('to', [e.currentTarget.value])}
+              w={160}
+            />
+          </Group>
+          <QueryState isPending={search.isPending && Boolean(entity)} error={search.error}>
+            <DataGrid<Row>
+              rowData={rows}
+              columnDefs={columns}
+              rowId={(row) => row.id}
+              onRowClicked={(event) => {
+                if (event.data) void navigate(`/trades/${event.data.id}`);
+              }}
+              overlayNoRowsTemplate={t('common.empty')}
+              height={600}
+            />
+            <Group justify="space-between">
+              <Text size="sm" c="dimmed">
+                {t('trades.shown', { count: rows.length })}
+              </Text>
+              {search.hasNextPage && (
+                <Button variant="light" loading={search.isFetchingNextPage} onClick={() => void search.fetchNextPage()}>
+                  {t('inbox.loadMore')}
+                </Button>
+              )}
+            </Group>
+          </QueryState>
+        </>
+      )}
     </Stack>
   );
 }

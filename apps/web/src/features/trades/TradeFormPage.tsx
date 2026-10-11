@@ -2,6 +2,7 @@ import {
   ActionIcon,
   Alert,
   Anchor,
+  Autocomplete,
   Button,
   Card,
   Divider,
@@ -30,17 +31,29 @@ import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
 import { applyProblemToForm } from '@/shared/forms/applyProblemToForm';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
-import { useAllowanceProducts, useBooks, useCounterparties, useEntityAccounts } from './hooks';
 import {
+  useAllowanceProducts,
+  useBooks,
+  useCounterparties,
+  useEntityAccounts,
+  useFuturesContracts,
+  usePriceIndices,
+} from './hooks';
+import {
+  brokersOf,
+  counterpartiesFor,
   emptyDelivery,
   emptyLeg,
   emptyTrade,
   FORM_FIELDS,
   fromTrade,
+  isIntercompany,
   toAmendTrade,
   toCaptureTrade,
   unitOf,
   validateTrade,
+  withFuture,
+  type InstrumentType,
   type ProductFamily,
   type TradeFormValues,
   type TradeView,
@@ -65,8 +78,21 @@ function TradeForm({ existing }: { existing?: TradeView }) {
 
   const form = useForm<TradeFormValues>({
     initialValues: existing ? fromTrade(existing) : emptyTrade(today),
-    validate: (values) => validateTrade(values, amending),
+    validate: (values) =>
+      validateTrade(values, {
+        amend: amending,
+        intercompany: isIntercompany(counterparties.byId.get(values.counterpartyId)),
+      }),
   });
+  const instrument = form.values.instrumentType;
+  const future = instrument === 'FUTURE';
+  const counterparty = counterparties.byId.get(form.values.counterpartyId);
+  const intercompany = isIntercompany(counterparty);
+  const mirrorBooks = useBooks(
+    intercompany && !amending ? (counterparty?.linkedLegalEntityId ?? undefined) : undefined,
+  );
+  const contracts = useFuturesContracts(future);
+  const indices = usePriceIndices(!future);
   const capture = $api.useMutation('post', '/api/v1/trades', { meta: { notify: false } });
   const amend = $api.useMutation('put', '/api/v1/trades/{id}', { meta: { notify: false } });
   const family = form.values.productFamily;
@@ -114,6 +140,23 @@ function TradeForm({ existing }: { existing?: TradeView }) {
     );
   };
 
+  const tradesFuturesWith = (id: string) =>
+    counterpartiesFor(counterparties.list, 'FUTURE').some((candidate) => candidate.id === id);
+  const setInstrument = (next: InstrumentType) => {
+    form.setFieldValue('instrumentType', next);
+    if (next === 'FUTURE') {
+      setFamily('EMISSION_ALLOWANCE');
+      if (!tradesFuturesWith(form.values.counterpartyId)) form.setFieldValue('counterpartyId', '');
+    }
+  };
+  const chooseContract = (index: number, code: string | null) => {
+    const contract = contracts.find((candidate) => candidate.code === code);
+    const leg = form.values.legs[index];
+    if (!contract || !leg) return;
+    form.setFieldValue(`legs.${index}`, withFuture(leg, contract));
+    form.setFieldValue('venueMic', contract.venueMic);
+  };
+
   return (
     <form onSubmit={submit} noValidate>
       <Stack>
@@ -142,15 +185,19 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                 ]}
                 value={family}
                 onChange={(value) => setFamily(value)}
-                disabled={amending}
+                disabled={amending || future}
               />
             </Stack>
             <Select
               label={t('trades.columns.instrument')}
-              data={[...INSTRUMENTS]}
+              data={INSTRUMENTS.map((value) => ({ value, label: t(`trades.instruments.${value}`) }))}
               allowDeselect={false}
               disabled={amending}
+              data-testid="field-instrument"
               {...form.getInputProps('instrumentType')}
+              onChange={(value: string | null) => {
+                if (value) setInstrument(value as InstrumentType);
+              }}
             />
             <Select
               label={t('trades.columns.book')}
@@ -163,7 +210,11 @@ function TradeForm({ existing }: { existing?: TradeView }) {
             />
             <Select
               label={t('trades.columns.counterparty')}
-              data={counterparties.list.map((cp) => ({ value: cp.id, label: `${cp.name} (${cp.code})` }))}
+              data={counterpartiesFor(counterparties.list, instrument).map((cp) => ({
+                value: cp.id,
+                label: `${cp.name} (${cp.code})`,
+              }))}
+              description={future ? t('trades.form.futureCounterparty') : undefined}
               required
               disabled={amending}
               searchable
@@ -178,6 +229,32 @@ function TradeForm({ existing }: { existing?: TradeView }) {
               {...form.getInputProps('trader')}
             />
             <TextInput label={t('trades.columns.externalRef')} {...form.getInputProps('externalRef')} />
+            <Select
+              label={t('trades.form.broker')}
+              description={t('trades.form.brokerHint')}
+              data={brokersOf(counterparties.list).map((cp) => ({ value: cp.id, label: `${cp.name} (${cp.code})` }))}
+              clearable
+              data-testid="field-broker"
+              {...form.getInputProps('brokerId')}
+              onChange={(value: string | null) => form.setFieldValue('brokerId', value ?? '')}
+            />
+            <Autocomplete
+              label={t('trades.form.masterAgreement')}
+              description={t('trades.form.masterAgreementHint')}
+              data={(counterparty?.masterAgreements ?? []).map((agreement) => agreement.reference)}
+              data-testid="field-master-agreement"
+              {...form.getInputProps('masterAgreementRef')}
+            />
+            {intercompany && !amending && (
+              <Select
+                label={t('trades.form.mirrorBook')}
+                description={t('trades.form.mirrorBookHint')}
+                data={mirrorBooks.list.map((book) => ({ value: book.id, label: `${book.code} · ${book.name}` }))}
+                required
+                data-testid="field-mirror-book"
+                {...form.getInputProps('mirrorBookId')}
+              />
+            )}
           </SimpleGrid>
           {family === 'EMISSION_ALLOWANCE' && (
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mt="sm">
@@ -214,9 +291,24 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                   allowDeselect={false}
                   {...form.getInputProps(`legs.${index}.side`)}
                 />
+                {future && (
+                  <Select
+                    label={t('trades.form.futuresContract')}
+                    data={contracts.map((contract) => ({
+                      value: contract.code,
+                      label: `${contract.code} · ${contract.deliveryMonth} · ${contract.venueMic}`,
+                    }))}
+                    required
+                    searchable
+                    data-testid={`leg-${index}-contract`}
+                    {...form.getInputProps(`legs.${index}.futuresContractCode`)}
+                    onChange={(code: string | null) => chooseContract(index, code)}
+                  />
+                )}
                 {family === 'EMISSION_ALLOWANCE' && (
                   <Select
                     label={t('trades.form.allowanceProduct')}
+                    disabled={future}
                     data={allowances.map((product) => ({
                       value: product.code,
                       label: `${product.code} · ${product.name}`,
@@ -231,8 +323,36 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                   data-testid={`leg-${index}-quantity`}
                   {...form.getInputProps(`legs.${index}.quantity`)}
                 />
+                {!future && (
+                  <Stack gap={4}>
+                    <Text size="sm" fw={500}>
+                      {t('trades.form.priceType')}
+                    </Text>
+                    <SegmentedControl
+                      data={[
+                        { value: 'FIXED', label: t('trades.form.fixed') },
+                        { value: 'INDEX', label: t('trades.form.index') },
+                      ]}
+                      data-testid={`leg-${index}-price-type`}
+                      value={leg.priceType}
+                      onChange={(value) => form.setFieldValue(`legs.${index}.priceType`, value)}
+                    />
+                  </Stack>
+                )}
+                {!future && leg.priceType === 'INDEX' && (
+                  <Select
+                    label={t('trades.form.priceIndex')}
+                    data={indices.map((priceIndex) => ({
+                      value: priceIndex.code,
+                      label: `${priceIndex.code} · ${priceIndex.description}`,
+                    }))}
+                    required
+                    data-testid={`leg-${index}-index`}
+                    {...form.getInputProps(`legs.${index}.priceIndex`)}
+                  />
+                )}
                 <TextInput
-                  label={t('trades.columns.price')}
+                  label={!future && leg.priceType === 'INDEX' ? t('trades.form.spread') : t('trades.columns.price')}
                   inputMode="decimal"
                   required
                   data-testid={`leg-${index}-price`}
@@ -242,6 +362,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                   label={t('trades.form.currency')}
                   data={CURRENCIES}
                   allowDeselect={false}
+                  disabled={future}
                   {...form.getInputProps(`legs.${index}.priceCurrency`)}
                 />
                 {family === 'GUARANTEE_OF_ORIGIN' && (
@@ -278,52 +399,66 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                 </Stack>
               )}
               <Divider label={t('trades.form.deliveries')} labelPosition="left" />
-              {leg.deliveries.map((_, d) => (
-                <Group key={d} align="flex-end" wrap="wrap">
-                  <TextInput
-                    type="date"
-                    label={t('trades.form.windowStart')}
-                    {...form.getInputProps(`legs.${index}.deliveries.${d}.start`)}
-                  />
-                  <TextInput
-                    type="date"
-                    label={t('trades.form.windowEnd')}
-                    {...form.getInputProps(`legs.${index}.deliveries.${d}.endExclusive`)}
-                  />
-                  <TextInput
-                    type="date"
-                    label={t('trades.form.deliveryDate')}
-                    {...form.getInputProps(`legs.${index}.deliveries.${d}.deliveryDate`)}
-                  />
-                  <TextInput
-                    label={t('trades.form.quantity', { unit: unitOf(family) })}
-                    inputMode="decimal"
-                    data-testid={`leg-${index}-delivery-${d}-quantity`}
-                    {...form.getInputProps(`legs.${index}.deliveries.${d}.quantity`)}
-                  />
-                  {leg.deliveries.length > 1 && (
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      mb={4}
-                      aria-label={t('criteria.remove')}
-                      onClick={() => form.removeListItem(`legs.${index}.deliveries`, d)}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  )}
+              {future && (
+                <Text size="sm" c="dimmed" data-testid={`leg-${index}-future-delivery`}>
+                  {leg.futuresContractCode
+                    ? t('trades.form.futureDelivery', {
+                        date: leg.deliveries[0]?.deliveryDate ?? '',
+                        size:
+                          contracts.find((contract) => contract.code === leg.futuresContractCode)?.contractSize ?? '',
+                      })
+                    : t('trades.form.futureChooseContract')}
+                </Text>
+              )}
+              {!future &&
+                leg.deliveries.map((_, d) => (
+                  <Group key={d} align="flex-end" wrap="wrap">
+                    <TextInput
+                      type="date"
+                      label={t('trades.form.windowStart')}
+                      {...form.getInputProps(`legs.${index}.deliveries.${d}.start`)}
+                    />
+                    <TextInput
+                      type="date"
+                      label={t('trades.form.windowEnd')}
+                      {...form.getInputProps(`legs.${index}.deliveries.${d}.endExclusive`)}
+                    />
+                    <TextInput
+                      type="date"
+                      label={t('trades.form.deliveryDate')}
+                      {...form.getInputProps(`legs.${index}.deliveries.${d}.deliveryDate`)}
+                    />
+                    <TextInput
+                      label={t('trades.form.quantity', { unit: unitOf(family) })}
+                      inputMode="decimal"
+                      data-testid={`leg-${index}-delivery-${d}-quantity`}
+                      {...form.getInputProps(`legs.${index}.deliveries.${d}.quantity`)}
+                    />
+                    {leg.deliveries.length > 1 && (
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        mb={4}
+                        aria-label={t('criteria.remove')}
+                        onClick={() => form.removeListItem(`legs.${index}.deliveries`, d)}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    )}
+                  </Group>
+                ))}
+              {!future && (
+                <Group>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={() => form.insertListItem(`legs.${index}.deliveries`, emptyDelivery(today))}
+                  >
+                    {t('trades.form.addDelivery')}
+                  </Button>
                 </Group>
-              ))}
-              <Group>
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  leftSection={<IconPlus size={14} />}
-                  onClick={() => form.insertListItem(`legs.${index}.deliveries`, emptyDelivery(today))}
-                >
-                  {t('trades.form.addDelivery')}
-                </Button>
-              </Group>
+              )}
             </Stack>
           </Card>
         ))}

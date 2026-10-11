@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.trade.adapter.rest
 
+import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.trade.api.AmendTrade
 import com.pianonurmi.etrm.trade.api.CaptureTrade
@@ -79,10 +80,15 @@ class TradeController(private val command: TradeCommand, private val query: Trad
     ) =
         query.openObligations(legalEntityId, side, productFamily)
 
+    /** One delivery obligation, within the user's legal entities (through its trade). */
     @GetMapping("/obligations/{scheduleId}")
     fun obligation(
         @PathVariable scheduleId: UUID,
-    ): DeliveryObligationView? = query.obligation(scheduleId)
+    ): DeliveryObligationView {
+        val obligation = query.obligation(scheduleId) ?: throw NotFoundException("DeliverySchedule", scheduleId)
+        query.requireVisibleTrade(obligation.tradeId)
+        return obligation
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

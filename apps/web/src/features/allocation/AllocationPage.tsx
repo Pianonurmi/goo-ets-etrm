@@ -26,6 +26,7 @@ import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { newKey } from '@/shared/ids';
 import { groupLines, type Line } from './model/plan';
 
 type Obligation = Schema<'ObligationView'>;
@@ -230,7 +231,7 @@ export function AllocationPage() {
     [t],
   );
 
-  const body = { holderEntityId: entityId, idempotencyKey: `ui-${crypto.randomUUID()}`, solver };
+  const body = { holderEntityId: entityId, idempotencyKey: newKey('ui'), solver };
   return (
     <Stack>
       <PageHeader

@@ -8,9 +8,9 @@ legal-entity scope; the UI only mirrors them.
 |---|---|---|---|
 | Home | `/` | `ui_me`, `referenceData_legalEntities`, `workflow_inbox` (actionable, first five), `workflow_counts` | everyone |
 | Approval inbox | `/inbox` | `workflow_inbox` (cursor paging, filters in the URL), `workflow_taskTypes`, `workflow_counts`, `workflow_bulk` | candidates of each task type |
-| Trade blotter | `/trades` | `trade_search` (one query per page, keyset cursor, filters and `q` in the URL), `referenceData_counterparties`, `referenceData_books` | everyone in scope |
-| Trade capture and amendment | `/trades/new`, `/trades/:tradeId/amend` | `trade_capture`, `trade_amend`, criteria builder, `referenceData_registryAccounts`, `product_allowances` | TRADER, MIDDLE_OFFICE |
-| Trade detail | `/trades/:tradeId` | `trade_trade`, `trade_versions` (diff per version), `confirmation_forTrade`, `confirmation_issue`, `confirmation_receive` (their terms entered by hand), `valuation_tradeMtm`, `trade_confirm`, `trade_cancel`, link to the approval task | confirm: MIDDLE_OFFICE, BACK_OFFICE; amend/cancel: TRADER, MIDDLE_OFFICE |
+| Trade blotter | `/trades` | `trade_search` (one query per page, keyset cursor, filters and `q` in the URL), `referenceData_counterparties`, `referenceData_books`; tab Open deliveries (`?view=deliveries`): `trade_obligations` | everyone in scope |
+| Trade capture and amendment | `/trades/new`, `/trades/:tradeId/amend` | `trade_capture`, `trade_amend`, criteria builder, `referenceData_registryAccounts`, `product_allowances`, `product_futuresContracts` (futures), `marketData_indices` (index pricing) | TRADER, MIDDLE_OFFICE |
+| Trade detail | `/trades/:tradeId` | `trade_trade`, `trade_versions` (diff per version), `confirmation_forTrade`, `confirmation_issue`, `confirmation_receive` (their terms entered by hand), `valuation_tradeMtm`, `trade_confirm`, `trade_cancel`, link to the approval task, `risk_preTradeCheck` (Check limits), per schedule `trade_recordDelivery`, `delivery_deliverAllowances`, `delivery_matchReceipt` with `trade_obligation`, `trade_settle`, documents tab (`document_forOwner`, `document_document`, `document_verify`) | confirm, record delivery, settle: MIDDLE_OFFICE, BACK_OFFICE; allowance transfer also REGISTRY_OPERATOR; check limits: RISK, MIDDLE_OFFICE, TRADER, AUDITOR; amend/cancel: TRADER, MIDDLE_OFFICE |
 | Confirmations | `/confirmations` (`view` and `counterparty` in the URL) | `confirmation_queue` (the selected entity), `confirmation_receiveCsv` | upload: MIDDLE_OFFICE, BACK_OFFICE; read in scope |
 | Confirmation detail | `/confirmations/:confirmationId` | `confirmation_confirmation`, `confirmation_forTrade`, `document_content` (our PDF), link to the `CONFIRMATION_BREAK` task | override or dispute (inbox): MIDDLE_OFFICE, BACK_OFFICE, never the person who received it |
 | Allocation workbench | `/allocation` | `allocation_obligations`, `allocation_coverage`, `allocation_plans`, `allocation_whatIf` (stores nothing), `allocation_propose` | propose and what-if: TRADER, MIDDLE_OFFICE, BACK_OFFICE |
@@ -79,6 +79,14 @@ legal-entity scope; the UI only mirrors them.
   server's 422 violations onto the fields. Anything it cannot place is listed at the top of the form.
 - Approval runs through the inbox (four eyes): the detail page links to the open `TRADE_APPROVAL` task.
 - Pre-trade findings (credit, limits) are shown as the trade carries them. A finding that needs risk approval is red.
+  Check limits runs them again against today's limits (nothing is stored).
+- The form covers every instrument: a future picks its contract (`withFuture` sets product, currency, venue and the
+  single delivery; only exchanges and clearing houses are offered), a leg priced by index names the index and the
+  price is the spread, a broker and master agreement are optional, and an intercompany counterparty needs the mirror
+  book of the other own entity. The rules are pure functions in `model/tradeForm.ts` with Vitest.
+- Delivery actions per schedule (`model/operations.ts`): record a delivery by hand (with an idempotency key from
+  `shared/ids.ts`, which also works on plain HTTP), transfer allowances through the Union Registry for a fixed-price
+  sale, match a received lot or allowance movement to a purchase; a delivered trade can be marked settled.
 - A GoO sale needs the counterparty's registry account before it can be confirmed. The form says so.
 - The REST guards for recording deliveries, settling and issuing our confirmation require middle or back office.
   Module flows (allocation, registry) are unaffected.
