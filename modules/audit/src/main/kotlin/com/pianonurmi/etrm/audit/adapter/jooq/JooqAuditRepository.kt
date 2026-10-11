@@ -26,7 +26,7 @@ class JooqAuditRepository(private val dsl: DSLContext) : AuditRepository {
         .set(AUDIT_EVENT.AGGREGATE_REF, event.aggregateRef)
         .set(AUDIT_EVENT.CORRELATION_ID, event.correlationId)
         .set(AUDIT_EVENT.PAYLOAD, JSONB.jsonb(Json.mapper.writeValueAsString(event.payload)))
-        .onConflict(AUDIT_EVENT.EVENT_ID)
+        .onConflict(AUDIT_EVENT.EVENT_ID, AUDIT_EVENT.OCCURRED_AT)
         .doNothing()
         .returning()
         .fetchOne()

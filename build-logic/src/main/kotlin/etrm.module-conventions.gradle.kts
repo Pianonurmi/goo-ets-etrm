@@ -84,7 +84,8 @@ if (migrationsDir.asFile.exists()) {
                             name = "org.jooq.meta.postgres.PostgresDatabase"
                             inputSchema = schemaName
                             includes = ".*"
-                            excludes = "flyway_history"
+                            // Monthly partitions (ADR 0030) are reached through their parent table and change with the calendar.
+                            excludes = "flyway_history|.*_p[0-9]{6}|.*_pdefault"
                             isIncludeSystemIndexes = false
                             forcedTypes.addAll(
                                 listOf(
