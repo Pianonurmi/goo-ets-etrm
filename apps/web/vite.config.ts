@@ -33,6 +33,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
+    // CI runners are slower than laptops; the shell test renders the whole app.
+    testTimeout: 15_000,
     coverage: {
       provider: 'v8',
       include: ['src/shared/**', 'src/features/**/model/**'],

@@ -31,7 +31,9 @@ function renderApp() {
 describe('App shell', () => {
   it('signs in as the default persona and shows the dev banner, roles and entity', async () => {
     renderApp();
-    expect(await screen.findByText(/^Good (morning|afternoon|evening), Tia$/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^Good (morning|afternoon|evening), Tia$/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('dev-banner')).toHaveTextContent('TEST environment');
     expect(within(screen.getByTestId('my-roles')).getByText('Trader')).toBeInTheDocument();
     expect(await screen.findByTestId('kpi-tasks')).toHaveTextContent('2');
@@ -41,10 +43,12 @@ describe('App shell', () => {
   it('switches persona and reloads the session', async () => {
     const user = userEvent.setup();
     renderApp();
-    await screen.findByText(/^Good (morning|afternoon|evening), Tia$/);
+    await screen.findByText(/^Good (morning|afternoon|evening), Tia$/, {}, { timeout: 5000 });
     await user.click(screen.getByTestId('persona-menu'));
     await user.click(await screen.findByTestId('persona-middle2'));
-    expect(await screen.findByText(/^Good (morning|afternoon|evening), Max$/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^Good (morning|afternoon|evening), Max$/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(within(screen.getByTestId('my-roles')).getByText('Middle office')).toBeInTheDocument();
   });
 });
