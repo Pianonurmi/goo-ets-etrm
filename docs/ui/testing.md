@@ -5,6 +5,7 @@
 | Pure logic | Vitest | Criteria tree edits, trade form mapping, plan grouping, ladders, limit scopes, deadline calendar, manual journal lines, GL balance parsing, report parameters, history diffs, palette matching, contrast | `src/**/model/*.test.ts`, `src/app/*.test.ts` |
 | Components | Vitest, Testing Library, msw | The shell with a session, the criteria builder against a mocked API | `src/**/*.test.tsx` |
 | Journeys | Playwright against the jar | Each milestone's main journey on demo data, with two personas where four eyes apply | `e2e/*.spec.ts` |
+| Public demo | Playwright `showcase` project | Sign-in page with axe, persona switching under a session, four eyes, sign-out, lockout | `e2e/showcase.spec.ts` |
 | Accessibility and CSP | Playwright with axe | Serious or critical axe findings on the main screens; CSP violations; the CSP header | `e2e/hardening.spec.ts` |
 | Contract | JUnit (`OpenApiSnapshotIT`) | The API matches the committed OpenAPI snapshot the UI is typed from | `apps/api` |
 
@@ -15,12 +16,15 @@ cd apps/web
 npm test                                   # Vitest
 npm run test:coverage                      # with coverage
 ../../gradlew -p ../.. :apps:api:bootJar   # the jar the journeys run against
-npm run e2e                                # Playwright: starts the jar with dev,demo on port 18080
+npm run e2e                                # Playwright: the jar with dev,demo on 18080 and with showcase,demo on 18081
+npx playwright test --project=showcase     # only the public demo journeys (e2e/showcase.spec.ts)
 ```
 
 The journeys need an empty database the first time, so the demo data is created (`etrm_e2e` by default, see
 `E2E_DB_URL`). They change data as they go, for example new trades, limits and taxonomy nodes. Each spec creates what it
-asserts on or reads demo data that no other spec changes. Recreate the database to start again.
+asserts on or reads demo data that no other spec changes. Recreate the database to start again. The `showcase` project
+signs in as `demo` (password `ETRM_DEMO_PASSWORD`, a test default otherwise) on its own database
+(`etrm_showcase_e2e`, see `E2E_SHOWCASE_DB_URL`); `signIn(page)` in `e2e/fixtures.ts` does it through the login page.
 
 ## Writing journeys
 

@@ -21,5 +21,6 @@ data class UiProperties(
         fun origin(): String = URI.create(authority).let { uri -> URI(uri.scheme, null, uri.host, uri.port, null, null, null).toString() }
     }
 
-    enum class AuthMode { OIDC, DEV_HEADERS }
+    /** OIDC: identity provider; DEV_HEADERS: persona headers, no sign-in (dev, test); SHOWCASE: demo sign-in, then personas. */
+    enum class AuthMode { OIDC, DEV_HEADERS, SHOWCASE }
 }

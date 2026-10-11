@@ -5,6 +5,8 @@ import com.pianonurmi.etrm.platform.security.Role
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
 import org.springframework.core.env.Environment
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -31,6 +33,8 @@ data class MeView(
     val legalEntityIds: List<UUID>,
     val allEntities: Boolean,
     val authMode: UiProperties.AuthMode,
+    /** The demo account signed in (showcase), as opposed to the persona it acts as. */
+    val login: String?,
 )
 
 /** Bootstrap endpoints for the web UI: public configuration and the signed-in user. */
@@ -53,7 +57,7 @@ class UiController(
         version = build.ifAvailable?.version ?: "dev",
         demo = environment.matchesProfiles("demo"),
         personas = Personas.ALL
-            .takeIf { properties.authMode == UiProperties.AuthMode.DEV_HEADERS }
+            .takeIf { properties.authMode != UiProperties.AuthMode.OIDC }
             ?.map { PersonaView(it.id, it.name, it.roles.sorted()) },
     )
 
@@ -67,6 +71,9 @@ class UiController(
             legalEntityIds = actor.legalEntityScope.sorted(),
             allEntities = actor.seesAllEntities,
             authMode = properties.authMode,
+            login = SecurityContextHolder.getContext().authentication
+                ?.takeIf { properties.authMode == UiProperties.AuthMode.SHOWCASE && it is UsernamePasswordAuthenticationToken }
+                ?.name,
         )
     }
 }

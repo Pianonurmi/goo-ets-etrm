@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.config
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.web.Personas
 import com.pianonurmi.etrm.web.SpaConfiguration
 import com.pianonurmi.etrm.web.UiProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -12,6 +13,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
 import org.springframework.core.env.Environment
 import org.springframework.http.HttpMethod
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer
@@ -40,7 +42,7 @@ class SecurityConfiguration {
      * UI configuration the browser reads before signing in.
      */
     @Bean
-    @Profile("!dev & !test")
+    @Profile("!dev & !test & !showcase")
     fun resourceServerChain(
         http: HttpSecurity,
         properties: SecurityProperties,
@@ -127,7 +129,7 @@ class SecurityConfiguration {
             ).joinToString("; ")
         }
 
-        private fun browserHeaders(headers: HeadersConfigurer<HttpSecurity>, ui: UiProperties) {
+        fun browserHeaders(headers: HeadersConfigurer<HttpSecurity>, ui: UiProperties) {
             headers.contentSecurityPolicy { it.policyDirectives(contentSecurityPolicy(ui)) }
             headers.referrerPolicy { it.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
             headers.frameOptions { it.deny() }
@@ -159,6 +161,10 @@ class SpringSecurityActorProvider(
 ) : ActorProvider {
     override fun current(): Actor {
         val authentication: Authentication? = SecurityContextHolder.getContext().authentication
+        // The showcase seeder acts as the personas named by the dev headers, through every check a visitor meets.
+        if (authentication is SeedAuthentication) return HeaderActorResolver.resolve() ?: Actor.SYSTEM
+        // A signed-in showcase visitor acts as the persona chosen in the UI (validated by PersonaFilter).
+        if (authentication is UsernamePasswordAuthenticationToken && authentication.isAuthenticated) return showcasePersona()
         if (authentication is JwtAuthenticationToken) {
             val jwt = authentication.token
             val subject = jwt.subject ?: "unknown"
@@ -172,6 +178,14 @@ class SpringSecurityActorProvider(
             )
         }
         return (if (headersAllowed) HeaderActorResolver.resolve() else null) ?: Actor.SYSTEM
+    }
+
+    private fun showcasePersona(): Actor {
+        val attributes = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes()
+            as? org.springframework.web.context.request.ServletRequestAttributes
+        val id = attributes?.request?.getHeader(PersonaFilter.PERSONA_HEADER) ?: PersonaFilter.DEFAULT_PERSONA
+        val persona = Personas.find(id) ?: Personas.byId(PersonaFilter.DEFAULT_PERSONA)
+        return Actor(userId = persona.id, displayName = persona.name, roles = persona.roles, allEntities = true)
     }
 
     private fun entityClaim(jwt: Jwt): Set<String> = when (val raw = jwt.claims[properties.legalEntitiesClaim]) {

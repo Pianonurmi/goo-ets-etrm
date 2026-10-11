@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.demo
 
+import com.pianonurmi.etrm.config.SeedToken
 import com.pianonurmi.etrm.web.Personas
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.MediaType
@@ -23,10 +24,10 @@ enum class DemoUser(val id: String) {
 class DemoRequestFailed(message: String) : RuntimeException(message)
 
 /**
- * Calls the application's own REST API with the dev persona headers (dev and test profiles only), so demo data
- * goes through exactly the checks, events and approvals a user's input would.
+ * Calls the application's own REST API with the persona headers (dev and test profiles, or the showcase with its seed
+ * token), so demo data goes through exactly the checks, events and approvals a user's input would.
  */
-class DemoClient(baseUrl: String) {
+class DemoClient(baseUrl: String, private val seedToken: String? = null) {
     private val client = RestClient.builder()
         .baseUrl(baseUrl)
         .defaultStatusHandler(HttpStatusCode::isError) { request, response ->
@@ -86,6 +87,8 @@ class DemoClient(baseUrl: String) {
     private fun org.springframework.http.HttpHeaders.actAs(user: DemoUser) {
         set("X-Actor", user.id)
         set("X-Roles", user.roles)
+        // Showcase: the in-memory seed token stands in for the dev profile's open door (ADR 0032).
+        seedToken?.let { set(SeedToken.HEADER, it) }
     }
 }
 

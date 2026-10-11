@@ -43,7 +43,10 @@
     "signOut": "Sign out",
     "toggleColorScheme": "Toggle colour scheme",
     "toggleNavigation": "Toggle navigation",
-    "roles": "Roles"
+    "roles": "Roles",
+    "demoBanner": "Public demo: shared with other visitors, reset every night. All companies, counterparties and prices are fictitious.",
+    "account": "Account",
+    "signedInAs": "Signed in as"
   },
   "home": {
     "welcome": "Welcome, {{name}}",
@@ -1605,5 +1608,22 @@
       "buyerAccount": "Buyer account",
       "deliveries": "Deliveries"
     }
+  },
+  "login": {
+    "tagline": "Guarantees of Origin and EU ETS allowances, from trade to ledger",
+    "title": "Sign in to the demo",
+    "username": "User name",
+    "password": "Password",
+    "submit": "Sign in",
+    "required": "Required",
+    "failed": "Sign-in failed",
+    "throttled": "Too many attempts",
+    "expired": "Your session ended. Sign in again to continue.",
+    "aboutTitle": "About this demo",
+    "aboutPersonas": "After signing in you act as one of the personas (trader, middle office, back office, accountant, risk, auditor, admin) and can switch at any time from the top right. Approvals need a second person, so switch to the second persona of the same role to approve.",
+    "aboutShared": "The data is shared: other visitors see what you change.",
+    "aboutReset": "Everything is reset to the example portfolio every night.",
+    "aboutFictitious": "All companies, counterparties, devices, registries and prices are fictitious.",
+    "access": "Ask the person who shared this demo with you for the sign-in details."
   }
 }

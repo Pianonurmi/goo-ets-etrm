@@ -1,0 +1,27 @@
+# Public showcase (ADR 0032): demo sign-in, then personas. Combine with `demo` for the demo data and `json` for logs.
+# Never with `dev`: ProfileGuard refuses it.
+server:
+  # Behind Caddy: Tomcat's RemoteIpValve takes the client address (login throttling) and the scheme (Secure cookies)
+  # from X-Forwarded-For / X-Forwarded-Proto, trusting only private-network proxies (its default list).
+  forward-headers-strategy: native
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        name: ETRM_SESSION
+        http-only: true
+        same-site: lax
+spring:
+  servlet:
+    multipart:
+      max-file-size: 1MB
+      max-request-size: 1MB
+etrm:
+  ui:
+    auth-mode: SHOWCASE
+    environment: ${ETRM_ENVIRONMENT:DEMO}
+  showcase:
+    users: ${ETRM_DEMO_USERS:}
+    password: ${ETRM_DEMO_PASSWORD:}
+  security:
+    public-api-docs: false

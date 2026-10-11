@@ -19,9 +19,19 @@ function InboxBadge() {
   ) : null;
 }
 
-function DevBanner() {
+/** The strip above the header: an unauthenticated dev server, or the shared public demo. */
+function EnvironmentBanner() {
   const { t } = useTranslation();
   const { config } = useSession();
+  if (config.authMode === 'SHOWCASE') {
+    return (
+      <Box bg="var(--mantine-color-teal-filled)" c="white" px="md" h={24} data-testid="demo-banner">
+        <Text size="xs" fw={500} lh="24px" truncate>
+          {t('header.demoBanner')}
+        </Text>
+      </Box>
+    );
+  }
   if (config.authMode !== 'DEV_HEADERS') return null;
   return (
     <Box bg="var(--mantine-color-orange-filled)" c="white" px="md" h={24} data-testid="dev-banner">
@@ -38,7 +48,7 @@ export function AppLayout() {
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
   const sections = visibleSections(me.roles);
-  const banner = config.authMode === 'DEV_HEADERS' ? 24 : 0;
+  const banner = config.authMode === 'OIDC' ? 0 : 24;
   const matches = (path: string) =>
     path === '/' ? location.pathname === '/' : location.pathname === path || location.pathname.startsWith(path + '/');
   // The most specific matching item is active (/market-data/curves, not also /market-data).
@@ -55,7 +65,7 @@ export function AppLayout() {
       padding="md"
     >
       <AppShell.Header>
-        <DevBanner />
+        <EnvironmentBanner />
         <Box h={56}>
           <Header opened={opened} toggle={toggle} />
         </Box>

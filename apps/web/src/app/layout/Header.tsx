@@ -13,10 +13,11 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core';
-import { IconChevronDown, IconLogout, IconMoon, IconSun, IconUserCircle } from '@tabler/icons-react';
+import { IconChevronDown, IconId, IconLogout, IconMoon, IconSun, IconUserCircle } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { signOut } from '@/shared/auth/oidc';
+import { signOutShowcase } from '@/shared/auth/showcase';
 import { choosePersona, currentPersona, personas } from '@/shared/auth/personas';
 import { useSession } from '@/shared/auth/SessionContext';
 import { useEntity } from '@/shared/context/EntityContext';
@@ -64,7 +65,10 @@ function EntitySelect() {
   );
 }
 
-/** Development only: act as a persona; the API reads the X-Actor / X-Roles headers (ADR 0026). */
+/**
+ * Act as a persona: in development the API reads the X-Actor / X-Roles headers (ADR 0026); in the showcase it reads
+ * X-Persona and takes the roles from its own catalogue (ADR 0032).
+ */
 function PersonaMenu() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -112,6 +116,33 @@ function PersonaMenu() {
   );
 }
 
+/** Showcase: who signed in, and sign out. The persona is chosen separately. */
+function ShowcaseUserMenu() {
+  const { t } = useTranslation();
+  const { me } = useSession();
+  return (
+    <Menu position="bottom-end" width={240}>
+      <Menu.Target>
+        <ActionIcon variant="default" size="lg" aria-label={t('header.account')} data-testid="account-menu">
+          <IconId size={18} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t('header.signedInAs')}</Menu.Label>
+        <Box px="sm" pb="xs">
+          <Text size="sm" fw={500} data-testid="account-login">
+            {me.login}
+          </Text>
+        </Box>
+        <Menu.Divider />
+        <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => void signOutShowcase()} data-testid="sign-out">
+          {t('header.signOut')}
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
 function UserMenu() {
   const { t } = useTranslation();
   const { me } = useSession();
@@ -146,6 +177,7 @@ export function Header({ opened, toggle }: { opened: boolean; toggle: () => void
   const { t } = useTranslation();
   const { config } = useSession();
   const dev = config.authMode === 'DEV_HEADERS';
+  const showcase = config.authMode === 'SHOWCASE';
   return (
     <Group h="100%" px="md" justify="space-between" wrap="nowrap">
       <Group gap="sm" wrap="nowrap">
@@ -155,7 +187,7 @@ export function Header({ opened, toggle }: { opened: boolean; toggle: () => void
           {t('app.subtitle')}
         </Text>
         {config.environment && (
-          <Badge color={dev ? 'orange' : 'gray'} variant="light">
+          <Badge color={dev ? 'orange' : showcase ? 'teal' : 'gray'} variant="light">
             {config.environment}
           </Badge>
         )}
@@ -164,7 +196,8 @@ export function Header({ opened, toggle }: { opened: boolean; toggle: () => void
         <PaletteButton />
         <EntitySelect />
         <ColorSchemeToggle />
-        {dev ? <PersonaMenu /> : <UserMenu />}
+        {dev || showcase ? <PersonaMenu /> : <UserMenu />}
+        {showcase && <ShowcaseUserMenu />}
       </Group>
     </Group>
   );

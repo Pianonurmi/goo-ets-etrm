@@ -1,0 +1,20 @@
+# Showcase security chain under test (ShowcaseSecurityIT); small pool as in the other full-context tests.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 10000
+  task:
+    scheduling:
+      pool:
+        size: 1
+etrm:
+  showcase:
+    users: "visitor:correct-horse-battery"
+    password: "demo-password-for-tests"
+  registry:
+    outbox-dir: build/test-registry-outbox
+logging:
+  level:
+    com.pianonurmi.etrm: INFO

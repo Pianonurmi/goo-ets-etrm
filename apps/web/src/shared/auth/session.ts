@@ -2,6 +2,7 @@ import { configureApiAuth } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { accessToken, reauthenticate, startOidc } from './oidc';
 import { currentPersona, personaHeaders, setPersonas } from './personas';
+import { authenticateShowcase, showcaseSessionExpired } from './showcase';
 
 export type UiConfig = Schema<'UiConfigView'>;
 
@@ -12,8 +13,16 @@ export function setDevEntityScope(entities: string[] | null): void {
   entityScope = entities;
 }
 
-/** Reads the public UI configuration and wires credentials into the API client. Resolves false while redirecting. */
-export async function startSession(): Promise<{ config: UiConfig; ready: boolean }> {
+export interface SessionStart {
+  config: UiConfig;
+  /** False while redirecting to the identity provider. */
+  ready: boolean;
+  /** Showcase only: nobody is signed in yet, so the sign-in page comes first. */
+  needsLogin?: boolean;
+}
+
+/** Reads the public UI configuration and wires credentials into the API client. */
+export async function startSession(): Promise<SessionStart> {
   const response = await fetch('/api/v1/ui-config', { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`ui-config answered ${response.status}`);
   const config = (await response.json()) as UiConfig;
@@ -29,6 +38,16 @@ export async function startSession(): Promise<{ config: UiConfig; ready: boolean
       },
       () => undefined,
     );
+    return { config, ready: true };
+  }
+
+  if (config.authMode === 'SHOWCASE') {
+    setPersonas(config.personas);
+    configureApiAuth(authenticateShowcase, showcaseSessionExpired);
+    // The probe also sets the XSRF-TOKEN cookie the sign-in form needs.
+    const me = await fetch('/api/v1/me', { headers: { Accept: 'application/json' } });
+    if (me.status === 401) return { config, ready: true, needsLogin: true };
+    if (!me.ok) throw new Error(`me answered ${me.status}`);
     return { config, ready: true };
   }
 

@@ -5043,7 +5043,7 @@
             "type" : "boolean"
           },
           "authMode" : {
-            "enum" : [ "OIDC", "DEV_HEADERS" ],
+            "enum" : [ "OIDC", "DEV_HEADERS", "SHOWCASE" ],
             "type" : "string"
           },
           "displayName" : {
@@ -5055,6 +5055,9 @@
               "type" : "string"
             },
             "type" : "array"
+          },
+          "login" : {
+            "type" : [ "string", "null" ]
           },
           "roles" : {
             "items" : {
@@ -8884,7 +8887,7 @@
       "UiConfigView" : {
         "properties" : {
           "authMode" : {
-            "enum" : [ "OIDC", "DEV_HEADERS" ],
+            "enum" : [ "OIDC", "DEV_HEADERS", "SHOWCASE" ],
             "type" : "string"
           },
           "demo" : {

@@ -7,14 +7,29 @@ import './app/i18n';
 import { Alert, Button, Center, Loader, MantineProvider, Stack } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
-import { StrictMode, useEffect, useState } from 'react';
+import { lazy, StrictMode, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { App } from './app/App';
 import { cssVariablesResolver, theme } from './app/theme';
 import { startSession, type UiConfig } from './shared/auth/session';
 
-type BootState = { kind: 'starting' } | { kind: 'ready'; config: UiConfig } | { kind: 'failed'; message: string };
+const LoginPage = lazy(() => import('./app/pages/LoginPage'));
+
+type BootState =
+  | { kind: 'starting' }
+  | { kind: 'login'; config: UiConfig }
+  | { kind: 'ready'; config: UiConfig }
+  | { kind: 'failed'; message: string };
+
+function Loading() {
+  const { t } = useTranslation();
+  return (
+    <Center h="100vh">
+      <Loader aria-label={t('app.loading')} />
+    </Center>
+  );
+}
 
 /** Reads the UI configuration and signs in (or picks the dev persona) before the application renders. */
 function Boot() {
@@ -22,14 +37,23 @@ function Boot() {
   const [state, setState] = useState<BootState>({ kind: 'starting' });
   useEffect(() => {
     startSession()
-      .then(({ config, ready }) => {
-        if (ready) setState({ kind: 'ready', config });
+      .then(({ config, ready, needsLogin }) => {
+        if (needsLogin) setState({ kind: 'login', config });
+        else if (ready) setState({ kind: 'ready', config });
       })
       .catch((error: unknown) => {
         setState({ kind: 'failed', message: error instanceof Error ? error.message : String(error) });
       });
   }, []);
   if (state.kind === 'ready') return <App config={state.config} />;
+  if (state.kind === 'login') {
+    const { config } = state;
+    return (
+      <Suspense fallback={<Loading />}>
+        <LoginPage onSignedIn={() => setState({ kind: 'ready', config })} />
+      </Suspense>
+    );
+  }
   if (state.kind === 'failed') {
     return (
       <Center h="100vh">
@@ -44,11 +68,7 @@ function Boot() {
       </Center>
     );
   }
-  return (
-    <Center h="100vh">
-      <Loader aria-label={t('app.loading')} />
-    </Center>
-  );
+  return <Loading />;
 }
 
 const root = document.getElementById('root');

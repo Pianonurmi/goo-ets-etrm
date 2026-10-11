@@ -1,7 +1,8 @@
 # Web UI
 
 React and TypeScript single-page application in `apps/web`, served by the API jar from the same origin (ADR 0025).
-Sign-in uses OIDC with PKCE in production and dev personas in the `dev` and `test` profiles (ADR 0026). The API
+Sign-in uses OIDC with PKCE in production and dev personas in the `dev` and `test` profiles (ADR 0026). The public
+showcase (`showcase` profile, ADR 0032) has a sign-in page with demo accounts, then the same persona menu. The API
 client is generated from the committed OpenAPI document (ADR 0027). Actions are offered by role through a table
 keyed by operation id (ADR 0028).
 
@@ -15,6 +16,18 @@ cd apps/web && npm ci && npm run gen:api && npm run dev     # http://localhost:5
 # Or the bundled build: the jar serves the UI at http://127.0.0.1:8080/ (the dev profile listens on loopback only)
 ./gradlew :apps:api:bootJar && java -jar apps/api/build/libs/api.jar --spring.profiles.active=dev,demo
 ```
+
+The showcase locally (any password of 12 characters or more; sign in as `demo`):
+
+```bash
+ETRM_DEMO_PASSWORD=choose-a-long-one java -jar apps/api/build/libs/api.jar --spring.profiles.active=showcase,demo
+```
+
+| `ui-config` auth mode | Profiles | Sign-in | Acting as | Banner |
+|---|---|---|---|---|
+| `OIDC` | production | identity provider (PKCE) | the signed-in user | none |
+| `DEV_HEADERS` | `dev`, `test` | none | persona menu, `X-Actor`/`X-Roles` | orange |
+| `SHOWCASE` | `showcase` | demo account, session cookie and CSRF | persona menu, `X-Persona` | teal |
 
 With the `demo` profile as well (`dev,demo`), the first start fills an empty database with demo data through the
 REST API (`DemoDataSeeder`):
