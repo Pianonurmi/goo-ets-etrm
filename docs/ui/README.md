@@ -31,16 +31,31 @@ ETRM_DEMO_PASSWORD=choose-a-long-one java -jar apps/api/build/libs/api.jar --spr
 | `SHOWCASE` | `showcase` | demo account, session cookie and CSRF | persona menu, `X-Persona` | teal |
 
 With the `demo` profile as well (`dev,demo`), the first start fills an empty database with demo data through the
-REST API (`DemoDataSeeder`):
-- the legal entities `DEMO-FI` and `DEMO-SE` with books, fictitious counterparties, simulator accounts and devices;
-- certificates across vintages, the oldest expiring within weeks;
-- confirmed GoO and EUA forwards, and two trades waiting in the middle office inbox;
-- signed-off curves (one more waiting for `risk2`), official valuations and last month's period end;
-- for `DEMO-FI`: active credit, tenor and compliance-short limits (a stop loss waiting for `risk2`), a guarantee
-  from one counterparty, and an EU ETS installation with free allocation, allowances and this year's estimates;
-- for `DEMO-FI` operations: deliveries this week, one invoice paid and one waiting for `controller`, a purchase
-  invoice and a netting draft with Nordvind, a manual transfer waiting for a second person, a registry statement
-  with a break, and a counterparty confirmation that does not match ours.
+REST API (`DemoDataSeeder`), about six months of business in date order:
+- **Parties:** `DEMO-FI` (EUR) and `DEMO-SE` (SEK) with books, simulator and Union Registry accounts, four devices
+  each, and eleven fictitious counterparties (two with netting, a broker, a clearing house, the two entities as
+  intercompany counterparties) with addresses, VAT numbers and master agreements.
+- **Market data:** sixteen months of daily FX and seven months of EUA spot, two December futures and GoO vintages for
+  four buckets, imported as files (one GoO print flagged suspect); a GoO index; official curves at every month end and
+  on the last five business days, one more waiting for `risk2`.
+- **Trading:** about 45 trades: GoO forwards and spots across buckets, EUA forwards and futures, two index-priced
+  sales, an intercompany sale with its mirror, a broker, an amendment, a cancellation, trades waiting for approval;
+  counterparty confirmations matched, mismatched (for `middle2`) and disputed.
+- **Certificates:** a year of issuance; lots held, reserved, split, withdrawn, expired, cancelled, in transfer and
+  transferred out.
+- **Allocation and registry:** two executed plans (one cancelling for own consumption), one waiting for approval;
+  Union Registry allowance transfers confirmed and failed, last year's surrender confirmed, a manual GoO transfer
+  waiting for a second person.
+- **Finance:** month-end valuations, position snapshots and period ends for both entities; months six to three
+  hard closed, the month before last soft closed and acknowledged, last month exported but not acknowledged (a
+  hard-close blocker); an accrual, a reversal, GL balances with one difference, a policy change and a rule change
+  waiting; invoices paid, partly paid, overdue and credited; a settled netting (Vinden) and a draft (Nordvind); a
+  VAT rule waiting; an index-priced delivery parked until its price is fixed.
+- **Risk and compliance:** limits for both entities with an open breach (DEMO-SE) and an acknowledged one, a
+  valuation waiting for sign-off; ETS installations in both countries with estimates, verified emissions (one
+  waiting) and free allocation; EMIR reports including an error and three exports; reconciliation breaks open,
+  resolved and waiting for acceptance.
+- **Inbox:** every approving persona has work waiting.
 
 The seeder runs as named steps (`DemoScenario.steps()`) and logs each run and step in schema `etrm_demo`, which only
 the `demo` profile migrates. A step that fails stops the run with the failed request and response in the log; the

@@ -179,6 +179,13 @@ Targets:
 
 **Spike first (start of M3, before the dataset is promised):** confirm with small ITs that the backend accepts what the dataset needs: back-dated valuation runs (`asOf`), period-end runs and GL exports for past months, hard close with its blocker checklist, which trade family and instrument combinations `TradeValidation` allows, and index-priced trades with fixings. Trim the dataset table to what passes.
 
+**Spike result (done).** The backend accepts back-dated valuations, period ends and GL exports for past months in
+date order (the next month must be open for a period end). Trimmed from the dataset: EMIR reports are produced by
+events and dated the day of seeding; position snapshots and valuations reflect the state when they are taken (so the
+history is built month by month); a suspect quote comes from a real price jump, as there is no manual flag; external
+devices and purchased lots are left out. Two backend defects surfaced and were fixed: an amended sale now reopens its
+delivery obligation on reconfirmation, and obligation constraints are stored with their type.
+
 Risk: business dates in the past against records stamped today. Do every business event first, then close months last, oldest first.
 
 ### M5: Reset (ADR 0033)

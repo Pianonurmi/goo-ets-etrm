@@ -85,7 +85,7 @@ class JooqObligationRepository(private val dsl: DSLContext) : ObligationReposito
         targetAccountRef = o.targetAccountRef
         cancellation = o.cancellation?.let { JSONB.jsonb(Json.mapper.writeValueAsString(it)) }
         priorityClass = o.priorityClass
-        constraints = JSONB.jsonb(Json.mapper.writeValueAsString(o.constraints))
+        constraints = JSONB.jsonb(Json.mapper.writerFor(constraintsType).writeValueAsString(o.constraints))
         status = o.status.name
     }
 

@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * REST helpers that set up an isolated scenario (own legal entity, codes and device) so end-to-end tests can share
  * the test database without interfering. Users are identified with the dev/test `X-Actor` / `X-Roles` headers.
  */
-class ApiScenario(private val port: Int, private val tag: String = "S${COUNTER.incrementAndGet()}${System.nanoTime() % 100_000}") {
+class ApiScenario(private val port: Int, val tag: String = "S${COUNTER.incrementAndGet()}${System.nanoTime() % 100_000}") {
     lateinit var entityId: String
     lateinit var bookId: String
     lateinit var counterpartyId: String

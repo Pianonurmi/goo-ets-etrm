@@ -12,6 +12,18 @@ data class DemoCalendar(val today: LocalDate) {
     val monthEnd: LocalDate = weekdayOnOrBefore(previousMonth.atEndOfMonth())
     val dayBeforeMonthEnd: LocalDate = weekdayOnOrBefore(monthEnd.minusDays(1))
 
+    /** Price history starts seven months back, so every month-end valuation has prices before it. */
+    val historyStart: LocalDate = weekdayOnOrAfter(YearMonth.from(today).minusMonths(HISTORY_MONTHS).atDay(1))
+
+    /** FX goes back further: lots issued a year ago are costed in their entity's currency on their issue date. */
+    val fxHistoryStart: LocalDate = weekdayOnOrAfter(YearMonth.from(today).minusMonths(FX_HISTORY_MONTHS).atDay(1))
+
+    /** The months the history step books, oldest first: six months ago to two months ago. */
+    val historyMonths: List<YearMonth> = (DemoHistory.MONTHS downTo 2).map { YearMonth.from(today).minusMonths(it.toLong()) }
+
+    /** The last five weekdays before today, for the recent official curves and valuations. */
+    val recentCloses: List<LocalDate> = generateSequence(lastCloseOf(today)) { weekdayOnOrBefore(it.minusDays(1)) }.take(RECENT_DAYS).toList().reversed()
+
     /** Most recent weekday before today, for current prices. */
     val lastClose: LocalDate = weekdayOnOrBefore(today.minusDays(1))
 
@@ -26,6 +38,12 @@ data class DemoCalendar(val today: LocalDate) {
     val euaDeliveryDate: LocalDate = LocalDate.of(deliveryYear, 12, 14)
 
     companion object {
+        const val HISTORY_MONTHS = 7L
+        const val FX_HISTORY_MONTHS = 16L
+        const val RECENT_DAYS = 5
+
+        private fun lastCloseOf(today: LocalDate) = weekdayOnOrBefore(today.minusDays(1))
+
         fun weekdayOnOrBefore(date: LocalDate): LocalDate = generateSequence(date) { it.minusDays(1) }.first { it.isWeekday() }
 
         fun weekdayOnOrAfter(date: LocalDate): LocalDate = generateSequence(date) { it.plusDays(1) }.first { it.isWeekday() }
@@ -51,45 +69,100 @@ data class DemoEntity(
  */
 class DemoScenario(private val api: DemoClient, private val calendar: DemoCalendar) {
     /** The steps in order; each names what it creates, and the run log shows them while seeding. */
-    fun steps(): List<DemoStep> = listOf(
-        DemoStep("Counterparties") { it.put(COUNTERPARTIES, counterparties()) },
-        DemoStep("Legal entity DEMO-FI") { it.put(FINLAND, entity("DEMO-FI", "Demo Energia Oy", "FI", "529900DEMOFI00000137", gsrnSeed = 1)) },
-        DemoStep("Legal entity DEMO-SE") { it.put(SWEDEN, entity("DEMO-SE", "Demo Kraft AB", "SE", "529900DEMOSE00000115", gsrnSeed = 4)) },
-        DemoStep("Market data and curves") { marketData() },
-        DemoStep("Certificates DEMO-FI") { DemoInventory(api, calendar).receive(it.get(FINLAND), issuanceSeed = 1) },
-        DemoStep("Certificates DEMO-SE") { DemoInventory(api, calendar).receive(it.get(SWEDEN), issuanceSeed = 2) },
-        DemoStep("Trades") { DemoTrades(api, calendar).book(it.get(FINLAND), it.get(SWEDEN), it.counterparties()) },
-        DemoStep("Valuation and period end") { accounting(it.get(FINLAND)) },
-        DemoStep("Risk limits and ETS") { DemoCompliance(api, calendar).seed(it.get(FINLAND), it.counterparties()) },
-        DemoStep("Operations") {
-            val (nordvind, rheinstrom, aurora) = it.counterparties()
-            DemoOperations(api, calendar).seed(it.get(FINLAND), DemoCounterparties(nordvind, rheinstrom, aurora))
-        },
-    )
+    fun steps(): List<DemoStep> {
+        val market = DemoMarket(api, calendar)
+        val desk = DemoDesk(api, calendar)
+        val history = DemoHistory(api, calendar, market, desk)
+        val office = DemoBackOffice(api, calendar, desk)
+        return listOf(
+            DemoStep("Counterparties") { it.put(PARTIES, counterparties()) },
+            DemoStep("Legal entity DEMO-FI") { it.put(FINLAND, entity("DEMO-FI", "Demo Energia Oy", "FI", "529900DEMOFI00000137", gsrnSeed = 1)) },
+            DemoStep("Legal entity DEMO-SE") { it.put(SWEDEN, entity("DEMO-SE", "Demo Kraft AB", "SE", "529900DEMOSE00000115", gsrnSeed = 11)) },
+            DemoStep("Intercompany counterparties") { it.put(PARTIES, it.parties() + intercompany(it.get(FINLAND), it.get(SWEDEN))) },
+            DemoStep("Addresses, VAT numbers and bank accounts") { office.partyDetails(it.parties(), it.get(SWEDEN)) },
+            DemoStep("Instruments, futures and curves") { market.instruments() },
+            DemoStep("Price and FX history") { market.history() },
+            DemoStep("Certificates DEMO-FI") { DemoInventory(api, calendar).receive(it.get(FINLAND), issuanceSeed = 1) },
+            DemoStep("Certificates DEMO-SE") { DemoInventory(api, calendar).receive(it.get(SWEDEN), issuanceSeed = 2) },
+        ) + calendar.historyMonths.map { month ->
+            DemoStep("Month $month") { history.month(month, it.get(FINLAND), it.get(SWEDEN), it.parties()) }
+        } + listOf(
+            DemoStep("Trades") { DemoTrades(api, calendar).book(it.get(FINLAND), it.get(SWEDEN), it.counterparties()) },
+            DemoStep("Last month and recent days") { lastMonth(it.get(FINLAND), it.get(SWEDEN), market, desk, history) },
+            DemoStep("Risk limits and ETS") { DemoCompliance(api, calendar).seed(it.get(FINLAND), it.counterparties()) },
+            DemoStep("Operations") {
+                val (nordvind, rheinstrom, aurora) = it.counterparties()
+                DemoOperations(api, calendar).seed(it.get(FINLAND), DemoCounterparties(nordvind, rheinstrom, aurora))
+            },
+            DemoStep("Certificate lifecycle") { office.certificateLifecycle(it.get(FINLAND), it.get(SWEDEN)) },
+            DemoStep("Allocation plans") { office.allocation(it.get(FINLAND), it.get(SWEDEN)) },
+            DemoStep("Union Registry transfers") { office.registry(it.get(FINLAND)) },
+            DemoStep("Invoices and payments") { office.invoicing(it.get(FINLAND), it.parties()) },
+            DemoStep("Netting with Vinden") { office.netting(it.get(FINLAND), it.parties()) },
+            DemoStep("Counterparty confirmations") { office.confirmations(it.get(FINLAND), it.parties()) },
+            DemoStep("Swedish reconciliation") { office.reconciliation(it.get(SWEDEN)) },
+            DemoStep("EU ETS compliance") { office.ets(it.get(FINLAND), it.get(SWEDEN)) },
+            DemoStep("Limits, breaches and pending sign-off") { office.risk(it.get(FINLAND), it.get(SWEDEN), it.parties()) },
+            DemoStep("Ledger adjustments and pending changes") { office.ledger(it.get(FINLAND)) },
+            DemoStep("EMIR reporting") { office.reporting(it.get(FINLAND)) },
+        )
+    }
 
-    private fun DemoContext.counterparties(): List<String> = get<List<*>>(COUNTERPARTIES).map { it.toString() }
+    private fun DemoContext.parties(): DemoParties = get<Map<*, *>>(PARTIES).entries.associate { (code, id) -> code.toString() to id.toString() }
 
-    /** Nordvind has a netting agreement with us, so its invoices can be settled net. */
-    private fun counterparties(): List<String> = listOf(
-        Triple("CP-NORDVIND", "Nordvind Energi AS (fictitious)", "NO") to true,
-        Triple("CP-RHEINSTROM", "Rheinstrom Handel GmbH (fictitious)", "DE") to false,
-        Triple("CP-AURORA", "Aurora Power Oy (fictitious)", "FI") to false,
-    ).map { (party, netting) ->
-        val (code, name, country) = party
-        api.post(
+    /** The three counterparties the older steps were written for. */
+    private fun DemoContext.counterparties(): List<String> = parties().let {
+        listOf(it.getValue("CP-NORDVIND"), it.getValue("CP-RHEINSTROM"), it.getValue("CP-AURORA"))
+    }
+
+    /** Fictitious trading partners across Europe; Nordvind and Vinden net with us, one broker and one clearing house. */
+    private fun counterparties(): Map<String, String> = COUNTERPARTIES.associate { party ->
+        party.code to api.post(
             DemoUser.ADMIN,
             "/api/v1/reference/counterparties",
-            """{"code":"$code","name":"$name","country":"$country","nettingAgreed":$netting}""",
+            """{"code":"${party.code}","name":"${party.name}","country":"${party.country}","nettingAgreed":${party.netting},
+               "counterpartyType":"${party.type}","paymentTermsDays":${party.paymentDays},"invoiceEmail":"invoices@${party.code.lowercase().removePrefix(
+                "cp-",
+            )}.example",
+               "masterAgreements":[{"type":"EFET","reference":"EFET-${party.code.removePrefix("CP-")}","signedOn":"2023-03-01"}]}""",
         ).id()
+    }
+
+    /** Each entity is also a counterparty of the other, so they can trade with each other (intercompany). */
+    private fun intercompany(finland: DemoEntity, sweden: DemoEntity): Map<String, String> =
+        listOf(Triple("CP-DEMO-SE", "Demo Kraft AB (intercompany)", sweden), Triple("CP-DEMO-FI", "Demo Energia Oy (intercompany)", finland))
+            .associate { (code, name, entity) ->
+                code to api.post(
+                    DemoUser.ADMIN,
+                    "/api/v1/reference/counterparties",
+                    """{"code":"$code","name":"$name","country":"${entity.code.takeLast(2)}","counterpartyType":"INTERCOMPANY",
+                       "linkedLegalEntityId":"${entity.id}"}""",
+                ).id()
+            }
+
+    /** Last month closes softly with its export not yet acknowledged; the last five days get official curves and valuations. */
+    private fun lastMonth(finland: DemoEntity, sweden: DemoEntity, market: DemoMarket, desk: DemoDesk, history: DemoHistory) {
+        market.officialCurves(listOf(calendar.dayBeforeMonthEnd, calendar.monthEnd))
+        listOf(finland, sweden).forEach { entity ->
+            listOf(calendar.dayBeforeMonthEnd, calendar.monthEnd).forEach { desk.officialValuation(entity, it) }
+            api.post(DemoUser.MIDDLE, "/api/v1/positions/snapshots?legalEntityId=${entity.id}&asOf=${calendar.previousMonth.atEndOfMonth()}")
+            history.close(entity, calendar.previousMonth, hard = false, acknowledge = false)
+        }
+        val recent = calendar.recentCloses.filter { it.isAfter(calendar.monthEnd) }
+        market.officialCurves(recent)
+        recent.forEach { desk.officialValuation(finland, it) }
+        market.pendingCurve()
     }
 
     private fun entity(code: String, name: String, country: String, lei: String, gsrnSeed: Int): DemoEntity {
         val timeZone = if (country == "SE") "Europe/Stockholm" else "Europe/Helsinki"
+        // The Swedish entity books in SEK, so FX revaluation and translation have something to show.
+        val currency = if (country == "SE") "SEK" else "EUR"
         val id = api.post(
             DemoUser.ADMIN,
             "/api/v1/reference/legal-entities",
             """{"code":"$code","name":"$name","country":"$country","timeZone":"$timeZone","validFrom":"${calendar.today.year - 1}-01-01",
-               "lei":"$lei","emirClassification":"NFC_PLUS"}""",
+               "lei":"$lei","emirClassification":"NFC_PLUS","baseCurrency":"$currency"}""",
         ).id()
 
         fun book(suffix: String, label: String, type: String) = api.post(
@@ -105,7 +178,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
             """{"registryCode":"SIMULATOR","accountNumber":"SIM-$code","name":"$name GoO","accountType":"HOLDING",
                "holderType":"LEGAL_ENTITY","holderId":"$id","defaultBookId":"$trading"}""",
         ).id()
-        val devices = DEVICES.mapIndexed { index, device ->
+        val devices = (if (country == "SE") SWEDISH_DEVICES else FINNISH_DEVICES).mapIndexed { index, device ->
             val gsrn = gsrn(gsrnSeed + index)
             api.post(
                 DemoUser.ADMIN,
@@ -119,93 +192,46 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
         return DemoEntity(id, code, trading, ownUse, account, devices)
     }
 
-    /** EUR prices; curves are built, submitted by one risk analyst and signed off by another. */
-    private fun marketData() {
-        val year = calendar.deliveryYear
-        ensureInstrument("EUA_SPOT", """{"code":"EUA_SPOT","kind":"EUA_SPOT","description":"EUA spot","allowanceProductCode":"EUA","currency":"EUR"}""")
-        listOf(year - 1, year).forEach { vintage ->
-            ensureInstrument(
-                "GOO_NORDIC_HYDRO_$vintage",
-                """{"code":"GOO_NORDIC_HYDRO_$vintage","kind":"GOO_VINTAGE","description":"Nordic hydro $vintage","bucketCode":"NORDIC_HYDRO",
-                   "productionYear":$vintage,"currency":"EUR"}""",
-            )
-        }
-        val curves = api.getList(DemoUser.RISK, "/api/v1/market-data/curves")
-        val gooCurve = curves.firstOrNull { it["bucketCode"] == "NORDIC_HYDRO" && it["active"] == true }?.get("code")?.toString()
-            ?: api.post(
-                DemoUser.RISK,
-                "/api/v1/market-data/curves",
-                """{"code":"GOO_NORDIC_HYDRO","kind":"GOO_VINTAGE","description":"Nordic hydro vintages","bucketCode":"NORDIC_HYDRO","currency":"EUR"}""",
-            )["code"].toString()
-        val euaCurve = curves.firstOrNull { it["allowanceProductCode"] == "EUA" && it["active"] == true }?.get("code")?.toString()
-            ?: api.post(
-                DemoUser.RISK,
-                "/api/v1/market-data/curves",
-                """{"code":"EUA_FWD","kind":"EUA_FORWARD","description":"EUA forward","allowanceProductCode":"EUA","currency":"EUR"}""",
-            )["code"].toString()
-
-        val prices = mapOf(
-            calendar.dayBeforeMonthEnd to Prices(eua = "70.00", hydro = "0.30", rate = "11.40"),
-            calendar.monthEnd to Prices(eua = "72.00", hydro = "0.31", rate = "11.45"),
-            calendar.lastClose to Prices(eua = "74.50", hydro = "0.33", rate = "11.50"),
-        )
-        prices.forEach { (date, price) ->
-            api.put(DemoUser.RISK, "/api/v1/market-data/fx-rates", """{"date":"$date","base":"EUR","quote":"SEK","rate":${price.rate}}""")
-            quote("EUA_SPOT", date, "CLOSE", price.eua)
-            listOf(year - 1, year).forEach { quote("GOO_NORDIC_HYDRO_$it", date, "MID", price.hydro) }
-        }
-        listOf(calendar.dayBeforeMonthEnd, calendar.monthEnd).forEach { date ->
-            listOf(euaCurve, gooCurve).forEach { officialCurve(it, date) }
-        }
-        // Today's EUA curve waits in the second analyst's inbox.
-        val pending = api.post(DemoUser.RISK, "/api/v1/market-data/curves/$euaCurve/snapshots", """{"asOf":"${calendar.lastClose}"}""").id()
-        api.post(DemoUser.RISK, "/api/v1/market-data/curves/snapshots/$pending/submit")
-    }
-
-    private fun ensureInstrument(code: String, json: String) {
-        val known = api.getList(DemoUser.RISK, "/api/v1/market-data/instruments").any { it["code"] == code }
-        if (!known) api.post(DemoUser.RISK, "/api/v1/market-data/instruments", json)
-    }
-
-    private fun quote(instrument: String, date: LocalDate, type: String, value: String) = api.put(
-        DemoUser.RISK,
-        "/api/v1/market-data/quotes",
-        """{"instrumentCode":"$instrument","quoteDate":"$date","quoteType":"$type","value":$value,"currency":"EUR"}""",
+    private data class DemoParty(
+        val code: String,
+        val name: String,
+        val country: String,
+        val netting: Boolean = false,
+        val type: String = "EXTERNAL",
+        val paymentDays: Int = 14,
     )
-
-    private fun officialCurve(code: String, date: LocalDate) {
-        val snapshot = api.post(DemoUser.RISK, "/api/v1/market-data/curves/$code/snapshots", """{"asOf":"$date"}""").id()
-        api.post(DemoUser.RISK, "/api/v1/market-data/curves/snapshots/$snapshot/submit")
-        api.approveTask(DemoUser.RISK2, "CURVE_SIGN_OFF", snapshot)
-    }
-
-    /** Official valuations at the previous month's last two weekdays, then that month's period end. */
-    private fun accounting(entity: DemoEntity) {
-        listOf(calendar.dayBeforeMonthEnd, calendar.monthEnd).forEach { date ->
-            val run = api.post(
-                DemoUser.RISK,
-                "/api/v1/valuation/runs",
-                """{"legalEntityId":"${entity.id}","valuationDate":"$date","kind":"EOD"}""",
-            ).id()
-            api.post(DemoUser.RISK, "/api/v1/valuation/runs/$run/submit")
-            api.approveTask(DemoUser.RISK2, "VALUATION_SIGN_OFF", run)
-        }
-        api.post(DemoUser.ACCOUNTANT, "/api/v1/ledger/period-end/runs", """{"legalEntityId":"${entity.id}","period":"${calendar.previousMonth}"}""")
-    }
-
-    private data class Prices(val eua: String, val hydro: String, val rate: String)
 
     private data class Device(val name: String, val source: String, val technology: String, val capacityKw: Int, val commissioned: String)
 
     companion object {
-        private const val COUNTERPARTIES = "counterparties"
+        private const val PARTIES = "parties"
+
+        /** All fictitious; the first three are the ones the e2e journeys and older steps use. */
+        private val COUNTERPARTIES = listOf(
+            DemoParty("CP-NORDVIND", "Nordvind Energi AS (fictitious)", "NO", netting = true),
+            DemoParty("CP-RHEINSTROM", "Rheinstrom Handel GmbH (fictitious)", "DE"),
+            DemoParty("CP-AURORA", "Aurora Power Oy (fictitious)", "FI"),
+            DemoParty("CP-VINDEN", "Vinden Energi A/S (fictitious)", "DK", netting = true),
+            DemoParty("CP-POLDER", "Polder Groen B.V. (fictitious)", "NL", paymentDays = 30),
+            DemoParty("CP-SOLEIL", "Soleil Negoce SAS (fictitious)", "FR"),
+            DemoParty("CP-IBERSOL", "Ibersol Comercializadora S.L. (fictitious)", "ES", paymentDays = 30),
+            DemoParty("CP-NORDBROKER", "Nordic Carbon Brokers AB (fictitious)", "SE", type = "BROKER"),
+            DemoParty("CP-CLEARING", "Continental Clearing House AG (fictitious)", "DE", type = "CLEARING_HOUSE"),
+        )
         private const val FINLAND = "finland"
         private const val SWEDEN = "sweden"
 
-        private val DEVICES = listOf(
+        private val FINNISH_DEVICES = listOf(
             Device("Koski hydro", "HYDRO_RESERVOIR", "HYDRO_TURBINE_STORAGE", 25_000, "2012-05-01"),
             Device("Virta run-of-river", "HYDRO_RUN_OF_RIVER", "HYDRO_TURBINE_ROR", 8_000, "2019-03-15"),
             Device("Tuuli wind park", "WIND_ONSHORE", "WIND_TURBINE_ONSHORE", 42_000, "2021-09-01"),
+            Device("Metsä bio CHP", "BIOMASS_SOLID_FOREST", "THERMAL_STEAM_TURBINE_CHP", 30_000, "2016-10-01"),
+        )
+        private val SWEDISH_DEVICES = listOf(
+            Device("Älvkraft hydro", "HYDRO_RESERVOIR", "HYDRO_TURBINE_STORAGE", 60_000, "2008-06-01"),
+            Device("Fjällvind wind", "WIND_ONSHORE", "WIND_TURBINE_ONSHORE", 36_000, "2020-04-01"),
+            Device("Solgård solar park", "SOLAR", "SOLAR_PV_GROUND", 18_000, "2023-05-15"),
+            Device("Kustvind offshore", "WIND_OFFSHORE", "WIND_TURBINE_OFFSHORE", 120_000, "2022-11-01"),
         )
 
         /** A valid 18-digit GS1 GSRN in a range reserved for demo devices (mod-10 check digit). */

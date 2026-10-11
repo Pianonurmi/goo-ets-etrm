@@ -2,28 +2,31 @@ package com.pianonurmi.etrm
 
 import com.pianonurmi.etrm.demo.DemoDataSeeder
 import io.kotest.matchers.collections.shouldContainAll
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.restassured.RestAssured
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
 import org.hamcrest.Matchers.greaterThanOrEqualTo
+import org.hamcrest.Matchers.hasItem
+import org.hamcrest.Matchers.hasItems
 import org.hamcrest.Matchers.notNullValue
 import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
+import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 
-/** The demo profile seeds a usable world once, on its own database (its curves would clash with MonthEndIT's). */
+/** The demo profile seeds six months of business once, on its own database (its curves would clash with MonthEndIT's). */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test", "demo")
 class DemoDataSeederIT {
     companion object {
-        /** Four from the desk, four delivered for settlement and one whose counterparty confirmation does not match. */
-        private const val TRADES = 9
+        private const val SEED_BUDGET_SECONDS = 120
 
         @JvmStatic
         @DynamicPropertySource
@@ -36,53 +39,174 @@ class DemoDataSeederIT {
     @Autowired
     private lateinit var seeder: DemoDataSeeder
 
+    @Autowired
+    private lateinit var jdbc: JdbcClient
+
     private fun asUser(user: String, roles: String) =
         RestAssured.given().baseUri("http://localhost").port(port).header("X-Actor", user).header("X-Roles", roles)
 
     @Test
-    fun `seeds entities, inventory, trades, approvals, accounting, risk, ETS and operations once`() {
-        val entities = asUser("admin", "ADMIN").get("/api/v1/reference/legal-entities").then().statusCode(200)
-            .extract().jsonPath().getList<String>("code")
-        entities shouldContainAll listOf("DEMO-FI", "DEMO-SE")
-        val finland = asUser("admin", "ADMIN").get("/api/v1/reference/legal-entities").then().extract().jsonPath()
-            .getString("find { it.code == 'DEMO-FI' }.id")
+    fun `seeds six months of business in every area, once`() {
+        val admin = { asUser("admin", "ADMIN") }
+        val entities = admin().get("/api/v1/reference/legal-entities").then().statusCode(200).extract().jsonPath()
+        entities.getList<String>("code") shouldContainAll listOf("DEMO-FI", "DEMO-SE")
+        val finland = entities.getString("find { it.code == 'DEMO-FI' }.id")
+        val sweden = entities.getString("find { it.code == 'DEMO-SE' }.id")
+        entities.getString("find { it.code == 'DEMO-SE' }.baseCurrency") shouldBe "SEK"
+        admin().get("/api/v1/reference/counterparties").then().body("size()", greaterThanOrEqualTo(11))
 
-        asUser("trader", "TRADER").get("/api/v1/trades?legalEntityId=$finland").then().statusCode(200)
-            .body("size()", equalTo(TRADES))
-            .body("findAll { it.status == 'CONFIRMED' }.size()", equalTo(2))
-            .body("findAll { it.status == 'PENDING_APPROVAL' }.size()", equalTo(2))
-        // Twelve issued; the pending transfer splits one into the part in transfer and the rest.
-        asUser("backoffice", "BACK_OFFICE").get("/api/v1/inventory/lots?holderEntityId=$finland").then().statusCode(200)
-            .body("size()", equalTo(14)).body("findAll { it.status == 'IN_TRANSFER' }.size()", equalTo(1))
-        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/workflow/tasks?type=TRADE_APPROVAL&actionable=true").then().statusCode(200)
-            .body("items.size()", greaterThanOrEqualTo(2))
-        asUser("risk2", "RISK").get("/api/v1/workflow/tasks?type=CURVE_SIGN_OFF&actionable=true").then().statusCode(200)
-            .body("items.size()", equalTo(1))
-        asUser("accountant", "ACCOUNTANT").get("/api/v1/ledger/period-end/runs?legalEntityId=$finland").then().statusCode(200)
-            .body("size()", equalTo(1))
-        asUser("risk", "RISK").get("/api/v1/valuation/runs?legalEntityId=$finland&from=2000-01-01&to=2100-01-01").then().statusCode(200)
-            .body("findAll { it.status == 'OFFICIAL' }.size()", greaterThan(1))
-        asUser("risk", "RISK").get("/api/v1/risk/limits?legalEntityId=$finland&activeOnly=false").then().statusCode(200)
-            .body("findAll { it.status == 'ACTIVE' }.size()", equalTo(4))
-            .body("findAll { it.status == 'PENDING_APPROVAL' }.size()", equalTo(1))
-        asUser("risk2", "RISK").get("/api/v1/workflow/tasks?type=LIMIT_CHANGE&actionable=true").then().statusCode(200)
-            .body("items.size()", equalTo(1))
-        asUser("risk", "RISK").get("/api/v1/risk/exposures?legalEntityId=$finland").then().statusCode(200)
-            .body("size()", greaterThan(0))
-        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/ets/installations?legalEntityId=$finland").then().statusCode(200)
-            .body("size()", equalTo(1))
-
-        operations(finland)
+        trading(finland, sweden)
+        inventory(finland, sweden)
+        marketAndValuation(finland, sweden)
+        ledger(finland)
+        allocationAndRegistry(finland, sweden)
+        operations(finland, sweden)
+        compliance(finland, sweden)
+        inboxes()
         home(finland)
 
         // The run log is public progress: the UI waits on it while the data is being created.
         RestAssured.given().baseUri("http://localhost").port(port).get("/api/v1/ui-config").then().statusCode(200)
             .body("demoSeed.state", equalTo("COMPLETED"))
             .body("demoSeed.completedSteps", equalTo(seeder.current()!!.stepCount))
-            .body("demoSeed.stepCount", greaterThan(5))
+            .body("demoSeed.stepCount", greaterThan(20))
+        val run = seeder.current()!!
+        // The plan's budget: the whole seed within two minutes on CI hardware.
+        val log = jdbc.sql("select extract(epoch from finished_at - started_at)::int from etrm_demo.seed_run").query(Int::class.java).single()
+        check(log < SEED_BUDGET_SECONDS) { "Seeding took $log s, over the $SEED_BUDGET_SECONDS s budget (${run.stepCount} steps)" }
 
         seeder.seed() shouldBe false
-        asUser("trader", "TRADER").get("/api/v1/trades?legalEntityId=$finland").then().body("size()", equalTo(TRADES))
+    }
+
+    private fun trading(finland: String, sweden: String) {
+        val trades = asUser("trader", "TRADER").get("/api/v1/trades?legalEntityId=$finland").then().statusCode(200).extract().jsonPath()
+        trades.getList<Any>("").size shouldBeGreaterThanOrEqual 30
+        trades.getList<String>("status") shouldContainAll listOf("CONFIRMED", "PENDING_APPROVAL", "CANCELLED", "DELIVERED")
+        trades.getList<String>("findAll { it.instrumentType == 'FUTURE' }.id").size shouldBe 3
+        trades.getList<String>("findAll { it.productFamily == 'EMISSION_ALLOWANCE' }.id").size shouldBeGreaterThanOrEqual 7
+        trades.getList<Int>("findAll { it.version > 1 }.version").size shouldBeGreaterThanOrEqual 1
+        // The intercompany sale has its mirror in the Swedish entity.
+        asUser("trader", "TRADER").get("/api/v1/trades?legalEntityId=$sweden").then().statusCode(200)
+            .body("size()", greaterThanOrEqualTo(6))
+            .body("findAll { it.intercompanyLinkId != null }.size()", equalTo(1))
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/confirmations?legalEntityId=$finland&status=MATCHED,DISPUTED,MISMATCHED").then().statusCode(200)
+            .body("findAll { it.status == 'MATCHED' }.size()", equalTo(2))
+            .body("findAll { it.status == 'DISPUTED' }.size()", equalTo(1))
+            .body("findAll { it.status == 'MISMATCHED' }.size()", equalTo(1))
+    }
+
+    private fun inventory(finland: String, sweden: String) {
+        val lots = asUser("backoffice", "BACK_OFFICE").get("/api/v1/inventory/lots?holderEntityId=$finland").then().statusCode(200)
+            .extract().jsonPath().getList<String>("status")
+        lots.size shouldBeGreaterThanOrEqual 34
+        // CANCELLED: the own-consumption obligation was allocated and cancelled in the registry.
+        lots shouldContainAll listOf("HELD", "RESERVED", "SPLIT", "WITHDRAWN", "EXPIRED", "IN_TRANSFER", "TRANSFERRED_OUT", "CANCELLED")
+        asUser("backoffice", "BACK_OFFICE").get("/api/v1/inventory/lots?holderEntityId=$sweden").then().statusCode(200)
+            .body("findAll { it.status == 'CANCELLED' }.size()", greaterThanOrEqualTo(1))
+    }
+
+    private fun marketAndValuation(finland: String, sweden: String) {
+        val risk = { asUser("risk", "RISK") }
+        risk().get("/api/v1/market-data/curves").then().body("size()", greaterThanOrEqualTo(5))
+        risk().get("/api/v1/market-data/quotes/suspect").then().statusCode(200).body("size()", greaterThanOrEqualTo(1))
+        risk().get("/api/v1/market-data/indices").then().body("code", hasItem("GOO_NORDIC_HYDRO_IDX"))
+        asUser("risk2", "RISK").get("/api/v1/workflow/tasks?type=CURVE_SIGN_OFF&actionable=true").then().statusCode(200)
+            .body("items.size()", equalTo(1))
+        risk().get("/api/v1/valuation/runs?legalEntityId=$finland&from=2000-01-01&to=2100-01-01").then().statusCode(200)
+            .body("findAll { it.status == 'OFFICIAL' }.size()", greaterThanOrEqualTo(9))
+        risk().get("/api/v1/valuation/runs?legalEntityId=$sweden&from=2000-01-01&to=2100-01-01").then().statusCode(200)
+            .body("findAll { it.status == 'OFFICIAL' }.size()", greaterThanOrEqualTo(7))
+            .body("findAll { it.status == 'PENDING_SIGN_OFF' }.size()", equalTo(1))
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/positions/snapshots?legalEntityId=$finland&kind=GOO&from=2000-01-01&to=2100-01-01").then()
+            .statusCode(200).body("size()", greaterThanOrEqualTo(6))
+    }
+
+    private fun ledger(finland: String) {
+        val accountant = { asUser("accountant", "ACCOUNTANT") }
+        val periods = accountant().get("/api/v1/ledger/periods?legalEntityId=$finland").then().statusCode(200).extract().jsonPath()
+        periods.getList<String>("findAll { it.status == 'CLOSED' }.period").size shouldBe 4
+        periods.getList<String>("findAll { it.status == 'SOFT_CLOSED' }.period").size shouldBe 2
+        accountant().get("/api/v1/ledger/period-end/runs?legalEntityId=$finland").then().statusCode(200).body("size()", greaterThanOrEqualTo(6))
+        accountant().get("/api/v1/ledger/exports?legalEntityId=$finland").then().statusCode(200)
+            .body("findAll { it.status == 'ACKNOWLEDGED' }.size()", equalTo(5))
+            .body("findAll { it.status == 'DELIVERED' }.size()", equalTo(1))
+        accountant().get("/api/v1/ledger/entries?legalEntityId=$finland&source=MANUAL").then().statusCode(200)
+        asUser("accountant", "ACCOUNTANT").get("/api/v1/workflow/tasks?type=ACCOUNTING_POLICY_CHANGE&actionable=true").then()
+            .body("items.size()", equalTo(1))
+        asUser("accountant", "ACCOUNTANT").get("/api/v1/workflow/tasks?type=POSTING_RULE_CHANGE&actionable=true").then()
+            .body("items.size()", equalTo(1))
+    }
+
+    private fun allocationAndRegistry(finland: String, sweden: String) {
+        val backoffice = { asUser("backoffice", "BACK_OFFICE") }
+        backoffice().get("/api/v1/allocation/plans?holderEntityId=$finland&activeOnly=false").then().statusCode(200)
+            .body("findAll { it.status == 'CONFIRMED' }.size()", equalTo(2))
+        backoffice().get("/api/v1/allocation/plans?holderEntityId=$sweden").then().statusCode(200)
+            .body("findAll { it.status == 'PROPOSED' }.size()", equalTo(1))
+        val instructions = backoffice().get("/api/v1/registry/instructions/search?holderEntityId=$finland&limit=200").then().statusCode(200)
+            .extract().jsonPath()
+        instructions.getList<String>("items.status") shouldContainAll listOf("CONFIRMED", "FAILED", "PENDING_APPROVAL")
+        instructions.getList<String>("items.findAll { it.type == 'SURRENDER' }.status") shouldContainAll listOf("CONFIRMED")
+    }
+
+    private fun operations(finland: String, sweden: String) {
+        val invoices = asUser("accountant", "ACCOUNTANT").get("/api/v1/settlement/invoices?legalEntityId=$finland").then().statusCode(200)
+            .extract().jsonPath()
+        invoices.getList<String>("paymentStatus") shouldContainAll listOf("PAID", "PARTIALLY_PAID", "UNPAID")
+        invoices.getList<String>("kind") shouldContainAll listOf("SALES", "PURCHASE", "CREDIT_NOTE")
+        invoices.getList<String>("findAll { it.status == 'ISSUED' && it.paymentStatus != 'PAID' && it.dueDate < '${java.time.LocalDate.now()}' }.id")
+            .size shouldBeGreaterThanOrEqual 1
+        asUser("controller", "ACCOUNTANT").get("/api/v1/workflow/tasks?type=INVOICE_APPROVAL&actionable=true").then()
+            .body("items.size()", equalTo(1))
+        asUser("controller", "ACCOUNTANT").get("/api/v1/settlement/netting?legalEntityId=$finland").then().statusCode(200)
+            .body("status", hasItems("DRAFT", "SETTLED"))
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/registry/instructions/search?holderEntityId=$finland&status=PENDING_APPROVAL").then()
+            .statusCode(200).body("items.size()", equalTo(1))
+        val account = asUser("admin", "ADMIN").get("/api/v1/reference/registry-accounts?holderType=LEGAL_ENTITY&holderId=$finland").then().extract().jsonPath()
+            .getString("find { it.accountNumber == 'SIM-DEMO-FI' }.id")
+        asUser("backoffice", "BACK_OFFICE").get("/api/v1/inventory/breaks?registryAccountId=$account").then().statusCode(200)
+            .body("size()", equalTo(1)).body("[0].type", equalTo("MISSING_IN_REGISTRY"))
+        val seAccount = asUser("admin", "ADMIN").get("/api/v1/reference/registry-accounts?holderType=LEGAL_ENTITY&holderId=$sweden").then().extract().jsonPath()
+            .getString("find { it.accountNumber == 'SIM-DEMO-SE' }.id")
+        asUser(
+            "backoffice",
+            "BACK_OFFICE",
+        ).get("/api/v1/inventory/breaks?registryAccountId=$seAccount&status=PENDING_ACCEPTANCE,RESOLVED").then().statusCode(200)
+            .body("status", hasItems("PENDING_ACCEPTANCE", "RESOLVED"))
+    }
+
+    private fun compliance(finland: String, sweden: String) {
+        asUser("risk", "RISK").get("/api/v1/risk/limits?legalEntityId=$finland&activeOnly=false").then().statusCode(200)
+            .body("findAll { it.status == 'ACTIVE' }.size()", greaterThanOrEqualTo(5))
+            .body("findAll { it.status == 'PENDING_APPROVAL' }.size()", equalTo(1))
+        asUser("risk", "RISK").get("/api/v1/risk/breaches?legalEntityId=$sweden").then().statusCode(200)
+            .body("findAll { it.status == 'OPEN' }.size()", greaterThanOrEqualTo(1))
+        asUser("risk", "RISK").get("/api/v1/risk/exposures?legalEntityId=$finland").then().statusCode(200).body("size()", greaterThan(0))
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/ets/installations?legalEntityId=$sweden").then().statusCode(200).body("size()", equalTo(1))
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/workflow/tasks?type=VERIFIED_EMISSIONS_APPROVAL&actionable=true").then()
+            .body("items.size()", equalTo(1))
+        asUser("middle", "MIDDLE_OFFICE")
+            .get("/api/v1/reports/emir/events?legalEntityId=$finland&from=2000-01-01&to=2100-01-01").then().statusCode(200)
+            .body("action", hasItems("NEWT", "EROR", "VALU"))
+        asUser("auditor", "AUDITOR").get("/api/v1/reports/exports?legalEntityId=$finland&reportCode=EMIR_TRADE_ACTIVITY").then().statusCode(200)
+            .body("size()", greaterThanOrEqualTo(3))
+    }
+
+    /** Every approving persona finds work waiting in the inbox. */
+    private fun inboxes() {
+        listOf(
+            "middle" to "MIDDLE_OFFICE",
+            "middle2" to "MIDDLE_OFFICE",
+            "backoffice" to "BACK_OFFICE,REGISTRY_OPERATOR",
+            "controller" to "ACCOUNTANT",
+            "accountant" to "ACCOUNTANT",
+            "risk" to "RISK",
+            "risk2" to "RISK",
+        ).forEach { (user, roles) ->
+            val counts = asUser(user, roles).get("/api/v1/workflow/tasks/counts?actionable=true").then().statusCode(200)
+                .extract().jsonPath().getMap<String, Int>("")
+            check(counts.values.sum() >= 1) { "$user has nothing to do in the inbox: $counts" }
+        }
     }
 
     /** The home dashboard shows each section only to roles that may read it (ADR 0034). */
@@ -107,31 +231,5 @@ class DemoDataSeederIT {
             .body("ledger.period", notNullValue())
         asUser("scoped", "TRADER").header("X-Entities", "00000000-0000-0000-0000-000000000000")
             .get("/api/v1/home/summary?legalEntityId=$finland").then().statusCode(403)
-    }
-
-    private fun operations(finland: String) {
-        asUser("accountant", "ACCOUNTANT").get("/api/v1/settlement/invoices?legalEntityId=$finland").then().statusCode(200)
-            .body("findAll { it.status == 'ISSUED' }.size()", equalTo(3))
-            .body("findAll { it.paymentStatus == 'PAID' }.size()", equalTo(1))
-            .body("findAll { it.kind == 'PURCHASE' }.size()", equalTo(1))
-            .body("findAll { it.status == 'PENDING_APPROVAL' }.size()", equalTo(1))
-        asUser("controller", "ACCOUNTANT").get("/api/v1/workflow/tasks?type=INVOICE_APPROVAL&actionable=true").then()
-            .body("items.size()", equalTo(1))
-        asUser("controller", "ACCOUNTANT").get("/api/v1/settlement/netting?legalEntityId=$finland").then().statusCode(200)
-            .body("size()", equalTo(1)).body("[0].status", equalTo("DRAFT"))
-        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/registry/instructions/search?holderEntityId=$finland&status=PENDING_APPROVAL").then()
-            .statusCode(200).body("items.size()", equalTo(1))
-        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/workflow/tasks?type=INSTRUCTION_APPROVAL&actionable=true").then()
-            .body("items.size()", equalTo(1))
-        val account = asUser("admin", "ADMIN").get("/api/v1/reference/registry-accounts?holderType=LEGAL_ENTITY&holderId=$finland").then().extract().jsonPath()
-            .getString("find { it.accountNumber == 'SIM-DEMO-FI' }.id")
-        asUser("backoffice", "BACK_OFFICE").get("/api/v1/inventory/statements?registryAccountId=$account").then().statusCode(200)
-            .body("size()", equalTo(1)).body("[0].status", equalTo("BREAKS"))
-        asUser("backoffice", "BACK_OFFICE").get("/api/v1/inventory/breaks?registryAccountId=$account").then().statusCode(200)
-            .body("size()", equalTo(1)).body("[0].type", equalTo("MISSING_IN_REGISTRY"))
-        asUser("middle2", "MIDDLE_OFFICE").get("/api/v1/confirmations?legalEntityId=$finland").then().statusCode(200)
-            .body("size()", equalTo(1)).body("[0].status", equalTo("MISMATCHED"))
-        asUser("middle2", "MIDDLE_OFFICE").get("/api/v1/workflow/tasks?type=CONFIRMATION_BREAK&actionable=true").then()
-            .body("items.size()", equalTo(1))
     }
 }

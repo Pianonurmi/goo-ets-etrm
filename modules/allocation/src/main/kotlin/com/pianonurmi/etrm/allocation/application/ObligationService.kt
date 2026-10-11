@@ -42,7 +42,13 @@ class ObligationService(
     private val referenceData: ReferenceDataQuery,
     private val events: ApplicationEventPublisher,
 ) : ObligationCommand, ObligationQuery {
-    override fun open(command: OpenObligation): ObligationView {
+    override fun open(command: OpenObligation): ObligationView = upsert(command, reopen = false)
+
+    /**
+     * Opens or updates the obligation of [command]'s source. A closed obligation stays closed, except when its trade
+     * becomes firm again ([reopen]): an amended trade closes its obligation and reopens it on the new confirmation.
+     */
+    private fun upsert(command: OpenObligation, reopen: Boolean): ObligationView {
         if (command.quantityMwh <= 0) throw ValidationException("Obligation quantity must be positive")
         if ((command.kind == ObligationKind.DISCLOSURE || command.kind == ObligationKind.OWN_CONSUMPTION) && command.cancellation == null) {
             throw ValidationException("${command.kind} obligations require cancellation details")
@@ -75,6 +81,9 @@ class ObligationService(
         )
         if (existing == null) {
             repository.insert(view)
+            events.publishEvent(ObligationOpened(view))
+        } else if (existing.status == ObligationStatus.CLOSED && reopen) {
+            if (!repository.update(view)) throw ConflictException("Obligation ${existing.id} changed concurrently")
             events.publishEvent(ObligationOpened(view))
         } else {
             if (existing.status == ObligationStatus.CLOSED) throw ConflictException("Obligation ${existing.id} is closed")
@@ -154,7 +163,7 @@ class ObligationService(
         val counterparty = referenceData.counterparty(delivery.counterpartyId)
         val kind = if (counterparty?.counterpartyType == CounterpartyType.INTERCOMPANY) ObligationKind.INTERCOMPANY else ObligationKind.SALE
         val (registry, account) = parseAccountRef(delivery.counterpartyAccountRef)
-        open(
+        upsert(
             OpenObligation(
                 kind = kind,
                 holderEntityId = delivery.legalEntityId,
@@ -169,6 +178,7 @@ class ObligationService(
                 targetRegistryCode = registry,
                 targetAccountRef = account,
             ),
+            reopen = true,
         )
     }
 

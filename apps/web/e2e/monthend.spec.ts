@@ -8,17 +8,20 @@ function previousPeriod(): string {
 }
 
 test.describe('ledger, month end and reports', () => {
-  test('month end shows the hard-close checklist and the period-end run; soft close and reopen', async ({ page }) => {
+  test('month end shows last month soft closed with its export to acknowledge; reopen and close again', async ({
+    page,
+  }) => {
     await actAs(page, 'accountant');
     await page.goto('/month-end');
     await expect(page.getByTestId('period-picker')).toHaveValue(previousPeriod());
-    await expect(page.getByTestId('hard-close-checklist')).toBeVisible();
     await expect(page.getByTestId('period-end-run')).toBeVisible();
+    // The demo exported last month but the ERP has not acknowledged it: that blocks the hard close.
+    await expect(page.getByTestId('period-status')).toHaveText(/^soft closed$/i);
+    await expect(page.getByTestId('hard-close-checklist')).toContainText(/acknowledged/i);
+    await page.getByRole('button', { name: 'Reopen' }).click();
     await expect(page.getByTestId('period-status')).toHaveText(/^open$/i);
     await page.getByTestId('soft-close').click();
     await expect(page.getByTestId('period-status')).toHaveText(/^soft closed$/i);
-    await page.getByRole('button', { name: 'Reopen' }).click();
-    await expect(page.getByTestId('period-status')).toHaveText(/^open$/i);
     await page.getByRole('tab', { name: 'GL interface' }).click();
     await expect(page.getByText('Reconciliation with the general ledger')).toBeVisible();
   });

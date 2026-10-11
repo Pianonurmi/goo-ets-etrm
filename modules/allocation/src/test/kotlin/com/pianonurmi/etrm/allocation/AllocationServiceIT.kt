@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.allocation
 
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqAllocationPlanRepository
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqObligationRepository
+import com.pianonurmi.etrm.allocation.api.AllocationConstraint
 import com.pianonurmi.etrm.allocation.api.LineStatus
 import com.pianonurmi.etrm.allocation.api.ObligationKind
 import com.pianonurmi.etrm.allocation.api.ObligationStatus
@@ -206,6 +207,29 @@ class AllocationServiceIT {
             costCurrency = "EUR",
         ),
     )
+
+    @Test
+    fun `constraints are stored with their type and read back`() {
+        val constraints = listOf(
+            AllocationConstraint.MaxSharePerDevice(60),
+            AllocationConstraint.MinShare(Criterion.energySource("HYDRO"), 30),
+        )
+        val opened = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                entityId,
+                criterion = Criterion.energySource("RENEWABLE"),
+                quantityMwh = 100,
+                deliveryWindow = LocalDateRange.ofQuarter(2026, 4),
+                deliveryDate = LocalDate.of(2026, 12, 15),
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-9",
+                constraints = constraints,
+            ),
+        )
+        obligations.requireObligation(opened.id).constraints shouldBe constraints
+        obligations.open(holderEntityId = entityId).single { it.id == opened.id }.constraints shouldBe constraints
+    }
 
     @Test
     fun `propose, four-eyes approve, instruct through the simulator and fulfil obligations`() {
