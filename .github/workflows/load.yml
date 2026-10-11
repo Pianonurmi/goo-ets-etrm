@@ -1,0 +1,73 @@
+name: Load test
+
+# Manual: k6 against the jar with the demo data on a CI runner (docs/operations/load-testing.md). A CI runner is a
+# noisy, two-core machine, so the thresholds catch regressions of the order of magnitude, not small drifts.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: k6 profile (smoke, baseline, stress)
+        default: baseline
+        type: choice
+        options: [smoke, baseline, stress]
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: etrm
+          POSTGRES_PASSWORD: etrm
+          POSTGRES_DB: etrm_codegen
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U etrm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ETRM_CODEGEN_DB_URL: jdbc:postgresql://localhost:5432/etrm_codegen
+      ETRM_DB_USER: etrm
+      ETRM_DB_PASSWORD: etrm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            25
+            21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: Boot jar
+        run: ./gradlew :apps:api:bootJar
+      - name: Start the application with the demo data
+        run: |
+          PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_load"
+          ETRM_DB_URL=jdbc:postgresql://localhost:5432/etrm_load nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar \
+            --spring.profiles.active=dev,demo --logging.level.com.pianonurmi.etrm=INFO --logging.level.org.jooq=INFO > app.log 2>&1 &
+          for i in $(seq 1 90); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
+          curl -fs http://localhost:8080/actuator/health/readiness
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: 1.3.0
+      - name: k6
+        run: k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=${{ inputs.profile }} --summary-export=k6-summary.json ops/load/etrm.js
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-${{ inputs.profile }}
+          path: |
+            k6-summary.json
+            app.log
+          retention-days: 30
