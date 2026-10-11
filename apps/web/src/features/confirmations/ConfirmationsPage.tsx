@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Group, SegmentedControl, Select, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Paper, SegmentedControl, Select, SimpleGrid, Stack, Text } from '@mantine/core';
 import { IconFileUpload } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
@@ -6,8 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { Can } from '@/shared/auth/Can';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
@@ -15,20 +19,18 @@ import { useCounterparties } from '@/features/trades/hooks';
 import { UploadConfirmationsModal } from './ConfirmationModals';
 import {
   QUEUE_VIEWS,
-  STATUS_COLORS,
   asQueueView,
+  differenceFields,
   queueStatuses,
   type Confirmation,
   type ConfirmationStatus,
 } from './model/confirmations';
 
 export function ConfirmationStatusBadge({ status, testId }: { status: ConfirmationStatus; testId?: string }) {
-  return (
-    <Badge color={STATUS_COLORS[status]} variant="light" data-testid={testId}>
-      {status}
-    </Badge>
-  );
+  return <StatusBadge status={status} data-testid={testId} />;
 }
+
+const ALL = queueStatuses('all');
 
 /** Confirmations received from counterparties, to match, override or dispute. */
 export function ConfirmationsPage() {
@@ -46,20 +48,16 @@ export function ConfirmationsPage() {
     else next.delete(key);
     setParams(next, { replace: true });
   };
-  const queue = $api.useQuery(
+  // One call for every received confirmation: the views and the figures are counts and filters of it.
+  const received = $api.useQuery(
     'get',
     '/api/v1/confirmations',
-    {
-      params: {
-        query: {
-          legalEntityId: entity?.id,
-          status: queueStatuses(view),
-          counterpartyId: counterpartyId ?? undefined,
-        },
-      },
-    },
+    { params: { query: { legalEntityId: entity?.id, status: ALL, counterpartyId: counterpartyId ?? undefined } } },
     { enabled: Boolean(entity) },
   );
+  const all = useMemo(() => received.data ?? [], [received.data]);
+  const rows = useMemo(() => all.filter((c) => queueStatuses(view).includes(c.status)), [all, view]);
+  const count = (...statuses: ConfirmationStatus[]) => all.filter((c) => statuses.includes(c.status)).length;
   const columns = useMemo<ColDef<Confirmation>[]>(
     () => [
       {
@@ -68,7 +66,13 @@ export function ConfirmationsPage() {
         width: 150,
         cellRenderer: (p: ICellRendererParams<Confirmation>) =>
           p.data && (
-            <Anchor component={Link} to={`/trades/${p.data.tradeId}`} size="sm" onClick={(e) => e.stopPropagation()}>
+            <Anchor
+              component={Link}
+              to={`/trades/${p.data.tradeId}`}
+              size="sm"
+              fw={600}
+              onClick={(e) => e.stopPropagation()}
+            >
               {p.data.tradeNumber}
             </Anchor>
           ),
@@ -83,23 +87,29 @@ export function ConfirmationsPage() {
       {
         colId: 'counterparty',
         headerName: t('trades.columns.counterparty'),
-        width: 220,
+        width: 240,
         valueGetter: (p) =>
           p.data?.counterpartyId ? (counterparties.byId.get(p.data.counterpartyId)?.name ?? '') : '',
       },
-      { field: 'reference', headerName: t('confirmations.theirReference'), width: 180 },
+      { field: 'reference', headerName: t('confirmations.theirReference'), width: 170 },
       {
         colId: 'differences',
         headerName: t('confirmations.differences'),
         flex: 1,
-        minWidth: 220,
+        minWidth: 200,
         valueGetter: (p) =>
-          p.data?.differences
-            .filter((difference) => difference.severity !== 'NOTE')
-            .map((difference) => difference.field)
-            .join(', ') ?? '',
+          p.data
+            ? differenceFields(p.data.differences)
+                .map((field) => t(`confirmations.fields.${field}`, { defaultValue: field }))
+                .join(', ')
+            : '',
       },
-      { field: 'source', headerName: t('confirmations.source'), width: 100 },
+      {
+        field: 'source',
+        headerName: t('confirmations.source'),
+        width: 140,
+        valueFormatter: (p) => t(`trades.sources.${String(p.value)}`, { defaultValue: String(p.value) }),
+      },
       {
         field: 'createdAt',
         headerName: t('confirmations.receivedAt'),
@@ -110,8 +120,9 @@ export function ConfirmationsPage() {
     ],
     [t, counterparties.byId],
   );
+  const mismatched = count('MISMATCHED');
   return (
-    <Stack>
+    <Stack gap="lg">
       <PageHeader
         title={t('confirmations.title')}
         description={t('confirmations.description', { entity: entity?.code ?? '' })}
@@ -127,36 +138,82 @@ export function ConfirmationsPage() {
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
         <>
-          <Group align="flex-end">
-            <SegmentedControl
-              value={view}
-              onChange={(value) => set('view', value === 'open' ? null : value)}
-              data={QUEUE_VIEWS.map((value) => ({ value, label: t(`confirmations.views.${value}`) }))}
+          <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md">
+            <KpiCard
+              label={t('confirmations.kpi.mismatched')}
+              value={mismatched}
+              loading={received.isPending}
+              trend={mismatched > 0 ? t('confirmations.kpi.mismatchedHint') : t('confirmations.kpi.noneWaiting')}
+              trendTone={mismatched > 0 ? 'warning' : 'neutral'}
+              testId="kpi-mismatched"
             />
-            <Select
-              label={t('trades.columns.counterparty')}
-              placeholder={t('settlement.allCounterparties')}
-              data={counterparties.list.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
-              value={counterpartyId}
-              onChange={(value) => set('counterparty', value)}
-              searchable
-              clearable
-              w={280}
+            <KpiCard
+              label={t('confirmations.kpi.disputed')}
+              value={count('DISPUTED')}
+              loading={received.isPending}
+              trend={t('confirmations.kpi.disputedHint')}
+              trendTone={count('DISPUTED') > 0 ? 'down' : 'neutral'}
             />
-          </Group>
-          <QueryState isPending={queue.isPending} error={queue.error}>
-            <DataGrid<Confirmation>
-              rowData={queue.data ?? []}
-              columnDefs={columns}
-              rowId={(row) => row.id}
-              height={480}
-              onRowClicked={(event) => event.data && void navigate(`/confirmations/${event.data.id}`)}
-              rowStyle={{ cursor: 'pointer' }}
+            <KpiCard
+              label={t('confirmations.kpi.received')}
+              value={count('RECEIVED')}
+              loading={received.isPending}
+              trend={t('confirmations.kpi.receivedHint')}
             />
-          </QueryState>
-          <Text size="xs" c="dimmed">
-            {t('confirmations.hint')}
-          </Text>
+            <KpiCard
+              label={t('confirmations.kpi.settled')}
+              value={count('MATCHED', 'OVERRIDDEN')}
+              loading={received.isPending}
+              trend={t('confirmations.kpi.settledHint')}
+              trendTone="up"
+            />
+          </SimpleGrid>
+          <Stack gap="sm">
+            <Group align="flex-end" gap="sm">
+              <SegmentedControl
+                value={view}
+                onChange={(value) => set('view', value === 'open' ? null : value)}
+                data={QUEUE_VIEWS.map((value) => ({ value, label: t(`confirmations.views.${value}`) }))}
+              />
+              <Select
+                aria-label={t('trades.columns.counterparty')}
+                placeholder={t('settlement.allCounterparties')}
+                data={counterparties.list.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
+                value={counterpartyId}
+                onChange={(value) => set('counterparty', value)}
+                searchable
+                clearable
+                w={300}
+              />
+            </Group>
+            <QueryState isPending={false} error={received.error}>
+              {received.isPending ? (
+                <Paper withBorder radius="lg">
+                  <TableSkeleton rows={6} />
+                </Paper>
+              ) : rows.length === 0 ? (
+                <Paper withBorder radius="lg">
+                  <EmptyState
+                    title={view === 'open' ? t('confirmations.emptyOpen') : t('confirmations.empty')}
+                    description={t('confirmations.emptyHint')}
+                    testId="confirmations-empty"
+                  />
+                </Paper>
+              ) : (
+                <DataGrid<Confirmation>
+                  rowData={rows}
+                  columnDefs={columns}
+                  rowId={(row) => row.id}
+                  height={Math.min(520, 46 + rows.length * 40 + 2)}
+                  onRowClicked={(event) => event.data && void navigate(`/confirmations/${event.data.id}`)}
+                  rowStyle={{ cursor: 'pointer' }}
+                />
+              )}
+            </QueryState>
+            <Text size="xs" c="dimmed">
+              {t('confirmations.hint')}
+            </Text>
+          </Stack>
         </>
       )}
       {uploading && <UploadConfirmationsModal onClose={() => setUploading(false)} />}

@@ -16,7 +16,14 @@ export function FactGrid({ facts, cols = 4 }: { facts: Fact[]; cols?: number }) 
           <Text size="xs" c="dimmed" fw={500}>
             {fact.label}
           </Text>
-          <Text size="sm" className="etrm-figure" truncate="end" data-testid={fact.testId} component="div">
+          <Text
+            size="sm"
+            className="etrm-figure"
+            truncate="end"
+            title={typeof fact.value === 'string' || typeof fact.value === 'number' ? String(fact.value) : undefined}
+            data-testid={fact.testId}
+            component="div"
+          >
             {fact.value}
           </Text>
         </Stack>
@@ -33,10 +40,13 @@ export function DetailLayout({
   summary,
   children,
   aside,
+  asideFirst = false,
 }: {
   summary?: Fact[];
   children: ReactNode;
   aside?: ReactNode;
+  /** Below the two-column width, show the side panel before the main content (e.g. a decision panel). */
+  asideFirst?: boolean;
 }) {
   const main = (
     <Stack gap="lg">
@@ -52,7 +62,7 @@ export function DetailLayout({
   return (
     <Grid gap="lg">
       <Grid.Col span={{ base: 12, lg: 8 }}>{main}</Grid.Col>
-      <Grid.Col span={{ base: 12, lg: 4 }}>
+      <Grid.Col span={{ base: 12, lg: 4 }} order={asideFirst ? { base: -1, lg: 0 } : undefined}>
         <Stack gap="lg">{aside}</Stack>
       </Grid.Col>
     </Grid>

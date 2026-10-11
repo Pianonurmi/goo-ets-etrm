@@ -1,9 +1,6 @@
 import {
   Alert,
-  Anchor,
-  Badge,
   Button,
-  Card,
   Group,
   Modal,
   NumberInput,
@@ -14,21 +11,25 @@ import {
   Tabs,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
-import { IconArrowLeft, IconCertificate, IconFlame, IconPencil, IconSend } from '@tabler/icons-react';
+import { IconCalendar, IconCertificate, IconFlame, IconPencil, IconSend } from '@tabler/icons-react';
 import type { ColDef } from 'ag-grid-community';
 import dayjs from 'dayjs';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { DetailLayout } from '@/shared/components/DetailLayout';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifySuccess } from '@/shared/components/notify';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
-import { formatDate, formatDateTime } from '@/shared/format/format';
+import { CardSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge } from '@/shared/components/StatusBadge';
+import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { ComplianceStatusBadge, Figure, tonnes, useInvalidateEts } from './EtsPage';
 
@@ -36,13 +37,6 @@ type EmissionRecord = Schema<'EmissionRecordView'>;
 type EmissionKind = Schema<'RecordEmissions'>['kind'];
 type FreeAllocationStatus = NonNullable<Schema<'SetFreeAllocation'>['status']>;
 type Installation = Schema<'InstallationView'>;
-
-const EMISSION_STATUS_COLORS: Record<EmissionRecord['status'], string> = {
-  PENDING_APPROVAL: 'yellow',
-  APPROVED: 'teal',
-  REJECTED: 'red',
-  SUPERSEDED: 'gray',
-};
 
 function RecordEmissionsModal({
   onClose,
@@ -226,12 +220,7 @@ function EmissionsTab({ installationId, year }: { installationId: string; year: 
         field: 'status',
         headerName: t('allocation.status'),
         width: 160,
-        cellRenderer: (p: { data?: EmissionRecord }) =>
-          p.data && (
-            <Badge color={EMISSION_STATUS_COLORS[p.data.status]} variant="light">
-              {p.data.status.replace(/_/g, ' ')}
-            </Badge>
-          ),
+        cellRenderer: (p: { data?: EmissionRecord }) => p.data && <StatusBadge status={p.data.status} />,
       },
       { field: 'verifier', headerName: t('ets.verifier'), width: 160 },
       { field: 'recordedBy', headerName: t('marketData.recordedBy'), width: 130 },
@@ -251,7 +240,7 @@ function EmissionsTab({ installationId, year }: { installationId: string; year: 
       <Group justify="flex-end" gap="xs">
         <Can op="etsCompliance_recordEmissions">
           <Button
-            variant="light"
+            variant="default"
             leftSection={<IconFlame size={16} />}
             onClick={() => setRecording('estimate')}
             data-testid="record-emissions"
@@ -260,7 +249,11 @@ function EmissionsTab({ installationId, year }: { installationId: string; year: 
           </Button>
         </Can>
         <Can op="etsCompliance_recordVerifiedEmissions">
-          <Button variant="light" leftSection={<IconCertificate size={16} />} onClick={() => setRecording('verified')}>
+          <Button
+            variant="default"
+            leftSection={<IconCertificate size={16} />}
+            onClick={() => setRecording('verified')}
+          >
             {t('ets.recordVerified')}
           </Button>
         </Can>
@@ -317,7 +310,7 @@ function FreeAllocationTab({ installationId, year }: { installationId: string; y
     <Stack>
       <Group justify="flex-end">
         <Can op="etsCompliance_setFreeAllocation">
-          <Button variant="light" leftSection={<IconPencil size={16} />} onClick={open}>
+          <Button variant="default" leftSection={<IconPencil size={16} />} onClick={open}>
             {t('ets.setAllocation')}
           </Button>
         </Can>
@@ -330,11 +323,7 @@ function FreeAllocationTab({ installationId, year }: { installationId: string; y
           <Figure label={t('ets.adjusted')} value={tonnes(allocation.data.adjusted)} />
           <Figure label={t('ets.entitlement')} value={tonnes(allocation.data.entitlement)} />
           <Figure label={t('ets.received')} value={tonnes(allocation.data.received)} />
-          <Figure
-            label={t('ets.outstanding')}
-            value={tonnes(allocation.data.outstanding)}
-            color={allocation.data.outstanding > 0 ? 'orange' : undefined}
-          />
+          <Figure label={t('ets.outstanding')} value={tonnes(allocation.data.outstanding)} />
         </SimpleGrid>
       )}
       {allocation.data?.note && (
@@ -417,7 +406,7 @@ function SurrendersTab({ installation, year }: { installation: Installation; yea
     <Stack>
       <Group justify="flex-end">
         <Can op="etsCompliance_requestSurrender">
-          <Button variant="light" leftSection={<IconSend size={16} />} onClick={() => setRequesting(true)}>
+          <Button variant="default" leftSection={<IconSend size={16} />} onClick={() => setRequesting(true)}>
             {t('ets.requestSurrender')}
           </Button>
         </Can>
@@ -444,12 +433,7 @@ function SurrendersTab({ installation, year }: { installation: Installation; yea
                   <Table.Td>{row.productCode}</Table.Td>
                   <Table.Td ta="right">{tonnes(row.quantity)}</Table.Td>
                   <Table.Td>
-                    <Badge
-                      variant="light"
-                      color={row.status === 'CONFIRMED' ? 'teal' : row.status === 'SUBMITTED' ? 'blue' : 'red'}
-                    >
-                      {row.status}
-                    </Badge>
+                    <StatusBadge status={row.status} />
                   </Table.Td>
                   <Table.Td>{row.requestedBy}</Table.Td>
                   <Table.Td>{formatDateTime(row.requestedAt)}</Table.Td>
@@ -502,18 +486,7 @@ function SurrendersTab({ installation, year }: { installation: Installation; yea
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm">{children}</Text>
-    </Stack>
-  );
-}
-
-/** One installation: master data, the year's compliance, emissions, free allocation and surrenders. */
+/** One installation: the year's compliance position, master data, emissions, free allocation and surrenders. */
 export function InstallationPage() {
   const { t } = useTranslation();
   const { installationId = '' } = useParams();
@@ -532,76 +505,91 @@ export function InstallationPage() {
     else next.delete(key);
     setParams(next, { replace: true });
   };
+  const breadcrumbs = [{ label: t('ets.title'), to: `/ets?year=${year}` }];
+  const data = installation.data;
+  if (!data) {
+    return (
+      <Stack gap={0}>
+        <PageHeader breadcrumbs={breadcrumbs} title={t('positions.installation')} />
+        <QueryState isPending={false} error={installation.error}>
+          <CardSkeleton height={260} />
+        </QueryState>
+      </Stack>
+    );
+  }
+  const position = compliance.data;
   return (
     <Stack>
-      <Anchor component={Link} to={`/ets?year=${year}`} size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('ets.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={installation.isPending} error={installation.error}>
-        {installation.data && (
-          <Card withBorder>
-            <Group justify="space-between">
-              <Group gap="xs">
-                <Title order={3}>{installation.data.name}</Title>
-                <Badge variant="light" color={installation.data.active ? 'teal' : 'gray'}>
-                  {t(`ets.kinds.${installation.data.kind}`)}
-                </Badge>
-              </Group>
-              <NumberInput
-                aria-label={t('positions.complianceYear')}
-                value={year}
-                onChange={(value) => setParam('year', Number(value) ? String(value) : null)}
-                w={120}
-                min={2005}
-              />
-            </Group>
-            <SimpleGrid cols={{ base: 2, md: 4 }} mt="md">
-              <Field label={t('ets.eutlId')}>{installation.data.eutlId}</Field>
-              <Field label={t('ets.country')}>{installation.data.country}</Field>
-              <Field label={t('ets.permitId')}>{installation.data.permitId ?? '–'}</Field>
-              <Field label={t('ets.activityCode')}>{installation.data.activityCode ?? '–'}</Field>
-              <Field label={t('ets.eligibleProducts')}>{installation.data.eligibleProducts.join(', ')}</Field>
-              <Field label={t('ets.monitoringPlan')}>
-                {[installation.data.monitoringPlanRef, installation.data.monitoringPlanVersion]
-                  .filter(Boolean)
-                  .join(' v') || '–'}
-              </Field>
-              <Field label={t('risk.validity')}>
-                {formatDate(installation.data.validFrom)} –{' '}
-                {installation.data.validTo ? formatDate(installation.data.validTo) : '∞'}
-              </Field>
-            </SimpleGrid>
-          </Card>
-        )}
+      <PageHeader
+        breadcrumbs={breadcrumbs}
+        title={data.name}
+        badge={
+          <Group gap={6} wrap="nowrap">
+            {position && <ComplianceStatusBadge status={position.status} />}
+            <StatusBadge status={data.active ? 'KIND' : 'INACTIVE'} label={t(`ets.kinds.${data.kind}`)} />
+          </Group>
+        }
+        description={`${data.eutlId} · ${data.country}${data.activityCode ? ` · ${t('ets.activityCode')} ${data.activityCode}` : ''}`}
+        actions={
+          <NumberInput
+            aria-label={t('positions.complianceYear')}
+            leftSection={<IconCalendar size={16} />}
+            value={year}
+            onChange={(value) => setParam('year', Number(value) ? String(value) : null)}
+            w={130}
+            min={2005}
+          />
+        }
+      />
+      <QueryState isPending={false} error={compliance.error}>
+        <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="installation-kpis">
+          <KpiCard
+            label={t('ets.outstanding')}
+            value={position ? formatDecimal(position.outstanding) : '—'}
+            unit="t"
+            loading={!position}
+            trend={position && t('ets.kpi.surrenderBy', { date: formatDate(position.surrenderDeadline) })}
+            trendTone={position && position.outstanding > 0 ? 'warning' : 'neutral'}
+          />
+          <KpiCard
+            label={t('positions.held')}
+            value={position ? formatDecimal(position.held) : '—'}
+            unit="t"
+            loading={!position}
+            trend={position && t('ets.kpi.surrendered', { tonnes: formatDecimal(position.surrendered) })}
+          />
+          <KpiCard
+            label={t('ets.net')}
+            value={position ? formatDecimal(position.net) : '—'}
+            unit="t"
+            loading={!position}
+            trend={position && t(position.net < 0 ? 'ets.kpi.short' : 'ets.kpi.covered')}
+            trendTone={position ? (position.net < 0 ? 'down' : 'up') : 'neutral'}
+          />
+          <KpiCard
+            label={t('positions.emissions')}
+            value={position ? formatDecimal(position.emissions) : '—'}
+            unit="t"
+            loading={!position}
+            trend={position && t(`ets.basis.${position.emissionsBasis}`)}
+          />
+        </SimpleGrid>
       </QueryState>
-      <QueryState isPending={compliance.isPending} error={compliance.error}>
-        {compliance.data && (
-          <SimpleGrid cols={{ base: 2, md: 6 }}>
-            <Figure
-              label={`${t('positions.emissions')} · ${t(`ets.basis.${compliance.data.emissionsBasis}`)}`}
-              value={tonnes(compliance.data.emissions)}
-            />
-            <Figure label={t('positions.held')} value={tonnes(compliance.data.held)} />
-            <Figure label={t('positions.surrendered')} value={tonnes(compliance.data.surrendered)} />
-            <Figure label={t('ets.outstanding')} value={tonnes(compliance.data.outstanding)} />
-            <Figure
-              label={t('ets.net')}
-              value={tonnes(compliance.data.net)}
-              color={compliance.data.net < 0 ? 'red' : 'teal'}
-            />
-            <Card withBorder>
-              <Text size="xs" c="dimmed">
-                {t('positions.deadline')} {formatDate(compliance.data.surrenderDeadline)}
-              </Text>
-              <ComplianceStatusBadge status={compliance.data.status} />
-            </Card>
-          </SimpleGrid>
-        )}
-      </QueryState>
-      {installation.data && (
+      <DetailLayout
+        summary={[
+          { label: t('ets.eutlId'), value: data.eutlId },
+          { label: t('ets.permitId'), value: data.permitId ?? '–' },
+          { label: t('ets.eligibleProducts'), value: data.eligibleProducts.join(', ') },
+          {
+            label: t('risk.validity'),
+            value: `${formatDate(data.validFrom)} – ${data.validTo ? formatDate(data.validTo) : '∞'}`,
+          },
+          {
+            label: t('ets.monitoringPlan'),
+            value: [data.monitoringPlanRef, data.monitoringPlanVersion].filter(Boolean).join(' v') || '–',
+          },
+        ]}
+      >
         <Tabs
           value={tab}
           onChange={(value) => setParam('tab', value === 'emissions' ? null : value)}
@@ -619,10 +607,10 @@ export function InstallationPage() {
             <FreeAllocationTab installationId={installationId} year={year} />
           </Tabs.Panel>
           <Tabs.Panel value="surrenders" pt="md">
-            <SurrendersTab installation={installation.data} year={year} />
+            <SurrendersTab installation={data} year={year} />
           </Tabs.Panel>
         </Tabs>
-      )}
+      </DetailLayout>
     </Stack>
   );
 }

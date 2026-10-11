@@ -55,11 +55,25 @@ All text colours meet WCAG AA (4.5:1) on their backgrounds in both schemes; `con
 |---|---|---|
 | `PageHeader` | top of every screen | `breadcrumbs`, `title`, `badge` (a `StatusBadge`), `description`, `actions` (one primary) |
 | `KpiCard` | overview pages | label, value with unit, trend line (`trendTone`), optional `spark` values, `to` link |
-| `DetailLayout` + `FactGrid` | record pages | summary facts, then tabs; `aside` for timeline or tasks |
+| `DetailLayout` + `FactGrid` | record pages | summary facts, then tabs; `aside` for timeline or tasks (`asideFirst` puts it first on narrow screens, e.g. a decision panel); a long fact shows in full on hover |
+| `LifecycleTimeline` | record pages, in the aside | the steps of a lifecycle (`done`, `current`, `pending`, `failed`) with time and actor; each feature builds its steps in a tested pure function (`model/lifecycle.ts`, `taskSteps`, `limitSteps`) |
 | `EmptyState` | empty lists | what would be here, why it is empty, the action that fills it |
 | `TableSkeleton`, `CardSkeleton` | loading | instead of spinners, so the layout does not jump |
 | `StatusBadge`, `Money`, `Quantity`, `Side` | anywhere | see above |
-| `DataGrid` | lists | AG Grid in the theme; row height follows the density |
+| `ScrollTable` | small tables | a Mantine table that scrolls sideways below `minWidth`; the scroll area is a named, focusable region |
+| `DataGrid` | lists | AG Grid in the theme; row height follows the density; `fitRows={n}` sizes a short list to its rows (up to `n`, with room for the scrollbar) instead of AG Grid's `autoHeight`, which hides the last row behind a horizontal scrollbar |
+
+## Screen patterns
+
+- **Overview pages** open with a KPI strip of three or four `KpiCard`s, the most important figure first, each
+  linking to where it is acted on. Figures come from the API (often `GET /api/v1/home/summary`, shared with the home
+  page); the browser counts rows but never sums money or quantities.
+- **Record pages**: `PageHeader` with breadcrumbs and the status badge, `DetailLayout` with the key facts, the main
+  content in tabs, and the lifecycle in the aside.
+- At most one dense grid above the fold; charts where a shape says more than rows (coverage, expiry, P&L explain).
+- Empty lists say what would be there and offer the action that fills it; loading shows skeletons.
+- Forms come in titled sections with inline help and one primary action, kept visible in a sticky bar on long forms.
+- Each screen is checked at 1440 and 1024 px, light and dark.
 
 ## Layout
 

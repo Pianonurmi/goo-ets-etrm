@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ageInDays, breakActions, breakSubject, canReconcile, facts, mismatches, type Break } from './breaks';
+import {
+  ageInDays,
+  breakActions,
+  breakSteps,
+  breakSubject,
+  canReconcile,
+  facts,
+  mismatches,
+  type Break,
+} from './breaks';
 
 describe('reconciliation breaks', () => {
   it('offers the resolutions of each break type', () => {
@@ -66,6 +75,43 @@ describe('reconciliation breaks', () => {
     expect(facts(details)).toEqual([
       ['line', '3'],
       ['status', 'HELD'],
+    ]);
+  });
+
+  it('builds the lifecycle from opened to resolved', () => {
+    const label = (key: string) => key;
+    const open = {
+      status: 'OPEN' as const,
+      detectedAt: '2026-10-11T08:00:00Z',
+      firstSeenOn: '2026-10-11',
+      assignee: null,
+      acceptanceRequestedBy: null,
+      resolvedAt: null,
+      resolvedBy: null,
+      resolution: null,
+    };
+    expect(breakSteps(open, label).map((step) => [step.label, step.state])).toEqual([
+      ['opened', 'current'],
+      ['assigned', 'pending'],
+      ['resolved', 'pending'],
+    ]);
+    const pending = { ...open, status: 'PENDING_ACCEPTANCE' as const, assignee: 'bo', acceptanceRequestedBy: 'bo' };
+    expect(breakSteps(pending, label).map((step) => [step.label, step.state])).toEqual([
+      ['opened', 'done'],
+      ['assigned', 'done'],
+      ['acceptanceRequested', 'current'],
+      ['resolved', 'pending'],
+    ]);
+    const accepted = { ...pending, status: 'ACCEPTED' as const, resolvedBy: 'middle', resolution: 'Cut-off' };
+    expect(breakSteps(accepted, label).at(-1)).toMatchObject({
+      label: 'accepted',
+      state: 'done',
+      by: 'middle',
+      detail: 'Cut-off',
+    });
+    expect(breakSteps({ ...open, status: 'AUTO_CLEARED' }, label).map((step) => step.label)).toEqual([
+      'opened',
+      'autoCleared',
     ]);
   });
 });

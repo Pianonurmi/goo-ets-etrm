@@ -98,6 +98,23 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Colours come from the theme (`c="red"`, `color="brand"`): `app/theme.ts` keeps them at WCAG AA contrast and `e2e/hardening.spec.ts` runs axe and a CSP check. Keep new screens lazy; `npm run budget` guards the bundle size.
 - Demo data (`demo` profile, `apps/api/.../demo`) goes through the REST API as the dev personas; extend it when a screen needs data to show, as a named `DemoStep` in `DemoScenario.steps()` (values for later steps go through `DemoContext.put`/`get`; the run log in `etrm_demo` makes a failed run resumable). Its test runs on a sibling database (`SiblingDatabase`) because its market data would clash with `MonthEndIT`.
 
+## Working with sub-agents
+
+- Consider delegating self-contained tasks to sub-agents, and run independent ones in parallel, each in its own
+  worktree (`isolation: worktree`).
+- Choose the model by the task, to keep token costs down:
+  - a small model (`haiku`) for searches, inventories and mechanical edits;
+  - `sonnet` for well-specified implementation;
+  - the main model only for design, hard debugging and review.
+- Give each agent a complete brief: the conventions above, the files it must not touch, the test ids to keep, the
+  checks to run (tsc, eslint, prettier, Vitest; Gradle and Playwright only when nothing else uses the database), and
+  what to report. An agent reports gaps it finds instead of widening its scope.
+- Review every agent's result with the main model before merging it:
+  - read the diff;
+  - run the checks and the affected tests (Playwright for UI work);
+  - look at the screenshots of changed screens;
+  - fix or send back what does not meet the conventions.
+
 ## Lint
 
 Kotlin warnings are errors. detekt config is `config/detekt/detekt.yml` (max line length 160). ktlint follows `.editorconfig`. Run `./gradlew ktlintFormat detekt` before pushing.

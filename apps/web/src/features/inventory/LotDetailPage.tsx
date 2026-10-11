@@ -1,40 +1,20 @@
-import {
-  Anchor,
-  Badge,
-  Button,
-  Card,
-  Code,
-  Grid,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-  Timeline,
-  Title,
-} from '@mantine/core';
-import { IconArrowLeft } from '@tabler/icons-react';
-import { useState, type ReactNode } from 'react';
+import { Anchor, Badge, Button, Code, Group, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
+import { IconHistory } from '@tabler/icons-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
+import { DetailLayout } from '@/shared/components/DetailLayout';
+import { Money, Quantity } from '@/shared/components/Figures';
+import { LifecycleTimeline } from '@/shared/components/LifecycleTimeline';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
-import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
-import { daysToExpiry, LotStatusBadge } from './lotColumns';
+import { CardSkeleton } from '@/shared/components/Skeletons';
+import { statusLabel } from '@/shared/components/StatusBadge';
+import { formatDate, formatDecimal } from '@/shared/format/format';
+import { daysToExpiry, LotStatusBadge, type Lot } from './lotColumns';
 import { LotActions } from './LotOperations';
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" component="div">
-        {children ?? '—'}
-      </Text>
-    </Stack>
-  );
-}
+import { historySteps } from './model/history';
 
 function AsOf({ lotId }: { lotId: string }) {
   const { t } = useTranslation();
@@ -57,14 +37,14 @@ function AsOf({ lotId }: { lotId: string }) {
     { enabled: asked !== null },
   );
   return (
-    <Card withBorder>
-      <Title order={5} mb="xs">
+    <Paper withBorder radius="lg" p="lg">
+      <Title order={3} size="h5">
         {t('inventory.asOf')}
       </Title>
-      <Text size="xs" c="dimmed" mb="sm">
+      <Text size="sm" c="dimmed" mb="md">
         {t('inventory.asOfHint')}
       </Text>
-      <Group align="flex-end">
+      <Group align="flex-end" gap="sm">
         <TextInput
           type="datetime-local"
           label={t('inventory.effectiveAt')}
@@ -77,135 +57,129 @@ function AsOf({ lotId }: { lotId: string }) {
           value={knownAt}
           onChange={(e) => setKnownAt(e.currentTarget.value)}
         />
-        <Button variant="light" onClick={() => setAsked({ effectiveAt, knownAt })}>
+        <Button
+          variant="default"
+          leftSection={<IconHistory size={16} />}
+          onClick={() => setAsked({ effectiveAt, knownAt })}
+        >
           {t('inventory.show')}
         </Button>
       </Group>
       {asked && (
         <QueryState isPending={result.isPending} error={result.error}>
-          <Code block mt="sm">
+          <Code block mt="md" mah={360} style={{ overflow: 'auto' }}>
             {JSON.stringify(result.data ?? null, null, 2)}
           </Code>
         </QueryState>
       )}
-    </Card>
+    </Paper>
+  );
+}
+
+function LotBody({ lot }: { lot: Lot }) {
+  const { t } = useTranslation();
+  const history = $api.useQuery('get', '/api/v1/inventory/lots/{id}/history', { params: { path: { id: lot.id } } });
+  const days = daysToExpiry(lot);
+  const source = statusLabel(lot.energySourceCode ?? '');
+  const support =
+    [lot.supportProduction ? t('inventory.production') : null, lot.supportInvestment ? t('inventory.investment') : null]
+      .filter(Boolean)
+      .join(', ') || t('common.no');
+  return (
+    <Stack gap="lg">
+      <PageHeader
+        breadcrumbs={[{ label: t('inventory.title'), to: '/inventory' }, { label: lot.issuanceRef }]}
+        title={
+          <span data-testid="lot-title">
+            {t('inventory.lotTitle', { quantity: formatDecimal(lot.quantityMwh), source })}
+          </span>
+        }
+        badge={
+          <Group gap={6} wrap="nowrap">
+            <LotStatusBadge status={lot.status} testId="lot-status" />
+            {days !== null && days <= 60 && (
+              <Badge color={days <= 30 ? 'red' : 'orange'} variant="light" radius="xl" tt="none">
+                {t('inventory.expiresInLong', { count: days })}
+              </Badge>
+            )}
+          </Group>
+        }
+        description={`${lot.deviceName ?? lot.deviceGsrn} · ${lot.deviceCountry} · ${t('inventory.producedIn', {
+          from: formatDate(lot.productionPeriod.start),
+          to: formatDate(lot.productionPeriod.endExclusive),
+        })}`}
+      />
+      <DetailLayout
+        summary={[
+          { label: t('inventory.quantity'), value: <Quantity value={lot.quantityMwh} unit="MWh" fw={600} /> },
+          { label: t('inventory.columns.expiry'), value: formatDate(lot.expiryDate) },
+          {
+            label: t('inventory.columns.cost'),
+            value:
+              lot.costBasisPerMwh != null ? <Money value={lot.costBasisPerMwh} currency={lot.costCurrency} /> : '—',
+          },
+          { label: t('inventory.gsrn'), value: lot.deviceGsrn },
+          { label: t('inventory.columns.technology'), value: statusLabel(lot.technologyCode ?? '') || '—' },
+          {
+            label: t('inventory.capacity'),
+            value: lot.deviceCapacityKw != null ? `${formatDecimal(lot.deviceCapacityKw)} kW` : '—',
+          },
+          { label: t('inventory.range'), value: `${lot.range.start} – ${lot.range.end}` },
+          { label: t('inventory.columns.registry'), value: lot.registryCode },
+          { label: t('inventory.scheme'), value: lot.certificateScheme },
+          { label: t('inventory.issued'), value: formatDate(lot.issueDate) },
+          { label: t('inventory.support'), value: support },
+          { label: t('inventory.labels'), value: lot.labels.join(', ') || '—' },
+          { label: t('inventory.reservation'), value: lot.reservationRef ?? '—' },
+          {
+            label: t('inventory.parent'),
+            value: lot.parentLotId ? (
+              <Anchor component={Link} to={`/inventory/lots/${lot.parentLotId}`} size="sm">
+                {lot.parentLotId.slice(-8)}
+              </Anchor>
+            ) : (
+              '—'
+            ),
+          },
+          { label: t('inventory.acquiredThrough'), value: statusLabel(lot.acquisitionSource) },
+          { label: t('inventory.acquired'), value: formatDate(lot.acquisitionDate) },
+        ]}
+        aside={
+          <>
+            <LotActions lot={lot} />
+            <QueryState isPending={false} error={history.error}>
+              {history.isPending ? (
+                <CardSkeleton height={160} />
+              ) : (
+                <LifecycleTimeline
+                  title={t('inventory.history')}
+                  steps={historySteps(history.data ?? [])}
+                  testId="lot-history"
+                />
+              )}
+            </QueryState>
+          </>
+        }
+      >
+        <AsOf lotId={lot.id} />
+      </DetailLayout>
+    </Stack>
   );
 }
 
 export function LotDetailPage() {
-  const { t } = useTranslation();
   const { lotId = '' } = useParams();
   const lot = $api.useQuery('get', '/api/v1/inventory/lots/{id}', { params: { path: { id: lotId } } });
-  const history = $api.useQuery('get', '/api/v1/inventory/lots/{id}/history', { params: { path: { id: lotId } } });
   return (
-    <Stack>
-      <Anchor component={Link} to="/inventory" size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('inventory.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={lot.isPending} error={lot.error}>
-        {lot.data &&
-          (() => {
-            const data = lot.data;
-            const days = daysToExpiry(data);
-            return (
-              <Grid>
-                <Grid.Col span={{ base: 12, lg: 8 }}>
-                  <Stack>
-                    <Card withBorder>
-                      <Group justify="space-between" mb="sm">
-                        <Stack gap={0}>
-                          <Text size="sm" c="dimmed">
-                            {data.issuanceRef}
-                          </Text>
-                          <Title order={3} data-testid="lot-title">
-                            {t('inventory.lotTitle', {
-                              quantity: formatDecimal(data.quantityMwh),
-                              source: data.energySourceCode,
-                            })}
-                          </Title>
-                        </Stack>
-                        <Group gap={6}>
-                          <LotStatusBadge status={data.status} testId="lot-status" />
-                          {days !== null && days <= 60 && (
-                            <Badge color="red">{t('inventory.expiresIn', { count: days })}</Badge>
-                          )}
-                        </Group>
-                      </Group>
-                      <SimpleGrid cols={{ base: 2, md: 4 }}>
-                        <Field
-                          label={t('inventory.columns.device')}
-                        >{`${data.deviceName ?? ''} (${data.deviceGsrn})`}</Field>
-                        <Field label={t('inventory.columns.country')}>{data.deviceCountry}</Field>
-                        <Field label={t('inventory.columns.technology')}>{data.technologyCode}</Field>
-                        <Field label={t('inventory.capacity')}>
-                          {data.deviceCapacityKw != null ? `${formatDecimal(data.deviceCapacityKw)} kW` : null}
-                        </Field>
-                        <Field
-                          label={t('inventory.columns.production')}
-                        >{`${formatDate(data.productionPeriod.start)} – ${formatDate(data.productionPeriod.endExclusive)}`}</Field>
-                        <Field label={t('inventory.issued')}>{formatDate(data.issueDate)}</Field>
-                        <Field label={t('inventory.columns.expiry')}>{formatDate(data.expiryDate)}</Field>
-                        <Field label={t('inventory.range')}>{`${data.range.start} – ${data.range.end}`}</Field>
-                        <Field label={t('inventory.columns.registry')}>{data.registryCode}</Field>
-                        <Field label={t('inventory.scheme')}>{data.certificateScheme}</Field>
-                        <Field label={t('inventory.support')}>
-                          {[
-                            data.supportProduction ? t('inventory.production') : null,
-                            data.supportInvestment ? t('inventory.investment') : null,
-                          ]
-                            .filter(Boolean)
-                            .join(', ') || t('common.no')}
-                        </Field>
-                        <Field label={t('inventory.columns.cost')}>
-                          {data.costBasisPerMwh != null
-                            ? `${formatDecimal(data.costBasisPerMwh, 2, 4)} ${data.costCurrency ?? ''}`
-                            : null}
-                        </Field>
-                        <Field label={t('inventory.labels')}>{data.labels.join(', ') || null}</Field>
-                        <Field label={t('inventory.reservation')}>{data.reservationRef}</Field>
-                        <Field label={t('inventory.parent')}>
-                          {data.parentLotId ? (
-                            <Anchor component={Link} to={`/inventory/lots/${data.parentLotId}`} size="sm">
-                              {data.parentLotId.slice(-8)}
-                            </Anchor>
-                          ) : null}
-                        </Field>
-                        <Field
-                          label={t('inventory.acquired')}
-                        >{`${data.acquisitionSource} ${formatDate(data.acquisitionDate)}`}</Field>
-                      </SimpleGrid>
-                    </Card>
-                    <AsOf lotId={data.id} />
-                  </Stack>
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, lg: 4 }}>
-                  <Stack>
-                    <LotActions lot={data} />
-                    <Card withBorder data-testid="lot-history">
-                      <Title order={5} mb="sm">
-                        {t('inventory.history')}
-                      </Title>
-                      <QueryState isPending={history.isPending} error={history.error}>
-                        <Timeline bulletSize={14} lineWidth={2}>
-                          {(history.data ?? []).map((event) => (
-                            <Timeline.Item key={event.seq} title={event.eventType}>
-                              <Text size="xs" c="dimmed">
-                                {event.actor} · {formatDateTime(event.recordedAt)}
-                              </Text>
-                            </Timeline.Item>
-                          ))}
-                        </Timeline>
-                      </QueryState>
-                    </Card>
-                  </Stack>
-                </Grid.Col>
-              </Grid>
-            );
-          })()}
-      </QueryState>
-    </Stack>
+    <QueryState isPending={false} error={lot.error}>
+      {lot.data ? (
+        <LotBody lot={lot.data} />
+      ) : (
+        <Stack gap="lg">
+          <CardSkeleton height={90} />
+          <CardSkeleton height={200} />
+        </Stack>
+      )}
+    </QueryState>
   );
 }

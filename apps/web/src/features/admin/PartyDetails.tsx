@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { Badge, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -9,7 +9,9 @@ import type { Body } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate } from '@/shared/format/format';
+import { Section } from './Section';
 
 export type PartyType = 'LEGAL_ENTITY' | 'COUNTERPARTY';
 type Address = Body<'UpsertAddress'>;
@@ -240,80 +242,72 @@ export function PartyDetails({ partyType, partyId }: { partyType: PartyType; par
   const addresses = $api.useQuery('get', '/api/v1/reference/parties/{partyType}/{partyId}/addresses', path);
   const vat = $api.useQuery('get', '/api/v1/reference/parties/{partyType}/{partyId}/vat-registrations', path);
   const banks = $api.useQuery('get', '/api/v1/reference/parties/{partyType}/{partyId}/bank-accounts', path);
+  const add = (op: 'address' | 'vat' | 'bank', permission: Parameters<typeof Can>[0]['op'], label: string) => (
+    <Can op={permission}>
+      <Button size="compact-sm" variant="subtle" leftSection={<IconPlus size={14} />} onClick={() => setEditing(op)}>
+        {label}
+      </Button>
+    </Can>
+  );
   return (
     <Stack>
-      <Group justify="space-between">
-        <Title order={6}>{t('admin.addresses')}</Title>
-        <Can op="partyDetails_upsertAddress">
-          <Button
-            size="compact-sm"
-            variant="subtle"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setEditing('address')}
-          >
-            {t('admin.setAddress')}
-          </Button>
-        </Can>
-      </Group>
-      {(addresses.data ?? []).length === 0 ? (
-        <Text size="sm" c="dimmed">
-          {t('common.empty')}
-        </Text>
-      ) : (
-        (addresses.data ?? []).map((address) => (
-          <Text size="sm" key={address.addressType}>
-            <Badge size="xs" variant="light" mr="xs">
-              {t(`admin.addressTypes.${address.addressType}`)}
-            </Badge>
-            {address.text}
-          </Text>
-        ))
-      )}
-      <Group justify="space-between">
-        <Title order={6}>{t('admin.vatRegistrations')}</Title>
-        <Can op="partyDetails_upsertVatRegistration">
-          <Button
-            size="compact-sm"
-            variant="subtle"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setEditing('vat')}
-          >
-            {t('admin.addVat')}
-          </Button>
-        </Can>
-      </Group>
-      {(vat.data ?? []).map((row) => (
-        <Text size="sm" key={row.id}>
-          {row.country} {row.vatNumber} · {formatDate(row.validFrom)} – {row.validTo ? formatDate(row.validTo) : '∞'}
-        </Text>
-      ))}
-      <Group justify="space-between">
-        <Title order={6}>{t('admin.bankAccounts')}</Title>
-        <Can op="partyDetails_requestBankAccountChange">
-          <Button
-            size="compact-sm"
-            variant="subtle"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setEditing('bank')}
-          >
-            {t('admin.addBankAccount')}
-          </Button>
-        </Can>
-      </Group>
-      {(banks.data ?? []).length > 0 && (
-        <Table fz="sm">
+      <Section
+        title={t('admin.addresses')}
+        action={add('address', 'partyDetails_upsertAddress', t('admin.setAddress'))}
+        empty={addresses.data?.length === 0 ? t('admin.noAddresses') : null}
+      >
+        <Stack gap={6}>
+          {(addresses.data ?? []).map((address) => (
+            <Group key={address.addressType} gap="xs" wrap="nowrap" align="flex-start">
+              <Badge size="sm" variant="light" color="gray" tt="none" style={{ flexShrink: 0 }}>
+                {t(`admin.addressTypes.${address.addressType}`)}
+              </Badge>
+              <Text size="sm">{address.text}</Text>
+            </Group>
+          ))}
+        </Stack>
+      </Section>
+      <Section
+        title={t('admin.vatRegistrations')}
+        action={add('vat', 'partyDetails_upsertVatRegistration', t('admin.addVat'))}
+        empty={vat.data?.length === 0 ? t('admin.noVat') : null}
+      >
+        <Stack gap={6}>
+          {(vat.data ?? []).map((row) => (
+            <Group key={row.id} gap="xs" justify="space-between" wrap="nowrap">
+              <Text size="sm" ff="monospace">
+                {row.country} {row.vatNumber}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {formatDate(row.validFrom)} – {row.validTo ? formatDate(row.validTo) : '∞'}
+              </Text>
+            </Group>
+          ))}
+        </Stack>
+      </Section>
+      <Section
+        title={t('admin.bankAccounts')}
+        action={add('bank', 'partyDetails_requestBankAccountChange', t('admin.addBankAccount'))}
+        empty={banks.data?.length === 0 ? t('admin.noBankAccounts') : null}
+      >
+        <Table fz="sm" verticalSpacing={6}>
           <Table.Tbody>
             {(banks.data ?? []).map((row) => (
               <Table.Tr key={row.id}>
                 <Table.Td ff="monospace">{row.iban}</Table.Td>
                 <Table.Td>{row.bic}</Table.Td>
                 <Table.Td>{row.currency}</Table.Td>
-                <Table.Td>{row.active ? t('marketData.active') : t('admin.inactive')}</Table.Td>
+                <Table.Td>
+                  <StatusBadge
+                    status={row.active ? 'ACTIVE' : 'INACTIVE'}
+                    label={row.active ? t('admin.active') : t('admin.inactive')}
+                  />
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
-      )}
+      </Section>
       {editing === 'address' && (
         <AddressModal partyType={partyType} partyId={partyId} onClose={() => setEditing(null)} />
       )}

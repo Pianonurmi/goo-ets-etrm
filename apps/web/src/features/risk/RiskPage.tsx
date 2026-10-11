@@ -1,13 +1,13 @@
 import { BarChart } from '@mantine/charts';
 import {
   Alert,
-  Badge,
   Button,
   Card,
   Group,
   Modal,
   Progress,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -25,10 +25,13 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDateTime, formatDecimal, formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
@@ -66,16 +69,85 @@ export function useScopeNames(entityId: string | undefined): ScopeNames {
 }
 
 export function LimitStatusBadge({ status, testId }: { status: Limit['status']; testId?: string }) {
-  const colors: Record<Limit['status'], string> = {
-    PENDING_APPROVAL: 'yellow',
-    ACTIVE: 'teal',
-    REJECTED: 'red',
-    RETIRED: 'gray',
-  };
+  return <StatusBadge status={status} data-testid={testId} />;
+}
+
+/** An open breach is a problem (red), a closed one is history (grey). */
+function BreachBadge({ status }: { status: Breach['status'] }) {
+  return <StatusBadge status={status === 'OPEN' ? 'BREACH' : 'CLOSED'} label={statusLabel(status)} />;
+}
+
+/**
+ * Limits in breach and near their warning level (the latest measurements), the highest utilisation, and open breaches;
+ * the counts come from the rows, the percentages from the server.
+ */
+function RiskKpis({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const limits = $api.useQuery('get', '/api/v1/risk/limits', {
+    params: { query: { legalEntityId: entityId, activeOnly: true } },
+  });
+  const breaches = $api.useQuery('get', '/api/v1/risk/breaches', {
+    params: { query: { legalEntityId: entityId, openOnly: true } },
+  });
+  const active = limits.data ?? [];
+  const utilisations = useUtilisations(active);
+  const measured = active.flatMap((limit) => {
+    const current = utilisations.get(limit.id);
+    return current ? [{ limit, current }] : [];
+  });
+  const inBreach = measured.filter((row) => row.current.status === 'BREACH').length;
+  const warning = measured.filter((row) => row.current.status === 'WARNING').length;
+  const highest = measured.reduce<(typeof measured)[number] | undefined>(
+    (top, row) => (!top || row.current.utilisation > top.current.utilisation ? row : top),
+    undefined,
+  );
+  const open = breaches.data?.length ?? 0;
   return (
-    <Badge color={colors[status]} variant="light" data-testid={testId}>
-      {status.replace(/_/g, ' ')}
-    </Badge>
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="risk-kpis">
+      <KpiCard
+        label={t('risk.kpi.inBreach')}
+        value={inBreach}
+        loading={limits.isPending}
+        trend={inBreach > 0 ? t('risk.kpi.inBreachHint') : t('risk.kpi.withinLimits')}
+        trendTone={inBreach > 0 ? 'down' : 'up'}
+      />
+      <KpiCard
+        label={t('risk.kpi.warning')}
+        value={warning}
+        loading={limits.isPending}
+        trend={t('risk.kpi.warningHint')}
+        trendTone={warning > 0 ? 'warning' : 'neutral'}
+      />
+      <KpiCard
+        label={t('risk.kpi.highest')}
+        value={highest ? formatDecimal(highest.current.utilisation, 0, 1) : '—'}
+        unit={highest ? '%' : undefined}
+        loading={limits.isPending}
+        trend={
+          highest
+            ? `${t(`risk.types.${highest.limit.type}`)} · ${t('risk.kpi.measuredOf', { count: measured.length, total: active.length })}`
+            : t('risk.notMeasured')
+        }
+        trendTone={
+          highest
+            ? highest.current.status === 'OK'
+              ? 'up'
+              : highest.current.status === 'WARNING'
+                ? 'warning'
+                : 'down'
+            : 'neutral'
+        }
+        to={highest ? `/risk/limits/${highest.limit.id}` : undefined}
+      />
+      <KpiCard
+        label={t('risk.kpi.openBreaches')}
+        value={open}
+        loading={breaches.isPending}
+        trend={open > 0 ? t('risk.kpi.review') : t('risk.kpi.noBreaches')}
+        trendTone={open > 0 ? 'down' : 'up'}
+        to="/risk?tab=breaches"
+      />
+    </SimpleGrid>
   );
 }
 
@@ -196,7 +268,7 @@ function LimitsTab({ entityId }: { entityId: string }) {
         <Group gap="xs">
           <Can op="risk_measure">
             <Button
-              variant="light"
+              variant="default"
               leftSection={<IconGauge size={16} />}
               loading={measure.isPending}
               onClick={() => measure.mutate({ params: { query: { legalEntityId: entityId } } })}
@@ -217,17 +289,22 @@ function LimitsTab({ entityId }: { entityId: string }) {
         </Group>
       </Group>
       <ProblemAlert error={measure.error} />
-      <QueryState isPending={limits.isPending} error={limits.error}>
-        <DataGrid<LimitRow>
-          rowData={rows}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          height={420}
-          onRowClicked={(event) => {
-            if (event.data) void navigate(`/risk/limits/${event.data.id}`);
-          }}
-          overlayNoRowsTemplate={t('common.empty')}
-        />
+      <QueryState isPending={false} error={limits.error}>
+        {limits.isPending ? (
+          <TableSkeleton />
+        ) : (
+          <DataGrid<LimitRow>
+            rowData={rows}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            fitRows={10}
+            onRowClicked={(event) => {
+              if (event.data) void navigate(`/risk/limits/${event.data.id}`);
+            }}
+            rowStyle={{ cursor: 'pointer' }}
+            overlayNoRowsTemplate={t('risk.noLimits')}
+          />
+        )}
       </QueryState>
       {requesting && <RequestLimitModal opened onClose={() => setRequesting(false)} entityId={entityId} />}
     </Stack>
@@ -373,12 +450,7 @@ function BreachesTab({ entityId }: { entityId: string }) {
         field: 'status',
         headerName: t('allocation.status'),
         width: 110,
-        cellRenderer: (p: ICellRendererParams<BreachRow>) =>
-          p.data && (
-            <Badge color={p.data.status === 'OPEN' ? 'red' : 'gray'} variant="light">
-              {p.data.status}
-            </Badge>
-          ),
+        cellRenderer: (p: ICellRendererParams<BreachRow>) => p.data && <BreachBadge status={p.data.status} />,
       },
       {
         field: 'closedAt',
@@ -565,12 +637,7 @@ function CreditSupportTab({ entityId }: { entityId: string }) {
                   <Table.Td>{formatDate(row.validTo)}</Table.Td>
                   <Table.Td>{row.reference}</Table.Td>
                   <Table.Td>
-                    <Badge
-                      variant="light"
-                      color={row.status === 'ACTIVE' ? 'teal' : row.status === 'REJECTED' ? 'red' : 'yellow'}
-                    >
-                      {row.status.replace(/_/g, ' ')}
-                    </Badge>
+                    <StatusBadge status={row.status} />
                   </Table.Td>
                   <Table.Td>{row.requestedBy}</Table.Td>
                   <Table.Td>{row.approvedBy}</Table.Td>
@@ -616,13 +683,7 @@ function PfeTab() {
                 <Table.Td ta="right">{row.maxTenorMonths >= 9999 ? t('risk.longer') : row.maxTenorMonths}</Table.Td>
                 <Table.Td ta="right">{formatDecimal(row.pct, 0, 2)} %</Table.Td>
                 <Table.Td>
-                  {row.calibrated ? (
-                    t('common.yes')
-                  ) : (
-                    <Badge color="orange" variant="light">
-                      {t('risk.notCalibrated')}
-                    </Badge>
-                  )}
+                  {row.calibrated ? t('common.yes') : <StatusBadge status="WARNING" label={t('risk.notCalibrated')} />}
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -648,34 +709,37 @@ export function RiskPage() {
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
-        <Tabs
-          value={tab}
-          onChange={(value) => setParams(value && value !== 'limits' ? { tab: value } : {}, { replace: true })}
-          keepMounted={false}
-        >
-          <Tabs.List>
-            <Tabs.Tab value="limits">{t('risk.tabs.limits')}</Tabs.Tab>
-            <Tabs.Tab value="exposures">{t('risk.tabs.exposures')}</Tabs.Tab>
-            <Tabs.Tab value="breaches">{t('risk.tabs.breaches')}</Tabs.Tab>
-            <Tabs.Tab value="credit-support">{t('risk.tabs.creditSupport')}</Tabs.Tab>
-            <Tabs.Tab value="pfe">{t('risk.tabs.pfe')}</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="limits" pt="md">
-            <LimitsTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="exposures" pt="md">
-            <ExposuresTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="breaches" pt="md">
-            <BreachesTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="credit-support" pt="md">
-            <CreditSupportTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="pfe" pt="md">
-            <PfeTab />
-          </Tabs.Panel>
-        </Tabs>
+        <>
+          <RiskKpis entityId={entity.id} />
+          <Tabs
+            value={tab}
+            onChange={(value) => setParams(value && value !== 'limits' ? { tab: value } : {}, { replace: true })}
+            keepMounted={false}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="limits">{t('risk.tabs.limits')}</Tabs.Tab>
+              <Tabs.Tab value="exposures">{t('risk.tabs.exposures')}</Tabs.Tab>
+              <Tabs.Tab value="breaches">{t('risk.tabs.breaches')}</Tabs.Tab>
+              <Tabs.Tab value="credit-support">{t('risk.tabs.creditSupport')}</Tabs.Tab>
+              <Tabs.Tab value="pfe">{t('risk.tabs.pfe')}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="limits" pt="md">
+              <LimitsTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="exposures" pt="md">
+              <ExposuresTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="breaches" pt="md">
+              <BreachesTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="credit-support" pt="md">
+              <CreditSupportTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="pfe" pt="md">
+              <PfeTab />
+            </Tabs.Panel>
+          </Tabs>
+        </>
       )}
     </Stack>
   );

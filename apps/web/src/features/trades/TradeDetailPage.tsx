@@ -1,54 +1,51 @@
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
   Button,
-  Card,
   Group,
+  Menu,
   Modal,
-  SimpleGrid,
+  Paper,
   Stack,
   Table,
   Tabs,
   Text,
   TextInput,
   Textarea,
-  Title,
 } from '@mantine/core';
-import { IconArrowLeft, IconInbox } from '@tabler/icons-react';
+import { IconAlertTriangle, IconDots, IconFileText, IconInbox, IconPencil, IconX } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { ReceiveConfirmationModal, useInvalidateConfirmations } from '@/features/confirmations/ConfirmationModals';
 import type { Schema } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
+import { ScrollTable } from '@/shared/components/ScrollTable';
+import { DetailLayout, FactGrid } from '@/shared/components/DetailLayout';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { Money, Quantity, Side } from '@/shared/components/Figures';
+import { LifecycleTimeline } from '@/shared/components/LifecycleTimeline';
 import { notifySuccess } from '@/shared/components/notify';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
-import { StatusBadge } from '@/shared/components/StatusBadge';
+import { CardSkeleton, TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime, formatDecimal, formatMoney } from '@/shared/format/format';
 import { useBooks, useCounterparties } from './hooks';
 import { diffVersions } from './model/diff';
+import { tradeSteps } from './model/lifecycle';
 import type { TradeView } from './model/tradeForm';
 import { CheckLimitsButton, DeliveryActions, SettleButton, TradeDocuments } from './TradeOperations';
 import { TradeStatusBadge } from './TradeStatusBadge';
 
 const OPEN = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED', 'PARTIALLY_DELIVERED'];
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" component="div">
-        {children ?? '—'}
-      </Text>
-    </Stack>
-  );
-}
+type Version = Schema<'TradeVersionView'>;
 
 function useRefreshTrades() {
   const queryClient = useQueryClient();
@@ -60,7 +57,12 @@ function useRefreshTrades() {
     });
 }
 
-function Lifecycle({ trade }: { trade: TradeView }) {
+function useVersions(tradeId: string) {
+  return $api.useQuery('get', '/api/v1/trades/{id}/versions', { params: { path: { id: tradeId } } });
+}
+
+/** The header actions: the next step of the trade as the primary action, the rest quieter or in the menu. */
+function TradeActions({ trade }: { trade: TradeView }) {
   const { t } = useTranslation();
   const refresh = useRefreshTrades();
   const canAmend = useCan('trade_amend');
@@ -90,10 +92,10 @@ function Lifecycle({ trade }: { trade: TradeView }) {
   );
   const approvalTask = task.data?.items[0];
   const open = OPEN.includes(trade.status);
+  const more = open && (canAmend || canCancel);
 
   return (
-    <Group>
-      <SettleButton trade={trade} />
+    <>
       <CheckLimitsButton trade={trade} />
       {approvalTask && (
         <Button
@@ -107,36 +109,67 @@ function Lifecycle({ trade }: { trade: TradeView }) {
         </Button>
       )}
       {canConfirm && trade.status === 'APPROVED' && (
-        <Button color="teal" onClick={() => setModal('confirm')} data-testid="confirm-trade">
+        <Button onClick={() => setModal('confirm')} data-testid="confirm-trade">
           {t('trades.confirm')}
         </Button>
       )}
-      {canAmend && open && (
-        <Button component={Link} to={`/trades/${trade.id}/amend`} variant="default" data-testid="amend-trade">
-          {t('trades.amend')}
-        </Button>
-      )}
-      {canCancel && open && (
-        <Button color="red" variant="light" onClick={() => setModal('cancel')}>
-          {t('trades.cancel')}
-        </Button>
+      <SettleButton trade={trade} />
+      {more && (
+        <Menu position="bottom-end" withinPortal>
+          <Menu.Target>
+            <ActionIcon variant="default" size={36} aria-label={t('trades.more')} data-testid="trade-more">
+              <IconDots size={18} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            {canAmend && (
+              <Menu.Item
+                component={Link}
+                to={`/trades/${trade.id}/amend`}
+                leftSection={<IconPencil size={14} />}
+                data-testid="amend-trade"
+              >
+                {t('trades.amend')}
+              </Menu.Item>
+            )}
+            {canCancel && (
+              <Menu.Item
+                color="red"
+                leftSection={<IconX size={14} />}
+                onClick={() => setModal('cancel')}
+                data-testid="cancel-trade"
+              >
+                {t('trades.cancel')}
+              </Menu.Item>
+            )}
+          </Menu.Dropdown>
+        </Menu>
       )}
       <Modal opened={modal === 'cancel'} onClose={() => setModal(null)} title={t('trades.cancel')}>
         <Stack>
+          <Text size="sm" c="dimmed">
+            {t('trades.cancelHint')}
+          </Text>
+          <ProblemAlert error={cancel.error} />
           <Textarea
             label={t('inbox.reason')}
             required
             value={reason}
             onChange={(e) => setReason(e.currentTarget.value)}
           />
-          <Button
-            color="red"
-            disabled={!reason.trim()}
-            loading={cancel.isPending}
-            onClick={() => cancel.mutate({ ...path, body: { reason: reason.trim() } })}
-          >
-            {t('trades.cancel')}
-          </Button>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setModal(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              color="red"
+              disabled={!reason.trim()}
+              loading={cancel.isPending}
+              onClick={() => cancel.mutate({ ...path, body: { reason: reason.trim() } })}
+            >
+              {t('trades.cancel')}
+            </Button>
+          </Group>
         </Stack>
       </Modal>
       <Modal opened={modal === 'confirm'} onClose={() => setModal(null)} title={t('trades.confirm')}>
@@ -151,7 +184,6 @@ function Lifecycle({ trade }: { trade: TradeView }) {
             data-testid="confirmation-ref"
           />
           <Button
-            color="teal"
             disabled={!reference.trim()}
             loading={confirm.isPending}
             onClick={() => confirm.mutate({ ...path, body: { confirmationRef: reference.trim() } })}
@@ -161,98 +193,119 @@ function Lifecycle({ trade }: { trade: TradeView }) {
           </Button>
         </Stack>
       </Modal>
-    </Group>
+    </>
   );
 }
 
 function Legs({ trade }: { trade: TradeView }) {
   const { t } = useTranslation();
   return (
-    <Stack>
+    <Stack gap="md">
       {trade.legs.map((leg) => (
-        <Card withBorder key={leg.id}>
-          <Group justify="space-between" mb="xs">
-            <Title order={5}>
-              {t('trades.form.leg', { number: leg.legNo })}: {leg.side} {formatDecimal(leg.quantity, 0, 3)} {leg.unit} @{' '}
-              {formatDecimal(leg.price, 2, 6)} {leg.priceCurrency}
-            </Title>
-            {leg.notional != null && <Badge variant="light">{formatMoney(leg.notional, leg.priceCurrency)}</Badge>}
+        <Paper withBorder radius="lg" p="lg" key={leg.id}>
+          <Group justify="space-between" align="baseline" mb="md">
+            <Group gap="sm" align="baseline">
+              <Text fw={600}>{t('trades.form.leg', { number: leg.legNo })}</Text>
+              <Side side={leg.side} />
+              <Quantity value={leg.quantity} unit={leg.unit} size="sm" />
+              {leg.priceType === 'FIXED' && (
+                <Text size="sm" c="dimmed" className="etrm-figure">
+                  @ {formatDecimal(leg.price, 2, 6)} {leg.priceCurrency}
+                </Text>
+              )}
+            </Group>
+            {leg.notional != null && <Money value={leg.notional} currency={leg.priceCurrency} fw={600} />}
           </Group>
-          <SimpleGrid cols={{ base: 2, md: 4 }} mb="sm">
-            <Field label={t('trades.columns.product')}>{leg.allowanceProductCode ?? leg.criteriaSummary}</Field>
-            <Field label={t('trades.form.priceType')}>
-              {leg.priceType === 'INDEX'
-                ? t('trades.ops.indexPrice', { index: leg.priceIndex ?? '', spread: formatDecimal(leg.price, 2, 6) })
-                : t('trades.form.fixed')}
-            </Field>
-            {leg.futuresContractCode && (
-              <Field label={t('trades.form.futuresContract')}>{leg.futuresContractCode}</Field>
-            )}
-            <Field label={t('trades.bucket')}>
-              {leg.bucketCode ? `${leg.bucketCode} (${leg.bucketMatch ?? ''})` : null}
-            </Field>
-            <Field label={t('trades.form.deliveryAccount')}>{leg.deliveryAccountId?.slice(-8) ?? null}</Field>
-            <Field label={t('trades.form.counterpartyAccount')}>{leg.counterpartyAccountRef ?? null}</Field>
-          </SimpleGrid>
-          <Table withTableBorder striped>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>#</Table.Th>
-                <Table.Th>{t('trades.form.windowStart')}</Table.Th>
-                <Table.Th>{t('trades.form.windowEnd')}</Table.Th>
-                <Table.Th>{t('trades.form.deliveryDate')}</Table.Th>
-                <Table.Th ta="right">{t('trades.scheduled')}</Table.Th>
-                <Table.Th ta="right">{t('trades.delivered')}</Table.Th>
-                <Table.Th>{t('trades.columns.status')}</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {leg.deliveries.map((delivery) => (
-                <Table.Tr key={delivery.id}>
-                  <Table.Td>{delivery.scheduleNo}</Table.Td>
-                  <Table.Td>{formatDate(delivery.deliveryWindow.start)}</Table.Td>
-                  <Table.Td>{formatDate(delivery.deliveryWindow.endExclusive)}</Table.Td>
-                  <Table.Td>{formatDate(delivery.deliveryDate)}</Table.Td>
-                  <Table.Td ta="right">{formatDecimal(delivery.quantity, 0, 3)}</Table.Td>
-                  <Table.Td ta="right">{formatDecimal(delivery.deliveredQuantity, 0, 3)}</Table.Td>
-                  <Table.Td>
-                    <StatusBadge status={delivery.status} />
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <DeliveryActions trade={trade} leg={leg} schedule={delivery} />
-                  </Table.Td>
+          <FactGrid
+            facts={[
+              { label: t('trades.columns.product'), value: leg.allowanceProductCode ?? leg.criteriaSummary ?? '—' },
+              {
+                label: t('trades.form.priceType'),
+                value:
+                  leg.priceType === 'INDEX'
+                    ? t('trades.ops.indexPrice', {
+                        index: leg.priceIndex ?? '',
+                        spread: formatDecimal(leg.price, 2, 6),
+                      })
+                    : t('trades.form.fixed'),
+              },
+              ...(leg.futuresContractCode
+                ? [{ label: t('trades.form.futuresContract'), value: leg.futuresContractCode }]
+                : []),
+              {
+                label: t('trades.bucket'),
+                value: leg.bucketCode ? `${leg.bucketCode} (${leg.bucketMatch ?? ''})` : '—',
+              },
+              { label: t('trades.form.deliveryAccount'), value: leg.deliveryAccountId?.slice(-8) ?? '—' },
+              { label: t('trades.form.counterpartyAccount'), value: leg.counterpartyAccountRef ?? '—' },
+            ]}
+          />
+          <ScrollTable label={t('trades.tabs.legs')} minWidth={860} mt="md">
+            <Table verticalSpacing="xs" highlightOnHover style={{ whiteSpace: 'nowrap' }}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w={40}>#</Table.Th>
+                  <Table.Th>{t('trades.form.windowStart')}</Table.Th>
+                  <Table.Th>{t('trades.form.windowEnd')}</Table.Th>
+                  <Table.Th>{t('trades.form.deliveryDate')}</Table.Th>
+                  <Table.Th ta="right">{t('trades.scheduled')}</Table.Th>
+                  <Table.Th ta="right">{t('trades.delivered')}</Table.Th>
+                  <Table.Th w={150}>{t('trades.columns.status')}</Table.Th>
+                  <Table.Th />
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
+              </Table.Thead>
+              <Table.Tbody className="etrm-figure">
+                {leg.deliveries.map((delivery) => (
+                  <Table.Tr key={delivery.id}>
+                    <Table.Td c="dimmed">{delivery.scheduleNo}</Table.Td>
+                    <Table.Td>{formatDate(delivery.deliveryWindow.start)}</Table.Td>
+                    <Table.Td>{formatDate(delivery.deliveryWindow.endExclusive)}</Table.Td>
+                    <Table.Td>{formatDate(delivery.deliveryDate)}</Table.Td>
+                    <Table.Td ta="right">{formatDecimal(delivery.quantity, 0, 3)}</Table.Td>
+                    <Table.Td ta="right">{formatDecimal(delivery.deliveredQuantity, 0, 3)}</Table.Td>
+                    <Table.Td>
+                      <StatusBadge status={delivery.status} />
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <DeliveryActions trade={trade} leg={leg} schedule={delivery} />
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollTable>
+        </Paper>
       ))}
     </Stack>
   );
 }
 
-type Version = Schema<'TradeVersionView'>;
-
 function Versions({ tradeId }: { tradeId: string }) {
   const { t } = useTranslation();
-  const versions = $api.useQuery('get', '/api/v1/trades/{id}/versions', { params: { path: { id: tradeId } } });
+  const versions = useVersions(tradeId);
   const list: Version[] = [...(versions.data ?? [])].sort((a, b) => b.version - a.version);
   return (
     <QueryState isPending={versions.isPending} error={versions.error}>
-      <Stack>
+      <Stack gap="sm">
         {list.map((version) => {
           const previous = list.find((candidate) => candidate.version === version.version - 1);
           const changes = previous ? diffVersions(previous.trade, version.trade) : [];
           return (
-            <Card withBorder key={version.version}>
+            <Paper withBorder radius="lg" p="md" key={version.version}>
               <Group justify="space-between">
-                <Text fw={600}>{t('trades.version', { version: version.version })}</Text>
+                <Group gap="xs">
+                  <Text fw={600}>{t('trades.version', { version: version.version })}</Text>
+                  <StatusBadge status={version.status} size="sm" />
+                </Group>
                 <Text size="xs" c="dimmed">
                   {version.recordedBy} · {formatDateTime(version.recordedAt)}
                 </Text>
               </Group>
-              <Text size="sm">{version.reason ?? ''}</Text>
+              {version.reason && (
+                <Text size="sm" mt={4}>
+                  {version.reason}
+                </Text>
+              )}
               {changes.length > 0 && (
                 <Table mt="xs" withTableBorder>
                   <Table.Tbody>
@@ -278,7 +331,7 @@ function Versions({ tradeId }: { tradeId: string }) {
                   </Table.Tbody>
                 </Table>
               )}
-            </Card>
+            </Paper>
           );
         })}
       </Stack>
@@ -299,65 +352,84 @@ function Confirmations({ tradeId }: { tradeId: string }) {
       void invalidate();
     },
   });
-  const current = (confirmations.data ?? []).find((c) => c.direction === 'OURS' && c.status === 'ISSUED');
+  const list = confirmations.data ?? [];
+  const current = list.find((c) => c.direction === 'OURS' && c.status === 'ISSUED');
   return (
     <QueryState isPending={confirmations.isPending} error={confirmations.error}>
-      <Group justify="flex-end" mb="sm">
-        <Can op="confirmation_issue">
-          <Button
-            variant="light"
-            size="xs"
-            loading={issue.isPending}
-            onClick={() => issue.mutate({ params: { path: { tradeId } } })}
-            data-testid="issue-confirmation"
-          >
-            {t('confirmations.issueOurs')}
-          </Button>
-        </Can>
-        {current && (
-          <Can op="confirmation_receive">
-            <Button size="xs" onClick={() => setEntering(true)} data-testid="enter-theirs">
-              {t('confirmations.enterTheirs')}
-            </Button>
-          </Can>
+      <Stack gap="sm">
+        <Group justify="space-between">
+          <Text size="sm" c="dimmed">
+            {t('trades.confirmationsHint')}
+          </Text>
+          <Group gap="xs">
+            {current && (
+              <Can op="confirmation_receive">
+                <Button variant="default" size="xs" onClick={() => setEntering(true)} data-testid="enter-theirs">
+                  {t('confirmations.enterTheirs')}
+                </Button>
+              </Can>
+            )}
+            <Can op="confirmation_issue">
+              <Button
+                variant="light"
+                size="xs"
+                leftSection={<IconFileText size={14} />}
+                loading={issue.isPending}
+                onClick={() => issue.mutate({ params: { path: { tradeId } } })}
+                data-testid="issue-confirmation"
+              >
+                {t('confirmations.issueOurs')}
+              </Button>
+            </Can>
+          </Group>
+        </Group>
+        {list.length === 0 ? (
+          <Paper withBorder radius="lg">
+            <EmptyState title={t('trades.noConfirmations')} description={t('trades.noConfirmationsHint')} />
+          </Paper>
+        ) : (
+          <Paper withBorder radius="lg">
+            <ScrollTable label={t('trades.tabs.confirmations')} minWidth={720}>
+              <Table verticalSpacing="sm" highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th w={150}>{t('trades.columns.status')}</Table.Th>
+                    <Table.Th>{t('trades.direction')}</Table.Th>
+                    <Table.Th>{t('confirmations.theirReference')}</Table.Th>
+                    <Table.Th>{t('trades.source')}</Table.Th>
+                    <Table.Th ta="right">{t('trades.versionShort')}</Table.Th>
+                    <Table.Th ta="right">{t('trades.differences')}</Table.Th>
+                    <Table.Th>{t('trades.created')}</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {list.map((confirmation) => (
+                    <Table.Tr key={confirmation.id}>
+                      <Table.Td>
+                        <Anchor component={Link} to={`/confirmations/${confirmation.id}`} underline="never">
+                          <StatusBadge status={confirmation.status} style={{ cursor: 'pointer' }} />
+                        </Anchor>
+                      </Table.Td>
+                      <Table.Td>{t(`confirmations.directions.${confirmation.direction}`)}</Table.Td>
+                      <Table.Td>{confirmation.reference ?? '—'}</Table.Td>
+                      <Table.Td>
+                        {t(`trades.sources.${confirmation.source}`, { defaultValue: confirmation.source })}
+                      </Table.Td>
+                      <Table.Td ta="right" className="etrm-figure">
+                        {confirmation.tradeVersion}
+                      </Table.Td>
+                      <Table.Td ta="right" className="etrm-figure">
+                        {confirmation.differences.length}
+                      </Table.Td>
+                      <Table.Td className="etrm-figure">{formatDateTime(confirmation.createdAt)}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollTable>
+          </Paper>
         )}
-      </Group>
-      {(confirmations.data ?? []).length === 0 ? (
-        <Text size="sm" c="dimmed">
-          {t('trades.noConfirmations')}
-        </Text>
-      ) : (
-        <Table withTableBorder striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('trades.direction')}</Table.Th>
-              <Table.Th>{t('trades.columns.status')}</Table.Th>
-              <Table.Th>{t('confirmations.theirReference')}</Table.Th>
-              <Table.Th>{t('trades.source')}</Table.Th>
-              <Table.Th>{t('trades.version', { version: '' })}</Table.Th>
-              <Table.Th>{t('trades.differences')}</Table.Th>
-              <Table.Th>{t('trades.created')}</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(confirmations.data ?? []).map((confirmation) => (
-              <Table.Tr key={confirmation.id}>
-                <Table.Td>{confirmation.direction}</Table.Td>
-                <Table.Td>
-                  <Anchor component={Link} to={`/confirmations/${confirmation.id}`} size="sm">
-                    {confirmation.status}
-                  </Anchor>
-                </Table.Td>
-                <Table.Td>{confirmation.reference}</Table.Td>
-                <Table.Td>{confirmation.source}</Table.Td>
-                <Table.Td>{confirmation.tradeVersion}</Table.Td>
-                <Table.Td>{confirmation.differences.length}</Table.Td>
-                <Table.Td>{formatDateTime(confirmation.createdAt)}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+      </Stack>
       {entering && current && <ReceiveConfirmationModal ours={current} onClose={() => setEntering(false)} />}
     </QueryState>
   );
@@ -372,8 +444,9 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
     { params: { path: { id: tradeId }, query: { date } } },
     { retry: false },
   );
+  const rows = mtm.data ?? [];
   return (
-    <Stack>
+    <Stack gap="sm">
       <TextInput
         type="date"
         label={t('trades.mtm.asOf')}
@@ -382,14 +455,16 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
         onChange={(e) => setDate(e.currentTarget.value)}
         w={220}
       />
-      {mtm.error ? (
-        <Alert color="gray">{t('trades.noValuation')}</Alert>
+      {mtm.isPending ? (
+        <TableSkeleton rows={3} />
+      ) : mtm.error || rows.length === 0 ? (
+        <Paper withBorder radius="lg">
+          <EmptyState title={t('trades.noValuation')} description={t('trades.noValuationHint')} />
+        </Paper>
       ) : (
-        <QueryState isPending={mtm.isPending} error={null}>
-          {(mtm.data ?? []).length === 0 ? (
-            <Alert color="gray">{t('trades.noValuation')}</Alert>
-          ) : (
-            <Table withTableBorder striped>
+        <Paper withBorder radius="lg">
+          <ScrollTable label={t('trades.tabs.mtm')} minWidth={820}>
+            <Table verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{t('trades.form.deliveryDate')}</Table.Th>
@@ -399,11 +474,11 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
                   <Table.Th ta="right">{t('trades.mtm.mtm')}</Table.Th>
                   <Table.Th ta="right">{t('trades.mtm.mtmBase')}</Table.Th>
                   <Table.Th>{t('trades.mtm.curve')}</Table.Th>
-                  <Table.Th>{t('trades.columns.status')}</Table.Th>
+                  <Table.Th w={150}>{t('trades.columns.status')}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
-              <Table.Tbody>
-                {(mtm.data ?? []).map((row) => (
+              <Table.Tbody className="etrm-figure">
+                {rows.map((row) => (
                   <Table.Tr key={`${row.runId}-${row.scheduleId}`}>
                     <Table.Td>{formatDate(row.deliveryDate)}</Table.Td>
                     <Table.Td ta="right">{formatDecimal(row.quantity, 0, 3)}</Table.Td>
@@ -413,134 +488,159 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
                         ? formatMoney(row.marketPriceContract, row.contractCurrency)
                         : '—'}
                     </Table.Td>
-                    <Table.Td ta="right">{row.mtm != null ? formatMoney(row.mtm, row.contractCurrency) : '—'}</Table.Td>
-                    <Table.Td ta="right">{row.mtmBase != null ? formatDecimal(row.mtmBase, 2, 2) : '—'}</Table.Td>
+                    <Table.Td ta="right">
+                      {row.mtm != null ? (
+                        <Money value={row.mtm} currency={row.contractCurrency} signed size="sm" />
+                      ) : (
+                        '—'
+                      )}
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      {row.mtmBase != null ? <Money value={row.mtmBase} signed size="sm" /> : '—'}
+                    </Table.Td>
                     <Table.Td>{row.curveCode ? `${row.curveCode} ${formatDate(row.curveDate)}` : '—'}</Table.Td>
-                    <Table.Td>{row.status}</Table.Td>
+                    <Table.Td>
+                      <StatusBadge status={row.status} />
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
-          )}
-        </QueryState>
+          </ScrollTable>
+        </Paper>
       )}
     </Stack>
   );
 }
 
-export function TradeDetailPage() {
+function Findings({ trade }: { trade: TradeView }) {
   const { t } = useTranslation();
+  const findings = trade.approvalFindings ?? [];
+  if (findings.length === 0) return null;
+  return (
+    <Alert
+      color={trade.requiresRiskApproval ? 'red' : 'yellow'}
+      title={t('trades.findings')}
+      icon={<IconAlertTriangle size={18} />}
+      data-testid="findings"
+    >
+      <Stack gap={4}>
+        {findings.map((finding) => (
+          <Text key={finding.code} size="sm">
+            <Text span fw={600} size="sm">
+              {t(`trades.severities.${finding.severity}`, { defaultValue: statusLabel(finding.severity) })}
+            </Text>{' '}
+            · {finding.message}
+          </Text>
+        ))}
+      </Stack>
+    </Alert>
+  );
+}
+
+function TradeBody({ trade }: { trade: TradeView }) {
+  const { t } = useTranslation();
+  const counterparties = useCounterparties();
+  const books = useBooks(trade.legalEntityId);
+  const versions = useVersions(trade.id);
+  const steps = tradeSteps(trade, versions.data ?? [], (key) => t(`trades.lifecycle.${key}`));
+  const currency = trade.legs[0]?.priceCurrency;
+  return (
+    <Stack gap="lg">
+      <PageHeader
+        breadcrumbs={[{ label: t('trades.title'), to: '/trades' }, { label: trade.tradeNumber }]}
+        title={<span data-testid="trade-number">{trade.tradeNumber}</span>}
+        badge={
+          <Group gap={6} wrap="nowrap">
+            <TradeStatusBadge status={trade.status} />
+            <Badge variant="default" radius="xl" tt="none">
+              v{trade.version}
+            </Badge>
+          </Group>
+        }
+        description={`${t(`trades.families.${trade.productFamily}`)} · ${t(`trades.instruments.${trade.instrumentType}`)} · ${t('trades.tradedOn', { date: formatDate(trade.tradeDate) })}`}
+        actions={<TradeActions trade={trade} />}
+      />
+      <DetailLayout
+        summary={[
+          {
+            label: t('trades.columns.notional'),
+            value: trade.notional != null ? <Money value={trade.notional} currency={currency} fw={600} /> : '—',
+          },
+          {
+            label: t('trades.columns.counterparty'),
+            value: counterparties.byId.get(trade.counterpartyId)?.name ?? trade.counterpartyId,
+          },
+          { label: t('trades.columns.book'), value: books.byId.get(trade.bookId)?.code ?? trade.bookId },
+          { label: t('trades.columns.trader'), value: trade.trader },
+          {
+            label: t('trades.form.broker'),
+            value: trade.brokerId ? (counterparties.byId.get(trade.brokerId)?.name ?? trade.brokerId) : '—',
+          },
+          { label: t('trades.form.masterAgreement'), value: trade.masterAgreementRef ?? '—' },
+          { label: t('trades.columns.externalRef'), value: trade.externalRef ?? '—' },
+          { label: 'UTI', value: trade.regulatory?.uti ?? '—' },
+          ...(trade.intercompanyLinkId
+            ? [
+                {
+                  label: t('trades.ops.intercompany'),
+                  value: (
+                    <Badge variant="light" color="grape" tt="none" data-testid="intercompany">
+                      {t('trades.ops.mirrored')}
+                    </Badge>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+        aside={<LifecycleTimeline title={t('trades.lifecycle.title')} steps={steps} testId="trade-lifecycle" />}
+      >
+        <Findings trade={trade} />
+        <Tabs defaultValue="legs" keepMounted={false}>
+          <Tabs.List>
+            <Tabs.Tab value="legs">{t('trades.tabs.legs')}</Tabs.Tab>
+            <Tabs.Tab value="versions">{t('trades.tabs.versions')}</Tabs.Tab>
+            <Tabs.Tab value="confirmations">{t('trades.tabs.confirmations')}</Tabs.Tab>
+            <Tabs.Tab value="mtm">{t('trades.tabs.mtm')}</Tabs.Tab>
+            <Tabs.Tab value="documents" data-testid="tab-documents">
+              {t('trades.tabs.documents')}
+            </Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="legs" pt="md">
+            <Legs trade={trade} />
+          </Tabs.Panel>
+          <Tabs.Panel value="versions" pt="md">
+            <Versions tradeId={trade.id} />
+          </Tabs.Panel>
+          <Tabs.Panel value="confirmations" pt="md">
+            <Confirmations tradeId={trade.id} />
+          </Tabs.Panel>
+          <Tabs.Panel value="mtm" pt="md">
+            <MarkToMarket tradeId={trade.id} />
+          </Tabs.Panel>
+          <Tabs.Panel value="documents" pt="md">
+            <TradeDocuments tradeId={trade.id} />
+          </Tabs.Panel>
+        </Tabs>
+      </DetailLayout>
+    </Stack>
+  );
+}
+
+export function TradeDetailPage() {
   const { tradeId = '' } = useParams();
   const trade = $api.useQuery('get', '/api/v1/trades/{id}', { params: { path: { id: tradeId } } });
-  const counterparties = useCounterparties();
-  const books = useBooks(trade.data?.legalEntityId);
   return (
-    <Stack>
-      <Anchor component={Link} to="/trades" size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('trades.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={trade.isPending} error={trade.error}>
-        {trade.data &&
-          (() => {
-            const data = trade.data;
-            return (
-              <Stack>
-                <Card withBorder>
-                  <Group justify="space-between" align="flex-start">
-                    <Stack gap={2}>
-                      <Group gap="xs">
-                        <Title order={3} data-testid="trade-number">
-                          {data.tradeNumber}
-                        </Title>
-                        <TradeStatusBadge status={data.status} />
-                        <Badge variant="outline" color="gray">
-                          v{data.version}
-                        </Badge>
-                      </Group>
-                      <Text size="sm" c="dimmed">
-                        {t(`trades.families.${data.productFamily}`)} · {data.instrumentType} ·{' '}
-                        {formatDate(data.tradeDate)}
-                      </Text>
-                    </Stack>
-                    <Lifecycle trade={data} />
-                  </Group>
-                  <SimpleGrid cols={{ base: 2, md: 4 }} mt="md">
-                    <Field label={t('trades.columns.counterparty')}>
-                      {counterparties.byId.get(data.counterpartyId)?.name ?? data.counterpartyId}
-                    </Field>
-                    <Field label={t('trades.columns.book')}>{books.byId.get(data.bookId)?.code ?? data.bookId}</Field>
-                    <Field label={t('trades.columns.trader')}>{data.trader}</Field>
-                    <Field label={t('trades.columns.notional')}>
-                      {data.notional != null ? formatMoney(data.notional, data.legs[0]?.priceCurrency) : null}
-                    </Field>
-                    <Field label={t('trades.columns.externalRef')}>{data.externalRef}</Field>
-                    <Field label={t('trades.form.broker')}>
-                      {data.brokerId ? (counterparties.byId.get(data.brokerId)?.name ?? data.brokerId) : null}
-                    </Field>
-                    <Field label={t('trades.form.masterAgreement')}>{data.masterAgreementRef}</Field>
-                    {data.intercompanyLinkId && (
-                      <Field label={t('trades.ops.intercompany')}>
-                        <Badge variant="light" color="grape" data-testid="intercompany">
-                          {t('trades.ops.mirrored')}
-                        </Badge>
-                      </Field>
-                    )}
-                    <Field label="UTI">{data.regulatory?.uti ?? null}</Field>
-                    <Field label={t('trades.approved')}>
-                      {data.approvedBy ? `${data.approvedBy} · ${formatDateTime(data.approvedAt)}` : null}
-                    </Field>
-                    <Field label={t('trades.confirmed')}>
-                      {data.confirmationRef ? `${data.confirmationRef} · ${formatDateTime(data.confirmedAt)}` : null}
-                    </Field>
-                  </SimpleGrid>
-                  {(data.approvalFindings ?? []).length > 0 && (
-                    <Alert
-                      mt="md"
-                      color={data.requiresRiskApproval ? 'red' : 'yellow'}
-                      title={t('trades.findings')}
-                      data-testid="findings"
-                    >
-                      {(data.approvalFindings ?? []).map((finding) => (
-                        <Text key={finding.code} size="sm">
-                          {finding.severity}: {finding.message}
-                        </Text>
-                      ))}
-                    </Alert>
-                  )}
-                </Card>
-                <Tabs defaultValue="legs" keepMounted={false}>
-                  <Tabs.List>
-                    <Tabs.Tab value="legs">{t('trades.tabs.legs')}</Tabs.Tab>
-                    <Tabs.Tab value="versions">{t('trades.tabs.versions')}</Tabs.Tab>
-                    <Tabs.Tab value="confirmations">{t('trades.tabs.confirmations')}</Tabs.Tab>
-                    <Tabs.Tab value="mtm">{t('trades.tabs.mtm')}</Tabs.Tab>
-                    <Tabs.Tab value="documents" data-testid="tab-documents">
-                      {t('trades.tabs.documents')}
-                    </Tabs.Tab>
-                  </Tabs.List>
-                  <Tabs.Panel value="legs" pt="md">
-                    <Legs trade={data} />
-                  </Tabs.Panel>
-                  <Tabs.Panel value="versions" pt="md">
-                    <Versions tradeId={data.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel value="confirmations" pt="md">
-                    <Confirmations tradeId={data.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel value="mtm" pt="md">
-                    <MarkToMarket tradeId={data.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel value="documents" pt="md">
-                    <TradeDocuments tradeId={data.id} />
-                  </Tabs.Panel>
-                </Tabs>
-              </Stack>
-            );
-          })()}
-      </QueryState>
-    </Stack>
+    <QueryState isPending={false} error={trade.error}>
+      {trade.data ? (
+        <TradeBody trade={trade.data} />
+      ) : (
+        <Stack gap="lg">
+          <CardSkeleton height={90} />
+          <CardSkeleton height={160} />
+          <CardSkeleton height={240} />
+        </Stack>
+      )}
+    </QueryState>
   );
 }

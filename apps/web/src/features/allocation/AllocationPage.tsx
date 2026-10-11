@@ -1,69 +1,125 @@
+import { BarChart } from '@mantine/charts';
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
-  Card,
+  Grid,
   Group,
+  Paper,
+  ScrollArea,
   SegmentedControl,
   SimpleGrid,
   Stack,
   Table,
   Text,
   Title,
+  UnstyledButton,
 } from '@mantine/core';
 import { IconFlask, IconPlus, IconSend } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Body, Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
-import { StatusBadge } from '@/shared/components/StatusBadge';
+import { CardSkeleton, TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { newKey } from '@/shared/ids';
-import { groupLines, type Line } from './model/plan';
+import { coverageRows, groupLines, type Line } from './model/plan';
 import { ObligationDrawer, OpenObligationModal } from './ObligationPanels';
 
 type Obligation = Schema<'ObligationView'>;
 type Plan = Schema<'AllocationPlanView'>;
 type WhatIf = Schema<'AllocationWhatIf'>;
+type Coverage = Schema<'CoverageReport'>;
 type Solver = Body<'ProposeAllocation'>['solver'] & string;
 
-export function PlanStatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    PROPOSED: 'yellow',
-    APPROVED: 'blue',
-    EXECUTING: 'cyan',
-    COMPLETED: 'teal',
-    REJECTED: 'red',
-    CANCELLED: 'gray',
-    EXPIRED: 'gray',
-    STALE: 'orange',
-  };
+export function PlanStatusBadge({ status, testId = 'plan-status' }: { status: string; testId?: string }) {
+  return <StatusBadge status={status} data-testid={testId} />;
+}
+
+/** Covered and short MWh per open obligation, straight from the coverage report. */
+function CoverageChart({ coverage, obligations }: { coverage: Coverage; obligations: Obligation[] }) {
+  const { t } = useTranslation();
+  const rows = coverageRows(coverage, obligations, (kind) => t(`allocation.kinds.${kind}`));
   return (
-    <Badge color={colors[status] ?? 'gray'} variant="light" data-testid="plan-status">
-      {status}
-    </Badge>
+    <Paper withBorder radius="lg" p="lg" h="100%" data-testid="coverage-chart">
+      <Group justify="space-between" align="baseline" mb="sm">
+        <Title order={3} size="h5">
+          {t('allocation.coverageTitle')}
+        </Title>
+        <Text size="xs" c="dimmed">
+          {t('allocation.coverageHint')}
+        </Text>
+      </Group>
+      {rows.length === 0 ? (
+        <EmptyState title={t('allocation.noObligations')} description={t('allocation.noObligationsHint')} />
+      ) : (
+        <BarChart
+          h={Math.max(160, rows.length * 30 + 40)}
+          data={rows}
+          dataKey="label"
+          type="stacked"
+          orientation="vertical"
+          yAxisProps={{ width: 210 }}
+          withLegend
+          legendProps={{ verticalAlign: 'bottom', height: 28 }}
+          series={[
+            { name: 'covered', label: t('allocation.covered'), color: 'teal.7' },
+            { name: 'shortfall', label: t('allocation.shortfallLabel'), color: 'red.6' },
+          ]}
+          valueFormatter={(value) => `${formatDecimal(value)} MWh`}
+          gridAxis="x"
+        />
+      )}
+    </Paper>
   );
 }
 
-function Figure({ label, value, color }: { label: string; value: string; color?: string }) {
+/** The plans of the entity, newest first, as a short list beside the chart. */
+function PlanList({ plans, onOpen }: { plans: Plan[]; onOpen: (plan: Plan) => void }) {
+  const { t } = useTranslation();
+  const sorted = [...plans].sort((a, b) => b.proposedAt.localeCompare(a.proposedAt));
   return (
-    <Card withBorder>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="xl" fw={700} c={color}>
-        {value}
-      </Text>
-    </Card>
+    <Paper withBorder radius="lg" p="lg" h="100%" data-testid="plan-list">
+      <Title order={3} size="h5" mb="sm">
+        {t('allocation.plans')}
+      </Title>
+      {sorted.length === 0 ? (
+        <EmptyState title={t('allocation.noPlans')} description={t('allocation.noPlansHint')} />
+      ) : (
+        <ScrollArea.Autosize mah={340}>
+          <Stack gap={4}>
+            {sorted.map((plan) => (
+              <UnstyledButton key={plan.id} onClick={() => onOpen(plan)} className="etrm-task-row" p="xs">
+                <Group justify="space-between" wrap="nowrap">
+                  <Stack gap={0} miw={0}>
+                    <Text size="sm" fw={600} className="etrm-figure">
+                      {t('allocation.planTitle', { mwh: formatDecimal(plan.allocatedMwh ?? 0) })}
+                    </Text>
+                    <Text size="xs" c="dimmed" truncate>
+                      {plan.proposedBy} · {formatDateTime(plan.proposedAt)} · {t(`allocation.solvers.${plan.solver}`)}
+                    </Text>
+                  </Stack>
+                  <PlanStatusBadge status={plan.status} testId={`plan-row-status-${plan.id}`} />
+                </Group>
+              </UnstyledButton>
+            ))}
+          </Stack>
+        </ScrollArea.Autosize>
+      )}
+    </Paper>
   );
 }
 
@@ -75,16 +131,18 @@ export function LinesByObligation({ lines, obligations }: { lines: Line[]; oblig
       {groupLines(lines).map((group) => {
         const obligation = obligations.get(group.obligationId);
         return (
-          <Card withBorder key={group.obligationId}>
+          <Paper withBorder radius="lg" p="md" key={group.obligationId}>
             <Group justify="space-between" mb="xs">
               <Text fw={600} size="sm">
                 {obligation?.criteriaSummary ?? group.obligationId.slice(-8)}
               </Text>
               <Group gap="xs">
                 {obligation && (
-                  <Badge variant="outline">{t('allocation.due', { date: formatDate(obligation.deliveryDate) })}</Badge>
+                  <Badge variant="default" radius="xl" tt="none">
+                    {t('allocation.due', { date: formatDate(obligation.deliveryDate) })}
+                  </Badge>
                 )}
-                <Badge variant="light">
+                <Badge variant="light" radius="xl" tt="none">
                   {formatDecimal(group.totalMwh)} / {formatDecimal(obligation?.remainingMwh ?? group.totalMwh)} MWh
                 </Badge>
               </Group>
@@ -102,7 +160,11 @@ export function LinesByObligation({ lines, obligations }: { lines: Line[]; oblig
               <Table.Tbody>
                 {group.lines.map((line) => (
                   <Table.Tr key={`${line.lotId}-${line.lineNo}`}>
-                    <Table.Td>{line.lotId.slice(-8)}</Table.Td>
+                    <Table.Td>
+                      <Anchor component={Link} to={`/inventory/lots/${line.lotId}`} size="sm" ff="monospace">
+                        {line.lotId.slice(-8)}
+                      </Anchor>
+                    </Table.Td>
                     <Table.Td>
                       <Text size="xs" ff="monospace">
                         {line.lotClassKey.slice(0, 40)}
@@ -115,7 +177,7 @@ export function LinesByObligation({ lines, obligations }: { lines: Line[]; oblig
                 ))}
               </Table.Tbody>
             </Table>
-          </Card>
+          </Paper>
         );
       })}
     </Stack>
@@ -137,9 +199,11 @@ function WhatIfResult({
   const solvedBy = typeof solver === 'string' ? solver : result.solver;
   const fallback = typeof fallbackReason === 'string' ? fallbackReason : undefined;
   return (
-    <Card withBorder data-testid="what-if-result">
+    <Paper withBorder radius="lg" p="lg" data-testid="what-if-result">
       <Group justify="space-between" mb="sm">
-        <Title order={5}>{t('allocation.whatIfTitle', { at: formatDateTime(result.computedAt) })}</Title>
+        <Title order={3} size="h5">
+          {t('allocation.whatIfTitle', { at: formatDateTime(result.computedAt) })}
+        </Title>
         <Group gap="xs">
           <Badge variant="light" color="teal" data-testid="what-if-allocated">
             {t('allocation.allocated', { mwh: formatDecimal(allocated) })}
@@ -148,8 +212,11 @@ function WhatIfResult({
             {t('allocation.solvedBy', { solver: solvedBy })}
           </Badge>
           {active && (
-            <Badge variant="outline">
-              {t('allocation.activePlan', { mwh: formatDecimal(active.allocatedMwh ?? 0), status: active.status })}
+            <Badge variant="default" radius="xl" tt="none">
+              {t('allocation.activePlan', {
+                mwh: formatDecimal(active.allocatedMwh ?? 0),
+                status: statusLabel(active.status).toLowerCase(),
+              })}
             </Badge>
           )}
         </Group>
@@ -165,7 +232,7 @@ function WhatIfResult({
         </Alert>
       )}
       <LinesByObligation lines={result.lines} obligations={obligations} />
-    </Card>
+    </Paper>
   );
 }
 
@@ -210,11 +277,35 @@ export function AllocationPage() {
 
   const obligationColumns = useMemo<ColDef<Obligation>[]>(
     () => [
-      { field: 'criteriaSummary', headerName: t('allocation.criteria'), flex: 2, minWidth: 260 },
-      { field: 'deliveryDate', headerName: t('allocation.deliveryDate'), width: 140 },
-      { field: 'quantityMwh', headerName: 'MWh', width: 110, type: 'rightAligned' },
-      { field: 'remainingMwh', headerName: t('allocation.remaining'), width: 130, type: 'rightAligned' },
-      { field: 'kind', headerName: t('allocation.kind'), width: 130 },
+      { field: 'deliveryDate', headerName: t('allocation.deliveryDate'), width: 120, sort: 'asc' },
+      {
+        field: 'criteriaSummary',
+        headerName: t('allocation.criteria'),
+        flex: 2,
+        minWidth: 260,
+        tooltipField: 'criteriaSummary',
+      },
+      {
+        field: 'quantityMwh',
+        headerName: 'MWh',
+        width: 100,
+        type: 'rightAligned',
+        valueFormatter: (p) => formatDecimal(p.value as number),
+      },
+      {
+        field: 'remainingMwh',
+        headerName: t('allocation.remaining'),
+        width: 140,
+        type: 'rightAligned',
+        valueFormatter: (p) => formatDecimal(p.value as number),
+        cellStyle: { fontWeight: 600 },
+      },
+      {
+        field: 'kind',
+        headerName: t('allocation.kind'),
+        width: 140,
+        valueFormatter: (p) => t(`allocation.kinds.${String(p.value)}`),
+      },
       {
         field: 'status',
         headerName: t('allocation.status'),
@@ -225,31 +316,9 @@ export function AllocationPage() {
     ],
     [t],
   );
-  const planColumns = useMemo<ColDef<Plan>[]>(
-    () => [
-      {
-        field: 'proposedAt',
-        headerName: t('allocation.proposedAt'),
-        width: 170,
-        valueFormatter: (p) => formatDateTime(p.value as string),
-      },
-      {
-        field: 'status',
-        headerName: t('allocation.status'),
-        width: 140,
-        cellRenderer: (p: ICellRendererParams<Plan>) => (p.data ? <PlanStatusBadge status={p.data.status} /> : null),
-      },
-      { field: 'allocatedMwh', headerName: 'MWh', width: 110, type: 'rightAligned' },
-      { field: 'proposedBy', headerName: t('allocation.proposedBy'), width: 140 },
-      { field: 'approvedBy', headerName: t('allocation.approvedBy'), width: 140 },
-      { field: 'solver', headerName: t('allocation.solver'), width: 110 },
-    ],
-    [t],
-  );
-
   const body = { holderEntityId: entityId, idempotencyKey: newKey('ui'), solver };
   return (
-    <Stack>
+    <Stack gap="lg">
       <PageHeader
         title={t('allocation.title')}
         description={t('allocation.description', { entity: entity?.code ?? '' })}
@@ -278,7 +347,7 @@ export function AllocationPage() {
                 data-testid="solver"
               />
               <Button
-                variant="light"
+                variant="default"
                 leftSection={<IconFlask size={16} />}
                 loading={whatIf.isPending}
                 onClick={() => whatIf.mutate({ body })}
@@ -309,51 +378,98 @@ export function AllocationPage() {
         }
       />
       <ProblemAlert error={whatIf.error ?? propose.error} />
-      <QueryState isPending={coverage.isPending && Boolean(entity)} error={coverage.error}>
-        {coverage.data && (
-          <SimpleGrid cols={{ base: 2, md: 4 }}>
-            <Figure label={t('allocation.demand')} value={`${formatDecimal(coverage.data.totalDemandMwh)} MWh`} />
-            <Figure
-              label={t('allocation.covered')}
-              value={`${formatDecimal(coverage.data.totalCoveredMwh)} MWh`}
-              color="teal"
-            />
-            <Figure
-              label={t('allocation.shortfallLabel')}
-              value={`${formatDecimal(coverage.data.totalShortfallMwh)} MWh`}
-              color={coverage.data.totalShortfallMwh > 0 ? 'red' : undefined}
-            />
-            <Figure label={t('allocation.obligationCount')} value={String(coverage.data.obligations.length)} />
-          </SimpleGrid>
-        )}
+      <QueryState isPending={false} error={coverage.error}>
+        <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="coverage-kpis">
+          <KpiCard
+            label={t('allocation.demand')}
+            value={coverage.data ? formatDecimal(coverage.data.totalDemandMwh) : '—'}
+            unit="MWh"
+            loading={coverage.isPending && Boolean(entity)}
+            trend={t('allocation.demandHint')}
+          />
+          <KpiCard
+            label={t('allocation.covered')}
+            value={coverage.data ? formatDecimal(coverage.data.totalCoveredMwh) : '—'}
+            unit="MWh"
+            loading={coverage.isPending && Boolean(entity)}
+            trend={t('allocation.coveredHint')}
+            trendTone="up"
+          />
+          <KpiCard
+            label={t('allocation.shortfallLabel')}
+            value={coverage.data ? formatDecimal(coverage.data.totalShortfallMwh) : '—'}
+            unit="MWh"
+            loading={coverage.isPending && Boolean(entity)}
+            trend={
+              coverage.data && coverage.data.totalShortfallMwh > 0
+                ? t('allocation.shortfallHint')
+                : t('allocation.noShortfall')
+            }
+            trendTone={coverage.data && coverage.data.totalShortfallMwh > 0 ? 'down' : 'up'}
+          />
+          <KpiCard
+            label={t('allocation.obligationCount')}
+            value={obligations.data ? obligations.data.length : '—'}
+            loading={obligations.isPending && Boolean(entity)}
+            trend={
+              active
+                ? t('allocation.activePlan', {
+                    mwh: formatDecimal(active.allocatedMwh ?? 0),
+                    status: statusLabel(active.status).toLowerCase(),
+                  })
+                : t('allocation.noActivePlan')
+            }
+            trendTone={active ? 'warning' : 'neutral'}
+          />
+        </SimpleGrid>
       </QueryState>
       {whatIf.data && <WhatIfResult result={whatIf.data} active={active} obligations={byId} />}
-      <Title order={4}>{t('allocation.obligations')}</Title>
-      <QueryState isPending={obligations.isPending && Boolean(entity)} error={obligations.error}>
-        <DataGrid<Obligation>
-          rowData={obligations.data ?? []}
-          columnDefs={obligationColumns}
-          rowId={(o) => o.id}
-          height={280}
-          onRowClicked={(event) => {
-            if (event.data) showObligation(event.data.id);
-          }}
-          overlayNoRowsTemplate={t('allocation.noObligations')}
-        />
-      </QueryState>
-      <Title order={4}>{t('allocation.plans')}</Title>
-      <QueryState isPending={plans.isPending && Boolean(entity)} error={plans.error}>
-        <DataGrid<Plan>
-          rowData={plans.data ?? []}
-          columnDefs={planColumns}
-          rowId={(p) => p.id}
-          height={260}
-          onRowClicked={(event) => {
-            if (event.data) void navigate(`/allocation/plans/${event.data.id}`);
-          }}
-          overlayNoRowsTemplate={t('common.empty')}
-        />
-      </QueryState>
+      <Grid gap="md">
+        <Grid.Col span={{ base: 12, lg: 7 }}>
+          {coverage.data ? (
+            <CoverageChart coverage={coverage.data} obligations={obligations.data ?? []} />
+          ) : (
+            <CardSkeleton height={260} />
+          )}
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 5 }}>
+          <QueryState isPending={false} error={plans.error}>
+            {plans.data ? (
+              <PlanList plans={plans.data} onOpen={(plan) => void navigate(`/allocation/plans/${plan.id}`)} />
+            ) : (
+              <CardSkeleton height={260} />
+            )}
+          </QueryState>
+        </Grid.Col>
+      </Grid>
+      <Stack gap="xs">
+        <Title order={3} size="h5">
+          {t('allocation.obligations')}
+        </Title>
+        <QueryState isPending={false} error={obligations.error}>
+          {obligations.isPending && entity ? (
+            <Paper withBorder radius="lg">
+              <TableSkeleton rows={5} />
+            </Paper>
+          ) : (obligations.data ?? []).length === 0 ? (
+            <Paper withBorder radius="lg">
+              <EmptyState title={t('allocation.noObligations')} description={t('allocation.noObligationsHint')} />
+            </Paper>
+          ) : (
+            <DataGrid<Obligation>
+              rowData={obligations.data ?? []}
+              columnDefs={obligationColumns}
+              rowId={(o) => o.id}
+              height={Math.min(420, 46 + (obligations.data ?? []).length * 40 + 2)}
+              onRowClicked={(event) => {
+                if (event.data) showObligation(event.data.id);
+              }}
+              rowStyle={{ cursor: 'pointer' }}
+              overlayNoRowsTemplate={t('allocation.noObligations')}
+            />
+          )}
+        </QueryState>
+      </Stack>
       <ObligationDrawer obligationId={selectedObligation} onClose={() => showObligation(null)} />
       {opening && entity && (
         <OpenObligationModal

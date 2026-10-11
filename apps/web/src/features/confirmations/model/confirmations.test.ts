@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   asQueueView,
+  differenceFields,
   enteredTerms,
   headerDifferences,
   oursFor,
@@ -80,5 +81,18 @@ describe('confirmations', () => {
     const theirs = { id: 't', direction: 'THEIRS', matchedAgainst: 'o1' } as Confirmation;
     expect(oursFor(theirs, [ours1, ours2, theirs])?.id).toBe('o1');
     expect(oursFor({ ...theirs, matchedAgainst: null }, [ours1, ours2, theirs])?.id).toBe('o2');
+  });
+});
+
+describe('differenceFields', () => {
+  it('names each differing field once, leaving notes out', () => {
+    const differences = [
+      { field: 'legs[1].price', severity: 'MISMATCH' },
+      { field: 'legs[1].amount', severity: 'MISMATCH' },
+      { field: 'legs[1].deliveries[0].quantity', severity: 'MISMATCH' },
+      { field: 'legs[1].deliveries[1].deliveryDate', severity: 'MISMATCH' },
+      { field: 'legs[1].seller.name', severity: 'NOTE' },
+    ] as Confirmation['differences'];
+    expect(differenceFields(differences)).toEqual(['price', 'amount', 'deliveries']);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deadlineCalendar, deadlineState, type Deadline } from './deadlines';
+import { deadlineCalendar, deadlineState, nextDeadline, type Deadline } from './deadlines';
 
 const deadline = (dueOn: string, met: boolean, installationName = 'Plant'): Deadline => ({
   complianceYear: 2026,
@@ -35,5 +35,14 @@ describe('deadlines', () => {
       ['B', 'dueSoon'],
     ]);
     expect(calendar[0]?.deadlines[0]?.state).toBe('overdue');
+  });
+
+  it('finds the next deadline not yet met', () => {
+    const next = nextDeadline(
+      [deadline('2027-09-30', false, 'B'), deadline('2027-03-31', true, 'A'), deadline('2027-04-30', false, 'A')],
+      '2027-04-01',
+    );
+    expect([next?.dueOn, next?.state]).toEqual(['2027-04-30', 'dueSoon']);
+    expect(nextDeadline([deadline('2027-03-31', true)], '2027-04-01')).toBeUndefined();
   });
 });

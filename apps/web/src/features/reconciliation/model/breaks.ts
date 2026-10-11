@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import type { Schema } from '@/shared/api/types';
+import type { LifecycleStep } from '@/shared/components/LifecycleTimeline';
 
 export type Break = Schema<'ReconciliationBreakView'>;
 export type BreakStatus = Break['status'];
@@ -16,20 +17,54 @@ export const BREAK_TYPES: BreakType[] = [
 export const OPEN_STATUSES: BreakStatus[] = ['OPEN', 'INVESTIGATING', 'PENDING_ACCEPTANCE'];
 export const CLOSED_STATUSES: BreakStatus[] = ['RESOLVED', 'ACCEPTED', 'AUTO_CLEARED'];
 
-export const BREAK_STATUS_COLORS: Record<BreakStatus, string> = {
-  OPEN: 'red',
-  INVESTIGATING: 'orange',
-  PENDING_ACCEPTANCE: 'yellow',
-  RESOLVED: 'teal',
-  ACCEPTED: 'grape',
-  AUTO_CLEARED: 'gray',
+export type BreakStepKey = 'opened' | 'assigned' | 'acceptanceRequested' | 'resolved' | 'accepted' | 'autoCleared';
+
+const FINAL: Partial<Record<BreakStatus, BreakStepKey>> = {
+  RESOLVED: 'resolved',
+  ACCEPTED: 'accepted',
+  AUTO_CLEARED: 'autoCleared',
 };
 
-export const STATEMENT_STATUS_COLORS: Record<Statement['status'], string> = {
-  IMPORTED: 'gray',
-  RECONCILED: 'teal',
-  BREAKS: 'orange',
-};
+/**
+ * A break's way from detection to its resolution for the timeline: opened, assigned (taken into investigation),
+ * acceptance requested when someone asked a second person to accept the difference, and resolved, accepted or
+ * cleared by a later statement. The last step reached is the current one until the break is closed.
+ */
+export function breakSteps(
+  brk: Pick<
+    Break,
+    | 'status'
+    | 'detectedAt'
+    | 'firstSeenOn'
+    | 'assignee'
+    | 'acceptanceRequestedBy'
+    | 'resolvedAt'
+    | 'resolvedBy'
+    | 'resolution'
+  >,
+  label: (key: BreakStepKey) => string,
+): LifecycleStep[] {
+  const final = FINAL[brk.status];
+  const steps: LifecycleStep[] = [{ label: label('opened'), state: 'done', at: brk.detectedAt ?? brk.firstSeenOn }];
+  if (brk.assignee || brk.status !== 'AUTO_CLEARED') {
+    const assigned = Boolean(brk.assignee) || brk.status !== 'OPEN';
+    steps.push({ label: label('assigned'), state: assigned ? 'done' : 'pending', by: brk.assignee });
+  }
+  if (brk.acceptanceRequestedBy) {
+    steps.push({ label: label('acceptanceRequested'), state: 'done', by: brk.acceptanceRequestedBy });
+  }
+  steps.push(
+    final
+      ? { label: label(final), state: 'done', at: brk.resolvedAt, by: brk.resolvedBy, detail: brk.resolution }
+      : { label: label('resolved'), state: 'pending' },
+  );
+  if (!final) {
+    const last = steps.reduce((reached, step, index) => (step.state === 'done' ? index : reached), -1);
+    const current = steps[last];
+    if (current) steps[last] = { ...current, state: 'current' };
+  }
+  return steps;
+}
 
 export interface BreakActions {
   /** Take the break into investigation (assigns it to the user). */

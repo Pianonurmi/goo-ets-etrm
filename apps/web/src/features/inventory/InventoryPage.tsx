@@ -1,5 +1,18 @@
-import { Alert, Badge, Button, Group, MultiSelect, Paper, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
-import { IconArrowsTransferUp, IconPlus, IconSearch } from '@tabler/icons-react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Group,
+  MultiSelect,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Tabs,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
+import { IconArrowsTransferUp, IconCalendarDue, IconPlus, IconSearch } from '@tabler/icons-react';
 import type { ColDef } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
@@ -8,8 +21,12 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
@@ -40,11 +57,66 @@ function Totals({ lots }: { lots: Lot[] }) {
   const { count, mwh } = totals(lots);
   return (
     <Group gap="xs" data-testid="lot-totals">
-      <Badge variant="light">{t('inventory.lotCount', { count })}</Badge>
-      <Badge variant="light" color="teal">
+      <Badge variant="default" radius="xl" tt="none">
+        {t('inventory.lotCount', { count })}
+      </Badge>
+      <Badge variant="light" radius="xl" tt="none">
         {formatDecimal(mwh)} MWh
       </Badge>
     </Group>
+  );
+}
+
+const inDays = (days: number) => dayjs().add(days, 'day').format('YYYY-MM-DD');
+
+/** The figures that matter for the book of certificates and allowances, from the home summary (server totals). */
+function InventoryKpis({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const summary = $api.useQuery(
+    'get',
+    '/api/v1/home/summary',
+    { params: { query: { legalEntityId: entityId } } },
+    { refetchInterval: 60_000 },
+  );
+  const goo = summary.data?.goo;
+  const eua = summary.data?.eua;
+  const none = '—';
+  return (
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="inventory-kpis">
+      <KpiCard
+        label={t('inventory.kpi.live')}
+        value={goo ? formatDecimal(goo.liveMwh) : none}
+        unit={goo ? 'MWh' : undefined}
+        loading={summary.isPending}
+        trend={t('inventory.kpi.liveHint')}
+        to="/inventory"
+      />
+      <KpiCard
+        label={t('inventory.kpi.expiring30')}
+        value={goo ? formatDecimal(goo.expiring30Mwh) : none}
+        unit={goo ? 'MWh' : undefined}
+        loading={summary.isPending}
+        trend={goo && goo.expiring30Mwh > 0 ? t('inventory.kpi.expiring30Hint') : t('inventory.kpi.nothingExpiring')}
+        trendTone={goo && goo.expiring30Mwh > 0 ? 'warning' : 'neutral'}
+        to={`/inventory?expiringBefore=${inDays(30)}`}
+      />
+      <KpiCard
+        label={t('inventory.kpi.expiring90')}
+        value={goo ? formatDecimal(goo.expiring90Mwh) : none}
+        unit={goo ? 'MWh' : undefined}
+        loading={summary.isPending}
+        trend={t('inventory.kpi.expiring90Hint')}
+        to={`/inventory?expiringBefore=${inDays(90)}`}
+      />
+      <KpiCard
+        label={t('inventory.kpi.allowances')}
+        value={eua ? formatDecimal(eua.heldAllowances) : none}
+        unit={eua ? 't' : undefined}
+        loading={summary.isPending}
+        trend={eua ? t('inventory.kpi.allowancesHint', { year: eua.complianceYear }) : undefined}
+        to="/inventory?tab=allowances"
+      />
+    </SimpleGrid>
   );
 }
 
@@ -85,41 +157,68 @@ function LotsTab({ entityId }: { entityId: string }) {
     setParams(next, { replace: true });
   };
   return (
-    <Stack>
+    <Stack gap="md">
       <ExpiryLadder entityId={entityId} />
-      <Group align="flex-end">
+      <Group align="flex-end" gap="sm">
         <MultiSelect
           label={t('inventory.status')}
-          data={STATUSES}
+          data={STATUSES.map((status) => ({ value: status, label: statusLabel(status) }))}
           value={statuses}
-          placeholder={t('inventory.liveOnly')}
+          placeholder={statuses.length === 0 ? t('inventory.liveOnly') : undefined}
           onChange={(value) => update({ status: value })}
           clearable
-          w={360}
+          w={320}
         />
         <TextInput
           type="date"
           label={t('inventory.expiringBefore')}
           value={expiringBefore}
           onChange={(event) => update({ expiringBefore: event.currentTarget.value })}
-          w={180}
+          w={170}
         />
         <Button
-          variant="subtle"
-          onClick={() => update({ expiringBefore: dayjs().add(90, 'day').format('YYYY-MM-DD') })}
+          variant="default"
+          leftSection={<IconCalendarDue size={16} />}
+          onClick={() => update({ expiringBefore: inDays(90) })}
         >
           {t('inventory.next90Days')}
         </Button>
-        {lots.data && <Totals lots={lots.data} />}
+        {lots.data && (
+          <Group ml="auto" mb={6}>
+            <Totals lots={lots.data} />
+          </Group>
+        )}
       </Group>
-      <QueryState isPending={lots.isPending} error={lots.error}>
-        <DataGrid<Lot>
-          rowData={lots.data ?? []}
-          columnDefs={columns}
-          rowId={(lot) => lot.id}
-          onRowClicked={(event) => open(event.data)}
-          overlayNoRowsTemplate={t('common.empty')}
-        />
+      <QueryState isPending={false} error={lots.error}>
+        {lots.isPending ? (
+          <Paper withBorder radius="lg">
+            <TableSkeleton rows={10} />
+          </Paper>
+        ) : (lots.data ?? []).length === 0 ? (
+          <Paper withBorder radius="lg">
+            <EmptyState
+              title={t('inventory.emptyLots')}
+              description={t('inventory.emptyLotsHint')}
+              testId="lots-empty"
+              action={
+                <Can op="inventory_receive">
+                  <Text size="sm" c="dimmed">
+                    {t('inventory.emptyLotsAction')}
+                  </Text>
+                </Can>
+              }
+            />
+          </Paper>
+        ) : (
+          <DataGrid<Lot>
+            rowData={lots.data ?? []}
+            columnDefs={columns}
+            rowId={(lot) => lot.id}
+            onRowClicked={(event) => open(event.data)}
+            rowStyle={{ cursor: 'pointer' }}
+            overlayNoRowsTemplate={t('common.empty')}
+          />
+        )}
       </QueryState>
     </Stack>
   );
@@ -137,9 +236,16 @@ function SearchTab({ entityId }: { entityId: string }) {
     search.mutate({ body: { holderEntityId: entityId, criterion, deliveryDate, statuses, limit: 2000 } });
   return (
     <Stack>
-      <Paper withBorder p="md">
+      <Paper withBorder radius="lg" p="lg">
         <Stack>
-          <Title order={5}>{t('inventory.criteria')}</Title>
+          <div>
+            <Title order={3} size="h5">
+              {t('inventory.criteria')}
+            </Title>
+            <Text size="sm" c="dimmed">
+              {t('inventory.criteriaHint')}
+            </Text>
+          </div>
           <CriteriaBuilder value={criterion} onChange={setCriterion} />
           <Group align="flex-end">
             <TextInput
@@ -152,7 +258,7 @@ function SearchTab({ entityId }: { entityId: string }) {
             />
             <MultiSelect
               label={t('inventory.status')}
-              data={STATUSES}
+              data={STATUSES.map((status) => ({ value: status, label: statusLabel(status) }))}
               value={statuses}
               onChange={(value) => setStatuses(value)}
               w={320}
@@ -182,6 +288,7 @@ function SearchTab({ entityId }: { entityId: string }) {
             columnDefs={columns}
             rowId={(lot) => lot.id}
             onRowClicked={(event) => open(event.data)}
+            rowStyle={{ cursor: 'pointer' }}
             overlayNoRowsTemplate={t('inventory.noMatch')}
           />
         </Stack>
@@ -218,8 +325,20 @@ function AllowancesTab({ entityId }: { entityId: string }) {
   const columns = useMemo<ColDef<Holding>[]>(
     () => [
       { field: 'productCode', headerName: t('inventory.columns.product'), width: 140 },
-      { field: 'quantity', headerName: t('inventory.columns.quantity'), width: 140, type: 'rightAligned' },
-      { field: 'reservedQuantity', headerName: t('inventory.columns.reserved'), width: 140, type: 'rightAligned' },
+      {
+        field: 'quantity',
+        headerName: t('inventory.columns.tonnes'),
+        width: 140,
+        type: 'rightAligned',
+        valueFormatter: (p) => formatDecimal(p.value as number),
+      },
+      {
+        field: 'reservedQuantity',
+        headerName: t('inventory.columns.reserved'),
+        width: 140,
+        type: 'rightAligned',
+        valueFormatter: (p) => formatDecimal(p.value as number),
+      },
       {
         field: 'registryAccountId',
         headerName: t('inventory.columns.account'),
@@ -232,8 +351,19 @@ function AllowancesTab({ entityId }: { entityId: string }) {
   const movementColumns = useMemo<ColDef<Schema<'AllowanceMovementView'>>[]>(
     () => [
       { field: 'effectiveDate', headerName: t('inventory.columns.date'), width: 130 },
-      { field: 'type', headerName: t('inventory.columns.type'), width: 160 },
-      { field: 'quantity', headerName: t('inventory.columns.quantity'), width: 120, type: 'rightAligned' },
+      {
+        field: 'type',
+        headerName: t('inventory.columns.type'),
+        width: 170,
+        valueFormatter: (p) => statusLabel(String(p.value)),
+      },
+      {
+        field: 'quantity',
+        headerName: t('inventory.columns.tonnes'),
+        width: 120,
+        type: 'rightAligned',
+        valueFormatter: (p) => formatDecimal(p.value as number),
+      },
       { field: 'complianceYear', headerName: t('inventory.columns.complianceYear'), width: 150 },
       { field: 'reference', headerName: t('inventory.columns.reference'), flex: 1 },
       { field: 'actor', headerName: t('inventory.columns.actor'), width: 130 },
@@ -274,13 +404,16 @@ function AllowancesTab({ entityId }: { entityId: string }) {
           columnDefs={columns}
           rowId={(holding) => holding.id}
           onRowClicked={(event) => setSelected(event.data ?? null)}
+          rowStyle={{ cursor: 'pointer' }}
           height={240}
           overlayNoRowsTemplate={t('common.empty')}
         />
       </QueryState>
       {selected && (
         <Stack gap="xs">
-          <Text fw={600}>{t('inventory.movementsOf', { product: selected.productCode })}</Text>
+          <Title order={3} size="h5">
+            {t('inventory.movementsOf', { product: selected.productCode })}
+          </Title>
           <QueryState isPending={movements.isPending} error={movements.error}>
             <DataGrid rowData={movements.data ?? []} columnDefs={movementColumns} height={320} />
           </QueryState>
@@ -313,7 +446,7 @@ export function InventoryPage() {
   const tab = params.get('tab') ?? 'lots';
   const [receiving, setReceiving] = useState(false);
   return (
-    <Stack>
+    <Stack gap="lg">
       <PageHeader
         title={t('inventory.title')}
         description={t('inventory.description', { entity: entity?.code ?? '' })}
@@ -339,28 +472,31 @@ export function InventoryPage() {
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
-        <Tabs
-          value={tab}
-          onChange={(value) => setParams(value && value !== 'lots' ? { tab: value } : {}, { replace: true })}
-          keepMounted={false}
-        >
-          <Tabs.List>
-            <Tabs.Tab value="lots">{t('inventory.tabs.lots')}</Tabs.Tab>
-            <Tabs.Tab value="search" data-testid="tab-search">
-              {t('inventory.tabs.search')}
-            </Tabs.Tab>
-            <Tabs.Tab value="allowances">{t('inventory.tabs.allowances')}</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="lots" pt="md">
-            <LotsTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="search" pt="md">
-            <SearchTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="allowances" pt="md">
-            <AllowancesTab entityId={entity.id} />
-          </Tabs.Panel>
-        </Tabs>
+        <>
+          <InventoryKpis entityId={entity.id} />
+          <Tabs
+            value={tab}
+            onChange={(value) => setParams(value && value !== 'lots' ? { tab: value } : {}, { replace: true })}
+            keepMounted={false}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="lots">{t('inventory.tabs.lots')}</Tabs.Tab>
+              <Tabs.Tab value="search" data-testid="tab-search">
+                {t('inventory.tabs.search')}
+              </Tabs.Tab>
+              <Tabs.Tab value="allowances">{t('inventory.tabs.allowances')}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="lots" pt="md">
+              <LotsTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="search" pt="md">
+              <SearchTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="allowances" pt="md">
+              <AllowancesTab entityId={entity.id} />
+            </Tabs.Panel>
+          </Tabs>
+        </>
       )}
       {receiving && entity && <ReceiveLotsModal entityId={entity.id} onClose={() => setReceiving(false)} />}
     </Stack>

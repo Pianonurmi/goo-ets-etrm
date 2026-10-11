@@ -1,5 +1,17 @@
-import { Badge, Button, FileInput, Group, Modal, Select, Stack, Table, Tabs, Text, TextInput } from '@mantine/core';
-import { IconCloudDownload, IconLink, IconPlus, IconUpload } from '@tabler/icons-react';
+import {
+  Button,
+  FileInput,
+  Group,
+  Modal,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  TextInput,
+} from '@mantine/core';
+import { IconChartLine, IconCloudDownload, IconLink, IconPlus, IconUpload } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
@@ -9,10 +21,13 @@ import { useSearchParams } from 'react-router';
 import { $api, authorisedFetch } from '@/shared/api/client';
 import { decimal, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifyProblem, notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { ImportFormats } from './ImportFormats';
@@ -198,9 +213,7 @@ function QuotesTab() {
         width: 130,
         cellRenderer: (p: ICellRendererParams<Quote>) =>
           p.data ? (
-            <Badge color={p.data.quality === 'OK' ? 'teal' : 'orange'} variant="light">
-              {p.data.quality}
-            </Badge>
+            <StatusBadge status={p.data.quality === 'OK' ? 'OK' : 'WARNING'} label={statusLabel(p.data.quality)} />
           ) : null,
       },
       { field: 'qualityNote', headerName: t('marketData.note'), flex: 1 },
@@ -255,9 +268,12 @@ function QuotesTab() {
           />
         </QueryState>
       ) : (
-        <Text c="dimmed" size="sm">
-          {t('marketData.pickInstrument')}
-        </Text>
+        <EmptyState
+          icon={<IconChartLine size={22} />}
+          title={t('marketData.pickInstrument')}
+          description={t('marketData.pickInstrumentHint')}
+          testId="quotes-pick"
+        />
       )}
       <RecordQuoteModal opened={recording} onClose={() => setRecording(false)} instruments={instruments.data ?? []} />
     </Stack>
@@ -525,9 +541,37 @@ export function MarketDataPage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'quotes';
+  const suspect = $api.useQuery('get', '/api/v1/market-data/quotes/suspect', {});
+  const instruments = $api.useQuery('get', '/api/v1/market-data/instruments', {});
+  const curves = $api.useQuery('get', '/api/v1/market-data/curves', { params: { query: { activeOnly: true } } });
+  const flagged = suspect.data?.length ?? 0;
   return (
     <Stack>
       <PageHeader title={t('marketData.title')} description={t('marketData.description')} />
+      <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md" data-testid="market-data-kpis">
+        <KpiCard
+          label={t('marketData.kpi.suspect')}
+          value={flagged}
+          loading={suspect.isPending}
+          trend={flagged > 0 ? t('marketData.kpi.suspectHint') : t('marketData.noSuspect')}
+          trendTone={flagged > 0 ? 'warning' : 'up'}
+          to="/market-data?tab=suspect"
+        />
+        <KpiCard
+          label={t('marketData.kpi.instruments')}
+          value={(instruments.data ?? []).filter((instrument) => instrument.active).length}
+          loading={instruments.isPending}
+          trend={t('marketData.kpi.instrumentsHint')}
+          to="/market-data?tab=instruments"
+        />
+        <KpiCard
+          label={t('marketData.kpi.curves')}
+          value={curves.data?.length ?? '—'}
+          loading={curves.isPending}
+          trend={t('marketData.kpi.curvesHint')}
+          to="/market-data/curves"
+        />
+      </SimpleGrid>
       <Tabs
         value={tab}
         onChange={(value) => setParams(value ? { tab: value } : {}, { replace: true })}

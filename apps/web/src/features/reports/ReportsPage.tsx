@@ -15,7 +15,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconAlertTriangle, IconDownload, IconPlayerPlay } from '@tabler/icons-react';
+import { IconAlertTriangle, IconDownload, IconPlayerPlay, IconReportAnalytics } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
@@ -27,6 +27,7 @@ import { download } from '@/shared/api/download';
 import type { Schema } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
 import { useSession } from '@/shared/auth/SessionContext';
+import { EmptyState } from '@/shared/components/EmptyState';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
@@ -104,8 +105,10 @@ function ReportRunner({ definition, entityId }: { definition: ReportDefinition; 
   );
   return (
     <Stack>
-      <Card withBorder>
-        <Title order={4}>{definition.title}</Title>
+      <Card withBorder radius="lg" p="lg">
+        <Title order={3} size="h4">
+          {definition.title}
+        </Title>
         <Text size="sm" c="dimmed" mb="sm">
           {definition.description}
         </Text>
@@ -150,7 +153,7 @@ function ReportRunner({ definition, entityId }: { definition: ReportDefinition; 
             {t('reports.run')}
           </Button>
           <Button
-            variant="light"
+            variant="default"
             leftSection={<IconDownload size={16} />}
             disabled={missing.length > 0}
             loading={csv.isPending}
@@ -161,6 +164,14 @@ function ReportRunner({ definition, entityId }: { definition: ReportDefinition; 
         </Group>
       </Card>
       <ProblemAlert error={run.error ?? csv.error} />
+      {!run.data && !run.isPending && (
+        <EmptyState
+          icon={<IconReportAnalytics size={22} />}
+          title={t('reports.notRun')}
+          description={t('reports.notRunHint')}
+          testId="report-not-run"
+        />
+      )}
       {run.data && (
         <Stack gap="xs">
           <Text size="sm" c="dimmed" data-testid="report-run">
@@ -195,16 +206,19 @@ function Catalogue({ entityId }: { entityId: string | undefined }) {
       ) : (
         <Grid>
           <Grid.Col span={{ base: 12, md: 3 }}>
-            <Stack gap={2}>
-              {reports.map((report) => (
-                <NavLink
-                  key={report.code}
-                  label={report.title}
-                  active={report.code === selected?.code}
-                  onClick={() => setParams({ report: report.code }, { replace: true })}
-                />
-              ))}
-            </Stack>
+            <Card withBorder radius="lg" p={6}>
+              <Stack gap={2}>
+                {reports.map((report) => (
+                  <NavLink
+                    key={report.code}
+                    label={report.title}
+                    active={report.code === selected?.code}
+                    onClick={() => setParams({ report: report.code }, { replace: true })}
+                    style={{ borderRadius: 8 }}
+                  />
+                ))}
+              </Stack>
+            </Card>
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 9 }}>
             {selected && <ReportRunner key={selected.code} definition={selected} entityId={entityId} />}

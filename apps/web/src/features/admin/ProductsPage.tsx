@@ -1,9 +1,9 @@
 import {
-  Badge,
   Button,
   Group,
   Modal,
   NumberInput,
+  Paper,
   Select,
   Stack,
   Switch,
@@ -24,6 +24,7 @@ import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
@@ -34,6 +35,13 @@ type Bucket = Schema<'ProductBucketView'>;
 type Carrier = NonNullable<Body<'CreateProductBucket'>['energyCarrier']>;
 type Futures = Schema<'FuturesContractView'>;
 const CARRIERS: Carrier[] = ['ELECTRICITY', 'GAS', 'HYDROGEN', 'HEAT_COOLING'];
+
+function Active({ active }: { active: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <StatusBadge status={active ? 'ACTIVE' : 'INACTIVE'} label={active ? t('admin.active') : t('admin.inactive')} />
+  );
+}
 
 function BucketModal({ bucket, onClose }: { bucket?: Bucket; onClose: () => void }) {
   const { t } = useTranslation();
@@ -165,14 +173,9 @@ function BucketsTab() {
       { field: 'markCurveRef', headerName: t('admin.markCurve'), width: 170 },
       {
         field: 'active',
-        headerName: t('marketData.active'),
-        width: 100,
-        cellRenderer: (p: ICellRendererParams<Bucket>) =>
-          p.data && (
-            <Badge size="sm" variant="light" color={p.data.active ? 'teal' : 'gray'}>
-              {p.data.active ? t('common.yes') : t('common.no')}
-            </Badge>
-          ),
+        headerName: t('admin.active'),
+        width: 110,
+        cellRenderer: (p: ICellRendererParams<Bucket>) => p.data && <Active active={p.data.active} />,
       },
     ],
     [t],
@@ -192,7 +195,7 @@ function BucketsTab() {
           rowData={buckets.data ?? []}
           columnDefs={columns}
           rowId={(row) => row.id}
-          height={460}
+          fitRows={12}
           onRowClicked={(event) => {
             if (event.data) setEditing({ bucket: event.data });
           }}
@@ -212,32 +215,36 @@ function AllowancesTab() {
   const products = $api.useQuery('get', '/api/v1/products/allowances', { params: { query: { activeOnly: false } } });
   return (
     <QueryState isPending={products.isPending} error={products.error}>
-      <Table striped withTableBorder>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('marketData.code')}</Table.Th>
-            <Table.Th>{t('ets.name')}</Table.Th>
-            <Table.Th>{t('admin.jurisdiction')}</Table.Th>
-            <Table.Th>{t('admin.phase')}</Table.Th>
-            <Table.Th>{t('admin.registry')}</Table.Th>
-            <Table.Th>{t('admin.unit')}</Table.Th>
-            <Table.Th>{t('marketData.active')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {(products.data ?? []).map((product) => (
-            <Table.Tr key={product.code}>
-              <Table.Td>{product.code}</Table.Td>
-              <Table.Td>{product.name}</Table.Td>
-              <Table.Td>{product.jurisdiction}</Table.Td>
-              <Table.Td>{product.phase ?? '–'}</Table.Td>
-              <Table.Td>{product.registryCode}</Table.Td>
-              <Table.Td>{product.unit}</Table.Td>
-              <Table.Td>{product.active ? t('common.yes') : t('common.no')}</Table.Td>
+      <Paper withBorder>
+        <Table highlightOnHover verticalSpacing="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>{t('marketData.code')}</Table.Th>
+              <Table.Th>{t('ets.name')}</Table.Th>
+              <Table.Th>{t('admin.jurisdiction')}</Table.Th>
+              <Table.Th>{t('admin.phase')}</Table.Th>
+              <Table.Th>{t('admin.registry')}</Table.Th>
+              <Table.Th>{t('admin.unit')}</Table.Th>
+              <Table.Th>{t('admin.active')}</Table.Th>
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+          </Table.Thead>
+          <Table.Tbody>
+            {(products.data ?? []).map((product) => (
+              <Table.Tr key={product.code}>
+                <Table.Td ff="monospace">{product.code}</Table.Td>
+                <Table.Td>{product.name}</Table.Td>
+                <Table.Td>{product.jurisdiction}</Table.Td>
+                <Table.Td>{product.phase ?? '–'}</Table.Td>
+                <Table.Td>{product.registryCode}</Table.Td>
+                <Table.Td>{product.unit}</Table.Td>
+                <Table.Td>
+                  <Active active={product.active} />
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Paper>
     </QueryState>
   );
 }
@@ -356,47 +363,51 @@ function FuturesTab() {
             {t('common.empty')}
           </Text>
         ) : (
-          <Table striped withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('marketData.code')}</Table.Th>
-                <Table.Th>{t('trades.form.allowanceProduct')}</Table.Th>
-                <Table.Th>MIC</Table.Th>
-                <Table.Th>{t('admin.deliveryMonth')}</Table.Th>
-                <Table.Th>{t('admin.lastTradingDay')}</Table.Th>
-                <Table.Th ta="right">{t('admin.contractSize')}</Table.Th>
-                <Table.Th>{t('marketData.active')}</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(futures.data ?? []).map((row: Futures) => (
-                <Table.Tr key={row.code}>
-                  <Table.Td>{row.code}</Table.Td>
-                  <Table.Td>{row.allowanceProductCode}</Table.Td>
-                  <Table.Td>{row.venueMic}</Table.Td>
-                  <Table.Td>{row.deliveryMonth}</Table.Td>
-                  <Table.Td>{formatDate(row.lastTradingDay)}</Table.Td>
-                  <Table.Td ta="right">{formatDecimal(row.contractSize)}</Table.Td>
-                  <Table.Td>{row.active ? t('common.yes') : t('common.no')}</Table.Td>
-                  <Table.Td>
-                    {row.active && (
-                      <Can op="product_deactivateFuturesContract">
-                        <Button
-                          size="compact-xs"
-                          variant="subtle"
-                          color="red"
-                          onClick={() => deactivate.mutate({ params: { path: { code: row.code } } })}
-                        >
-                          {t('admin.deactivate')}
-                        </Button>
-                      </Can>
-                    )}
-                  </Table.Td>
+          <Paper withBorder>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('marketData.code')}</Table.Th>
+                  <Table.Th>{t('trades.form.allowanceProduct')}</Table.Th>
+                  <Table.Th>MIC</Table.Th>
+                  <Table.Th>{t('admin.deliveryMonth')}</Table.Th>
+                  <Table.Th>{t('admin.lastTradingDay')}</Table.Th>
+                  <Table.Th ta="right">{t('admin.contractSize')}</Table.Th>
+                  <Table.Th>{t('admin.active')}</Table.Th>
+                  <Table.Th />
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {(futures.data ?? []).map((row: Futures) => (
+                  <Table.Tr key={row.code}>
+                    <Table.Td ff="monospace">{row.code}</Table.Td>
+                    <Table.Td>{row.allowanceProductCode}</Table.Td>
+                    <Table.Td>{row.venueMic}</Table.Td>
+                    <Table.Td>{row.deliveryMonth}</Table.Td>
+                    <Table.Td>{formatDate(row.lastTradingDay)}</Table.Td>
+                    <Table.Td ta="right">{formatDecimal(row.contractSize)}</Table.Td>
+                    <Table.Td>
+                      <Active active={row.active} />
+                    </Table.Td>
+                    <Table.Td>
+                      {row.active && (
+                        <Can op="product_deactivateFuturesContract">
+                          <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            color="red"
+                            onClick={() => deactivate.mutate({ params: { path: { code: row.code } } })}
+                          >
+                            {t('admin.deactivate')}
+                          </Button>
+                        </Can>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Paper>
         )}
       </QueryState>
       {creating && <FuturesModal onClose={() => setCreating(false)} />}

@@ -1,5 +1,5 @@
 import { Alert, Button, Group, Modal, Paper, Progress, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
-import { IconRefresh } from '@tabler/icons-react';
+import { IconAlertTriangle, IconInfoCircle, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { $api } from '@/shared/api/client';
@@ -154,7 +154,9 @@ export function DemoPage() {
               {t('demo.resetExplain')}
             </Text>
             {cooling && (
-              <Alert color="yellow">{t('demo.cooling', { at: formatDateTime(showcase.resetAllowedAt) })}</Alert>
+              <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
+                {t('demo.cooling', { at: formatDateTime(showcase.resetAllowedAt) })}
+              </Alert>
             )}
             <Can op="showcase_reset">
               <Button
@@ -170,7 +172,9 @@ export function DemoPage() {
           </Stack>
         </Paper>
       ) : (
-        <Alert color="blue">{t('demo.notShowcase')}</Alert>
+        <Alert color="blue" variant="light" icon={<IconInfoCircle size={18} />}>
+          {t('demo.notShowcase')}
+        </Alert>
       )}
       {asking && (
         <ResetModal

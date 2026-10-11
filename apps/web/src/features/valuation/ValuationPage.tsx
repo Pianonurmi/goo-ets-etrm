@@ -1,21 +1,8 @@
 import { BarChart } from '@mantine/charts';
-import {
-  Alert,
-  Anchor,
-  Button,
-  Card,
-  Group,
-  Select,
-  SimpleGrid,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-  Title,
-} from '@mantine/core';
-import { IconArrowLeft, IconInbox, IconPlayerPlay } from '@tabler/icons-react';
+import { Alert, Button, Group, Paper, Select, SimpleGrid, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
+import { IconChartBar, IconInbox, IconPlayerPlay, IconSend } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ColDef } from 'ag-grid-community';
+import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,15 +10,22 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { DetailLayout } from '@/shared/components/DetailLayout';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { Money } from '@/shared/components/Figures';
+import { KpiCard } from '@/shared/components/KpiCard';
+import { LifecycleTimeline } from '@/shared/components/LifecycleTimeline';
 import { notifySuccess } from '@/shared/components/notify';
-import { StatusBadge } from '@/shared/components/StatusBadge';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { CardSkeleton, TableSkeleton } from '@/shared/components/Skeletons';
 import { useEntity } from '@/shared/context/EntityContext';
-import { formatDateTime, formatDecimal, formatMoney } from '@/shared/format/format';
+import { formatDate, formatDecimal, formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useBooks } from '@/features/trades/hooks';
+import { signOffSteps } from '@/features/marketdata/model/lifecycle';
 import { explainBars } from './model/explain';
 import { OfficialRun } from './OfficialRun';
 
@@ -42,11 +36,13 @@ export function RunStatusBadge({ status }: { status: string }) {
   return <StatusBadge status={status} data-testid="run-status" />;
 }
 
-function Runs({ entityId }: { entityId: string }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [date, setDate] = useState(dayjs().subtract(1, 'day').format('YYYY-MM-DD'));
-  const runs = $api.useQuery('get', '/api/v1/valuation/runs', {
+/** An MtM figure in a grid cell, green or red by sign. */
+function MtmCell({ value, currency }: { value: number | null | undefined; currency?: string }) {
+  return <Money value={value} currency={currency} signed size="sm" />;
+}
+
+function useRecentRuns(entityId: string) {
+  return $api.useQuery('get', '/api/v1/valuation/runs', {
     params: {
       query: {
         legalEntityId: entityId,
@@ -55,23 +51,104 @@ function Runs({ entityId }: { entityId: string }) {
       },
     },
   });
+}
+
+/** The latest official MtM and its change (the server's figures), runs waiting for sign-off, and exceptions. */
+function ValuationKpis({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const summary = $api.useQuery('get', '/api/v1/home/summary', { params: { query: { legalEntityId: entityId } } });
+  const runs = useRecentRuns(entityId);
+  const valuation = summary.data?.valuation;
+  const change = valuation?.change;
+  const latest = [...(runs.data ?? [])].sort((a, b) => b.valuationDate.localeCompare(a.valuationDate))[0];
+  const waiting = (runs.data ?? []).filter((run) => run.status === 'PENDING_SIGN_OFF' || run.status === 'DRAFT');
+  return (
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="valuation-kpis">
+      <KpiCard
+        label={
+          valuation ? t('valuation.kpi.mtm', { date: formatDate(valuation.valuationDate) }) : t('valuation.totalMtm')
+        }
+        value={valuation ? formatDecimal(valuation.totalMtm, 0, 0) : '—'}
+        unit={valuation?.currency}
+        loading={summary.isPending}
+        trend={
+          change === null || change === undefined
+            ? t('valuation.kpi.firstRun')
+            : `${change < 0 ? '▼' : '▲'} ${formatMoney(change)}`
+        }
+        trendTone={change === null || change === undefined ? 'neutral' : change < 0 ? 'down' : 'up'}
+        spark={valuation?.history.map((point) => point.amount)}
+        to="/valuation?tab=explain"
+      />
+      <KpiCard
+        label={t('valuation.kpi.latestRun')}
+        value={latest ? formatDate(latest.valuationDate) : '—'}
+        loading={runs.isPending}
+        trend={
+          latest ? `${t(`valuation.kinds.${latest.kind}`)} · ${statusLabel(latest.status)}` : t('valuation.kpi.noRuns')
+        }
+        trendTone={latest?.status === 'OFFICIAL' ? 'up' : latest ? 'warning' : 'neutral'}
+        to={latest ? `/valuation/runs/${latest.id}` : undefined}
+      />
+      <KpiCard
+        label={t('valuation.kpi.waiting')}
+        value={waiting.length}
+        loading={runs.isPending}
+        trend={waiting.length > 0 ? t('valuation.kpi.waitingHint') : t('valuation.kpi.allSignedOff')}
+        trendTone={waiting.length > 0 ? 'warning' : 'up'}
+      />
+      <KpiCard
+        label={t('valuation.kpi.exceptions')}
+        value={latest ? latest.exceptions : '—'}
+        loading={runs.isPending}
+        trend={latest && latest.exceptions > 0 ? t('valuation.kpi.exceptionsHint') : t('valuation.kpi.noExceptions')}
+        trendTone={latest && latest.exceptions > 0 ? 'warning' : 'up'}
+        to={latest ? `/valuation/runs/${latest.id}` : undefined}
+      />
+    </SimpleGrid>
+  );
+}
+
+function Runs({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [date, setDate] = useState(dayjs().subtract(1, 'day').format('YYYY-MM-DD'));
+  const runs = useRecentRuns(entityId);
   const start = $api.useMutation('post', '/api/v1/valuation/runs', {
     meta: { notify: false },
     onSuccess: (run) => void navigate(`/valuation/runs/${run.id}`),
   });
   const columns = useMemo<ColDef<Run>[]>(
     () => [
-      { field: 'valuationDate', headerName: t('valuation.date'), width: 130, sort: 'desc' },
-      { field: 'kind', headerName: t('marketData.kind'), width: 110 },
-      { field: 'status', headerName: t('allocation.status'), width: 160 },
+      { field: 'valuationDate', headerName: t('valuation.date'), width: 140, sort: 'desc' },
+      {
+        field: 'kind',
+        headerName: t('marketData.kind'),
+        width: 130,
+        valueFormatter: (p) => t(`valuation.kinds.${String(p.value)}`),
+      },
+      {
+        field: 'status',
+        headerName: t('allocation.status'),
+        width: 170,
+        cellRenderer: (p: ICellRendererParams<Run>) => p.data && <StatusBadge status={p.data.status} />,
+      },
       {
         field: 'totalMtmBase',
         headerName: t('valuation.totalMtm'),
-        width: 170,
+        flex: 1,
+        minWidth: 170,
         type: 'rightAligned',
-        valueFormatter: (p) => formatMoney(p.value as number, p.data?.baseCurrency),
+        cellRenderer: (p: ICellRendererParams<Run>) =>
+          p.data && <MtmCell value={p.data.totalMtmBase} currency={p.data.baseCurrency} />,
       },
-      { field: 'exceptions', headerName: t('valuation.exceptions'), width: 120, type: 'rightAligned' },
+      {
+        field: 'exceptions',
+        headerName: t('valuation.exceptions'),
+        width: 130,
+        type: 'rightAligned',
+        cellStyle: (p) => ((p.value as number) > 0 ? { color: 'var(--mantine-color-orange-text)' } : null),
+      },
       { field: 'createdBy', headerName: t('marketData.recordedBy'), width: 130 },
       { field: 'signedOffBy', headerName: t('curves.signedOffBy'), width: 140 },
     ],
@@ -98,17 +175,22 @@ function Runs({ entityId }: { entityId: string }) {
         </Group>
       </Can>
       <ProblemAlert error={start.error} />
-      <QueryState isPending={runs.isPending} error={runs.error}>
-        <DataGrid<Run>
-          rowData={runs.data ?? []}
-          columnDefs={columns}
-          rowId={(run) => run.id}
-          height={420}
-          onRowClicked={(event) => {
-            if (event.data) void navigate(`/valuation/runs/${event.data.id}`);
-          }}
-          overlayNoRowsTemplate={t('common.empty')}
-        />
+      <QueryState isPending={false} error={runs.error}>
+        {runs.isPending ? (
+          <TableSkeleton />
+        ) : (
+          <DataGrid<Run>
+            rowData={runs.data ?? []}
+            columnDefs={columns}
+            rowId={(run) => run.id}
+            height={440}
+            onRowClicked={(event) => {
+              if (event.data) void navigate(`/valuation/runs/${event.data.id}`);
+            }}
+            rowStyle={{ cursor: 'pointer' }}
+            overlayNoRowsTemplate={t('valuation.noRuns')}
+          />
+        )}
       </QueryState>
     </Stack>
   );
@@ -135,7 +217,7 @@ function useLatestOfficialDates(entityId: string): { dates: [string, string] | n
 
 function Explain({ entityId }: { entityId: string }) {
   const { dates, ready } = useLatestOfficialDates(entityId);
-  if (!ready) return null;
+  if (!ready) return <CardSkeleton height={320} />;
   return <ExplainFor entityId={entityId} initial={dates} />;
 }
 
@@ -149,6 +231,8 @@ function ExplainFor({ entityId, initial }: { entityId: string; initial: [string,
     { params: { query: { legalEntityId: entityId, from, to } } },
     { retry: false },
   );
+  const data = explain.data;
+  const bars = data ? explainBars(data.components, (component) => t(`valuation.components.${component}`)) : [];
   return (
     <Stack>
       <Group align="flex-end">
@@ -161,40 +245,53 @@ function ExplainFor({ entityId, initial }: { entityId: string; initial: [string,
         <TextInput type="date" label={t('valuation.toRun')} value={to} onChange={(e) => setTo(e.currentTarget.value)} />
       </Group>
       {explain.error ? (
-        <Alert color="gray">{t('valuation.noExplain')}</Alert>
+        <EmptyState
+          icon={<IconChartBar size={22} />}
+          title={t('valuation.noExplain')}
+          description={t('valuation.noExplainHint')}
+        />
+      ) : !data ? (
+        <CardSkeleton height={320} />
       ) : (
-        <QueryState isPending={explain.isPending} error={null}>
-          {explain.data && (
-            <Stack>
-              <SimpleGrid cols={{ base: 2, md: 3 }}>
-                <Card withBorder>
-                  <Text size="xs" c="dimmed">
-                    {t('valuation.mtmFrom', { date: explain.data.fromDate })}
-                  </Text>
-                  <Text fw={700}>{formatMoney(explain.data.mtmFrom, explain.data.baseCurrency)}</Text>
-                </Card>
-                <Card withBorder>
-                  <Text size="xs" c="dimmed">
-                    {t('valuation.mtmTo', { date: explain.data.toDate })}
-                  </Text>
-                  <Text fw={700}>{formatMoney(explain.data.mtmTo, explain.data.baseCurrency)}</Text>
-                </Card>
-              </SimpleGrid>
-              <Card withBorder>
-                <Title order={5} mb="sm">
-                  {t('valuation.explain')}
-                </Title>
-                <BarChart
-                  h={260}
-                  data={explainBars(explain.data.components)}
-                  dataKey="component"
-                  series={[{ name: 'amount', label: explain.data.baseCurrency, color: 'teal.6' }]}
-                  data-testid="explain-chart"
-                />
-              </Card>
-            </Stack>
-          )}
-        </QueryState>
+        <Stack>
+          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
+            <KpiCard
+              label={t('valuation.mtmFrom', { date: formatDate(data.fromDate) })}
+              value={formatMoney(data.mtmFrom)}
+              unit={data.baseCurrency}
+              to={`/valuation/runs/${data.fromRunId}`}
+            />
+            <KpiCard
+              label={t('valuation.mtmTo', { date: formatDate(data.toDate) })}
+              value={formatMoney(data.mtmTo)}
+              unit={data.baseCurrency}
+              to={`/valuation/runs/${data.toRunId}`}
+            />
+          </SimpleGrid>
+          <Paper withBorder radius="lg" p="lg">
+            <Title order={3} size="h5">
+              {t('valuation.explain')}
+            </Title>
+            <Text size="sm" c="dimmed" mb="md">
+              {t('valuation.explainHint', { currency: data.baseCurrency })}
+            </Text>
+            <BarChart
+              h={Math.max(160, bars.length * 48 + 40)}
+              data={bars}
+              dataKey="component"
+              orientation="vertical"
+              series={[{ name: 'amount', label: data.baseCurrency, color: 'brand.6' }]}
+              getBarColor={(value) => (value < 0 ? 'red.7' : 'teal.7')}
+              valueFormatter={(value) => formatMoney(value)}
+              xAxisProps={{ domain: [(min: number) => Math.min(0, min), (max: number) => Math.max(0, max)] }}
+              yAxisProps={{ width: 110 }}
+              referenceLines={[{ x: 0, color: 'gray.5' }]}
+              gridAxis="x"
+              tickLine="x"
+              data-testid="explain-chart"
+            />
+          </Paper>
+        </Stack>
       )}
     </Stack>
   );
@@ -215,33 +312,37 @@ export function ValuationPage() {
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
-        <Tabs
-          value={tab}
-          onChange={(value) => setParams(value && value !== 'runs' ? { tab: value } : {}, { replace: true })}
-          keepMounted={false}
-        >
-          <Tabs.List>
-            <Tabs.Tab value="runs">{t('valuation.runs')}</Tabs.Tab>
-            <Tabs.Tab value="official" data-testid="tab-official">
-              {t('valuation.official')}
-            </Tabs.Tab>
-            <Tabs.Tab value="explain">{t('valuation.explain')}</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="runs" pt="md">
-            <Runs entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="official" pt="md">
-            <OfficialRun entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="explain" pt="md">
-            <Explain entityId={entity.id} />
-          </Tabs.Panel>
-        </Tabs>
+        <>
+          <ValuationKpis entityId={entity.id} />
+          <Tabs
+            value={tab}
+            onChange={(value) => setParams(value && value !== 'runs' ? { tab: value } : {}, { replace: true })}
+            keepMounted={false}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="runs">{t('valuation.runs')}</Tabs.Tab>
+              <Tabs.Tab value="official" data-testid="tab-official">
+                {t('valuation.official')}
+              </Tabs.Tab>
+              <Tabs.Tab value="explain">{t('valuation.explain')}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="runs" pt="md">
+              <Runs entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="official" pt="md">
+              <OfficialRun entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="explain" pt="md">
+              <Explain entityId={entity.id} />
+            </Tabs.Panel>
+          </Tabs>
+        </>
       )}
     </Stack>
   );
 }
 
+/** One valuation run: its total and exceptions, the results per delivery, sign-off and its lifecycle. */
 export function RunDetailPage() {
   const { t } = useTranslation();
   const { runId = '' } = useParams();
@@ -268,12 +369,13 @@ export function RunDetailPage() {
       });
     },
   });
+  const currency = run.data?.baseCurrency;
   const columns = useMemo<ColDef<Result>[]>(
     () => [
       { field: 'tradeNumber', headerName: t('trades.columns.number'), width: 150 },
       { field: 'legNo', headerName: t('valuation.leg'), width: 80 },
       { field: 'deliveryDate', headerName: t('trades.form.deliveryDate'), width: 130 },
-      { field: 'productKey', headerName: t('trades.columns.product'), flex: 1, minWidth: 180 },
+      { field: 'productKey', headerName: t('trades.columns.product'), flex: 1, minWidth: 160 },
       {
         field: 'quantity',
         headerName: t('trades.columns.quantity'),
@@ -298,94 +400,134 @@ export function RunDetailPage() {
       {
         field: 'mtmBase',
         headerName: t('trades.mtm.mtmBase'),
-        width: 150,
+        width: 160,
         type: 'rightAligned',
-        valueFormatter: (p) => formatDecimal(p.value as number, 2, 2),
+        cellRenderer: (p: ICellRendererParams<Result>) =>
+          p.data && <MtmCell value={p.data.mtmBase} currency={currency} />,
       },
-      { field: 'status', headerName: t('allocation.status'), width: 150 },
+      {
+        field: 'status',
+        headerName: t('allocation.status'),
+        width: 150,
+        cellRenderer: (p: ICellRendererParams<Result>) => p.data && <StatusBadge status={p.data.status} />,
+      },
       { field: 'note', headerName: t('marketData.note'), width: 220 },
     ],
-    [t],
+    [t, currency],
   );
+  const breadcrumbs = [
+    { label: t('valuation.title'), to: '/valuation' },
+    { label: t('valuation.runs'), to: '/valuation' },
+  ];
+  const data = run.data;
+  if (!data) {
+    return (
+      <Stack gap={0}>
+        <PageHeader breadcrumbs={breadcrumbs} title={t('valuation.title')} />
+        <QueryState isPending={false} error={run.error}>
+          <CardSkeleton height={260} />
+        </QueryState>
+      </Stack>
+    );
+  }
+  const signOffTask = task.data?.items[0];
   return (
-    <Stack>
-      <Anchor component={Link} to="/valuation" size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('valuation.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={run.isPending} error={run.error}>
-        {run.data && (
-          <Card withBorder>
-            <Group justify="space-between">
-              <Group gap="xs">
-                <Title order={3}>
-                  {t('valuation.runTitle', { date: run.data.valuationDate, kind: run.data.kind })}
-                </Title>
-                <RunStatusBadge status={run.data.status} />
-              </Group>
-              <Group>
-                {task.data?.items[0] && (
-                  <Button
-                    component={Link}
-                    to={`/inbox/${task.data.items[0].id}`}
-                    variant="light"
-                    leftSection={<IconInbox size={16} />}
-                  >
-                    {t('curves.signOffTask')}
-                  </Button>
-                )}
-                {run.data.status === 'DRAFT' && (
-                  <Can op="valuation_submit">
-                    <Button
-                      loading={submit.isPending}
-                      onClick={() => submit.mutate({ params: { path: { id: runId } } })}
-                      data-testid="submit-run"
-                    >
-                      {t('valuation.submit')}
-                    </Button>
-                  </Can>
-                )}
-              </Group>
-            </Group>
-            <SimpleGrid cols={{ base: 2, md: 4 }} mt="md">
-              <Text size="sm">
-                {t('valuation.totalMtmIs', { amount: formatMoney(run.data.totalMtmBase, run.data.baseCurrency) })}
-              </Text>
-              <Text size="sm" c={run.data.exceptions > 0 ? 'orange' : undefined}>
-                {t('valuation.exceptionsAre', { count: run.data.exceptions })}
-              </Text>
-              <Text size="sm">
-                {t('curves.builtByWho', { who: run.data.createdBy, at: formatDateTime(run.data.createdAt) })}
-              </Text>
-              <Text size="sm">
-                {run.data.signedOffBy
-                  ? t('curves.signedOffByWho', { who: run.data.signedOffBy, at: formatDateTime(run.data.signedOffAt) })
-                  : t('curves.notSignedOff')}
-              </Text>
-            </SimpleGrid>
-          </Card>
-        )}
-      </QueryState>
-      <Select
-        label={t('trades.columns.book')}
-        data={books.list.map((book) => ({ value: book.id, label: `${book.code} · ${book.name}` }))}
-        value={bookId}
-        onChange={setBookId}
-        clearable
-        placeholder={t('valuation.allBooks')}
-        w={300}
+    <Stack gap="lg">
+      <PageHeader
+        breadcrumbs={breadcrumbs}
+        title={t('valuation.runTitle', { date: formatDate(data.valuationDate), kind: data.kind })}
+        badge={<RunStatusBadge status={data.status} />}
+        description={t('valuation.runDescription', { currency: data.baseCurrency })}
+        actions={
+          <>
+            {signOffTask && (
+              <Button component={Link} to={`/inbox/${signOffTask.id}`} leftSection={<IconInbox size={16} />}>
+                {t('curves.signOffTask')}
+              </Button>
+            )}
+            {data.status === 'DRAFT' && (
+              <Can op="valuation_submit">
+                <Button
+                  leftSection={<IconSend size={16} />}
+                  loading={submit.isPending}
+                  onClick={() => submit.mutate({ params: { path: { id: runId } } })}
+                  data-testid="submit-run"
+                >
+                  {t('valuation.submit')}
+                </Button>
+              </Can>
+            )}
+          </>
+        }
       />
-      <QueryState isPending={results.isPending} error={results.error}>
-        <DataGrid<Result>
-          rowData={results.data ?? []}
-          columnDefs={columns}
-          rowId={(r) => r.scheduleId}
-          height={460}
-          overlayNoRowsTemplate={t('common.empty')}
-        />
-      </QueryState>
+      <DetailLayout
+        summary={[
+          {
+            label: t('valuation.totalMtm'),
+            value: <Money value={data.totalMtmBase} currency={data.baseCurrency} signed fw={600} size="lg" />,
+          },
+          {
+            label: t('valuation.exceptions'),
+            value: (
+              <Text component="span" size="sm" c={data.exceptions > 0 ? 'orange' : undefined}>
+                {data.exceptions}
+              </Text>
+            ),
+          },
+          { label: t('valuation.date'), value: formatDate(data.valuationDate) },
+          { label: t('marketData.kind'), value: t(`valuation.kinds.${data.kind}`) },
+        ]}
+        aside={
+          <LifecycleTimeline
+            title={t('curves.lifecycle.title')}
+            steps={signOffSteps({ ...data, builtBy: data.createdBy, builtAt: data.createdAt }, t)}
+            testId="run-lifecycle"
+          />
+        }
+      >
+        {data.exceptions > 0 && (
+          <Alert color="orange">{t('valuation.exceptionsAre', { count: data.exceptions })}</Alert>
+        )}
+        {(data.note ?? data.signOffNote) && (
+          <Paper withBorder radius="lg" p="lg">
+            {data.note && <Text size="sm">{data.note}</Text>}
+            {data.signOffNote && (
+              <Text size="sm" c="dimmed">
+                {data.signOffNote}
+              </Text>
+            )}
+          </Paper>
+        )}
+      </DetailLayout>
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-end">
+          <Title order={3} size="h5">
+            {t('valuation.results')}
+          </Title>
+          <Select
+            aria-label={t('trades.columns.book')}
+            data={books.list.map((book) => ({ value: book.id, label: `${book.code} · ${book.name}` }))}
+            value={bookId}
+            onChange={setBookId}
+            clearable
+            placeholder={t('valuation.allBooks')}
+            w={280}
+          />
+        </Group>
+        <QueryState isPending={false} error={results.error}>
+          {results.isPending ? (
+            <TableSkeleton />
+          ) : (
+            <DataGrid<Result>
+              rowData={results.data ?? []}
+              columnDefs={columns}
+              rowId={(r) => r.scheduleId}
+              height={460}
+              overlayNoRowsTemplate={t('common.empty')}
+            />
+          )}
+        </QueryState>
+      </Stack>
     </Stack>
   );
 }

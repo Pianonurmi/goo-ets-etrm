@@ -47,6 +47,7 @@ const darkTheme = themeQuartz.withPart(colorSchemeDark).withParams({
   selectedRowBackgroundColor: 'rgba(59, 182, 201, 0.14)',
 });
 const ROW_HEIGHT = { comfortable: 40, compact: 32 } as const;
+const DEFAULT_HEIGHT = 520;
 
 const baseColDef = { sortable: true, resizable: true, filter: true, minWidth: 90 } as const;
 
@@ -55,10 +56,21 @@ export type DataGridProps<Row> = AgGridReactProps<Row> & {
   height?: number | string;
   /** Stable row ids keep selection and scroll position across refetches. */
   rowId?: (row: Row) => string;
+  /**
+   * Sizes the grid to its rows, up to this many before it scrolls inside. Leaves room for the horizontal scrollbar
+   * (AG Grid's `autoHeight` hides the last row behind it) and for the empty-state overlay. Ignored with `height`.
+   */
+  fitRows?: number;
 };
 
+/** Height for `rows` rows at `rowHeight`, at most `maxRows` and at least room for the empty overlay. */
+export function fittedHeight(rows: number, maxRows: number, rowHeight: number): number {
+  const shown = Math.min(Math.max(rows, 3), maxRows);
+  return rowHeight + 4 + shown * rowHeight + 2 + 16;
+}
+
 /** AG Grid with the application's theme, defaults and empty state (ADR 0025). */
-export function DataGrid<Row>({ height = 520, rowId, defaultColDef: overrides, ...props }: DataGridProps<Row>) {
+export function DataGrid<Row>({ height, rowId, fitRows, defaultColDef: overrides, ...props }: DataGridProps<Row>) {
   const scheme = useComputedColorScheme('light');
   const density = useDensity();
   const columnDefaults = useMemo<ColDef<Row>>(() => ({ ...baseColDef, ...overrides }), [overrides]);
@@ -67,7 +79,13 @@ export function DataGrid<Row>({ height = 520, rowId, defaultColDef: overrides, .
     [rowId],
   );
   return (
-    <div style={{ height, width: '100%' }}>
+    <div
+      style={{
+        height:
+          height ?? (fitRows ? fittedHeight(props.rowData?.length ?? 0, fitRows, ROW_HEIGHT[density]) : DEFAULT_HEIGHT),
+        width: '100%',
+      }}
+    >
       <AgGridReact<Row>
         theme={scheme === 'dark' ? darkTheme : lightTheme}
         rowHeight={ROW_HEIGHT[density]}

@@ -1,4 +1,5 @@
 import type { Schema } from '@/shared/api/types';
+import type { LifecycleStep } from '@/shared/components/LifecycleTimeline';
 
 export type Limit = Schema<'RiskLimitView'>;
 export type LimitType = Limit['type'];
@@ -66,6 +67,34 @@ export function utilisationColor(status: UtilisationStatus | undefined): string 
       return 'teal';
     default:
       return 'gray';
+  }
+}
+
+/** A limit's lifecycle: requested → approved by a second analyst and active → retired when replaced or ended. */
+export function limitSteps(
+  limit: Pick<Limit, 'status' | 'requestedBy' | 'requestedAt' | 'approvedBy' | 'approvedAt' | 'validTo'>,
+  t: (key: string) => string,
+): LifecycleStep[] {
+  const requested: LifecycleStep = {
+    label: t('risk.lifecycle.requested'),
+    state: 'done',
+    by: limit.requestedBy,
+    at: limit.requestedAt,
+  };
+  const decided = { by: limit.approvedBy, at: limit.approvedAt };
+  switch (limit.status) {
+    case 'PENDING_APPROVAL':
+      return [requested, { label: t('risk.lifecycle.approval'), state: 'current' }];
+    case 'REJECTED':
+      return [requested, { label: t('risk.lifecycle.rejected'), state: 'failed', ...decided }];
+    case 'ACTIVE':
+      return [requested, { label: t('risk.lifecycle.active'), state: 'current', ...decided }];
+    case 'RETIRED':
+      return [
+        requested,
+        { label: t('risk.lifecycle.active'), state: 'done', ...decided },
+        { label: t('risk.lifecycle.retired'), state: 'done', detail: limit.validTo },
+      ];
   }
 }
 

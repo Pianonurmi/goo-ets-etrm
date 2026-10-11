@@ -2,11 +2,13 @@
 // lazily. The budgets sit a little above today's sizes, so growth is a reviewed decision. Fails the build when a
 // budget is exceeded. Sizes are gzip, as served (response compression is on). The first page's script (the shell,
 // with the translations of every screen) and its stylesheet have budgets of their own (increment 7 plan, M0b).
+// The total went from 1000 to 1060 kB with the increment 7 design pass (M9): KPI strips, charts and lifecycle
+// timelines on every screen, all in lazy chunks; the first page stayed within its own budget.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const BUDGET_KB = { entry: 330, entryCss: 50, chunk: 360, total: 1000 };
+const BUDGET_KB = { entry: 330, entryCss: 50, chunk: 360, total: 1060 };
 const dist = new URL('../build/dist/', import.meta.url).pathname;
 const assets = join(dist, 'assets');
 const kb = (bytes) => Math.round(bytes / 102.4) / 10;

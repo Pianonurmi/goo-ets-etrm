@@ -2,11 +2,11 @@ import {
   Alert,
   Badge,
   Button,
-  Divider,
   Drawer,
   Group,
   Modal,
   NumberInput,
+  Paper,
   Select,
   Stack,
   Switch,
@@ -15,10 +15,9 @@ import {
   Text,
   TextInput,
   Textarea,
-  Title,
 } from '@mantine/core';
-import { IconHistory, IconPencil, IconPlus } from '@tabler/icons-react';
-import type { ColDef } from 'ag-grid-community';
+import { IconHistory, IconPencil, IconPlus, IconShieldCheck } from '@tabler/icons-react';
+import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -31,10 +30,12 @@ import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
-import { StatusBadge } from '@/shared/components/StatusBadge';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { HistoryDrawer } from './HistoryDrawer';
+import { Section } from './Section';
 import { defaultBookAssignable } from './model/referenceEdits';
 import { PartyDetails, useInvalidateReference } from './PartyDetails';
 import { EditCounterpartyModal, EditDeviceModal, EditEntityModal, NewDeviceModal } from './ReferenceEditModals';
@@ -62,10 +63,18 @@ const COUNTERPARTY_TYPES: CounterpartyType[] = ['EXTERNAL', 'INTERCOMPANY', 'BRO
 function ActiveBadge({ active }: { active: boolean }) {
   const { t } = useTranslation();
   return (
-    <Badge size="sm" variant="light" color={active ? 'teal' : 'gray'}>
-      {active ? t('marketData.active') : t('admin.inactive')}
-    </Badge>
+    <StatusBadge status={active ? 'ACTIVE' : 'INACTIVE'} label={active ? t('admin.active') : t('admin.inactive')} />
   );
+}
+
+/** The active column of the lists, as a badge. */
+function activeColumn<Row extends { active: boolean }>(headerName: string): ColDef<Row> {
+  return {
+    field: 'active' as ColDef<Row>['field'],
+    headerName,
+    width: 110,
+    cellRenderer: (p: ICellRendererParams<Row>) => (p.data ? <ActiveBadge active={p.data.active} /> : null),
+  };
 }
 
 function useRegistries() {
@@ -171,9 +180,9 @@ function RegistryAccounts({ holderType, holderId }: { holderType: 'LEGAL_ENTITY'
           body: { action: 'CREATE', registryCode, accountNumber, name, accountType, reason },
         });
   return (
-    <Stack gap="xs">
-      <Group justify="space-between">
-        <Title order={6}>{t('admin.registryAccounts')}</Title>
+    <Section
+      title={t('admin.registryAccounts')}
+      action={
         <Can
           op={
             holderType === 'LEGAL_ENTITY'
@@ -190,26 +199,46 @@ function RegistryAccounts({ holderType, holderId }: { holderType: 'LEGAL_ENTITY'
             {t('admin.addAccount')}
           </Button>
         </Can>
-      </Group>
-      {(accounts.data ?? []).map((account) => (
-        <Group key={account.id} gap="xs" justify="space-between" data-testid={`registry-account-${account.id}`}>
-          <Group gap="xs">
-            <Text size="sm" ff="monospace">
-              {account.registryCode}:{account.accountNumber}
-            </Text>
-            <Text size="sm">
-              {account.name} · {account.accountType}
-            </Text>
-            {account.trusted && (
-              <Badge size="xs" variant="light">
-                {t('admin.trusted')}
-              </Badge>
-            )}
-            {!account.active && <ActiveBadge active={false} />}
+      }
+    >
+      <Stack gap="xs">
+        {accounts.data?.length === 0 && (
+          <Text size="sm" c="dimmed">
+            {t('admin.noAccounts')}
+          </Text>
+        )}
+        {(accounts.data ?? []).map((account) => (
+          <Group
+            key={account.id}
+            gap="sm"
+            justify="space-between"
+            wrap="nowrap"
+            className="etrm-task-row"
+            data-testid={`registry-account-${account.id}`}
+          >
+            <Stack gap={2} miw={0}>
+              <Group gap={6} wrap="nowrap">
+                <Text size="sm" fw={500} truncate>
+                  {account.name}
+                </Text>
+                {account.trusted && (
+                  <Badge size="xs" variant="light" tt="none">
+                    {t('admin.trusted')}
+                  </Badge>
+                )}
+                {!account.active && <ActiveBadge active={false} />}
+              </Group>
+              <Text size="xs" c="dimmed" truncate>
+                <Text span ff="monospace" size="xs">
+                  {account.registryCode}:{account.accountNumber}
+                </Text>{' '}
+                · {statusLabel(account.accountType)}
+              </Text>
+            </Stack>
+            {defaultBookAssignable(account) && <DefaultBook account={account} entityId={holderId} />}
           </Group>
-          {defaultBookAssignable(account) && <DefaultBook account={account} entityId={holderId} />}
-        </Group>
-      ))}
+        ))}
+      </Stack>
       <Modal opened={adding} onClose={() => setAdding(false)} title={t('admin.addAccount')}>
         <Stack>
           <ProblemAlert error={create.error ?? request.error} />
@@ -261,7 +290,7 @@ function RegistryAccounts({ holderType, holderId }: { holderType: 'LEGAL_ENTITY'
           </Button>
         </Stack>
       </Modal>
-    </Stack>
+    </Section>
   );
 }
 
@@ -284,9 +313,9 @@ function Books({ entityId }: { entityId: string }) {
     },
   });
   return (
-    <Stack gap="xs">
-      <Group justify="space-between">
-        <Title order={6}>{t('admin.books')}</Title>
+    <Section
+      title={t('admin.books')}
+      action={
         <Can op="referenceData_createBook">
           <Button
             size="compact-sm"
@@ -297,12 +326,28 @@ function Books({ entityId }: { entityId: string }) {
             {t('admin.addBook')}
           </Button>
         </Can>
-      </Group>
-      {(books.data ?? []).map((book) => (
-        <Text size="sm" key={book.id}>
-          {book.code} · {book.name} · {book.bookType}
-        </Text>
-      ))}
+      }
+    >
+      <Stack gap={6}>
+        {books.data?.length === 0 && (
+          <Text size="sm" c="dimmed">
+            {t('admin.noBooks')}
+          </Text>
+        )}
+        {(books.data ?? []).map((book) => (
+          <Group key={book.id} gap="xs" wrap="nowrap" justify="space-between">
+            <Text size="sm" truncate>
+              <Text span ff="monospace" size="sm">
+                {book.code}
+              </Text>{' '}
+              · {book.name}
+            </Text>
+            <Badge size="sm" variant="light" color="gray" tt="none" style={{ flexShrink: 0 }}>
+              {statusLabel(book.bookType)}
+            </Badge>
+          </Group>
+        ))}
+      </Stack>
       <Modal opened={adding} onClose={() => setAdding(false)} title={t('admin.addBook')}>
         <Stack>
           <ProblemAlert error={create.error} />
@@ -330,7 +375,7 @@ function Books({ entityId }: { entityId: string }) {
           </Button>
         </Stack>
       </Modal>
-    </Stack>
+    </Section>
   );
 }
 
@@ -365,6 +410,7 @@ function HistoryButton({ onClick }: { onClick: () => void }) {
 }
 
 function EntityDrawer({ entityId, onClose }: { entityId: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const [history, setHistory] = useState(false);
   const [editing, setEditing] = useState(false);
   const detail = $api.useQuery('get', '/api/v1/reference/legal-entities/{id}', { params: { path: { id: entityId } } });
@@ -381,22 +427,30 @@ function EntityDrawer({ entityId, onClose }: { entityId: string; onClose: () => 
       <QueryState isPending={detail.isPending} error={detail.error}>
         {entity && (
           <Stack>
-            <Group gap="xs">
+            <Group gap="xs" justify="space-between">
               <ActiveBadge active={entity.active} />
-              <Text size="sm" data-testid="entity-facts">
-                {entity.country} · {entity.baseCurrency} · {entity.timeZone} · LEI {entity.lei ?? '–'} · EMIR{' '}
-                {entity.emirClassification ?? '–'}
-              </Text>
-              <Can op="referenceData_updateLegalEntity">
-                <EditButton onClick={() => setEditing(true)} />
-              </Can>
-              <HistoryButton onClick={() => setHistory(true)} />
+              <Group gap={4}>
+                <Can op="referenceData_updateLegalEntity">
+                  <EditButton onClick={() => setEditing(true)} />
+                </Can>
+                <HistoryButton onClick={() => setHistory(true)} />
+              </Group>
             </Group>
-            <Divider />
+            <Paper withBorder p="md" data-testid="entity-facts">
+              <FactGrid
+                cols={3}
+                facts={[
+                  { label: t('ets.country'), value: entity.country },
+                  { label: t('admin.baseCurrency'), value: entity.baseCurrency },
+                  { label: t('admin.timeZone'), value: entity.timeZone },
+                  { label: t('admin.lei'), value: entity.lei ?? '–' },
+                  { label: t('admin.emirClassification'), value: entity.emirClassification ?? '–' },
+                  { label: t('admin.recordVersion'), value: entity.version },
+                ]}
+              />
+            </Paper>
             <Books entityId={entity.id} />
-            <Divider />
             <RegistryAccounts holderType="LEGAL_ENTITY" holderId={entity.id} />
-            <Divider />
             <PartyDetails partyType="LEGAL_ENTITY" partyId={entity.id} />
           </Stack>
         )}
@@ -497,10 +551,10 @@ function EntitiesTab() {
       { field: 'name', headerName: t('ets.name'), flex: 1, minWidth: 200 },
       { field: 'country', headerName: t('ets.country'), width: 100 },
       { field: 'baseCurrency', headerName: t('admin.baseCurrency'), width: 130 },
-      { field: 'lei', headerName: 'LEI', width: 210 },
-      { field: 'emirClassification', headerName: 'EMIR', width: 120 },
-      { field: 'active', headerName: t('marketData.active'), width: 100 },
-      { field: 'version', headerName: t('trades.version'), width: 100 },
+      { field: 'lei', headerName: t('admin.lei'), width: 210 },
+      { field: 'emirClassification', headerName: t('admin.emir'), width: 120 },
+      activeColumn<LegalEntity>(t('admin.active')),
+      { field: 'version', headerName: t('trades.version'), width: 100, type: 'rightAligned' },
     ],
     [t],
   );
@@ -513,14 +567,20 @@ function EntitiesTab() {
           </Button>
         </Can>
       </Group>
-      <QueryState isPending={entities.isPending} error={entities.error}>
-        <DataGrid<LegalEntity>
-          rowData={entities.data ?? []}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          height={460}
-          onRowClicked={(event) => setOpen(event.data?.id ?? null)}
-        />
+      <QueryState isPending={false} error={entities.error}>
+        {entities.isPending ? (
+          <Paper withBorder>
+            <TableSkeleton rows={4} />
+          </Paper>
+        ) : (
+          <DataGrid<LegalEntity>
+            rowData={entities.data ?? []}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            fitRows={12}
+            onRowClicked={(event) => setOpen(event.data?.id ?? null)}
+          />
+        )}
       </QueryState>
       {open && <EntityDrawer entityId={open} onClose={() => setOpen(null)} />}
       {creating && <CreateEntityModal onClose={() => setCreating(false)} />}
@@ -634,53 +694,56 @@ function CounterpartyDrawer({ counterpartyId, onClose }: { counterpartyId: strin
       <QueryState isPending={detail.isPending} error={detail.error}>
         {counterparty && (
           <Stack>
-            <Group gap="xs">
-              <ActiveBadge active={counterparty.active} />
-              <Text size="sm">
-                {counterparty.counterpartyType} · {counterparty.country} · {counterparty.settlementCurrency}
-              </Text>
-              <Can op="referenceData_updateCounterparty">
-                <EditButton onClick={() => setEditing(true)} />
-              </Can>
-              <HistoryButton onClick={() => setHistory(true)} />
+            <Group gap="xs" justify="space-between">
+              <Group gap="xs">
+                <ActiveBadge active={counterparty.active} />
+                <Text size="sm" c="dimmed">
+                  {statusLabel(counterparty.counterpartyType)} · {counterparty.country} ·{' '}
+                  {counterparty.settlementCurrency}
+                </Text>
+              </Group>
+              <Group gap={4}>
+                <Can op="referenceData_updateCounterparty">
+                  <EditButton onClick={() => setEditing(true)} />
+                </Can>
+                <HistoryButton onClick={() => setHistory(true)} />
+              </Group>
             </Group>
-            <FactGrid
-              cols={3}
-              facts={[
-                {
-                  label: t('admin.paymentTerms'),
-                  value: t('admin.paymentTermsDays', { days: counterparty.paymentTermsDays }),
-                  testId: 'counterparty-payment-terms',
-                },
-                {
-                  label: t('admin.invoiceEmail'),
-                  value: counterparty.invoiceEmail ?? '–',
-                  testId: 'counterparty-invoice-email',
-                },
-                { label: 'LEI', value: counterparty.lei ?? '–' },
-                { label: t('admin.vatNumber'), value: counterparty.vatNumber ?? '–' },
-                { label: t('admin.emirClassification'), value: counterparty.emirClassification ?? '–' },
-                { label: t('admin.parentCounterparty'), value: parent ? parent.code : '–' },
-                {
-                  label: t('admin.nettingAgreed'),
-                  value: counterparty.nettingAgreed ? t('common.yes') : t('common.no'),
-                },
-                {
-                  label: t('admin.selfBilling'),
-                  value: counterparty.selfBilling ? t('common.yes') : t('common.no'),
-                },
-                { label: t('admin.recordVersion'), value: counterparty.version },
-              ]}
-            />
-            {counterparty.masterAgreements.length > 0 && (
-              <Text size="sm">
-                {t('admin.masterAgreements')}:{' '}
-                {counterparty.masterAgreements.map((a) => `${a.type} ${a.reference}`).join(', ')}
-              </Text>
-            )}
-            <Divider />
+            <Paper withBorder p="md">
+              <FactGrid
+                cols={3}
+                facts={[
+                  {
+                    label: t('admin.paymentTerms'),
+                    value: t('admin.paymentTermsDays', { days: counterparty.paymentTermsDays }),
+                    testId: 'counterparty-payment-terms',
+                  },
+                  {
+                    label: t('admin.invoiceEmail'),
+                    value: counterparty.invoiceEmail ?? '–',
+                    testId: 'counterparty-invoice-email',
+                  },
+                  { label: 'LEI', value: counterparty.lei ?? '–' },
+                  { label: t('admin.vatNumber'), value: counterparty.vatNumber ?? '–' },
+                  { label: t('admin.emirClassification'), value: counterparty.emirClassification ?? '–' },
+                  { label: t('admin.parentCounterparty'), value: parent ? parent.code : '–' },
+                  {
+                    label: t('admin.nettingAgreed'),
+                    value: counterparty.nettingAgreed ? t('common.yes') : t('common.no'),
+                  },
+                  {
+                    label: t('admin.selfBilling'),
+                    value: counterparty.selfBilling ? t('common.yes') : t('common.no'),
+                  },
+                  { label: t('admin.recordVersion'), value: counterparty.version },
+                  {
+                    label: t('admin.masterAgreements'),
+                    value: counterparty.masterAgreements.map((a) => `${a.type} ${a.reference}`).join(', ') || '–',
+                  },
+                ]}
+              />
+            </Paper>
             <RegistryAccounts holderType="COUNTERPARTY" holderId={counterparty.id} />
-            <Divider />
             <PartyDetails partyType="COUNTERPARTY" partyId={counterparty.id} />
           </Stack>
         )}
@@ -709,11 +772,16 @@ function CounterpartiesTab() {
     () => [
       { field: 'code', headerName: t('marketData.code'), width: 160 },
       { field: 'name', headerName: t('ets.name'), flex: 1, minWidth: 220 },
-      { field: 'counterpartyType', headerName: t('marketData.kind'), width: 140 },
+      {
+        field: 'counterpartyType',
+        headerName: t('marketData.kind'),
+        width: 150,
+        valueFormatter: (p) => statusLabel(p.value as string),
+      },
       { field: 'country', headerName: t('ets.country'), width: 100 },
-      { field: 'lei', headerName: 'LEI', width: 210 },
+      { field: 'lei', headerName: t('admin.lei'), width: 210 },
       { field: 'settlementCurrency', headerName: t('trades.form.currency'), width: 110 },
-      { field: 'active', headerName: t('marketData.active'), width: 100 },
+      activeColumn<Counterparty>(t('admin.active')),
     ],
     [t],
   );
@@ -726,14 +794,20 @@ function CounterpartiesTab() {
           </Button>
         </Can>
       </Group>
-      <QueryState isPending={counterparties.isPending} error={counterparties.error}>
-        <DataGrid<Counterparty>
-          rowData={counterparties.data ?? []}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          height={460}
-          onRowClicked={(event) => setOpen(event.data?.id ?? null)}
-        />
+      <QueryState isPending={false} error={counterparties.error}>
+        {counterparties.isPending ? (
+          <Paper withBorder>
+            <TableSkeleton rows={4} />
+          </Paper>
+        ) : (
+          <DataGrid<Counterparty>
+            rowData={counterparties.data ?? []}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            fitRows={12}
+            onRowClicked={(event) => setOpen(event.data?.id ?? null)}
+          />
+        )}
       </QueryState>
       {open && <CounterpartyDrawer counterpartyId={open} onClose={() => setOpen(null)} />}
       {creating && <CreateCounterpartyModal onClose={() => setCreating(false)} />}
@@ -794,42 +868,46 @@ function RegistriesTab() {
   const [changing, setChanging] = useState<Registry | null>(null);
   return (
     <QueryState isPending={registries.isPending} error={registries.error}>
-      <Table striped withTableBorder>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('marketData.code')}</Table.Th>
-            <Table.Th>{t('ets.name')}</Table.Th>
-            <Table.Th>{t('marketData.kind')}</Table.Th>
-            <Table.Th>{t('admin.integration')}</Table.Th>
-            <Table.Th>{t('admin.hub')}</Table.Th>
-            <Table.Th>{t('marketData.active')}</Table.Th>
-            <Table.Th />
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {(registries.data ?? []).map((registry) => (
-            <Table.Tr key={registry.id}>
-              <Table.Td>{registry.code}</Table.Td>
-              <Table.Td>{registry.name}</Table.Td>
-              <Table.Td>{registry.registryType}</Table.Td>
-              <Table.Td>
-                <Badge variant="light">{registry.integration}</Badge>
-              </Table.Td>
-              <Table.Td>{registry.hubMember ? t('common.yes') : t('common.no')}</Table.Td>
-              <Table.Td>
-                <ActiveBadge active={registry.active} />
-              </Table.Td>
-              <Table.Td>
-                <Can op="changeRequest_requestRegistryChange">
-                  <Button size="compact-xs" variant="subtle" onClick={() => setChanging(registry)}>
-                    {t('admin.requestChange')}
-                  </Button>
-                </Can>
-              </Table.Td>
+      <Paper withBorder>
+        <Table highlightOnHover verticalSpacing="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>{t('marketData.code')}</Table.Th>
+              <Table.Th>{t('ets.name')}</Table.Th>
+              <Table.Th>{t('marketData.kind')}</Table.Th>
+              <Table.Th>{t('admin.integration')}</Table.Th>
+              <Table.Th>{t('admin.hub')}</Table.Th>
+              <Table.Th>{t('marketData.active')}</Table.Th>
+              <Table.Th />
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+          </Table.Thead>
+          <Table.Tbody>
+            {(registries.data ?? []).map((registry) => (
+              <Table.Tr key={registry.id}>
+                <Table.Td ff="monospace">{registry.code}</Table.Td>
+                <Table.Td>{registry.name}</Table.Td>
+                <Table.Td>{statusLabel(registry.registryType)}</Table.Td>
+                <Table.Td>
+                  <Badge variant="light" color="gray" tt="none">
+                    {t(`admin.integrationModes.${registry.integration}`, { defaultValue: registry.integration })}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>{registry.hubMember ? t('common.yes') : t('common.no')}</Table.Td>
+                <Table.Td>
+                  <ActiveBadge active={registry.active} />
+                </Table.Td>
+                <Table.Td>
+                  <Can op="changeRequest_requestRegistryChange">
+                    <Button size="compact-xs" variant="subtle" onClick={() => setChanging(registry)}>
+                      {t('admin.requestChange')}
+                    </Button>
+                  </Can>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Paper>
       {changing && <RegistryChangeModal registry={changing} onClose={() => setChanging(null)} />}
     </QueryState>
   );
@@ -858,44 +936,49 @@ function DeviceDrawer({ deviceId, onClose }: { deviceId: string; onClose: () => 
       <QueryState isPending={detail.isPending} error={detail.error}>
         {device && (
           <Stack>
-            <Group gap="xs">
-              <StatusBadge status={device.active ? 'ACTIVE' : 'INACTIVE'} data-testid="device-status" />
-              {device.ownDevice && (
-                <Badge size="sm" variant="light">
-                  {t('admin.ownDevice')}
-                </Badge>
-              )}
-              <Can op="referenceData_updateProductionDevice">
-                <EditButton onClick={() => setEditing(true)} />
-              </Can>
-              <HistoryButton onClick={() => setHistory(true)} />
+            <Group gap="xs" justify="space-between">
+              <Group gap="xs">
+                <StatusBadge status={device.active ? 'ACTIVE' : 'INACTIVE'} data-testid="device-status" />
+                {device.ownDevice && (
+                  <Badge size="sm" variant="light" tt="none">
+                    {t('admin.ownDevice')}
+                  </Badge>
+                )}
+              </Group>
+              <Group gap={4}>
+                <Can op="referenceData_updateProductionDevice">
+                  <EditButton onClick={() => setEditing(true)} />
+                </Can>
+                <HistoryButton onClick={() => setHistory(true)} />
+              </Group>
             </Group>
-            <FactGrid
-              cols={3}
-              facts={[
-                { label: t('ets.name'), value: device.name, testId: 'device-fact-name' },
-                {
-                  label: t('admin.capacityKw'),
-                  value: formatDecimal(device.capacityKw, 0, 3),
-                  testId: 'device-fact-capacity',
-                },
-                { label: t('ets.country'), value: device.country },
-                { label: t('admin.energySource'), value: device.energySourceCode },
-                { label: t('admin.technology'), value: device.technologyCode },
-                { label: t('admin.commissioned'), value: formatDate(device.commissioningDate) },
-                { label: t('admin.decommissioned'), value: formatDate(device.decommissioningDate) || '–' },
-                { label: t('admin.supportSchemes'), value: device.supportSchemeCodes.join(', ') || '–' },
-                { label: t('admin.labels'), value: device.labelCodes.join(', ') || '–' },
-                { label: t('admin.ownerType'), value: t(`admin.ownerTypes.${device.ownerType}`) },
-                { label: t('admin.registry'), value: registry?.code ?? '–' },
-                { label: t('admin.recordVersion'), value: device.version },
-              ]}
-            />
-            {codes.length > 0 && (
-              <Text size="sm">
-                {t('admin.externalCodes')}: {codes.map(([key, value]) => `${key} ${value}`).join(', ')}
-              </Text>
-            )}
+            <Paper withBorder p="md">
+              <FactGrid
+                cols={3}
+                facts={[
+                  { label: t('ets.name'), value: device.name, testId: 'device-fact-name' },
+                  {
+                    label: t('admin.capacityKw'),
+                    value: formatDecimal(device.capacityKw, 0, 3),
+                    testId: 'device-fact-capacity',
+                  },
+                  { label: t('ets.country'), value: device.country },
+                  { label: t('admin.energySource'), value: device.energySourceCode },
+                  { label: t('admin.technology'), value: device.technologyCode },
+                  { label: t('admin.commissioned'), value: formatDate(device.commissioningDate) },
+                  { label: t('admin.decommissioned'), value: formatDate(device.decommissioningDate) || '–' },
+                  { label: t('admin.supportSchemes'), value: device.supportSchemeCodes.join(', ') || '–' },
+                  { label: t('admin.labels'), value: device.labelCodes.join(', ') || '–' },
+                  { label: t('admin.ownerType'), value: t(`admin.ownerTypes.${device.ownerType}`) },
+                  { label: t('admin.registry'), value: registry?.code ?? '–' },
+                  { label: t('admin.recordVersion'), value: device.version },
+                  {
+                    label: t('admin.externalCodes'),
+                    value: codes.map(([key, value]) => `${key} ${value}`).join(', ') || '–',
+                  },
+                ]}
+              />
+            </Paper>
           </Stack>
         )}
       </QueryState>
@@ -922,7 +1005,7 @@ function DevicesTab() {
       { field: 'technologyCode', headerName: t('admin.technology'), width: 200 },
       { field: 'capacityKw', headerName: t('admin.capacityKw'), width: 130, type: 'rightAligned' },
       { field: 'commissioningDate', headerName: t('admin.commissioned'), width: 140 },
-      { field: 'active', headerName: t('marketData.active'), width: 100 },
+      activeColumn<Device>(t('admin.active')),
     ],
     [t],
   );
@@ -936,15 +1019,21 @@ function DevicesTab() {
           </Button>
         </Can>
       </Group>
-      <QueryState isPending={devices.isPending} error={devices.error}>
-        <DataGrid<Device>
-          rowData={devices.data ?? []}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          height={460}
-          onRowClicked={(event) => setOpen(event.data?.id ?? null)}
-          overlayNoRowsTemplate={t('common.empty')}
-        />
+      <QueryState isPending={false} error={devices.error}>
+        {devices.isPending ? (
+          <Paper withBorder>
+            <TableSkeleton rows={4} />
+          </Paper>
+        ) : (
+          <DataGrid<Device>
+            rowData={devices.data ?? []}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            fitRows={12}
+            onRowClicked={(event) => setOpen(event.data?.id ?? null)}
+            overlayNoRowsTemplate={t('common.empty')}
+          />
+        )}
       </QueryState>
       {open && <DeviceDrawer deviceId={open} onClose={() => setOpen(null)} />}
       {creating && (
@@ -971,8 +1060,8 @@ export function ReferenceDataPage() {
   return (
     <Stack>
       <PageHeader title={t('admin.referenceTitle')} description={t('admin.referenceDescription')} />
-      <Alert color="blue" variant="light">
-        {t('admin.fourEyesNote')}
+      <Alert color="blue" variant="light" icon={<IconShieldCheck size={18} />} py="xs">
+        <Text size="sm">{t('admin.fourEyesNote')}</Text>
       </Alert>
       <Tabs
         value={tab}

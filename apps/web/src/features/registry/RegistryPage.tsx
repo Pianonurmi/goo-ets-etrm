@@ -1,13 +1,14 @@
 import {
   Alert,
-  Badge,
   Button,
   Code,
   Group,
   Modal,
   NumberInput,
+  Paper,
   SegmentedControl,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -22,17 +23,21 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { ScrollTable } from '@/shared/components/ScrollTable';
 import { JsonEditorModal } from '@/shared/components/JsonEditorModal';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import {
   QUEUE_VIEWS,
-  STATUS_COLORS,
   asQueueView,
   queueStatuses,
   subject,
@@ -46,12 +51,60 @@ import { TransferModal, useInvalidateRegistry, useRegistries } from './TransferM
 
 const TABS = ['instructions', 'routes', 'formats'] as const;
 const PAGE = 100;
+/** The figures read a page of their own: a plain query must not share the infinite list's cache entry. */
+const KPI_PAGE = 200;
 
 export function InstructionStatusBadge({ status, testId }: { status: InstructionStatus; testId?: string }) {
+  return <StatusBadge status={status} data-testid={testId} />;
+}
+
+const SENT: InstructionStatus[] = ['DISPATCHING', 'SENT', 'ACKNOWLEDGED'];
+
+/** Open work in the registry queue, counted from the open and the attention views (first page of each). */
+function RegistryKpis({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const query = (view: 'open' | 'attention') => ({
+    params: { query: { holderEntityId: entityId, status: queueStatuses(view), limit: KPI_PAGE } },
+  });
+  const open = $api.useQuery('get', '/api/v1/registry/instructions/search', query('open'));
+  const attention = $api.useQuery('get', '/api/v1/registry/instructions/search', query('attention'));
+  const shown = (count: number, more: boolean) => (more ? `${count}+` : count);
+  const items = open.data?.items ?? [];
+  const more = Boolean(open.data?.nextCursor);
+  const pending = items.filter((row) => row.status === 'PENDING_APPROVAL').length;
+  const sent = items.filter((row) => SENT.includes(row.status)).length;
+  const problems = attention.data?.items.length ?? 0;
   return (
-    <Badge color={STATUS_COLORS[status]} variant="light" data-testid={testId}>
-      {status.replace(/_/g, ' ')}
-    </Badge>
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="registry-kpis">
+      <KpiCard
+        label={t('registry.kpi.open')}
+        value={shown(items.length, more)}
+        loading={open.isPending}
+        trend={t('registry.kpi.openHint')}
+        to="/registry"
+      />
+      <KpiCard
+        label={t('registry.kpi.pending')}
+        value={shown(pending, more)}
+        loading={open.isPending}
+        trend={pending > 0 ? t('registry.kpi.pendingHint') : t('registry.kpi.nothingPending')}
+        trendTone={pending > 0 ? 'warning' : 'neutral'}
+      />
+      <KpiCard
+        label={t('registry.kpi.sent')}
+        value={shown(sent, more)}
+        loading={open.isPending}
+        trend={t('registry.kpi.sentHint')}
+      />
+      <KpiCard
+        label={t('registry.kpi.attention')}
+        value={shown(problems, Boolean(attention.data?.nextCursor))}
+        loading={attention.isPending}
+        trend={problems > 0 ? t('registry.kpi.attentionHint') : t('registry.kpi.nothingWrong')}
+        trendTone={problems > 0 ? 'down' : 'up'}
+        to="/registry?view=attention"
+      />
+    </SimpleGrid>
   );
 }
 
@@ -92,7 +145,7 @@ function InstructionsTab({ entityId }: { entityId: string }) {
   const rows = useMemo(() => search.data?.pages.flatMap((page) => page.items) ?? [], [search.data]);
   const columns = useMemo<ColDef<Instruction>[]>(
     () => [
-      { field: 'instructionKey', headerName: t('registry.key'), width: 220 },
+      { field: 'instructionKey', headerName: t('registry.key'), width: 220, cellStyle: { fontWeight: 600 } },
       {
         field: 'status',
         headerName: t('allocation.status'),
@@ -120,7 +173,12 @@ function InstructionsTab({ entityId }: { entityId: string }) {
         valueGetter: (p) =>
           p.data ? `${p.data.registryCode} → ${p.data.toRegistryCode ?? ''} ${p.data.toAccountRef ?? ''}`.trim() : '',
       },
-      { field: 'channel', headerName: t('registry.channel'), width: 120 },
+      {
+        field: 'channel',
+        headerName: t('registry.channel'),
+        width: 120,
+        valueFormatter: (p) => (p.value ? statusLabel(String(p.value)) : ''),
+      },
       { field: 'attempts', headerName: t('registry.attempts'), width: 100, type: 'rightAligned' },
       { field: 'lastError', headerName: t('registry.lastError'), width: 240, tooltipField: 'lastError' },
       {
@@ -140,8 +198,8 @@ function InstructionsTab({ entityId }: { entityId: string }) {
     [t],
   );
   return (
-    <Stack>
-      <Group align="flex-end">
+    <Stack gap="sm">
+      <Group align="flex-end" gap="sm">
         <SegmentedControl
           value={view}
           onChange={(value) => set('view', value === 'open' ? null : value)}
@@ -149,7 +207,7 @@ function InstructionsTab({ entityId }: { entityId: string }) {
           data-testid="queue-view"
         />
         <Select
-          label={t('registry.registry')}
+          aria-label={t('registry.registry')}
           placeholder={t('registry.allRegistries')}
           data={(registries.data ?? []).map((registry) => ({ value: registry.code, label: registry.code }))}
           value={registryCode}
@@ -158,7 +216,7 @@ function InstructionsTab({ entityId }: { entityId: string }) {
           w={200}
         />
         <Select
-          label={t('registry.assetKind')}
+          aria-label={t('registry.assetKind')}
           placeholder={t('registry.allAssets')}
           data={[
             { value: 'GOO_LOT', label: t('registry.assets.GOO_LOT') },
@@ -170,15 +228,29 @@ function InstructionsTab({ entityId }: { entityId: string }) {
           w={200}
         />
       </Group>
-      <QueryState isPending={search.isPending} error={search.error}>
-        <DataGrid<Instruction>
-          rowData={rows}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          height={480}
-          onRowClicked={(event) => event.data && void navigate(`/registry/instructions/${event.data.id}`)}
-          rowStyle={{ cursor: 'pointer' }}
-        />
+      <QueryState isPending={false} error={search.error}>
+        {search.isPending ? (
+          <Paper withBorder radius="lg">
+            <TableSkeleton rows={8} />
+          </Paper>
+        ) : rows.length === 0 ? (
+          <Paper withBorder radius="lg">
+            <EmptyState
+              title={t(`registry.empty.${view}`)}
+              description={t('registry.emptyHint')}
+              testId="instructions-empty"
+            />
+          </Paper>
+        ) : (
+          <DataGrid<Instruction>
+            rowData={rows}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            height={Math.min(520, 46 + rows.length * 40 + 2)}
+            onRowClicked={(event) => event.data && void navigate(`/registry/instructions/${event.data.id}`)}
+            rowStyle={{ cursor: 'pointer' }}
+          />
+        )}
         <Group justify="space-between">
           <Text size="sm" c="dimmed" data-testid="instruction-count">
             {t('registry.shown', { count: rows.length })}
@@ -289,43 +361,46 @@ function RoutesTab() {
         {t('registry.routesHint')}
       </Text>
       <QueryState isPending={routes.isPending && Boolean(from)} error={routes.error}>
-        <Table striped data-testid="routes-table">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('registry.toRegistry')}</Table.Th>
-              <Table.Th>{t('registry.feasible')}</Table.Th>
-              <Table.Th ta="right">{t('registry.feePerMwh')}</Table.Th>
-              <Table.Th ta="right">{t('registry.expectedDays')}</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((route) => (
-              <Table.Tr key={route.toRegistryCode}>
-                <Table.Td>{route.toRegistryCode}</Table.Td>
-                <Table.Td>
-                  <Badge color={route.feasible ? 'teal' : 'red'} variant="light">
-                    {route.feasible ? t('common.yes') : t('common.no')}
-                  </Badge>
-                </Table.Td>
-                <Table.Td ta="right">{formatDecimal(route.feePerMwh, 2, 4)}</Table.Td>
-                <Table.Td ta="right">{route.expectedDays}</Table.Td>
-                <Table.Td ta="right">
-                  <Can op="registry_upsertRoute">
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      leftSection={<IconPencil size={12} />}
-                      onClick={() => setEditing(route)}
-                    >
-                      {t('registry.edit')}
-                    </Button>
-                  </Can>
-                </Table.Td>
+        <Paper withBorder radius="lg">
+          <Table verticalSpacing="sm" highlightOnHover data-testid="routes-table">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('registry.toRegistry')}</Table.Th>
+                <Table.Th>{t('registry.feasible')}</Table.Th>
+                <Table.Th ta="right">{t('registry.feePerMwh')}</Table.Th>
+                <Table.Th ta="right">{t('registry.expectedDays')}</Table.Th>
+                <Table.Th />
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.map((route) => (
+                <Table.Tr key={route.toRegistryCode}>
+                  <Table.Td>{route.toRegistryCode}</Table.Td>
+                  <Table.Td>
+                    <StatusBadge
+                      status={route.feasible ? 'OK' : 'REJECTED'}
+                      label={route.feasible ? t('registry.feasibleYes') : t('registry.feasibleNo')}
+                    />
+                  </Table.Td>
+                  <Table.Td ta="right">{formatDecimal(route.feePerMwh, 2, 4)}</Table.Td>
+                  <Table.Td ta="right">{route.expectedDays}</Table.Td>
+                  <Table.Td ta="right">
+                    <Can op="registry_upsertRoute">
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        leftSection={<IconPencil size={12} />}
+                        onClick={() => setEditing(route)}
+                      >
+                        {t('registry.edit')}
+                      </Button>
+                    </Can>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Paper>
       </QueryState>
       {editing && <RouteModal route={editing} onClose={() => setEditing(null)} />}
     </Stack>
@@ -386,71 +461,71 @@ function FormatsTab() {
         </Can>
       </Group>
       <QueryState isPending={formats.isPending} error={formats.error}>
-        <Table striped data-testid="formats-table">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('registry.registry')}</Table.Th>
-              <Table.Th>{t('registry.profile')}</Table.Th>
-              <Table.Th>{t('registry.kind')}</Table.Th>
-              <Table.Th>{t('registry.layout')}</Table.Th>
-              <Table.Th>{t('registry.columns')}</Table.Th>
-              <Table.Th>{t('registry.updated')}</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(formats.data ?? []).map((format) => (
-              <Table.Tr key={format.id} data-testid={`format-row-${formatKey(format)}`}>
-                <Table.Td>{format.registryCode}</Table.Td>
-                <Table.Td>
-                  {format.profileCode}
-                  {!format.active && (
-                    <Badge ml="xs" color="gray" variant="light">
-                      {t('registry.inactive')}
-                    </Badge>
-                  )}
-                </Table.Td>
-                <Table.Td>{t(`registry.statementKinds.${format.kind}`)}</Table.Td>
-                <Table.Td>
-                  <Text size="xs">
-                    {t('registry.layoutText', {
-                      delimiter: format.delimiter,
-                      skip: format.skipLines,
-                      date: format.dateFormat,
-                    })}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Stack gap={2}>
-                    {Object.entries(format.columnMapping).map(([field, column]) => (
-                      <Text size="xs" key={field}>
-                        <Code>{column}</Code> → {field}
+        <Paper withBorder radius="lg">
+          <ScrollTable label={t('registry.tabs.formats')} minWidth={900}>
+            <Table verticalSpacing="sm" highlightOnHover data-testid="formats-table">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('registry.registry')}</Table.Th>
+                  <Table.Th>{t('registry.profile')}</Table.Th>
+                  <Table.Th>{t('registry.kind')}</Table.Th>
+                  <Table.Th>{t('registry.layout')}</Table.Th>
+                  <Table.Th>{t('registry.columns')}</Table.Th>
+                  <Table.Th>{t('registry.updated')}</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {(formats.data ?? []).map((format) => (
+                  <Table.Tr key={format.id} data-testid={`format-row-${formatKey(format)}`}>
+                    <Table.Td fw={600}>{format.registryCode}</Table.Td>
+                    <Table.Td>
+                      {format.profileCode}
+                      {!format.active && <StatusBadge ml="xs" status="INACTIVE" label={t('registry.inactive')} />}
+                    </Table.Td>
+                    <Table.Td>{t(`registry.statementKinds.${format.kind}`)}</Table.Td>
+                    <Table.Td>
+                      <Text size="xs">
+                        {t('registry.layoutText', {
+                          delimiter: format.delimiter,
+                          skip: format.skipLines,
+                          date: format.dateFormat,
+                        })}
                       </Text>
-                    ))}
-                  </Stack>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">
-                    v{format.version} · {format.updatedBy} · {formatDateTime(format.updatedAt)}
-                  </Text>
-                </Table.Td>
-                <Table.Td ta="right">
-                  <Can op="registry_upsertFormat">
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      leftSection={<IconPencil size={12} />}
-                      onClick={() => setEditing(format)}
-                      data-testid={`format-edit-${formatKey(format)}`}
-                    >
-                      {t('registry.edit')}
-                    </Button>
-                  </Can>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={2}>
+                        {Object.entries(format.columnMapping).map(([field, column]) => (
+                          <Text size="xs" key={field}>
+                            <Code>{column}</Code> → {field}
+                          </Text>
+                        ))}
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">
+                        v{format.version} · {format.updatedBy} · {formatDateTime(format.updatedAt)}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <Can op="registry_upsertFormat">
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          leftSection={<IconPencil size={12} />}
+                          onClick={() => setEditing(format)}
+                          data-testid={`format-edit-${formatKey(format)}`}
+                        >
+                          {t('registry.edit')}
+                        </Button>
+                      </Can>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollTable>
+        </Paper>
       </QueryState>
       {editing && <FormatEditor format={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </Stack>
@@ -465,7 +540,7 @@ export function RegistryPage() {
   const tab = TABS.find((value) => value === params.get('tab')) ?? 'instructions';
   const [transferring, setTransferring] = useState<'goo' | 'allowances' | null>(null);
   return (
-    <Stack>
+    <Stack gap="lg">
       <PageHeader
         title={t('registry.title')}
         description={t('registry.description', { entity: entity?.code ?? '' })}
@@ -474,7 +549,7 @@ export function RegistryPage() {
             <Group gap="xs">
               <Can op="registry_allowanceTransfer">
                 <Button
-                  variant="light"
+                  variant="default"
                   leftSection={<IconCoins size={16} />}
                   onClick={() => setTransferring('allowances')}
                   data-testid="new-allowance-transfer"
@@ -498,26 +573,29 @@ export function RegistryPage() {
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
-        <Tabs
-          value={tab}
-          onChange={(value) => setParams(value && value !== 'instructions' ? { tab: value } : {}, { replace: true })}
-          keepMounted={false}
-        >
-          <Tabs.List>
-            <Tabs.Tab value="instructions">{t('registry.tabs.instructions')}</Tabs.Tab>
-            <Tabs.Tab value="routes">{t('registry.tabs.routes')}</Tabs.Tab>
-            <Tabs.Tab value="formats">{t('registry.tabs.formats')}</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="instructions" pt="md">
-            <InstructionsTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="routes" pt="md">
-            <RoutesTab />
-          </Tabs.Panel>
-          <Tabs.Panel value="formats" pt="md">
-            <FormatsTab />
-          </Tabs.Panel>
-        </Tabs>
+        <>
+          <RegistryKpis entityId={entity.id} />
+          <Tabs
+            value={tab}
+            onChange={(value) => setParams(value && value !== 'instructions' ? { tab: value } : {}, { replace: true })}
+            keepMounted={false}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="instructions">{t('registry.tabs.instructions')}</Tabs.Tab>
+              <Tabs.Tab value="routes">{t('registry.tabs.routes')}</Tabs.Tab>
+              <Tabs.Tab value="formats">{t('registry.tabs.formats')}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="instructions" pt="md">
+              <InstructionsTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="routes" pt="md">
+              <RoutesTab />
+            </Tabs.Panel>
+            <Tabs.Panel value="formats" pt="md">
+              <FormatsTab />
+            </Tabs.Panel>
+          </Tabs>
+        </>
       )}
       {transferring === 'goo' && entity && <TransferModal entityId={entity.id} onClose={() => setTransferring(null)} />}
       {transferring === 'allowances' && entity && (

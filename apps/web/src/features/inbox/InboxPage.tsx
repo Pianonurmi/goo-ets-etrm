@@ -1,23 +1,42 @@
-import { Badge, Button, Group, Modal, MultiSelect, Select, Stack, Switch, Text, Textarea } from '@mantine/core';
-import type { ColDef, ICellRendererParams } from 'ag-grid-community';
+import {
+  Button,
+  Group,
+  Modal,
+  MultiSelect,
+  Paper,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  Textarea,
+  Tooltip,
+} from '@mantine/core';
+import { IconChecks, IconInbox, IconX } from '@tabler/icons-react';
+import type { ColDef, ICellRendererParams, RowStyle } from 'ag-grid-community';
+import { useMediaQuery } from '@mantine/hooks';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { useSession } from '@/shared/auth/SessionContext';
+import { EmptyState } from '@/shared/components/EmptyState';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useInvalidateWorkflow, useTaskTypes } from './hooks';
 import { decisionBlock, isOverdue, reasonRequired, type Decision, type Task } from './model/decisions';
+import { span } from './model/time';
 import { SubjectLink } from './SubjectLink';
-import { StatusBadge } from './TaskBadges';
+import { DueLabel, PriorityLabel, TaskStatus, useSpanText } from './TaskBadges';
 
 const STATUSES = ['OPEN', 'APPROVED', 'REJECTED', 'ACKNOWLEDGED', 'COMPLETED', 'CANCELLED'] as const;
 const SORTS = ['DUE', 'REQUESTED', 'PRIORITY'] as const;
+const CENTERED = { display: 'flex', alignItems: 'center' };
+const OVERDUE_ROW: RowStyle = { boxShadow: 'inset 3px 0 0 var(--etrm-loss)' };
 type Status = (typeof STATUSES)[number];
 type Sort = (typeof SORTS)[number];
 
@@ -115,12 +134,15 @@ function BulkDecisionModal({
   );
 }
 
+const NO_FILTERS = { status: 'OPEN', types: [], mine: false, overdue: false, entityOnly: false } as const;
+
 export function InboxPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { me } = useSession();
   const { entity } = useEntity();
   const types = useTaskTypes();
+  const words = useSpanText();
   const { filters, update } = useInboxFilters();
   const [selected, setSelected] = useState<Task[]>([]);
   const [bulkDecision, setBulkDecision] = useState<Decision | null>(null);
@@ -147,60 +169,81 @@ export function InboxPage() {
     },
   );
   const rows = useMemo(() => tasks.data?.pages.flatMap((page) => page.items) ?? [], [tasks.data]);
+  const anyAssigned = rows.some((task) => task.assignee);
+  // Below 1200 px the subject and priority stay on the task page, so the grid fits without scrolling sideways.
+  const wide = useMediaQuery('(min-width: 75em)', true);
   const decidable = selected.filter((task) => decisionBlock(task, types.get(task.type), me) === null);
+  const filtered =
+    filters.status !== 'OPEN' || filters.types.length > 0 || filters.mine || filters.overdue || filters.entityOnly;
+  const clear = () => update({ ...NO_FILTERS, types: [] });
 
   const columns = useMemo<ColDef<Task>[]>(
     () => [
-      { field: 'priority', headerName: t('inbox.columns.priority'), width: 100, sort: undefined },
       {
         colId: 'type',
         headerName: t('inbox.columns.type'),
         valueGetter: (params) => (params.data ? (types.get(params.data.type)?.displayName ?? params.data.type) : ''),
-        width: 200,
+        width: 170,
       },
-      { field: 'summary', headerName: t('inbox.columns.summary'), flex: 2, minWidth: 260 },
+      { field: 'summary', headerName: t('inbox.columns.summary'), flex: 2, minWidth: 220, tooltipField: 'summary' },
       {
         colId: 'subject',
         headerName: t('inbox.columns.subject'),
-        width: 210,
+        hide: !wide,
+        width: 170,
+        valueGetter: (params) => params.data?.subjectType ?? '',
         cellRenderer: (params: ICellRendererParams<Task>) =>
           params.data ? (
             <SubjectLink subjectType={params.data.subjectType} subjectRef={params.data.subjectRef} />
           ) : null,
       },
-      { field: 'requestedBy', headerName: t('inbox.columns.requestedBy'), width: 140 },
       {
         field: 'requestedAt',
-        headerName: t('inbox.columns.requestedAt'),
-        width: 160,
-        valueFormatter: (params) => formatDateTime(params.value as string),
+        headerName: t('inbox.columns.requested'),
+        width: 150,
+        cellRenderer: (params: ICellRendererParams<Task>) =>
+          params.data ? (
+            <Tooltip label={formatDateTime(params.data.requestedAt)} withArrow>
+              <span>
+                {params.data.requestedBy} ·{' '}
+                {t('inbox.ago', { span: words(span(new Date(params.data.requestedAt).getTime(), Date.now())) })}
+              </span>
+            </Tooltip>
+          ) : null,
       },
       {
         field: 'dueAt',
         headerName: t('inbox.columns.dueAt'),
-        width: 170,
-        cellRenderer: (params: ICellRendererParams<Task>) =>
-          params.data ? (
-            <Group gap={4} wrap="nowrap">
-              <span>{formatDateTime(params.data.dueAt)}</span>
-              {isOverdue(params.data) && (
-                <Badge color="red" size="xs">
-                  {t('inbox.overdue')}
-                </Badge>
-              )}
-            </Group>
-          ) : null,
+        width: 140,
+        cellStyle: CENTERED,
+        cellRenderer: (params: ICellRendererParams<Task>) => (params.data ? <DueLabel task={params.data} /> : null),
       },
-      { field: 'assignee', headerName: t('inbox.columns.assignee'), width: 130 },
+      {
+        field: 'priority',
+        headerName: t('inbox.columns.priority'),
+        hide: !wide,
+        width: 100,
+        cellStyle: CENTERED,
+        cellRenderer: (params: ICellRendererParams<Task>) =>
+          params.data ? <PriorityLabel priority={params.data.priority} /> : null,
+      },
+      {
+        field: 'assignee',
+        headerName: t('inbox.columns.assignee'),
+        width: 110,
+        hide: !anyAssigned || !wide,
+        valueFormatter: (params) => (params.value as string | null) ?? '—',
+      },
       {
         field: 'status',
         headerName: t('inbox.columns.status'),
         width: 130,
+        hide: filters.status === 'OPEN',
         cellRenderer: (params: ICellRendererParams<Task>) =>
-          params.data ? <StatusBadge status={params.data.status} /> : null,
+          params.data ? <TaskStatus status={params.data.status} /> : null,
       },
     ],
-    [t, types],
+    [t, types, words, filters.status, anyAssigned, wide],
   );
 
   const typeOptions = [...types.values()]
@@ -209,58 +252,44 @@ export function InboxPage() {
 
   return (
     <Stack>
-      <PageHeader
-        title={t('inbox.title')}
-        description={t('inbox.description')}
-        actions={
-          <>
-            <Button
-              color="teal"
-              disabled={decidable.length === 0}
-              onClick={() => setBulkDecision('APPROVE')}
-              data-testid="bulk-approve"
-            >
-              {t('inbox.bulk.APPROVE', { count: decidable.length })}
+      <PageHeader title={t('inbox.title')} description={t('inbox.description')} />
+      <Paper withBorder p="md">
+        <Group gap="md" align="flex-end" justify="space-between">
+          <Group gap="sm" align="flex-end">
+            <Select
+              label={t('inbox.filters.status')}
+              data={STATUSES.map((status) => ({ value: status, label: t(`inbox.status.${status}`) }))}
+              value={filters.status}
+              onChange={(value) => update({ status: value ?? 'OPEN' })}
+              allowDeselect={false}
+              w={150}
+            />
+            <MultiSelect
+              label={t('inbox.filters.type')}
+              data={typeOptions}
+              value={filters.types}
+              onChange={(value) => update({ types: value })}
+              placeholder={filters.types.length === 0 ? t('inbox.filters.allTypes') : undefined}
+              clearable
+              searchable
+              w={280}
+            />
+            <Select
+              label={t('inbox.filters.sort')}
+              data={SORTS.map((sort) => ({ value: sort, label: t(`inbox.sort.${sort}`) }))}
+              value={filters.sort}
+              onChange={(value) => update({ sort: value ?? 'DUE' })}
+              allowDeselect={false}
+              w={150}
+            />
+          </Group>
+          {filtered && (
+            <Button variant="subtle" size="xs" leftSection={<IconX size={14} />} onClick={clear}>
+              {t('inbox.clearFilters')}
             </Button>
-            <Button
-              color="red"
-              variant="light"
-              disabled={decidable.length === 0}
-              onClick={() => setBulkDecision('REJECT')}
-            >
-              {t('inbox.bulk.REJECT', { count: decidable.length })}
-            </Button>
-          </>
-        }
-      />
-      <Group gap="md" align="flex-end">
-        <Select
-          label={t('inbox.filters.status')}
-          data={STATUSES.map((status) => ({ value: status, label: t(`inbox.status.${status}`) }))}
-          value={filters.status}
-          onChange={(value) => update({ status: value ?? 'OPEN' })}
-          allowDeselect={false}
-          w={170}
-        />
-        <MultiSelect
-          label={t('inbox.filters.type')}
-          data={typeOptions}
-          value={filters.types}
-          onChange={(value) => update({ types: value })}
-          placeholder={t('inbox.filters.allTypes')}
-          clearable
-          searchable
-          w={320}
-        />
-        <Select
-          label={t('inbox.filters.sort')}
-          data={SORTS.map((sort) => ({ value: sort, label: t(`inbox.sort.${sort}`) }))}
-          value={filters.sort}
-          onChange={(value) => update({ sort: value ?? 'DUE' })}
-          allowDeselect={false}
-          w={170}
-        />
-        <Stack gap={6}>
+          )}
+        </Group>
+        <Group gap="lg" mt="md">
           <Switch
             label={t('inbox.filters.actionable')}
             checked={filters.actionable}
@@ -272,8 +301,6 @@ export function InboxPage() {
             checked={filters.mine}
             onChange={(event) => update({ mine: event.currentTarget.checked })}
           />
-        </Stack>
-        <Stack gap={6}>
           <Switch
             label={t('inbox.filters.overdue')}
             checked={filters.overdue}
@@ -285,22 +312,86 @@ export function InboxPage() {
             disabled={!entity}
             onChange={(event) => update({ entityOnly: event.currentTarget.checked })}
           />
-        </Stack>
-      </Group>
-      <QueryState isPending={tasks.isPending} error={tasks.error}>
-        <DataGrid<Task>
-          rowData={rows}
-          columnDefs={columns}
-          rowId={(task) => task.id}
-          rowSelection={{ mode: 'multiRow' }}
-          onSelectionChanged={(event) => setSelected(event.api.getSelectedRows())}
-          onRowClicked={(event) => {
-            if (event.data && !(event.event?.target instanceof HTMLInputElement))
-              void navigate(`/inbox/${event.data.id}`);
-          }}
-          overlayNoRowsTemplate={t('inbox.empty')}
-          height={560}
-        />
+        </Group>
+      </Paper>
+      {selected.length > 0 && (
+        <Paper withBorder p="sm" bg="var(--etrm-tint)" data-testid="inbox-selection">
+          <Group justify="space-between" gap="sm">
+            <Text size="sm">{t('inbox.selection', { count: selected.length, decidable: decidable.length })}</Text>
+            <Group gap="xs">
+              <Button
+                size="xs"
+                color="teal"
+                leftSection={<IconChecks size={14} />}
+                disabled={decidable.length === 0}
+                onClick={() => setBulkDecision('APPROVE')}
+                data-testid="bulk-approve"
+              >
+                {t('inbox.bulk.APPROVE', { count: decidable.length })}
+              </Button>
+              <Button
+                size="xs"
+                color="red"
+                variant="light"
+                disabled={decidable.length === 0}
+                onClick={() => setBulkDecision('REJECT')}
+              >
+                {t('inbox.bulk.REJECT', { count: decidable.length })}
+              </Button>
+            </Group>
+          </Group>
+        </Paper>
+      )}
+      <QueryState isPending={false} error={tasks.error}>
+        {tasks.isPending ? (
+          <Paper withBorder>
+            <TableSkeleton rows={6} />
+          </Paper>
+        ) : rows.length === 0 ? (
+          <Paper withBorder>
+            {filters.actionable && !filtered ? (
+              <EmptyState
+                testId="inbox-empty"
+                icon={<IconInbox size={22} />}
+                title={t('inbox.allClear')}
+                description={t('inbox.allClearHint')}
+                action={
+                  <Button variant="light" size="xs" onClick={() => update({ actionable: false })}>
+                    {t('inbox.showAllOpen')}
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                testId="inbox-empty"
+                title={t('inbox.empty')}
+                description={t('inbox.emptyHint')}
+                action={
+                  filtered ? (
+                    <Button variant="light" size="xs" onClick={clear}>
+                      {t('inbox.clearFilters')}
+                    </Button>
+                  ) : undefined
+                }
+              />
+            )}
+          </Paper>
+        ) : (
+          <DataGrid<Task>
+            rowData={rows}
+            columnDefs={columns}
+            rowId={(task) => task.id}
+            rowSelection={{ mode: 'multiRow' }}
+            onSelectionChanged={(event) => setSelected(event.api.getSelectedRows())}
+            onRowClicked={(event) => {
+              if (event.data && !(event.event?.target instanceof HTMLInputElement))
+                void navigate(`/inbox/${event.data.id}`);
+            }}
+            getRowStyle={(params) => (params.data && isOverdue(params.data) ? OVERDUE_ROW : undefined)}
+            fitRows={13}
+            overlayNoRowsTemplate={t('inbox.empty')}
+          />
+        )}
         <Group justify="space-between">
           <Text size="sm" c="dimmed" data-testid="inbox-count">
             {t('inbox.shown', { count: rows.length })}

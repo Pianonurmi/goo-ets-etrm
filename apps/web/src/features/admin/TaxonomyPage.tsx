@@ -4,7 +4,8 @@ import {
   Button,
   Group,
   Modal,
-  Select,
+  Paper,
+  SegmentedControl,
   Stack,
   Table,
   TagsInput,
@@ -23,6 +24,7 @@ import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate } from '@/shared/format/format';
 import { useInvalidateReference } from './PartyDetails';
 
@@ -166,107 +168,137 @@ export function TaxonomyPage() {
   const scheme = SCHEMES.find((s) => s === params.get('scheme')) ?? 'ENERGY_SOURCE';
   const [editing, setEditing] = useState<{ node?: Node; parent?: string | null } | null>(null);
   const [region, setRegion] = useState<string | null>(null);
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
   const nodes = $api.useQuery('get', '/api/v1/taxonomy/{scheme}', {
     params: { path: { scheme }, query: { all: true } },
   });
   return (
     <Stack>
-      <PageHeader title={t('admin.taxonomyTitle')} description={t('admin.taxonomyDescription')} />
-      <Group justify="space-between" align="flex-end">
-        <Select
-          label={t('admin.scheme')}
+      <PageHeader
+        title={t('admin.taxonomyTitle')}
+        description={t('admin.taxonomyDescription')}
+        actions={
+          <Can op="taxonomy_create">
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing({ parent: null })}>
+              {t('admin.addRoot')}
+            </Button>
+          </Can>
+        }
+      />
+      <Group justify="space-between" align="center">
+        <SegmentedControl
           data={SCHEMES.map((value) => ({ value, label: t(`admin.schemes.${value}`) }))}
           value={scheme}
-          allowDeselect={false}
-          onChange={(value) => value && setParams({ scheme: value }, { replace: true })}
-          w={260}
+          onChange={(value) => setParams({ scheme: value }, { replace: true })}
+          aria-label={t('admin.scheme')}
           data-testid="scheme"
         />
-        <Can op="taxonomy_create">
-          <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing({ parent: null })}>
-            {t('admin.addRoot')}
-          </Button>
-        </Can>
+        {nodes.data && (
+          <Text size="sm" c="dimmed">
+            {t('admin.nodes', { count: nodes.data.length })}
+          </Text>
+        )}
       </Group>
       <QueryState isPending={nodes.isPending} error={nodes.error}>
-        <Table striped highlightOnHover withTableBorder data-testid="taxonomy">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('marketData.code')}</Table.Th>
-              <Table.Th>{t('ets.name')}</Table.Th>
-              <Table.Th>{t('admin.externalCodes')}</Table.Th>
-              <Table.Th>{t('risk.validity')}</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(nodes.data ?? []).map((node) => (
-              <Table.Tr key={node.id}>
-                <Table.Td style={{ paddingLeft: 12 + node.depth * 20 }} ff="monospace">
-                  {node.code}
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{node.name}</Text>
-                  {node.description && (
-                    <Text size="xs" c="dimmed">
-                      {node.description}
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  {Object.entries(node.externalCodes).map(([system, value]) => (
-                    <Badge key={system} size="xs" variant="light" mr={4}>
-                      {system}: {value}
-                    </Badge>
-                  ))}
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">
-                    {formatDate(node.validPeriod.validFrom)} –{' '}
-                    {node.validPeriod.validTo ? formatDate(node.validPeriod.validTo) : '∞'}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Group gap={2} wrap="nowrap" justify="flex-end">
-                    {scheme === 'REGION' && (
-                      <Tooltip label={t('admin.countries')}>
-                        <ActionIcon
-                          variant="subtle"
-                          onClick={() => setRegion(node.code)}
-                          aria-label={t('admin.countries')}
-                        >
-                          <IconMapPin size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
-                    <Can op="taxonomy_create">
-                      <Tooltip label={t('admin.addChild', { parent: node.code })}>
-                        <ActionIcon
-                          variant="subtle"
-                          onClick={() => setEditing({ parent: node.code })}
-                          aria-label={t('admin.addChild', { parent: node.code })}
-                        >
-                          <IconPlus size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Can>
-                    <Can op="taxonomy_update">
-                      <Tooltip label={t('admin.editNode', { code: node.code })}>
-                        <ActionIcon
-                          variant="subtle"
-                          onClick={() => setEditing({ node })}
-                          aria-label={t('admin.editNode', { code: node.code })}
-                        >
-                          <IconPencil size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Can>
-                  </Group>
-                </Table.Td>
+        <Paper withBorder>
+          <Table highlightOnHover verticalSpacing={8} data-testid="taxonomy">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('ets.name')}</Table.Th>
+                <Table.Th>{t('marketData.code')}</Table.Th>
+                <Table.Th>{t('admin.externalCodes')}</Table.Th>
+                <Table.Th>{t('risk.validity')}</Table.Th>
+                <Table.Th />
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {(nodes.data ?? []).map((node) => (
+                <Table.Tr key={node.id}>
+                  <Table.Td style={{ paddingLeft: 16 + node.depth * 22 }}>
+                    <Group gap={8} wrap="nowrap" align="flex-start">
+                      {node.depth > 0 && (
+                        <Text span c="dimmed" size="sm" aria-hidden="true" lh={1.55}>
+                          └
+                        </Text>
+                      )}
+                      <Stack gap={0}>
+                        <Text size="sm" fw={node.depth === 0 ? 600 : 400}>
+                          {node.name}
+                        </Text>
+                        {node.description && (
+                          <Text size="xs" c="dimmed">
+                            {node.description}
+                          </Text>
+                        )}
+                      </Stack>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text span ff="monospace" size="xs" c="dimmed">
+                      {node.code}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {Object.entries(node.externalCodes).map(([system, value]) => (
+                      <Badge key={system} size="xs" variant="light" mr={4}>
+                        {system}: {value}
+                      </Badge>
+                    ))}
+                  </Table.Td>
+                  <Table.Td>
+                    {node.validPeriod.validTo ? (
+                      <StatusBadge
+                        status={node.validPeriod.validTo <= today ? 'EXPIRED' : 'PENDING'}
+                        label={t('admin.retired', { date: formatDate(node.validPeriod.validTo) })}
+                      />
+                    ) : (
+                      <Text size="xs" c="dimmed">
+                        {t('admin.validFrom', { date: formatDate(node.validPeriod.validFrom) })}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={2} wrap="nowrap" justify="flex-end">
+                      {scheme === 'REGION' && (
+                        <Tooltip label={t('admin.countries')}>
+                          <ActionIcon
+                            variant="subtle"
+                            onClick={() => setRegion(node.code)}
+                            aria-label={t('admin.countries')}
+                          >
+                            <IconMapPin size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                      <Can op="taxonomy_create">
+                        <Tooltip label={t('admin.addChild', { parent: node.code })}>
+                          <ActionIcon
+                            variant="subtle"
+                            onClick={() => setEditing({ parent: node.code })}
+                            aria-label={t('admin.addChild', { parent: node.code })}
+                          >
+                            <IconPlus size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Can>
+                      <Can op="taxonomy_update">
+                        <Tooltip label={t('admin.editNode', { code: node.code })}>
+                          <ActionIcon
+                            variant="subtle"
+                            onClick={() => setEditing({ node })}
+                            aria-label={t('admin.editNode', { code: node.code })}
+                          >
+                            <IconPencil size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Can>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Paper>
       </QueryState>
       {editing && (
         <NodeModal scheme={scheme} parent={editing.parent} node={editing.node} onClose={() => setEditing(null)} />

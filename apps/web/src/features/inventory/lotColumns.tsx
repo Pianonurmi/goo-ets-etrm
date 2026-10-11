@@ -3,27 +3,13 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
 import type { Schema } from '@/shared/api/types';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 
 export type Lot = Schema<'LotView'>;
 
-const STATUS_COLORS: Record<string, string> = {
-  HELD: 'teal',
-  RESERVED: 'blue',
-  IN_TRANSFER: 'cyan',
-  TRANSFERRED_OUT: 'gray',
-  CANCELLED: 'violet',
-  EXPIRED: 'red',
-  WITHDRAWN: 'orange',
-  SPLIT: 'gray',
-};
-
 export function LotStatusBadge({ status, testId }: { status: string; testId?: string }) {
-  return (
-    <Badge color={STATUS_COLORS[status] ?? 'gray'} variant="light" data-testid={testId}>
-      {status}
-    </Badge>
-  );
+  return <StatusBadge status={status} data-testid={testId} />;
 }
 
 /** Days until a live lot expires, or null for lots that are no longer held. */
@@ -34,7 +20,14 @@ export function daysToExpiry(lot: Lot, today = dayjs()): number | null {
 
 export function lotColumns(t: TFunction): ColDef<Lot>[] {
   return [
-    { field: 'quantityMwh', headerName: t('inventory.columns.quantity'), width: 120, type: 'rightAligned' },
+    {
+      field: 'quantityMwh',
+      headerName: t('inventory.columns.quantity'),
+      width: 110,
+      type: 'rightAligned',
+      valueFormatter: (params) => formatDecimal(params.value as number),
+      cellStyle: { fontWeight: 600 },
+    },
     { field: 'energySourceCode', headerName: t('inventory.columns.source'), width: 160 },
     { field: 'technologyCode', headerName: t('inventory.columns.technology'), width: 190 },
     {
@@ -64,7 +57,7 @@ export function lotColumns(t: TFunction): ColDef<Lot>[] {
           <span>
             {formatDate(params.data.expiryDate)}{' '}
             {days !== null && days <= 60 && (
-              <Badge size="xs" color={days <= 30 ? 'red' : 'orange'}>
+              <Badge size="xs" variant="light" radius="xl" tt="none" color={days <= 30 ? 'red' : 'orange'}>
                 {t('inventory.expiresIn', { count: days })}
               </Badge>
             )}

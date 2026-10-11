@@ -1,6 +1,5 @@
 import {
   Alert,
-  Badge,
   Button,
   Card,
   Group,
@@ -20,6 +19,7 @@ import {
 } from '@mantine/core';
 import {
   IconAlertTriangle,
+  IconCalendar,
   IconCheck,
   IconDownload,
   IconFileExport,
@@ -37,7 +37,8 @@ import { download } from '@/shared/api/download';
 import { decimal, type Body, type Schema } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
-import { StatusBadge } from '@/shared/components/StatusBadge';
+import { KpiCard } from '@/shared/components/KpiCard';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
@@ -66,6 +67,81 @@ function useInvalidateMonthEnd() {
 
 export function PeriodStatusBadge({ status }: { status: Period['status'] }) {
   return <StatusBadge status={status} data-testid="period-status" />;
+}
+
+/**
+ * Where the close stands for the period: its status, what blocks the hard close, the latest period-end measurement
+ * and the latest GL export. The queries are the ones the tabs below use, so nothing is fetched twice.
+ */
+function MonthEndKpis({ entityId, period }: { entityId: string; period: string }) {
+  const { t } = useTranslation();
+  const canSeeBlockers = useCan('ledger_hardCloseBlockers');
+  const canReadExports = useCan('ledger_exports');
+  const periods = $api.useQuery('get', '/api/v1/ledger/periods', { params: { query: { legalEntityId: entityId } } });
+  const blockers = $api.useQuery(
+    'get',
+    '/api/v1/ledger/periods/{period}/hard-close-blockers',
+    { params: { path: { period }, query: { legalEntityId: entityId } } },
+    { enabled: canSeeBlockers },
+  );
+  const runs = $api.useQuery('get', '/api/v1/ledger/period-end/runs', {
+    params: { query: { legalEntityId: entityId, period } },
+  });
+  const exports = $api.useQuery(
+    'get',
+    '/api/v1/ledger/exports',
+    { params: { query: { legalEntityId: entityId, period } } },
+    { enabled: canReadExports },
+  );
+  const status = (periods.data ?? []).find((p) => p.period === period)?.status ?? 'OPEN';
+  const open = blockers.data?.length ?? 0;
+  const latestRun = [...(runs.data ?? [])].sort((a, b) => b.seq - a.seq)[0];
+  const latestExport = [...(exports.data ?? [])].sort((a, b) => b.exportSeq - a.exportSeq)[0];
+  return (
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="month-end-kpis">
+      <KpiCard
+        label={t('monthEnd.kpi.status', { period })}
+        value={statusLabel(status)}
+        loading={periods.isPending}
+        trend={t(`monthEnd.kpi.next.${status}`)}
+        trendTone={status === 'CLOSED' ? 'up' : 'neutral'}
+      />
+      <KpiCard
+        label={t('monthEnd.kpi.blockers')}
+        value={canSeeBlockers ? open : '—'}
+        loading={canSeeBlockers && blockers.isPending}
+        trend={
+          status === 'CLOSED'
+            ? t('monthEnd.hardClosed')
+            : open > 0
+              ? t('monthEnd.kpi.blockersHint')
+              : t('monthEnd.readyToClose')
+        }
+        trendTone={status !== 'CLOSED' && open > 0 ? 'warning' : 'up'}
+      />
+      <KpiCard
+        label={t('monthEnd.periodEnd')}
+        value={latestRun ? t('monthEnd.kpi.run', { seq: latestRun.seq }) : '—'}
+        loading={runs.isPending}
+        trend={latestRun ? t('monthEnd.kpi.warnings', { count: latestRun.warnings.length }) : t('monthEnd.noRuns')}
+        trendTone={latestRun && latestRun.warnings.length > 0 ? 'warning' : 'neutral'}
+      />
+      <KpiCard
+        label={t('monthEnd.kpi.export')}
+        value={latestExport ? statusLabel(latestExport.status ?? 'GENERATED') : '—'}
+        loading={canReadExports && exports.isPending}
+        trend={
+          latestExport
+            ? t('monthEnd.kpi.exportOf', { seq: latestExport.exportSeq, at: formatDateTime(latestExport.exportedAt) })
+            : t('monthEnd.kpi.noExport')
+        }
+        trendTone={
+          latestExport?.status === 'ACKNOWLEDGED' ? 'up' : latestExport?.status === 'REJECTED' ? 'down' : 'neutral'
+        }
+        to="/month-end?tab=gl"
+      />
+    </SimpleGrid>
+  );
 }
 
 function PeriodCard({ entityId, period }: { entityId: string; period: string }) {
@@ -238,7 +314,7 @@ function PeriodEndRuns({ entityId, period }: { entityId: string; period: string 
                 {warning}
               </Alert>
             ))}
-            <Table striped withTableBorder>
+            <Table withTableBorder verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{t('monthEnd.component')}</Table.Th>
@@ -248,15 +324,13 @@ function PeriodEndRuns({ entityId, period }: { entityId: string; period: string 
                   <Table.Th ta="right">{t('monthEnd.posted')}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
-              <Table.Tbody>
+              <Table.Tbody className="etrm-figure">
                 {latest.components.map((component) => (
                   <Table.Tr key={`${component.kind}-${component.key}`}>
                     <Table.Td>
                       {t(`monthEnd.kinds.${component.kind}`)}
                       {component.disclosedOnly && (
-                        <Badge ml="xs" size="xs" variant="light" color="gray">
-                          {t('monthEnd.disclosedOnly')}
-                        </Badge>
+                        <StatusBadge ml="xs" size="xs" status="DISCLOSED" label={t('monthEnd.disclosedOnly')} />
                       )}
                     </Table.Td>
                     <Table.Td>{component.key}</Table.Td>
@@ -489,12 +563,7 @@ function GlInterface({ entityId, period }: { entityId: string; period: string })
                     <Table.Td>{row.format}</Table.Td>
                     <Table.Td ta="right">{row.entryCount}</Table.Td>
                     <Table.Td>
-                      <Badge
-                        variant="light"
-                        color={row.status === 'ACKNOWLEDGED' ? 'teal' : row.status === 'REJECTED' ? 'red' : 'blue'}
-                      >
-                        {row.status}
-                      </Badge>
+                      <StatusBadge status={row.status ?? 'GENERATED'} />
                       {row.statusReason && (
                         <Text size="xs" c="dimmed">
                           {row.statusReason}
@@ -826,19 +895,28 @@ export function MonthEndPage() {
   };
   return (
     <Stack>
-      <PageHeader title={t('monthEnd.title')} description={t('monthEnd.description', { entity: entity?.code ?? '' })} />
+      <PageHeader
+        title={t('monthEnd.title')}
+        description={t('monthEnd.description', { entity: entity?.code ?? '' })}
+        actions={
+          entity && (
+            <TextInput
+              type="month"
+              aria-label={t('ledger.period')}
+              leftSection={<IconCalendar size={16} />}
+              value={period}
+              onChange={(e) => set('period', e.currentTarget.value || null)}
+              w={190}
+              data-testid="period-picker"
+            />
+          )
+        }
+      />
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
         <>
-          <TextInput
-            type="month"
-            label={t('ledger.period')}
-            value={period}
-            onChange={(e) => set('period', e.currentTarget.value || null)}
-            w={170}
-            data-testid="period-picker"
-          />
+          <MonthEndKpis entityId={entity.id} period={period} />
           <Tabs value={tab} onChange={(value) => set('tab', value === 'close' ? null : value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="close">{t('monthEnd.tabs.close')}</Tabs.Tab>

@@ -1,11 +1,10 @@
 import {
   Alert,
-  Badge,
   Button,
-  Card,
   FileButton,
   Group,
   Modal,
+  Paper,
   Select,
   SimpleGrid,
   Stack,
@@ -26,17 +25,19 @@ import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { uploadText } from '@/shared/api/upload';
 import { Can } from '@/shared/auth/Can';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useRegistries } from '@/features/registry/TransferModal';
 import {
-  BREAK_STATUS_COLORS,
   BREAK_TYPES,
   CLOSED_STATUSES,
-  STATEMENT_STATUS_COLORS,
   ageInDays,
   breakSubject,
   type Break,
@@ -71,10 +72,35 @@ export function useEntityAccounts(entityId: string | undefined) {
 }
 
 export function BreakStatusBadge({ status, testId }: { status: BreakStatus; testId?: string }) {
+  return <StatusBadge status={status} data-testid={testId} />;
+}
+
+const AGEING = ['upToOneDay', 'upToOneWeek', 'upToOneMonth', 'older'] as const;
+
+/** Open breaks of the entity by how long the registry has shown the difference. */
+function BreakAgeing({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const ageing = $api.useQuery('get', '/api/v1/inventory/breaks/ageing', {
+    params: { query: { legalEntityId: entityId } },
+  });
   return (
-    <Badge color={BREAK_STATUS_COLORS[status]} variant="light" data-testid={testId}>
-      {status.replace(/_/g, ' ')}
-    </Badge>
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="break-ageing">
+      {AGEING.map((key) => {
+        const count = ageing.data?.[key] ?? 0;
+        const tone = count === 0 ? 'up' : key === 'older' || key === 'upToOneMonth' ? 'down' : 'warning';
+        return (
+          <KpiCard
+            key={key}
+            label={t(`reconciliation.ageing.${key}`)}
+            value={ageing.data ? count : '—'}
+            loading={ageing.isPending}
+            trend={count === 0 ? t('reconciliation.ageingNone') : t(`reconciliation.ageingHint.${key}`)}
+            trendTone={tone}
+            to="/reconciliation"
+          />
+        );
+      })}
+    </SimpleGrid>
   );
 }
 
@@ -94,9 +120,6 @@ function BreaksTab({ entityId }: { entityId: string }) {
   const breaks = $api.useQuery('get', '/api/v1/inventory/breaks', {
     params: { query: { status: closed ? CLOSED_STATUSES : undefined, type: type ?? undefined } },
   });
-  const ageing = $api.useQuery('get', '/api/v1/inventory/breaks/ageing', {
-    params: { query: { legalEntityId: entityId } },
-  });
   const accountNumbers = useMemo(
     () => new Map((accounts.data ?? []).map((account) => [account.id, account.accountNumber])),
     [accounts.data],
@@ -111,7 +134,8 @@ function BreaksTab({ entityId }: { entityId: string }) {
       {
         field: 'type',
         headerName: t('reconciliation.type'),
-        width: 210,
+        width: 240,
+        cellStyle: { fontWeight: 600 },
         valueFormatter: (p) => t(`reconciliation.types.${String(p.value)}`),
       },
       {
@@ -147,31 +171,10 @@ function BreaksTab({ entityId }: { entityId: string }) {
     [t, accountNumbers, today],
   );
   return (
-    <Stack>
-      {ageing.data && (
-        <SimpleGrid cols={{ base: 2, md: 4 }} data-testid="break-ageing">
-          {(
-            [
-              ['upToOneDay', ageing.data.upToOneDay],
-              ['upToOneWeek', ageing.data.upToOneWeek],
-              ['upToOneMonth', ageing.data.upToOneMonth],
-              ['older', ageing.data.older],
-            ] as const
-          ).map(([key, count]) => (
-            <Card withBorder key={key} padding="sm">
-              <Text size="xs" c="dimmed">
-                {t(`reconciliation.ageing.${key}`)}
-              </Text>
-              <Text size="xl" fw={600} c={key === 'older' && count > 0 ? 'red' : undefined}>
-                {count}
-              </Text>
-            </Card>
-          ))}
-        </SimpleGrid>
-      )}
-      <Group align="flex-end">
+    <Stack gap="sm">
+      <Group align="flex-end" gap="sm">
         <Select
-          label={t('reconciliation.show')}
+          aria-label={t('reconciliation.show')}
           data={[
             { value: 'open', label: t('reconciliation.openBreaks') },
             { value: 'closed', label: t('reconciliation.closedBreaks') },
@@ -182,7 +185,7 @@ function BreaksTab({ entityId }: { entityId: string }) {
           w={200}
         />
         <Select
-          label={t('reconciliation.type')}
+          aria-label={t('reconciliation.type')}
           placeholder={t('reconciliation.anyType')}
           data={BREAK_TYPES.map((value) => ({ value, label: t(`reconciliation.types.${value}`) }))}
           value={type}
@@ -191,15 +194,29 @@ function BreaksTab({ entityId }: { entityId: string }) {
           w={240}
         />
       </Group>
-      <QueryState isPending={breaks.isPending} error={breaks.error}>
-        <DataGrid<Break>
-          rowData={rows}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          height={440}
-          onRowClicked={(event) => event.data && void navigate(`/reconciliation/breaks/${event.data.id}`)}
-          rowStyle={{ cursor: 'pointer' }}
-        />
+      <QueryState isPending={false} error={breaks.error}>
+        {breaks.isPending || accounts.isPending ? (
+          <Paper withBorder radius="lg">
+            <TableSkeleton rows={6} />
+          </Paper>
+        ) : rows.length === 0 ? (
+          <Paper withBorder radius="lg">
+            <EmptyState
+              title={closed ? t('reconciliation.noClosedBreaks') : t('reconciliation.noOpenBreaks')}
+              description={t('reconciliation.noBreaksHint')}
+              testId="breaks-empty"
+            />
+          </Paper>
+        ) : (
+          <DataGrid<Break>
+            rowData={rows}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            height={Math.min(480, 46 + rows.length * 40 + 2)}
+            onRowClicked={(event) => event.data && void navigate(`/reconciliation/breaks/${event.data.id}`)}
+            rowStyle={{ cursor: 'pointer' }}
+          />
+        )}
       </QueryState>
     </Stack>
   );
@@ -406,18 +423,13 @@ function StatementsTab({ entityId }: { entityId: string }) {
         field: 'status',
         headerName: t('allocation.status'),
         width: 140,
-        cellRenderer: (p: ICellRendererParams<Statement>) =>
-          p.data && (
-            <Badge color={STATEMENT_STATUS_COLORS[p.data.status]} variant="light">
-              {p.data.status}
-            </Badge>
-          ),
+        cellRenderer: (p: ICellRendererParams<Statement>) => p.data && <StatusBadge status={p.data.status} />,
       },
     ],
     [t],
   );
   return (
-    <Stack>
+    <Stack gap="sm">
       <Group justify="space-between" align="flex-end">
         <Select
           label={t('reconciliation.account')}
@@ -437,7 +449,7 @@ function StatementsTab({ entityId }: { entityId: string }) {
         <Group gap="xs">
           <Can op="registry_importTransactions">
             <Button
-              variant="light"
+              variant="default"
               leftSection={<IconTransfer size={16} />}
               onClick={() => setUploading('transactions')}
             >
@@ -463,6 +475,7 @@ function StatementsTab({ entityId }: { entityId: string }) {
           columnDefs={columns}
           rowId={(row) => row.id}
           height={400}
+          overlayNoRowsTemplate={t('reconciliation.noStatements')}
           onRowClicked={(event) => setOpen(event.data ?? null)}
           rowStyle={{ cursor: 'pointer' }}
         />
@@ -483,7 +496,7 @@ export function ReconciliationPage() {
   const [params, setParams] = useSearchParams();
   const tab = TABS.find((value) => value === params.get('tab')) ?? 'breaks';
   return (
-    <Stack>
+    <Stack gap="lg">
       <PageHeader
         title={t('reconciliation.title')}
         description={t('reconciliation.description', { entity: entity?.code ?? '' })}
@@ -491,22 +504,25 @@ export function ReconciliationPage() {
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
-        <Tabs
-          value={tab}
-          onChange={(value) => setParams(value && value !== 'breaks' ? { tab: value } : {}, { replace: true })}
-          keepMounted={false}
-        >
-          <Tabs.List>
-            <Tabs.Tab value="breaks">{t('reconciliation.tabs.breaks')}</Tabs.Tab>
-            <Tabs.Tab value="statements">{t('reconciliation.tabs.statements')}</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="breaks" pt="md">
-            <BreaksTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="statements" pt="md">
-            <StatementsTab entityId={entity.id} />
-          </Tabs.Panel>
-        </Tabs>
+        <>
+          <BreakAgeing entityId={entity.id} />
+          <Tabs
+            value={tab}
+            onChange={(value) => setParams(value && value !== 'breaks' ? { tab: value } : {}, { replace: true })}
+            keepMounted={false}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="breaks">{t('reconciliation.tabs.breaks')}</Tabs.Tab>
+              <Tabs.Tab value="statements">{t('reconciliation.tabs.statements')}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="breaks" pt="md">
+              <BreaksTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="statements" pt="md">
+              <StatementsTab entityId={entity.id} />
+            </Tabs.Panel>
+          </Tabs>
+        </>
       )}
     </Stack>
   );

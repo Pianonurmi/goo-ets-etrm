@@ -1,12 +1,13 @@
+import { BarChart } from '@mantine/charts';
 import {
   Alert,
   Anchor,
-  Badge,
   Button,
-  Card,
+  Grid,
   Group,
   Modal,
   NumberInput,
+  Paper,
   Select,
   SimpleGrid,
   Stack,
@@ -16,24 +17,32 @@ import {
   Timeline,
   Title,
 } from '@mantine/core';
-import { IconCalendarDue, IconPlus } from '@tabler/icons-react';
+import { IconBuildingFactory2, IconCalendar, IconCalendarDue, IconPlus } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { token } from '@/app/tokens';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { ScrollTable } from '@/shared/components/ScrollTable';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { useEntityAccounts } from '@/features/trades/hooks';
 import { InstallationsCard } from './InstallationsCard';
-import { DEADLINE_COLORS, deadlineCalendar } from './model/deadlines';
+import { DEADLINE_TONES, deadlineCalendar, nextDeadline } from './model/deadlines';
+
+type EntityCompliance = Schema<'EntityCompliance'>;
 
 type ComplianceStatus = Schema<'InstallationCompliance'>['status'];
 type InstallationKind = Schema<'InstallationView'>['kind'];
@@ -50,31 +59,21 @@ export function useInvalidateEts() {
     });
 }
 
+/** The tone of each compliance state: open in progress, verified on its way, compliant done, non-compliant a problem. */
+const COMPLIANCE_TONE: Record<ComplianceStatus, string> = {
+  OPEN: 'OPEN',
+  VERIFIED: 'APPROVED',
+  COMPLIANT: 'COMPLETED',
+  NON_COMPLIANT: 'BREACH',
+};
+
 export function ComplianceStatusBadge({ status }: { status: ComplianceStatus }) {
-  const colors: Record<ComplianceStatus, string> = {
-    OPEN: 'blue',
-    VERIFIED: 'cyan',
-    COMPLIANT: 'teal',
-    NON_COMPLIANT: 'red',
-  };
-  return (
-    <Badge color={colors[status]} variant="light" data-testid="compliance-status">
-      {status.replace(/_/g, ' ')}
-    </Badge>
-  );
+  return <StatusBadge status={COMPLIANCE_TONE[status]} label={statusLabel(status)} data-testid="compliance-status" />;
 }
 
-export function Figure({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <Card withBorder>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="xl" fw={700} c={color}>
-        {value}
-      </Text>
-    </Card>
-  );
+/** A headline figure of a compliance year (a KPI card without a link). */
+export function Figure({ label, value, trend }: { label: string; value: string; trend?: string }) {
+  return <KpiCard label={label} value={value} trend={trend} />;
 }
 
 export const tonnes = (value: number | null | undefined) => (value == null ? '–' : `${formatDecimal(value)} t`);
@@ -193,20 +192,26 @@ function RegisterInstallationModal({
   );
 }
 
+function useDeadlines(entityId: string, year: number) {
+  return $api.useQuery('get', '/api/v1/ets/deadlines', {
+    params: { query: { legalEntityId: entityId, from: `${year}-01-01`, to: `${year + 1}-12-31` } },
+  });
+}
+
 function Deadlines({ entityId, year }: { entityId: string; year: number }) {
   const { t } = useTranslation();
   const today = dayjs().format('YYYY-MM-DD');
-  const deadlines = $api.useQuery('get', '/api/v1/ets/deadlines', {
-    params: { query: { legalEntityId: entityId, from: `${year}-01-01`, to: `${year + 1}-12-31` } },
-  });
+  const deadlines = useDeadlines(entityId, year);
   const months = useMemo(() => deadlineCalendar(deadlines.data ?? [], today), [deadlines.data, today]);
   return (
-    <Card withBorder>
-      <Title order={5} mb="sm">
+    <Paper withBorder radius="lg" p="lg" h="100%">
+      <Title order={3} size="h5" mb="md">
         {t('ets.deadlines')}
       </Title>
-      <QueryState isPending={deadlines.isPending} error={deadlines.error}>
-        {months.length === 0 ? (
+      <QueryState isPending={false} error={deadlines.error}>
+        {deadlines.isPending ? (
+          <TableSkeleton rows={3} />
+        ) : months.length === 0 ? (
           <Text size="sm" c="dimmed">
             {t('ets.noDeadlines')}
           </Text>
@@ -216,23 +221,36 @@ function Deadlines({ entityId, year }: { entityId: string; year: number }) {
               <Timeline.Item
                 key={month.month}
                 bullet={<IconCalendarDue size={12} />}
-                title={dayjs(`${month.month}-01`).format('MMMM YYYY')}
+                title={
+                  <Text size="sm" fw={600}>
+                    {dayjs(`${month.month}-01`).format('MMMM YYYY')}
+                  </Text>
+                }
               >
-                <Stack gap={4} mt={4}>
+                <Stack gap={6} mt={6}>
                   {month.deadlines.map((deadline) => (
-                    <Group key={`${deadline.installationId}-${deadline.kind}-${deadline.complianceYear}`} gap="xs">
-                      <Text size="sm" w={100}>
-                        {formatDate(deadline.dueOn)}
-                      </Text>
-                      <Badge color={DEADLINE_COLORS[deadline.state]} variant="light" w={100}>
-                        {t(`ets.deadlineStates.${deadline.state}`)}
-                      </Badge>
-                      <Text size="sm">
-                        {t(`ets.deadlineKinds.${deadline.kind}`, { year: deadline.complianceYear })} ·{' '}
-                        <Anchor component={Link} to={`/ets/installations/${deadline.installationId}`} size="sm">
-                          {deadline.installationName}
-                        </Anchor>
-                      </Text>
+                    <Group
+                      key={`${deadline.installationId}-${deadline.kind}-${deadline.complianceYear}`}
+                      gap="xs"
+                      wrap="nowrap"
+                      align="flex-start"
+                    >
+                      <StatusBadge
+                        status={DEADLINE_TONES[deadline.state]}
+                        label={t(`ets.deadlineStates.${deadline.state}`)}
+                        miw={92}
+                      />
+                      <Stack gap={0} miw={0}>
+                        <Text size="sm">
+                          {t(`ets.deadlineKinds.${deadline.kind}`, { year: deadline.complianceYear })}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {formatDate(deadline.dueOn)} ·{' '}
+                          <Anchor component={Link} to={`/ets/installations/${deadline.installationId}`} size="xs">
+                            {deadline.installationName}
+                          </Anchor>
+                        </Text>
+                      </Stack>
                     </Group>
                   ))}
                 </Stack>
@@ -241,7 +259,105 @@ function Deadlines({ entityId, year }: { entityId: string; year: number }) {
           </Timeline>
         )}
       </QueryState>
-    </Card>
+    </Paper>
+  );
+}
+
+/**
+ * The compliance position for the year: net allowances against the obligation, emissions, free allocation and the
+ * next deadline. Figures are the server's (positions and compliance), never summed here.
+ */
+function EtsKpis({ entityId, year, compliance }: { entityId: string; year: number; compliance?: EntityCompliance }) {
+  const { t } = useTranslation();
+  const ladder = $api.useQuery('get', '/api/v1/positions/ets', {
+    params: { query: { legalEntityId: entityId, complianceYear: year } },
+  });
+  const deadlines = useDeadlines(entityId, year);
+  const next = nextDeadline(deadlines.data ?? [], dayjs().format('YYYY-MM-DD'));
+  const net = ladder.data?.netPosition;
+  return (
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="ets-kpis">
+      <KpiCard
+        label={t('ets.kpi.net')}
+        value={net === undefined ? '—' : formatDecimal(net)}
+        unit="t"
+        loading={ladder.isPending}
+        trend={
+          ladder.data &&
+          t('ets.kpi.netHint', {
+            held: formatDecimal(ladder.data.heldAllowances),
+            owed: formatDecimal(ladder.data.obligationOutstanding),
+          })
+        }
+        trendTone={net === undefined ? 'neutral' : net < 0 ? 'down' : 'up'}
+        to="/positions?tab=ets"
+      />
+      <KpiCard
+        label={t('ets.estimated')}
+        value={compliance ? formatDecimal(compliance.estimatedEmissions) : '—'}
+        unit="t"
+        loading={!compliance}
+        trend={
+          compliance?.verifiedEmissions == null
+            ? t('ets.kpi.notVerified')
+            : t('ets.kpi.verified', { tonnes: formatDecimal(compliance.verifiedEmissions) })
+        }
+      />
+      <KpiCard
+        label={t('positions.freeAllocation')}
+        value={compliance ? formatDecimal(compliance.freeAllocationReceived) : '—'}
+        unit="t"
+        loading={!compliance}
+        trend={compliance && t('ets.kpi.ofExpected', { tonnes: formatDecimal(compliance.freeAllocationExpected) })}
+      />
+      <KpiCard
+        label={t('ets.kpi.next')}
+        value={next ? formatDate(next.dueOn) : compliance ? formatDate(compliance.surrenderDeadline) : '—'}
+        loading={deadlines.isPending}
+        trend={
+          next
+            ? `${t(`ets.deadlineKinds.${next.kind}`, { year: next.complianceYear })} · ${t(`ets.deadlineStates.${next.state}`)}`
+            : t('positions.deadline')
+        }
+        trendTone={next?.state === 'overdue' ? 'down' : next?.state === 'dueSoon' ? 'warning' : 'neutral'}
+      />
+    </SimpleGrid>
+  );
+}
+
+/** Per installation: emissions to cover against allowances held and already surrendered (the server's figures). */
+function ComplianceChart({ compliance }: { compliance: EntityCompliance }) {
+  const { t } = useTranslation();
+  const data = compliance.installations.map((line) => ({
+    installation: line.installation.name,
+    emissions: line.emissions,
+    held: line.held,
+    surrendered: line.surrendered,
+  }));
+  return (
+    <Paper withBorder radius="lg" p="lg" h="100%">
+      <Title order={3} size="h5">
+        {t('ets.chartTitle')}
+      </Title>
+      <Text size="sm" c="dimmed" mb="md">
+        {t('ets.chartHint')}
+      </Text>
+      <BarChart
+        h={240}
+        data={data}
+        dataKey="installation"
+        series={[
+          { name: 'emissions', label: t('positions.emissions'), color: 'orange.6' },
+          { name: 'held', label: t('positions.held'), color: 'brand.6' },
+          { name: 'surrendered', label: t('positions.surrendered'), color: 'gray.5' },
+        ]}
+        valueFormatter={(value) => formatDecimal(value)}
+        withLegend
+        legendProps={{ verticalAlign: 'bottom' }}
+        tickLine="y"
+        data-testid="compliance-chart"
+      />
+    </Paper>
   );
 }
 
@@ -265,11 +381,21 @@ export function EtsPage() {
         description={t('ets.description', { entity: entity?.code ?? '' })}
         actions={
           entity && (
-            <Can op="etsCompliance_register">
-              <Button leftSection={<IconPlus size={16} />} onClick={() => setRegistering(true)}>
-                {t('ets.register')}
-              </Button>
-            </Can>
+            <>
+              <NumberInput
+                aria-label={t('positions.complianceYear')}
+                leftSection={<IconCalendar size={16} />}
+                value={year}
+                onChange={(value) => setParams(Number(value) ? { year: String(value) } : {}, { replace: true })}
+                w={130}
+                min={2005}
+              />
+              <Can op="etsCompliance_register">
+                <Button leftSection={<IconPlus size={16} />} onClick={() => setRegistering(true)}>
+                  {t('ets.register')}
+                </Button>
+              </Can>
+            </>
           )
         }
       />
@@ -277,77 +403,82 @@ export function EtsPage() {
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
         <>
-          <NumberInput
-            label={t('positions.complianceYear')}
-            value={year}
-            onChange={(value) => setParams(Number(value) ? { year: String(value) } : {}, { replace: true })}
-            w={180}
-            min={2005}
-          />
-          <QueryState isPending={compliance.isPending} error={compliance.error}>
-            {compliance.data && (
-              <Stack>
-                <SimpleGrid cols={{ base: 2, md: 5 }}>
-                  <Figure label={t('ets.estimated')} value={tonnes(compliance.data.estimatedEmissions)} />
-                  <Figure label={t('ets.verified')} value={tonnes(compliance.data.verifiedEmissions)} />
-                  <Figure
-                    label={t('positions.freeAllocation')}
-                    value={`${formatDecimal(compliance.data.freeAllocationReceived)} / ${tonnes(compliance.data.freeAllocationExpected)}`}
-                  />
-                  <Figure label={t('positions.surrendered')} value={tonnes(compliance.data.surrendered)} />
-                  <Figure label={t('positions.deadline')} value={formatDate(compliance.data.surrenderDeadline)} />
-                </SimpleGrid>
-                {compliance.data.installations.length === 0 ? (
-                  <Alert color="gray">{t('positions.noInstallations')}</Alert>
-                ) : (
-                  <Table.ScrollContainer minWidth={1100}>
-                    <Table withTableBorder striped highlightOnHover data-testid="installations">
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>{t('positions.installation')}</Table.Th>
-                          <Table.Th>{t('ets.eutlId')}</Table.Th>
-                          <Table.Th>{t('positions.basis')}</Table.Th>
-                          <Table.Th ta="right">{t('positions.emissions')}</Table.Th>
-                          <Table.Th ta="right">{t('positions.held')}</Table.Th>
-                          <Table.Th ta="right">{t('ets.freeToCome')}</Table.Th>
-                          <Table.Th ta="right">{t('positions.surrendered')}</Table.Th>
-                          <Table.Th ta="right">{t('ets.outstanding')}</Table.Th>
-                          <Table.Th ta="right">{t('ets.net')}</Table.Th>
-                          <Table.Th w={150}>{t('allocation.status')}</Table.Th>
+          <EtsKpis entityId={entity.id} year={year} compliance={compliance.data} />
+          <QueryState isPending={false} error={compliance.error}>
+            {!compliance.data ? (
+              <TableSkeleton rows={2} />
+            ) : compliance.data.installations.length === 0 ? (
+              <EmptyState
+                icon={<IconBuildingFactory2 size={22} />}
+                title={t('positions.noInstallations')}
+                description={t('ets.noInstallationsHint')}
+              />
+            ) : (
+              <Paper withBorder radius="lg" p="lg">
+                <Title order={3} size="h5" mb="sm">
+                  {t('ets.byInstallation', { year })}
+                </Title>
+                <ScrollTable label={t('ets.byInstallation', { year })} minWidth={1000}>
+                  <Table highlightOnHover verticalSpacing="sm" data-testid="installations">
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>{t('positions.installation')}</Table.Th>
+                        <Table.Th>{t('positions.basis')}</Table.Th>
+                        <Table.Th ta="right">{t('positions.emissions')}</Table.Th>
+                        <Table.Th ta="right">{t('positions.held')}</Table.Th>
+                        <Table.Th ta="right">{t('ets.freeToCome')}</Table.Th>
+                        <Table.Th ta="right">{t('positions.surrendered')}</Table.Th>
+                        <Table.Th ta="right">{t('ets.outstanding')}</Table.Th>
+                        <Table.Th ta="right">{t('ets.net')}</Table.Th>
+                        <Table.Th w={150}>{t('allocation.status')}</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody className="etrm-figure">
+                      {compliance.data.installations.map((line) => (
+                        <Table.Tr key={line.installation.id}>
+                          <Table.Td>
+                            <Anchor
+                              component={Link}
+                              to={`/ets/installations/${line.installation.id}?year=${year}`}
+                              size="sm"
+                            >
+                              {line.installation.name}
+                            </Anchor>
+                            <Text size="xs" c="dimmed">
+                              {line.installation.eutlId}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>{t(`ets.basis.${line.emissionsBasis}`)}</Table.Td>
+                          <Table.Td ta="right">{formatDecimal(line.emissions)}</Table.Td>
+                          <Table.Td ta="right">{formatDecimal(line.held)}</Table.Td>
+                          <Table.Td ta="right">{formatDecimal(line.freeAllocation?.outstanding ?? 0)}</Table.Td>
+                          <Table.Td ta="right">{formatDecimal(line.surrendered)}</Table.Td>
+                          <Table.Td ta="right">{formatDecimal(line.outstanding)}</Table.Td>
+                          <Table.Td ta="right" fw={600} style={{ color: token(line.net < 0 ? 'loss' : 'gain') }}>
+                            {formatDecimal(line.net)}
+                          </Table.Td>
+                          <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                            <ComplianceStatusBadge status={line.status} />
+                          </Table.Td>
                         </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {compliance.data.installations.map((line) => (
-                          <Table.Tr key={line.installation.id}>
-                            <Table.Td>
-                              <Anchor component={Link} to={`/ets/installations/${line.installation.id}?year=${year}`}>
-                                {line.installation.name}
-                              </Anchor>
-                            </Table.Td>
-                            <Table.Td style={{ whiteSpace: 'nowrap' }}>{line.installation.eutlId}</Table.Td>
-                            <Table.Td>{t(`ets.basis.${line.emissionsBasis}`)}</Table.Td>
-                            <Table.Td ta="right">{formatDecimal(line.emissions)}</Table.Td>
-                            <Table.Td ta="right">{formatDecimal(line.held)}</Table.Td>
-                            <Table.Td ta="right">{formatDecimal(line.freeAllocation?.outstanding ?? 0)}</Table.Td>
-                            <Table.Td ta="right">{formatDecimal(line.surrendered)}</Table.Td>
-                            <Table.Td ta="right">{formatDecimal(line.outstanding)}</Table.Td>
-                            <Table.Td ta="right" c={line.net < 0 ? 'red' : 'teal'} fw={600}>
-                              {formatDecimal(line.net)}
-                            </Table.Td>
-                            <Table.Td style={{ whiteSpace: 'nowrap' }}>
-                              <ComplianceStatusBadge status={line.status} />
-                            </Table.Td>
-                          </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </Table.ScrollContainer>
-                )}
-              </Stack>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollTable>
+              </Paper>
             )}
           </QueryState>
+          <Grid gap="md">
+            {compliance.data && compliance.data.installations.length > 0 && (
+              <Grid.Col span={{ base: 12, lg: 7 }}>
+                <ComplianceChart compliance={compliance.data} />
+              </Grid.Col>
+            )}
+            <Grid.Col span={{ base: 12, lg: compliance.data && compliance.data.installations.length > 0 ? 5 : 12 }}>
+              <Deadlines entityId={entity.id} year={year} />
+            </Grid.Col>
+          </Grid>
           <InstallationsCard entityId={entity.id} year={year} />
-          <Deadlines entityId={entity.id} year={year} />
           {registering && (
             <RegisterInstallationModal
               onClose={() => setRegistering(false)}

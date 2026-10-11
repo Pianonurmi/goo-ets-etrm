@@ -2,11 +2,11 @@ import {
   ActionIcon,
   Alert,
   Anchor,
-  Badge,
   Button,
   Group,
   SegmentedControl,
   Select,
+  SimpleGrid,
   Stack,
   Tabs,
   Text,
@@ -19,9 +19,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
 import { Can } from '@/shared/auth/Can';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDecimal, formatMoney, formatQuantity } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
@@ -30,10 +33,7 @@ import { useInvalidateSettlement } from './hooks';
 import {
   INVOICE_KINDS,
   INVOICE_STATUSES,
-  INVOICE_STATUS_COLORS,
-  ITEM_STATUS_COLORS,
   ITEM_VIEWS,
-  PAYMENT_STATUS_COLORS,
   asItemView,
   canReevaluate,
   itemStatuses,
@@ -51,11 +51,62 @@ import { VatRulesTab } from './VatRulesTab';
 
 const TABS = ['items', 'invoices', 'payments', 'netting', 'vat-rules', 'reports'] as const;
 
-export function StatusBadge({ label, color, testId }: { label: string; color: string; testId?: string }) {
+/**
+ * The figures to act on first: open items and those needing attention, issued invoices still unpaid, and the overdue
+ * ones with their amounts (summed by the server). Rows are counted here, amounts never added up.
+ */
+function SettlementKpis({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const items = $api.useQuery('get', '/api/v1/settlement/items', {
+    params: { query: { legalEntityId: entityId, status: itemStatuses('open') } },
+  });
+  const invoices = $api.useQuery('get', '/api/v1/settlement/invoices', {
+    params: { query: { legalEntityId: entityId, status: ['ISSUED'] } },
+  });
+  const summary = $api.useQuery('get', '/api/v1/home/summary', { params: { query: { legalEntityId: entityId } } });
+  const open = items.data ?? [];
+  const attention = open.filter((item) => item.status === 'NEEDS_ATTENTION').length;
+  const unpaid = (invoices.data ?? []).filter((invoice) => paymentStatus(invoice) !== 'PAID');
+  const overdue = summary.data?.settlement;
+  const overdueCount = overdue?.overdueInvoices ?? 0;
   return (
-    <Badge color={color} variant="light" data-testid={testId}>
-      {label.replace(/_/g, ' ')}
-    </Badge>
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="settlement-kpis">
+      <KpiCard
+        label={t('settlement.kpi.attention')}
+        value={attention}
+        loading={items.isPending}
+        trend={attention > 0 ? t('settlement.kpi.attentionHint') : t('settlement.kpi.allPriced')}
+        trendTone={attention > 0 ? 'warning' : 'up'}
+        to="/settlement"
+      />
+      <KpiCard
+        label={t('settlement.kpi.open')}
+        value={open.length - attention}
+        loading={items.isPending}
+        trend={t('settlement.kpi.openHint')}
+        to="/settlement?view=open"
+      />
+      <KpiCard
+        label={t('settlement.kpi.unpaid')}
+        value={unpaid.length}
+        loading={invoices.isPending}
+        trend={t('settlement.kpi.partlyPaid', {
+          count: unpaid.filter((invoice) => paymentStatus(invoice) === 'PARTIALLY_PAID').length,
+        })}
+        to="/settlement?tab=invoices&status=ISSUED"
+      />
+      <KpiCard
+        label={t('settlement.kpi.overdue')}
+        value={overdue ? overdueCount : '—'}
+        loading={summary.isPending}
+        trend={
+          (overdue?.overdueAmounts ?? []).map((amount) => formatMoney(amount.amount, amount.currency)).join(' · ') ||
+          (overdueCount > 0 ? t('settlement.kpi.chase') : t('settlement.kpi.nothingOverdue'))
+        }
+        trendTone={overdueCount > 0 ? 'down' : 'up'}
+        to="/settlement?tab=invoices&status=ISSUED"
+      />
+    </SimpleGrid>
   );
 }
 
@@ -153,8 +204,7 @@ function ItemsTab({ entityId }: { entityId: string }) {
         field: 'status',
         headerName: t('allocation.status'),
         width: 170,
-        cellRenderer: (p: ICellRendererParams<Item>) =>
-          p.data && <StatusBadge label={p.data.status} color={ITEM_STATUS_COLORS[p.data.status]} />,
+        cellRenderer: (p: ICellRendererParams<Item>) => p.data && <StatusBadge status={p.data.status} />,
       },
       {
         colId: 'counterparty',
@@ -233,8 +283,18 @@ function ItemsTab({ entityId }: { entityId: string }) {
         data={ITEM_VIEWS.map((value) => ({ value, label: t(`settlement.itemViews.${value}`) }))}
         data-testid="item-view"
       />
-      <QueryState isPending={items.isPending} error={items.error}>
-        <DataGrid<Item> rowData={items.data ?? []} columnDefs={columns} rowId={(row) => row.id} height={480} />
+      <QueryState isPending={false} error={items.error}>
+        {items.isPending ? (
+          <TableSkeleton />
+        ) : (
+          <DataGrid<Item>
+            rowData={items.data ?? []}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            fitRows={12}
+            overlayNoRowsTemplate={t(`settlement.noItems.${view}`)}
+          />
+        )}
       </QueryState>
       {fixing && <FixPriceModal item={fixing} onClose={() => setFixing(null)} />}
       {openItem && (
@@ -281,8 +341,7 @@ function InvoicesTab({ entityId }: { entityId: string }) {
         field: 'status',
         headerName: t('allocation.status'),
         width: 170,
-        cellRenderer: (p: ICellRendererParams<Invoice>) =>
-          p.data && <StatusBadge label={p.data.status} color={INVOICE_STATUS_COLORS[p.data.status]} />,
+        cellRenderer: (p: ICellRendererParams<Invoice>) => p.data && <StatusBadge status={p.data.status} />,
       },
       {
         field: 'paymentStatus',
@@ -290,7 +349,8 @@ function InvoicesTab({ entityId }: { entityId: string }) {
         width: 150,
         cellRenderer: (p: ICellRendererParams<Invoice>) =>
           p.data?.status === 'ISSUED' && (
-            <StatusBadge label={paymentStatus(p.data)} color={PAYMENT_STATUS_COLORS[paymentStatus(p.data)]} />
+            // The payment state keeps its upper-case name in the grid: the end-to-end tests pick the cell by it.
+            <StatusBadge status={paymentStatus(p.data)} label={paymentStatus(p.data).replace('_', ' ')} />
           ),
       },
       {
@@ -370,15 +430,20 @@ function InvoicesTab({ entityId }: { entityId: string }) {
           </Button>
         </Can>
       </Group>
-      <QueryState isPending={invoices.isPending} error={invoices.error}>
-        <DataGrid<Invoice>
-          rowData={invoices.data ?? []}
-          columnDefs={columns}
-          rowId={(row) => row.id}
-          height={480}
-          onRowClicked={(event) => event.data && void navigate(`/settlement/invoices/${event.data.id}`)}
-          rowStyle={{ cursor: 'pointer' }}
-        />
+      <QueryState isPending={false} error={invoices.error}>
+        {invoices.isPending ? (
+          <TableSkeleton />
+        ) : (
+          <DataGrid<Invoice>
+            rowData={invoices.data ?? []}
+            columnDefs={columns}
+            rowId={(row) => row.id}
+            fitRows={12}
+            overlayNoRowsTemplate={t('settlement.noInvoices')}
+            onRowClicked={(event) => event.data && void navigate(`/settlement/invoices/${event.data.id}`)}
+            rowStyle={{ cursor: 'pointer' }}
+          />
+        )}
       </QueryState>
     </Stack>
   );
@@ -403,7 +468,7 @@ export function SettlementPage() {
             <>
               <Can op="settlement_registerPurchaseInvoice">
                 <Button
-                  variant="light"
+                  variant="default"
                   leftSection={<IconReceipt size={16} />}
                   onClick={() => setRegistering(true)}
                   data-testid="register-purchase"
@@ -428,6 +493,7 @@ export function SettlementPage() {
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
         <>
+          <SettlementKpis entityId={entity.id} />
           <Tabs
             value={tab}
             onChange={(value) => setParams(value && value !== 'items' ? { tab: value } : {}, { replace: true })}

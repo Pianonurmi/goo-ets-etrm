@@ -31,26 +31,6 @@ export function asItemView(value: string | null): ItemView {
 export const INVOICE_STATUSES: InvoiceStatus[] = ['DRAFT', 'PENDING_APPROVAL', 'ISSUED', 'CANCELLED'];
 export const INVOICE_KINDS: InvoiceKind[] = ['SALES', 'SELF_BILLED', 'PURCHASE', 'CREDIT_NOTE', 'PURCHASE_CREDIT_NOTE'];
 
-export const ITEM_STATUS_COLORS: Record<ItemStatus, string> = {
-  OPEN: 'blue',
-  NEEDS_ATTENTION: 'orange',
-  INVOICED: 'teal',
-  CANCELLED: 'gray',
-};
-
-export const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
-  DRAFT: 'gray',
-  PENDING_APPROVAL: 'yellow',
-  ISSUED: 'teal',
-  CANCELLED: 'red',
-};
-
-export const PAYMENT_STATUS_COLORS: Record<PaymentStatus, string> = {
-  UNPAID: 'orange',
-  PARTIALLY_PAID: 'yellow',
-  PAID: 'teal',
-};
-
 /** Unpaid until the server says otherwise. */
 export function paymentStatus(invoice: Pick<Invoice, 'paymentStatus'>): PaymentStatus {
   return invoice.paymentStatus ?? 'UNPAID';

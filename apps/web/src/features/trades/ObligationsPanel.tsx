@@ -1,4 +1,4 @@
-import { Group, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Group, Paper, Select, Stack, Text, TextInput } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
@@ -6,7 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { Side as SideLabel } from '@/shared/components/Figures';
 import { QueryState } from '@/shared/components/QueryState';
+import { TableSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDecimal, formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
@@ -35,8 +38,13 @@ export function ObligationsPanel({ entityId }: { entityId: string }) {
   const columns = useMemo<ColDef<Row>[]>(
     () => [
       { field: 'deliveryDate', headerName: t('trades.form.deliveryDate'), width: 130, sort: 'asc' },
-      { field: 'tradeNumber', headerName: t('trades.columns.number'), width: 150 },
-      { field: 'side', headerName: t('trades.columns.side'), width: 90 },
+      { field: 'tradeNumber', headerName: t('trades.columns.number'), width: 150, cellStyle: { fontWeight: 600 } },
+      {
+        field: 'side',
+        headerName: t('trades.columns.side'),
+        width: 90,
+        cellRenderer: (p: ICellRendererParams<Row>) => (p.data ? <SideLabel side={p.data.side} /> : null),
+      },
       {
         colId: 'product',
         headerName: t('trades.columns.product'),
@@ -88,8 +96,8 @@ export function ObligationsPanel({ entityId }: { entityId: string }) {
     [t, counterparties.byId],
   );
   return (
-    <Stack>
-      <Group align="flex-end">
+    <Stack gap="sm">
+      <Group align="flex-end" gap="sm">
         <TextInput
           label={t('trades.search')}
           placeholder={t('trades.ops.searchDeliveries')}
@@ -121,20 +129,35 @@ export function ObligationsPanel({ entityId }: { entityId: string }) {
           w={220}
         />
       </Group>
-      <QueryState isPending={obligations.isPending} error={obligations.error}>
-        <div data-testid="obligations-grid">
-          <DataGrid<Row>
-            rowData={rows}
-            columnDefs={columns}
-            rowId={(row) => row.scheduleId}
-            quickFilterText={text}
-            onRowClicked={(event) => {
-              if (event.data) void navigate(`/trades/${event.data.tradeId}`);
-            }}
-            overlayNoRowsTemplate={t('trades.ops.noObligations')}
-            height={560}
-          />
-        </div>
+      <QueryState isPending={false} error={obligations.error}>
+        {obligations.isPending ? (
+          <Paper withBorder radius="lg">
+            <TableSkeleton rows={10} />
+          </Paper>
+        ) : rows.length === 0 && !side && !family ? (
+          <Paper withBorder radius="lg">
+            <EmptyState
+              title={t('trades.ops.noObligations')}
+              description={t('trades.ops.noObligationsHint')}
+              testId="obligations-empty"
+            />
+          </Paper>
+        ) : (
+          <div data-testid="obligations-grid">
+            <DataGrid<Row>
+              rowData={rows}
+              columnDefs={columns}
+              rowId={(row) => row.scheduleId}
+              quickFilterText={text}
+              onRowClicked={(event) => {
+                if (event.data) void navigate(`/trades/${event.data.tradeId}`);
+              }}
+              rowStyle={{ cursor: 'pointer' }}
+              overlayNoRowsTemplate={t('trades.ops.noObligations')}
+              height={560}
+            />
+          </div>
+        )}
         <Text size="sm" c="dimmed">
           {t('trades.ops.obligationsShown', { count: rows.length })}
         </Text>

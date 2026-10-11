@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   asQueueView,
   instructionActions,
+  instructionSteps,
   lifecycle,
   queueStatuses,
   routeSummary,
@@ -83,5 +84,42 @@ describe('registry instructions', () => {
     const route = { fromRegistryCode: 'SIMULATOR', toRegistryCode: 'SIMULATOR', feasible: true } as Route;
     expect(routeSummary(route)).toEqual({ feasible: true, same: true });
     expect(routeSummary(undefined)).toBeNull();
+  });
+});
+
+describe('instruction steps', () => {
+  const label = (key: string) => key;
+  it('waits for approval with the later steps still to come', () => {
+    expect(instructionSteps(base, label).map((step) => [step.label, step.state])).toEqual([
+      ['submitted', 'current'],
+      ['approved', 'pending'],
+      ['sent', 'pending'],
+      ['confirmed', 'pending'],
+    ]);
+  });
+
+  it('ends a failed instruction with the registry error', () => {
+    const failed = {
+      ...base,
+      status: 'FAILED',
+      approvedBy: 'middle',
+      approvedAt: '2026-10-11T09:00:00Z',
+      sentAt: '2026-10-11T09:01:00Z',
+      lastError: 'Not on the trusted list',
+    } as Instruction;
+    const steps = instructionSteps(failed, label);
+    expect(steps.map((step) => [step.label, step.state])).toEqual([
+      ['submitted', 'done'],
+      ['approved', 'done'],
+      ['sent', 'done'],
+      ['failed', 'failed'],
+    ]);
+    expect(steps[3]?.detail).toBe('Not on the trusted list');
+    expect(steps[1]?.by).toBe('middle');
+  });
+
+  it('shows a confirmed instruction as done', () => {
+    const confirmed = { ...base, status: 'CONFIRMED', sentAt: '2026-10-11T09:01:00Z' } as Instruction;
+    expect(instructionSteps(confirmed, label).every((step) => step.state === 'done')).toBe(true);
   });
 });

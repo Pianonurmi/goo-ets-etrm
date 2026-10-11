@@ -55,6 +55,6 @@ test.describe('settlement', () => {
     await expect(page.getByTestId('invoice-paid')).toBeVisible();
 
     await switchPersona(page, 'trader');
-    await expect(page.getByRole('link', { name: 'Settlement' })).toHaveCount(0);
+    await expect(page.getByRole('navigation').getByRole('link', { name: 'Settlement' })).toHaveCount(0);
   });
 });

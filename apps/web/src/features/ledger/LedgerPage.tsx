@@ -1,11 +1,11 @@
 import {
   Alert,
   Anchor,
-  Badge,
   Button,
   Drawer,
   Group,
   Select,
+  SimpleGrid,
   Stack,
   Table,
   Tabs,
@@ -14,7 +14,7 @@ import {
   Textarea,
 } from '@mantine/core';
 import { IconPencil, IconPlus, IconRotate2, IconShieldCheck } from '@tabler/icons-react';
-import type { ColDef } from 'ag-grid-community';
+import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,10 +22,12 @@ import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { KpiCard } from '@/shared/components/KpiCard';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
@@ -42,12 +44,57 @@ const PAGE = 200;
 
 const amount = (value: number) => formatDecimal(value, 2, 2);
 
+/** Posted is done, a reversed entry is history, a reversal stands out as a correction. */
+const ENTRY_TONE: Record<Entry['status'], string> = {
+  POSTED: 'COMPLETED',
+  REVERSED: 'SUPERSEDED',
+  REVERSAL: 'WARNING',
+};
+
 export function EntryStatusBadge({ status }: { status: Entry['status'] }) {
-  const colors: Record<Entry['status'], string> = { POSTED: 'teal', REVERSED: 'gray', REVERSAL: 'orange' };
+  return <StatusBadge status={ENTRY_TONE[status]} label={statusLabel(status)} />;
+}
+
+function ActiveBadge({ active }: { active: boolean | undefined }) {
+  return <StatusBadge status={active ? 'ACTIVE' : 'INACTIVE'} />;
+}
+
+/** The open period and what blocks closing it, posting rules waiting for approval, and the chart of accounts. */
+function LedgerKpis({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const summary = $api.useQuery('get', '/api/v1/home/summary', { params: { query: { legalEntityId: entityId } } });
+  const changes = $api.useQuery('get', '/api/v1/ledger/rules/changes', { params: { query: { status: 'PENDING' } } });
+  const accounts = useAccounts(entityId);
+  const ledger = summary.data?.ledger;
+  const pending = changes.data?.length ?? 0;
   return (
-    <Badge color={colors[status]} variant="light">
-      {status}
-    </Badge>
+    <SimpleGrid cols={{ base: 1, xs: 2, lg: 3 }} spacing="md" data-testid="ledger-kpis">
+      <KpiCard
+        label={t('ledger.kpi.period')}
+        value={ledger?.period ?? '—'}
+        loading={summary.isPending}
+        trend={
+          ledger && `${statusLabel(ledger.status)} · ${t('ledger.kpi.blockers', { count: ledger.blockers.length })}`
+        }
+        trendTone={ledger && ledger.blockers.length > 0 ? 'warning' : 'neutral'}
+        to="/month-end"
+      />
+      <KpiCard
+        label={t('ledger.kpi.pendingRules')}
+        value={pending}
+        loading={changes.isPending}
+        trend={pending > 0 ? t('ledger.kpi.pendingRulesHint') : t('ledger.kpi.noPendingRules')}
+        trendTone={pending > 0 ? 'warning' : 'neutral'}
+        to="/ledger?tab=rules"
+      />
+      <KpiCard
+        label={t('ledger.kpi.accounts')}
+        value={(accounts.data ?? []).filter((account) => account.active).length}
+        loading={accounts.isPending}
+        trend={t('ledger.kpi.accountsHint')}
+        to="/ledger?tab=accounts"
+      />
+    </SimpleGrid>
   );
 }
 
@@ -259,7 +306,12 @@ function EntriesTab({ entityId }: { entityId: string }) {
         valueFormatter: (p) => amount(p.value as number),
       },
       { field: 'currency', headerName: t('trades.form.currency'), width: 90 },
-      { field: 'status', headerName: t('allocation.status'), width: 110 },
+      {
+        field: 'status',
+        headerName: t('allocation.status'),
+        width: 130,
+        cellRenderer: (p: ICellRendererParams<Entry>) => p.data && <EntryStatusBadge status={p.data.status} />,
+      },
       { field: 'sourceRef', headerName: t('ledger.source'), width: 150 },
     ],
     [t],
@@ -414,7 +466,12 @@ function AccountsTab({ entityId }: { entityId: string }) {
       { field: 'name', headerName: t('ledger.accountName'), flex: 1, minWidth: 240 },
       { field: 'type', headerName: t('ledger.type'), width: 130 },
       { field: 'glMapping', headerName: t('ledger.glMapping'), width: 140 },
-      { field: 'active', headerName: t('marketData.active'), width: 100 },
+      {
+        field: 'active',
+        headerName: t('marketData.active'),
+        width: 120,
+        cellRenderer: (p: ICellRendererParams<Account>) => p.data && <ActiveBadge active={p.data.active} />,
+      },
     ],
     [t],
   );
@@ -494,7 +551,12 @@ function RulesTab({ entityId }: { entityId: string }) {
         valueGetter: (p) =>
           p.data?.lines.map((line) => `${line.side === 'DEBIT' ? 'Dr' : 'Cr'} ${line.account}`).join(', '),
       },
-      { field: 'active', headerName: t('marketData.active'), width: 90 },
+      {
+        field: 'active',
+        headerName: t('marketData.active'),
+        width: 120,
+        cellRenderer: (p: ICellRendererParams<Rule>) => p.data && <ActiveBadge active={p.data.active} />,
+      },
     ],
     [t],
   );
@@ -560,30 +622,33 @@ export function LedgerPage() {
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
-        <Tabs
-          value={tab}
-          onChange={(value) => setParams(value && value !== 'entries' ? { tab: value } : {}, { replace: true })}
-          keepMounted={false}
-        >
-          <Tabs.List>
-            <Tabs.Tab value="entries">{t('ledger.tabs.entries')}</Tabs.Tab>
-            <Tabs.Tab value="trial-balance">{t('ledger.tabs.trialBalance')}</Tabs.Tab>
-            <Tabs.Tab value="accounts">{t('ledger.tabs.accounts')}</Tabs.Tab>
-            <Tabs.Tab value="rules">{t('ledger.tabs.rules')}</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="entries" pt="md">
-            <EntriesTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="trial-balance" pt="md">
-            <TrialBalanceTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="accounts" pt="md">
-            <AccountsTab entityId={entity.id} />
-          </Tabs.Panel>
-          <Tabs.Panel value="rules" pt="md">
-            <RulesTab entityId={entity.id} />
-          </Tabs.Panel>
-        </Tabs>
+        <>
+          <LedgerKpis entityId={entity.id} />
+          <Tabs
+            value={tab}
+            onChange={(value) => setParams(value && value !== 'entries' ? { tab: value } : {}, { replace: true })}
+            keepMounted={false}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="entries">{t('ledger.tabs.entries')}</Tabs.Tab>
+              <Tabs.Tab value="trial-balance">{t('ledger.tabs.trialBalance')}</Tabs.Tab>
+              <Tabs.Tab value="accounts">{t('ledger.tabs.accounts')}</Tabs.Tab>
+              <Tabs.Tab value="rules">{t('ledger.tabs.rules')}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="entries" pt="md">
+              <EntriesTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="trial-balance" pt="md">
+              <TrialBalanceTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="accounts" pt="md">
+              <AccountsTab entityId={entity.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="rules" pt="md">
+              <RulesTab entityId={entity.id} />
+            </Tabs.Panel>
+          </Tabs>
+        </>
       )}
     </Stack>
   );

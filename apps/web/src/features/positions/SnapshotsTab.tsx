@@ -1,5 +1,5 @@
 import { LineChart } from '@mantine/charts';
-import { Button, Card, Group, SegmentedControl, Stack, Table, TextInput, Title } from '@mantine/core';
+import { Button, Group, Paper, SegmentedControl, Stack, Table, TextInput, Title } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -85,21 +85,21 @@ export function SnapshotsTab({ entityId }: { entityId: string }) {
         ) : (
           <Stack>
             {series.length > 1 && headings[0] && (
-              <Card withBorder>
-                <Title order={5} mb="sm">
+              <Paper withBorder radius="lg" p="lg">
+                <Title order={3} size="h5" mb="sm">
                   {t(headings[0].label)} ({headings[0].unit})
                 </Title>
                 <LineChart
                   h={220}
                   data={series}
                   dataKey="date"
-                  series={[{ name: 'value', label: t(headings[0].label), color: 'teal.6' }]}
+                  series={[{ name: 'value', label: t(headings[0].label), color: 'brand.6' }]}
                   curveType="linear"
                   data-testid="snapshot-chart"
                 />
-              </Card>
+              </Paper>
             )}
-            <Table withTableBorder striped data-testid="snapshots-table">
+            <Table withTableBorder highlightOnHover data-testid="snapshots-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{t('positions.asOf')}</Table.Th>

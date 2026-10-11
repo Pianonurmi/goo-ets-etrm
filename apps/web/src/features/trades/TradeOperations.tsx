@@ -100,7 +100,6 @@ export function SettleButton({ trade }: { trade: Trade }) {
   if (!allowed || !canSettle(trade)) return null;
   return (
     <Button
-      color="teal"
       loading={settle.isPending}
       onClick={() => settle.mutate({ params: { path: { id: trade.id } } })}
       data-testid="settle-trade"

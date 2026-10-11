@@ -26,8 +26,8 @@ import { QueryState } from '@/shared/components/QueryState';
 import { formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useInvalidateSettlement } from './hooks';
-import { VAT_RULE_STATUS_COLORS, type VatRule } from './model/payments';
-import { StatusBadge } from './SettlementPage';
+import type { VatRule } from './model/payments';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 
 type Scope = Schema<'ProposeVatRule'>['scope'];
 type Treatment = Schema<'ProposeVatRule'>['treatment'];
@@ -292,7 +292,10 @@ export function VatRulesTab() {
         headerName: t('allocation.status'),
         width: 130,
         cellRenderer: (p: ICellRendererParams<VatRule>) =>
-          p.data && <StatusBadge label={p.data.status} color={VAT_RULE_STATUS_COLORS[p.data.status]} />,
+          // Upper case as before: the end-to-end test finds the proposed rule's row by "DRAFT".
+          p.data && (
+            <StatusBadge status={p.data.status === 'DRAFT' ? 'PENDING' : p.data.status} label={p.data.status} />
+          ),
       },
       { field: 'description', headerName: t('settlement.ruleDescription'), flex: 1, minWidth: 260 },
       {

@@ -1,20 +1,9 @@
 import type { Schema } from '@/shared/api/types';
+import type { LifecycleStep as TimelineStep } from '@/shared/components/LifecycleTimeline';
 
 export type Instruction = Schema<'RegistryInstructionView'>;
 export type InstructionStatus = Instruction['status'];
 export type Route = Schema<'TransferRoute'>;
-
-export const STATUS_COLORS: Record<InstructionStatus, string> = {
-  PENDING_APPROVAL: 'yellow',
-  PENDING: 'blue',
-  DISPATCHING: 'blue',
-  SENT: 'indigo',
-  UNKNOWN: 'orange',
-  ACKNOWLEDGED: 'indigo',
-  CONFIRMED: 'teal',
-  FAILED: 'red',
-  CANCELLED: 'gray',
-};
 
 /** Queue views, each a set of statuses for the search endpoint. */
 export const QUEUE_VIEWS = ['open', 'attention', 'done', 'all'] as const;
@@ -93,6 +82,31 @@ export function lifecycle(instruction: Instruction): LifecycleStep[] {
       done: instruction.status === 'CONFIRMED',
     });
   return steps;
+}
+
+/**
+ * The lifecycle for the timeline: the steps passed, the step the instruction waits in, and the steps still to come
+ * (submitted → approved → sent → confirmed); a failed or cancelled instruction ends in a failed step with the reason.
+ */
+export function instructionSteps(
+  instruction: Instruction,
+  label: (key: LifecycleStep['key']) => string,
+): TimelineStep[] {
+  const steps = lifecycle(instruction);
+  const ended = instruction.status === 'FAILED' || instruction.status === 'CANCELLED';
+  if (!ended && !instruction.sentAt) steps.splice(steps.length - 1, 0, { key: 'sent', done: false });
+  const last = steps.reduce((reached, step, index) => (step.done ? index : reached), -1);
+  return steps.map((step, index): TimelineStep => {
+    const failed = step.key === 'failed' || step.key === 'cancelled';
+    const current = !ended && index === last && step.key !== 'confirmed';
+    return {
+      label: label(step.key),
+      state: failed ? 'failed' : !step.done ? 'pending' : current ? 'current' : 'done',
+      at: step.done && !failed ? step.at : null,
+      by: step.done && !failed ? step.by : null,
+      detail: failed ? instruction.lastError : undefined,
+    };
+  });
 }
 
 /** What an instruction moves: certificates of a lot (with their range) or allowances. */

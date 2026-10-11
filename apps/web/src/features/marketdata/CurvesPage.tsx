@@ -1,12 +1,10 @@
 import { LineChart } from '@mantine/charts';
 import {
   Alert,
-  Anchor,
-  Badge,
   Button,
-  Card,
   Group,
   Modal,
+  Paper,
   Select,
   SimpleGrid,
   Stack,
@@ -15,7 +13,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconArrowLeft, IconHammer, IconInbox, IconPlus } from '@tabler/icons-react';
+import { IconChartLine, IconHammer, IconInbox, IconPlus, IconSend } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
@@ -24,26 +22,21 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
+import { DetailLayout } from '@/shared/components/DetailLayout';
+import { EmptyState } from '@/shared/components/EmptyState';
+import { LifecycleTimeline } from '@/shared/components/LifecycleTimeline';
 import { notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
-import { formatDateTime, formatDecimal } from '@/shared/format/format';
+import { CardSkeleton, TableSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge } from '@/shared/components/StatusBadge';
+import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { CreateCurveModal, OfficialCurve, PriceLookupPanel } from './CurveTools';
+import { signOffSteps } from './model/lifecycle';
 
 export function SnapshotStatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    DRAFT: 'gray',
-    PENDING_SIGN_OFF: 'yellow',
-    OFFICIAL: 'teal',
-    SUPERSEDED: 'gray',
-    REJECTED: 'red',
-  };
-  return (
-    <Badge color={colors[status] ?? 'gray'} variant="light" data-testid="snapshot-status">
-      {status.replace(/_/g, ' ')}
-    </Badge>
-  );
+  return <StatusBadge status={status} data-testid="snapshot-status" />;
 }
 
 function useRefreshCurves() {
@@ -83,6 +76,19 @@ export function CurvesPage() {
     next.set(key, value);
     setParams(next, { replace: true });
   };
+  const buildButton = (
+    <Can op="curve_build">
+      <Button
+        leftSection={<IconHammer size={16} />}
+        disabled={!code}
+        loading={build.isPending}
+        onClick={() => build.mutate({ params: { path: { code } }, body: { asOf } })}
+        data-testid="build-snapshot"
+      >
+        {t('curves.build')}
+      </Button>
+    </Can>
+  );
   return (
     <Stack>
       <PageHeader
@@ -119,67 +125,69 @@ export function CurvesPage() {
           value={asOf}
           onChange={(e) => set('asOf', e.currentTarget.value)}
         />
-        <Can op="curve_build">
-          <Button
-            leftSection={<IconHammer size={16} />}
-            disabled={!code}
-            loading={build.isPending}
-            onClick={() => build.mutate({ params: { path: { code } }, body: { asOf } })}
-            data-testid="build-snapshot"
-          >
-            {t('curves.build')}
-          </Button>
-        </Can>
+        {buildButton}
       </Group>
       <ProblemAlert error={build.error} />
-      <QueryState isPending={snapshots.isPending && Boolean(code)} error={snapshots.error}>
-        {(snapshots.data ?? []).length === 0 ? (
-          <Text c="dimmed" size="sm">
-            {t('curves.noSnapshots')}
-          </Text>
-        ) : (
-          <Table withTableBorder striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('curves.version')}</Table.Th>
-                <Table.Th>{t('allocation.status')}</Table.Th>
-                <Table.Th>{t('curves.points')}</Table.Th>
-                <Table.Th>{t('curves.gaps')}</Table.Th>
-                <Table.Th>{t('curves.builtBy')}</Table.Th>
-                <Table.Th>{t('curves.signedOffBy')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(snapshots.data ?? []).map((snapshot) => (
-                <Table.Tr
-                  key={snapshot.id}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => void navigate(`/market-data/snapshots/${snapshot.id}`)}
-                >
-                  <Table.Td>v{snapshot.version}</Table.Td>
-                  <Table.Td>
-                    <SnapshotStatusBadge status={snapshot.status} />
-                  </Table.Td>
-                  <Table.Td>{snapshot.points.length}</Table.Td>
-                  <Table.Td>{snapshot.gaps.length}</Table.Td>
-                  <Table.Td>
-                    {snapshot.builtBy} · {formatDateTime(snapshot.builtAt)}
-                  </Table.Td>
-                  <Table.Td>
-                    {snapshot.signedOffBy ? `${snapshot.signedOffBy} · ${formatDateTime(snapshot.signedOffAt)}` : '—'}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
-      </QueryState>
       {curves.data && (
         <SimpleGrid cols={{ base: 1, lg: 2 }}>
           <OfficialCurve code={code} asOf={asOf} />
           <PriceLookupPanel curves={curves.data} asOf={asOf} />
         </SimpleGrid>
       )}
+      <Paper withBorder radius="lg" p="lg">
+        <Title order={3} size="h5" mb="sm">
+          {t('curves.snapshotsOn', { code, date: formatDate(asOf) })}
+        </Title>
+        <QueryState isPending={false} error={snapshots.error}>
+          {snapshots.isPending && Boolean(code) ? (
+            <TableSkeleton rows={2} />
+          ) : (snapshots.data ?? []).length === 0 ? (
+            <EmptyState
+              icon={<IconChartLine size={22} />}
+              title={t('curves.noSnapshots')}
+              description={t('curves.noSnapshotsHint')}
+              testId="snapshots-none"
+            />
+          ) : (
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('curves.version')}</Table.Th>
+                  <Table.Th>{t('allocation.status')}</Table.Th>
+                  <Table.Th ta="right">{t('curves.points')}</Table.Th>
+                  <Table.Th ta="right">{t('curves.gaps')}</Table.Th>
+                  <Table.Th>{t('curves.builtBy')}</Table.Th>
+                  <Table.Th>{t('curves.signedOffBy')}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody className="etrm-figure">
+                {(snapshots.data ?? []).map((snapshot) => (
+                  <Table.Tr
+                    key={snapshot.id}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => void navigate(`/market-data/snapshots/${snapshot.id}`)}
+                  >
+                    <Table.Td>v{snapshot.version}</Table.Td>
+                    <Table.Td>
+                      <SnapshotStatusBadge status={snapshot.status} />
+                    </Table.Td>
+                    <Table.Td ta="right">{snapshot.points.length}</Table.Td>
+                    <Table.Td ta="right" c={snapshot.gaps.length > 0 ? 'orange' : undefined}>
+                      {snapshot.gaps.length}
+                    </Table.Td>
+                    <Table.Td>
+                      {snapshot.builtBy} · {formatDateTime(snapshot.builtAt)}
+                    </Table.Td>
+                    <Table.Td>
+                      {snapshot.signedOffBy ? `${snapshot.signedOffBy} · ${formatDateTime(snapshot.signedOffAt)}` : '—'}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </QueryState>
+      </Paper>
       {creating && (
         <CreateCurveModal
           curves={curves.data ?? []}
@@ -194,7 +202,7 @@ export function CurvesPage() {
   );
 }
 
-/** One snapshot: its points as a chart and table, overrides with a note, submission for sign-off. */
+/** One snapshot: its shape and points, overrides with a note, submission for sign-off, and its lifecycle. */
 export function SnapshotPage() {
   const { t } = useTranslation();
   const { snapshotId = '' } = useParams();
@@ -224,126 +232,151 @@ export function SnapshotPage() {
     },
   });
   const path = { params: { path: { id: snapshotId } } };
+  const data = snapshot.data;
+  const breadcrumbs = [
+    { label: t('marketData.title'), to: '/market-data' },
+    {
+      label: t('curves.title'),
+      to: data ? `/market-data/curves?curve=${data.curveCode}&asOf=${data.asOfDate}` : '/market-data/curves',
+    },
+  ];
+  if (!data) {
+    return (
+      <Stack gap={0}>
+        <PageHeader breadcrumbs={breadcrumbs} title={t('curves.snapshot')} />
+        <QueryState isPending={false} error={snapshot.error}>
+          <CardSkeleton height={320} />
+        </QueryState>
+      </Stack>
+    );
+  }
+  const signOffTask = task.data?.items[0];
   return (
-    <Stack>
-      <Anchor component={Link} to="/market-data/curves" size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('curves.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={snapshot.isPending} error={snapshot.error}>
-        {snapshot.data && (
-          <Stack>
-            <Card withBorder>
-              <Group justify="space-between" align="flex-start">
-                <Stack gap={2}>
-                  <Group gap="xs">
-                    <Title order={3}>
-                      {snapshot.data.curveCode} {snapshot.data.asOfDate}
-                    </Title>
-                    <SnapshotStatusBadge status={snapshot.data.status} />
-                    <Badge variant="outline" color="gray">
-                      v{snapshot.data.version}
-                    </Badge>
-                  </Group>
-                  <Text size="sm" c="dimmed">
-                    {snapshot.data.kind} · {snapshot.data.currency}
-                  </Text>
-                </Stack>
-                <Group>
-                  {task.data?.items[0] && (
-                    <Button
-                      component={Link}
-                      to={`/inbox/${task.data.items[0].id}`}
-                      variant="light"
-                      leftSection={<IconInbox size={16} />}
-                      data-testid="sign-off-task"
-                    >
-                      {t('curves.signOffTask')}
-                    </Button>
-                  )}
-                  {snapshot.data.status === 'DRAFT' && (
-                    <Can op="curve_submit">
-                      <Button
-                        loading={submit.isPending}
-                        onClick={() => submit.mutate(path)}
-                        data-testid="submit-snapshot"
-                      >
-                        {t('curves.submit')}
-                      </Button>
-                    </Can>
-                  )}
-                </Group>
-              </Group>
-              <SimpleGrid cols={{ base: 2, md: 4 }} mt="md">
-                <Text size="sm">
-                  {t('curves.builtByWho', { who: snapshot.data.builtBy, at: formatDateTime(snapshot.data.builtAt) })}
-                </Text>
-                <Text size="sm">
-                  {snapshot.data.signedOffBy
-                    ? t('curves.signedOffByWho', {
-                        who: snapshot.data.signedOffBy,
-                        at: formatDateTime(snapshot.data.signedOffAt),
-                      })
-                    : t('curves.notSignedOff')}
-                </Text>
-                <Text size="sm" ff="monospace" truncate>
-                  {snapshot.data.inputsHash.slice(0, 16)}
-                </Text>
-              </SimpleGrid>
-              {snapshot.data.gaps.length > 0 && (
-                <Alert color="orange" mt="md" title={t('curves.gaps')}>
-                  {snapshot.data.gaps.join('; ')}
-                </Alert>
-              )}
-            </Card>
-            {snapshot.data.points.length > 1 && (
-              <Card withBorder>
-                <LineChart
-                  h={240}
-                  data={snapshot.data.points.map((point) => ({ pillar: point.pillar, price: point.price }))}
-                  dataKey="pillar"
-                  series={[{ name: 'price', label: snapshot.data.currency, color: 'teal.6' }]}
-                  curveType="linear"
-                />
-              </Card>
+    <Stack gap={0}>
+      <PageHeader
+        breadcrumbs={breadcrumbs}
+        title={`${data.curveCode} · ${formatDate(data.asOfDate)}`}
+        badge={
+          <Group gap={6} wrap="nowrap">
+            <SnapshotStatusBadge status={data.status} />
+            <StatusBadge status="VERSION" label={`v${data.version}`} />
+          </Group>
+        }
+        description={`${t(`curves.kinds.${data.kind}`)} · ${data.currency}`}
+        actions={
+          <>
+            {signOffTask && (
+              <Button
+                component={Link}
+                to={`/inbox/${signOffTask.id}`}
+                variant={data.status === 'DRAFT' ? 'default' : 'filled'}
+                leftSection={<IconInbox size={16} />}
+                data-testid="sign-off-task"
+              >
+                {t('curves.signOffTask')}
+              </Button>
             )}
-            <Table withTableBorder striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t('curves.pillar')}</Table.Th>
-                  <Table.Th ta="right">{t('trades.columns.price')}</Table.Th>
-                  <Table.Th>{t('curves.origin')}</Table.Th>
-                  <Table.Th>{t('marketData.note')}</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {snapshot.data.points.map((point) => (
-                  <Table.Tr key={point.pillar}>
-                    <Table.Td>{point.pillar}</Table.Td>
-                    <Table.Td ta="right">{formatDecimal(point.price, 2, 6)}</Table.Td>
-                    <Table.Td>{point.origin}</Table.Td>
-                    <Table.Td>{point.note}</Table.Td>
-                    <Table.Td>
-                      {canOverride && snapshot.data.status === 'DRAFT' && (
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setOverride({ pillar: point.pillar, price: String(point.price), note: '' })}
-                        >
-                          {t('curves.override')}
-                        </Button>
-                      )}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Stack>
+            {data.status === 'DRAFT' && (
+              <Can op="curve_submit">
+                <Button
+                  leftSection={<IconSend size={16} />}
+                  loading={submit.isPending}
+                  onClick={() => submit.mutate(path)}
+                  data-testid="submit-snapshot"
+                >
+                  {t('curves.submit')}
+                </Button>
+              </Can>
+            )}
+          </>
+        }
+      />
+      <DetailLayout
+        summary={[
+          { label: t('curves.points'), value: data.points.length },
+          { label: t('curves.gaps'), value: data.gaps.length },
+          { label: t('marketData.currency'), value: data.currency },
+          {
+            label: t('curves.inputsHash'),
+            value: (
+              <Text component="span" ff="monospace" size="sm" title={data.inputsHash}>
+                {data.inputsHash.slice(0, 16)}
+              </Text>
+            ),
+          },
+        ]}
+        aside={
+          <LifecycleTimeline
+            title={t('curves.lifecycle.title')}
+            steps={signOffSteps(data, t)}
+            testId="snapshot-lifecycle"
+          />
+        }
+      >
+        {data.gaps.length > 0 && (
+          <Alert color="orange" title={t('curves.gaps')}>
+            {data.gaps.join('; ')}
+          </Alert>
         )}
-      </QueryState>
+        {data.note && (
+          <Text size="sm" c="dimmed">
+            {data.note}
+          </Text>
+        )}
+        {data.points.length > 1 && (
+          <Paper withBorder radius="lg" p="lg">
+            <Title order={3} size="h5" mb="sm">
+              {t('curves.shape')}
+            </Title>
+            <LineChart
+              h={220}
+              data={data.points.map((point) => ({ pillar: point.pillar, price: point.price }))}
+              dataKey="pillar"
+              series={[{ name: 'price', label: data.currency, color: 'brand.6' }]}
+              curveType="monotone"
+              yAxisProps={{ domain: ['auto', 'auto'] }}
+              valueFormatter={(value) => formatDecimal(value, 2, 4)}
+            />
+          </Paper>
+        )}
+        <Paper withBorder radius="lg" p="lg">
+          <Title order={3} size="h5" mb="sm">
+            {t('curves.pillars')}
+          </Title>
+          <Table verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('curves.pillar')}</Table.Th>
+                <Table.Th ta="right">{t('trades.columns.price')}</Table.Th>
+                <Table.Th>{t('curves.origin')}</Table.Th>
+                <Table.Th>{t('marketData.note')}</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody className="etrm-figure">
+              {data.points.map((point) => (
+                <Table.Tr key={point.pillar}>
+                  <Table.Td>{point.pillar}</Table.Td>
+                  <Table.Td ta="right">{formatDecimal(point.price, 2, 6)}</Table.Td>
+                  <Table.Td c="dimmed">{point.origin}</Table.Td>
+                  <Table.Td>{point.note}</Table.Td>
+                  <Table.Td ta="right">
+                    {canOverride && data.status === 'DRAFT' && (
+                      <Button
+                        size="compact-sm"
+                        variant="subtle"
+                        onClick={() => setOverride({ pillar: point.pillar, price: String(point.price), note: '' })}
+                      >
+                        {t('curves.override')}
+                      </Button>
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Paper>
+      </DetailLayout>
       <Modal
         opened={override !== null}
         onClose={() => setOverride(null)}

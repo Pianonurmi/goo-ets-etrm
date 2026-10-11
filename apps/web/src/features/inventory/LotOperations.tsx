@@ -1,11 +1,11 @@
 import {
   Button,
-  Card,
   Checkbox,
   Group,
   Modal,
   MultiSelect,
   NumberInput,
+  Paper,
   Select,
   Stack,
   Text,
@@ -54,7 +54,8 @@ const TEST_IDS: Record<LotAction, string> = {
   withdraw: 'withdraw',
 };
 
-const COLORS: Partial<Record<LotAction, string>> = { cancel: 'violet', withdraw: 'orange' };
+/** Removing certificates from our books is the quiet, red end of the list; the transfer leads. */
+const DESTRUCTIVE: ReadonlySet<LotAction> = new Set(['cancel', 'withdraw']);
 
 export function useRefreshInventory() {
   const queryClient = useQueryClient();
@@ -447,9 +448,9 @@ export function LotActions({ lot }: { lot: Lot }) {
   const button = (action: LotAction) => (
     <Button
       key={action}
-      variant="light"
+      variant={action === 'transfer' ? 'filled' : DESTRUCTIVE.has(action) ? 'subtle' : 'default'}
       size="xs"
-      color={COLORS[action]}
+      color={DESTRUCTIVE.has(action) ? 'red' : undefined}
       onClick={() => setOpen(action)}
       data-testid={TEST_IDS[action]}
     >
@@ -459,8 +460,8 @@ export function LotActions({ lot }: { lot: Lot }) {
   const registry = actions.filter((action) => REGISTRY_ACTIONS.has(action));
   const books = actions.filter((action) => !REGISTRY_ACTIONS.has(action));
   return (
-    <Card withBorder data-testid="lot-actions">
-      <Title order={5} mb="sm">
+    <Paper withBorder radius="lg" p="md" data-testid="lot-actions">
+      <Title order={3} size="h6" mb="sm">
         {t('inventory.actions')}
       </Title>
       <Stack gap="sm">
@@ -489,6 +490,6 @@ export function LotActions({ lot }: { lot: Lot }) {
       {open === 'correct' && <CorrectModal lot={lot} onClose={close} />}
       {open === 'cancel' && <BookCancelModal lot={lot} onClose={close} />}
       {open === 'withdraw' && <WithdrawModal lot={lot} onClose={close} />}
-    </Card>
+    </Paper>
   );
 }

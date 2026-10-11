@@ -14,8 +14,8 @@ import { formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useCounterparties } from '@/features/trades/hooks';
 import { useInvalidateSettlement } from './hooks';
-import { NETTING_STATUS_COLORS, type Netting } from './model/payments';
-import { StatusBadge } from './SettlementPage';
+import type { Netting } from './model/payments';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 
 /** Nets the issued, unpaid invoices with a counterparty we have a netting agreement with. */
 function PrepareNettingModal({ entityId, onClose }: { entityId: string; onClose: () => void }) {
@@ -104,8 +104,7 @@ export function NettingTab({ entityId }: { entityId: string }) {
         field: 'status',
         headerName: t('allocation.status'),
         width: 140,
-        cellRenderer: (p: ICellRendererParams<Netting>) =>
-          p.data && <StatusBadge label={p.data.status} color={NETTING_STATUS_COLORS[p.data.status]} />,
+        cellRenderer: (p: ICellRendererParams<Netting>) => p.data && <StatusBadge status={p.data.status} />,
       },
       { field: 'valueDate', headerName: t('settlement.valueDate'), width: 120 },
       {

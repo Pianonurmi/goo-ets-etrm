@@ -1,28 +1,18 @@
-import { Alert, Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
-import { IconArrowLeft, IconFileTypePdf, IconInbox } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import { Alert, Anchor, Badge, Button, Group, Paper, Stack, Table, Text, Title } from '@mantine/core';
+import { IconAlertTriangle, IconFileTypePdf, IconInbox } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
+import { ScrollTable } from '@/shared/components/ScrollTable';
+import { DetailLayout } from '@/shared/components/DetailLayout';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
+import { CardSkeleton } from '@/shared/components/Skeletons';
 import { formatDate, formatDateTime } from '@/shared/format/format';
 import { useCounterparties } from '@/features/trades/hooks';
 import { ConfirmationStatusBadge } from './ConfirmationsPage';
-import { headerDifferences, oursFor, termRows } from './model/confirmations';
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" component="div">
-        {children}
-      </Text>
-    </Stack>
-  );
-}
+import { differenceFields, headerDifferences, oursFor, termRows } from './model/confirmations';
 
 /** One confirmation: its terms against ours field by field, the matcher's verdict, and the break task. */
 export function ConfirmationDetailPage() {
@@ -48,133 +38,161 @@ export function ConfirmationDetailPage() {
   const theirs = data?.direction === 'THEIRS';
   const ours = data && theirs ? oursFor(data, all.data ?? []) : data;
   const rows = data ? termRows(theirs ? ours?.terms : undefined, data.terms, data.differences) : [];
+  const breakTask = task.data?.items[0];
+  if (!data) {
+    return (
+      <QueryState isPending={false} error={confirmation.error}>
+        <Stack gap="lg">
+          <CardSkeleton height={90} />
+          <CardSkeleton height={320} />
+        </Stack>
+      </QueryState>
+    );
+  }
+  const counterparty = data.counterpartyId ? (counterparties.byId.get(data.counterpartyId)?.name ?? '') : '';
+  const title = data.reference ?? data.tradeNumber;
+  const differing = differenceFields(data.differences).length;
   return (
-    <Stack>
-      <Anchor component={Link} to="/confirmations" size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('confirmations.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={confirmation.isPending} error={confirmation.error}>
-        {data && (
+    <Stack gap="lg">
+      <PageHeader
+        breadcrumbs={[{ label: t('confirmations.title'), to: '/confirmations' }, { label: title }]}
+        title={title}
+        badge={
+          <Group gap={6} wrap="nowrap">
+            <ConfirmationStatusBadge status={data.status} testId="confirmation-status" />
+            <Badge variant="default" radius="xl" tt="none">
+              {t(`confirmations.directions.${data.direction}`)}
+            </Badge>
+          </Group>
+        }
+        description={
           <>
-            <Card withBorder>
-              <Group justify="space-between" align="flex-start">
-                <Stack gap={4}>
-                  <Group gap="xs">
-                    <Title order={3}>{data.reference ?? data.tradeNumber}</Title>
-                    <ConfirmationStatusBadge status={data.status} testId="confirmation-status" />
-                    <Badge variant="outline" color="gray">
-                      {t(`confirmations.directions.${data.direction}`)}
-                    </Badge>
-                  </Group>
-                  <Text size="sm" c="dimmed">
-                    <Anchor
-                      component={Link}
-                      to={`/trades/${data.tradeId}`}
-                      size="sm"
-                      underline="always"
-                      data-testid="confirmation-trade"
-                    >
-                      {data.tradeNumber}
-                    </Anchor>{' '}
-                    · v{data.tradeVersion} ·{' '}
-                    {data.counterpartyId ? (counterparties.byId.get(data.counterpartyId)?.name ?? '') : ''}
-                  </Text>
-                </Stack>
-                <Group gap="xs">
-                  {task.data?.items[0] && (
-                    <Button
-                      component={Link}
-                      to={`/inbox/${task.data.items[0].id}`}
-                      variant="light"
-                      leftSection={<IconInbox size={16} />}
-                      data-testid="confirmation-task"
-                    >
-                      {t('confirmations.breakTask')}
-                    </Button>
-                  )}
-                  {ours?.documentId && (
-                    <Button
-                      variant="light"
-                      leftSection={<IconFileTypePdf size={16} />}
-                      onClick={() =>
-                        void download(`/api/v1/documents/${ours.documentId}/content`, `${data.tradeNumber}.pdf`)
-                      }
-                    >
-                      {t('confirmations.ourPdf')}
-                    </Button>
-                  )}
-                </Group>
-              </Group>
-              {data.status === 'MISMATCHED' && (
-                <Alert color="red" mt="md" data-testid="confirmation-mismatch">
-                  {t('confirmations.mismatchHint')}
-                </Alert>
-              )}
-              <SimpleGrid cols={{ base: 2, md: 4 }} mt="md">
-                <Field label={t('confirmations.tradeDate')}>{formatDate(data.terms.tradeDate)}</Field>
-                <Field label={t('confirmations.source')}>{data.source}</Field>
-                <Field label={t('confirmations.receivedBy')}>
-                  {data.createdBy} · {formatDateTime(data.createdAt)}
-                </Field>
-                <Field label={t('confirmations.decidedBy')}>
-                  {data.decidedBy ? `${data.decidedBy}${data.note ? `: ${data.note}` : ''}` : '—'}
-                </Field>
-              </SimpleGrid>
-            </Card>
-            {headerDifferences(data.differences).length > 0 && (
-              <Alert color="orange">
-                {headerDifferences(data.differences)
-                  .map((difference) => `${difference.field}: ${difference.ours ?? '—'} / ${difference.theirs ?? '—'}`)
-                  .join(' · ')}
-              </Alert>
+            <Anchor component={Link} to={`/trades/${data.tradeId}`} size="sm" fw={600} data-testid="confirmation-trade">
+              {data.tradeNumber}
+            </Anchor>
+            {` · ${t('confirmations.tradeVersion', { version: data.tradeVersion })}${counterparty ? ` · ${counterparty}` : ''}`}
+          </>
+        }
+        actions={
+          <>
+            {ours?.documentId && (
+              <Button
+                variant="default"
+                leftSection={<IconFileTypePdf size={16} />}
+                onClick={() => void download(`/api/v1/documents/${ours.documentId}/content`, `${data.tradeNumber}.pdf`)}
+              >
+                {t('confirmations.ourPdf')}
+              </Button>
             )}
-            <Card withBorder>
-              <Title order={5} mb="sm">
-                {theirs ? t('confirmations.comparison') : t('confirmations.terms')}
-              </Title>
-              <Table striped data-testid="confirmation-terms">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>{t('confirmations.field')}</Table.Th>
-                    {theirs && <Table.Th>{t('confirmations.ours')}</Table.Th>}
-                    <Table.Th>{theirs ? t('confirmations.theirs') : t('confirmations.value')}</Table.Th>
-                    {theirs && <Table.Th />}
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {rows.map((row) => (
-                    <Table.Tr key={row.key} data-testid={`term-${row.key}`}>
-                      <Table.Td>{t(`confirmations.fields.${row.key}`, { defaultValue: row.key })}</Table.Td>
-                      {theirs && <Table.Td>{row.ours}</Table.Td>}
+            {breakTask && (
+              <Button
+                component={Link}
+                to={`/inbox/${breakTask.id}`}
+                leftSection={<IconInbox size={16} />}
+                data-testid="confirmation-task"
+              >
+                {t('confirmations.breakTask')}
+              </Button>
+            )}
+          </>
+        }
+      />
+      <DetailLayout
+        summary={[
+          {
+            label: t('confirmations.differences'),
+            value: (
+              <Text span size="sm" fw={600} c={differing > 0 ? 'red' : 'teal'}>
+                {differing > 0 ? t('confirmations.fieldsDiffer', { count: differing }) : t('confirmations.allMatch')}
+              </Text>
+            ),
+          },
+          { label: t('confirmations.tradeDate'), value: formatDate(data.terms.tradeDate) },
+          {
+            label: t('confirmations.source'),
+            value: t(`trades.sources.${data.source}`, { defaultValue: data.source }),
+          },
+          { label: t('confirmations.receivedBy'), value: `${data.createdBy} · ${formatDateTime(data.createdAt)}` },
+          {
+            label: t('confirmations.decidedBy'),
+            value: data.decidedBy ? `${data.decidedBy}${data.note ? `: ${data.note}` : ''}` : '—',
+          },
+        ]}
+      >
+        {data.status === 'MISMATCHED' && (
+          <Alert color="red" icon={<IconAlertTriangle size={18} />} data-testid="confirmation-mismatch">
+            {t('confirmations.mismatchHint')}
+          </Alert>
+        )}
+        {headerDifferences(data.differences).length > 0 && (
+          <Alert color="orange">
+            {headerDifferences(data.differences)
+              .map((difference) => `${difference.field}: ${difference.ours ?? '—'} / ${difference.theirs ?? '—'}`)
+              .join(' · ')}
+          </Alert>
+        )}
+        <Paper withBorder radius="lg" p="lg">
+          <Title order={3} size="h5" mb={4}>
+            {theirs ? t('confirmations.comparison') : t('confirmations.terms')}
+          </Title>
+          <Text size="sm" c="dimmed" mb="md">
+            {theirs ? t('confirmations.comparisonHint') : t('confirmations.termsHint')}
+          </Text>
+          <ScrollTable label={theirs ? t('confirmations.comparison') : t('confirmations.terms')} minWidth={640}>
+            <Table verticalSpacing="sm" data-testid="confirmation-terms">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w="22%">{t('confirmations.field')}</Table.Th>
+                  {theirs && <Table.Th>{t('confirmations.ours')}</Table.Th>}
+                  <Table.Th>{theirs ? t('confirmations.theirs') : t('confirmations.value')}</Table.Th>
+                  {theirs && <Table.Th w={120} />}
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.map((row) => (
+                  <Table.Tr
+                    key={row.key}
+                    data-testid={`term-${row.key}`}
+                    bg={row.severity === 'MISMATCH' ? 'var(--mantine-color-red-light)' : undefined}
+                  >
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">
+                        {t(`confirmations.fields.${row.key}`, { defaultValue: row.key })}
+                      </Text>
+                    </Table.Td>
+                    {theirs && (
                       <Table.Td>
-                        <Text
-                          size="sm"
-                          c={row.severity === 'MISMATCH' ? 'red' : undefined}
-                          fw={row.severity ? 600 : undefined}
-                        >
-                          {row.theirs}
+                        <Text size="sm" className="etrm-figure">
+                          {row.ours}
                         </Text>
                       </Table.Td>
-                      {theirs && (
-                        <Table.Td>
-                          {row.severity && (
-                            <Badge color={row.severity === 'MISMATCH' ? 'red' : 'gray'} variant="light">
-                              {row.severity}
-                            </Badge>
-                          )}
-                        </Table.Td>
-                      )}
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Card>
-          </>
-        )}
-      </QueryState>
+                    )}
+                    <Table.Td>
+                      <Text
+                        size="sm"
+                        className="etrm-figure"
+                        c={row.severity === 'MISMATCH' ? 'red' : undefined}
+                        fw={row.severity ? 600 : undefined}
+                      >
+                        {row.theirs}
+                      </Text>
+                    </Table.Td>
+                    {theirs && (
+                      <Table.Td ta="right">
+                        {row.severity && (
+                          <Badge color={row.severity === 'MISMATCH' ? 'red' : 'gray'} variant="light" radius="xl">
+                            {row.severity}
+                          </Badge>
+                        )}
+                      </Table.Td>
+                    )}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollTable>
+        </Paper>
+      </DetailLayout>
     </Stack>
   );
 }

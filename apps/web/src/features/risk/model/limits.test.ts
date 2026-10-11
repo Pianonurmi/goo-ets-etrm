@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { limitUnit, scopeLabel, utilisationBar, utilisationColor } from './limits';
+import { limitSteps, limitUnit, scopeLabel, utilisationBar, utilisationColor } from './limits';
 
 const names = {
   counterparty: (id: string) => (id === 'cp-1' ? 'Nordvind' : undefined),
@@ -25,6 +25,24 @@ describe('limits', () => {
     expect(limitUnit({ type: 'POSITION_NET', currency: null, scope: { productFamily: 'EMISSION_ALLOWANCE' } })).toBe(
       't',
     );
+  });
+
+  it('builds the lifecycle from request to approval, rejection or retirement', () => {
+    const t = (key: string) => key.replace('risk.lifecycle.', '');
+    const limit = {
+      requestedBy: 'risk',
+      requestedAt: '2026-10-01T08:00:00Z',
+      approvedBy: 'risk2',
+      approvedAt: '2026-10-01T09:00:00Z',
+      validTo: '2026-12-31',
+    };
+    const states = (status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'RETIRED') =>
+      limitSteps({ ...limit, status }, t).map((step) => `${step.label}:${step.state}`);
+    expect(states('PENDING_APPROVAL')).toEqual(['requested:done', 'approval:current']);
+    expect(states('ACTIVE')).toEqual(['requested:done', 'active:current']);
+    expect(states('REJECTED')).toEqual(['requested:done', 'rejected:failed']);
+    expect(states('RETIRED')).toEqual(['requested:done', 'active:done', 'retired:done']);
+    expect(limitSteps({ ...limit, status: 'ACTIVE' }, t)[1]).toMatchObject({ by: 'risk2' });
   });
 
   it('colours and caps utilisation', () => {

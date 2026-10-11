@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { $api } from '@/shared/api/client';
+import { ScrollTable } from '@/shared/components/ScrollTable';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { QueryState } from '@/shared/components/QueryState';
 import { StatusBadge } from '@/shared/components/StatusBadge';
@@ -37,7 +38,7 @@ export function InstallationsCard({ entityId, year }: { entityId: string; year: 
             testId="installations-empty"
           />
         ) : (
-          <Table.ScrollContainer minWidth={900}>
+          <ScrollTable label={t('ets.installationRegister')} minWidth={900}>
             <Table striped highlightOnHover data-testid="installation-list">
               <Table.Thead>
                 <Table.Tr>
@@ -76,7 +77,7 @@ export function InstallationsCard({ entityId, year }: { entityId: string; year: 
                 ))}
               </Table.Tbody>
             </Table>
-          </Table.ScrollContainer>
+          </ScrollTable>
         )}
       </QueryState>
     </Card>

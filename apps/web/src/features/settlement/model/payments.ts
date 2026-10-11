@@ -8,19 +8,6 @@ export type Netting = Schema<'NettingStatementView'>;
 export type NettingStatus = Netting['status'];
 export type VatRule = Schema<'VatRuleView'>;
 
-export const NETTING_STATUS_COLORS: Record<NettingStatus, string> = {
-  DRAFT: 'gray',
-  AGREED: 'blue',
-  SETTLED: 'teal',
-  CANCELLED: 'red',
-};
-
-export const VAT_RULE_STATUS_COLORS: Record<VatRule['status'], string> = {
-  DRAFT: 'yellow',
-  APPROVED: 'teal',
-  RETIRED: 'gray',
-};
-
 /** Whether an amount the server computed is above, below or at zero; a sign test, not arithmetic. */
 export function sign(value: number | string | null | undefined): -1 | 0 | 1 {
   const parsed = Number(value ?? 0);

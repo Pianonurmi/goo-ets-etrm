@@ -14,12 +14,20 @@ export function deadlineState(deadline: Pick<Deadline, 'dueOn' | 'met'>, today: 
   return days <= DUE_SOON_DAYS ? 'dueSoon' : 'upcoming';
 }
 
-export const DEADLINE_COLORS: Record<DeadlineState, string> = {
-  met: 'teal',
-  overdue: 'red',
-  dueSoon: 'orange',
-  upcoming: 'blue',
+/** The status each deadline state is shown with (its colour in `StatusBadge`). */
+export const DEADLINE_TONES: Record<DeadlineState, string> = {
+  met: 'COMPLETED',
+  overdue: 'OVERDUE',
+  dueSoon: 'WARNING',
+  upcoming: 'OPEN',
 };
+
+/** The next deadline not yet met, overdue ones first: what the compliance team acts on next. */
+export function nextDeadline(deadlines: Deadline[], today: string): (Deadline & { state: DeadlineState }) | undefined {
+  return deadlineCalendar(deadlines, today)
+    .flatMap((month) => month.deadlines)
+    .find((deadline) => deadline.state !== 'met');
+}
 
 export interface DeadlineMonth {
   /** `YYYY-MM` */

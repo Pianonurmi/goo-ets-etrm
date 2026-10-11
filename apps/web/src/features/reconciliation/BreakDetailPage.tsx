@@ -2,12 +2,11 @@ import {
   Alert,
   Anchor,
   Button,
-  Card,
   Checkbox,
   Group,
   Modal,
+  Paper,
   Select,
-  SimpleGrid,
   Stack,
   Table,
   Text,
@@ -15,18 +14,24 @@ import {
   Textarea,
   Title,
 } from '@mantine/core';
-import { IconArrowLeft, IconHandGrab, IconInbox } from '@tabler/icons-react';
-import { useState, type ReactNode } from 'react';
+import { IconHandGrab, IconInbox } from '@tabler/icons-react';
+import dayjs from 'dayjs';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal, type Body, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
+import { DetailLayout, FactGrid } from '@/shared/components/DetailLayout';
+import { LifecycleTimeline } from '@/shared/components/LifecycleTimeline';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
-import { formatDate, formatDateTime } from '@/shared/format/format';
-import { breakActions, breakSubject, facts, mismatches, type Break } from './model/breaks';
+import { CardSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge } from '@/shared/components/StatusBadge';
+import { formatDate } from '@/shared/format/format';
+import { ageInDays, breakActions, breakSteps, breakSubject, facts, mismatches, type Break } from './model/breaks';
 import { BreakStatusBadge, useInvalidateReconciliation } from './ReconciliationPage';
 
 type Lot = Schema<'LotView'>;
@@ -40,19 +45,6 @@ type Dialog =
   | 'correctHolding'
   | 'accept'
   | null;
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" component="div">
-        {children}
-      </Text>
-    </Stack>
-  );
-}
 
 /** A note, and optionally the registry's reference: the common shape of most resolutions. */
 function NoteModal({
@@ -380,244 +372,253 @@ export function BreakDetailPage() {
   });
   const actions = data ? breakActions(data, lot.data?.status) : null;
   const holder = account.data?.holderType === 'LEGAL_ENTITY' ? account.data.holderId : (lot.data?.holderEntityId ?? '');
+  if (!data || !actions) {
+    return (
+      <QueryState isPending={false} error={brk.error}>
+        <Stack gap="lg">
+          <CardSkeleton height={90} />
+          <CardSkeleton height={200} />
+        </Stack>
+      </QueryState>
+    );
+  }
+  const title = t(`reconciliation.types.${data.type}`);
+  const accountLabel = account.data ? `${account.data.registryCode} ${account.data.accountNumber}` : '';
+  const mismatched = mismatches(data.details);
+  const otherFacts = facts(data.details);
+  const age = ageInDays(data, dayjs().format('YYYY-MM-DD'));
   return (
-    <Stack>
-      <Anchor component={Link} to="/reconciliation" size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('reconciliation.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={brk.isPending} error={brk.error}>
-        {data && actions && (
+    <Stack gap="lg">
+      <PageHeader
+        breadcrumbs={[{ label: t('reconciliation.title'), to: '/reconciliation' }, { label: title }]}
+        title={title}
+        badge={<BreakStatusBadge status={data.status} testId="break-status" />}
+        description={[breakSubject(data), accountLabel].filter(Boolean).join(' · ')}
+        actions={
           <>
-            <Card withBorder>
-              <Group justify="space-between" align="flex-start">
-                <Stack gap={4}>
-                  <Group gap="xs">
-                    <Title order={3}>{t(`reconciliation.types.${data.type}`)}</Title>
-                    <BreakStatusBadge status={data.status} testId="break-status" />
-                  </Group>
-                  <Text size="sm" c="dimmed">
-                    {breakSubject(data)} ·{' '}
-                    {account.data ? `${account.data.registryCode} ${account.data.accountNumber}` : ''}
-                  </Text>
-                </Stack>
-                <Group gap="xs">
-                  {(tasks.data?.items ?? []).map((task) => (
-                    <Button
-                      key={task.id}
-                      component={Link}
-                      to={`/inbox/${task.id}`}
-                      variant="light"
-                      leftSection={<IconInbox size={16} />}
-                      data-testid={`task-${task.type}`}
-                    >
-                      {t(`reconciliation.tasks.${task.type}`, { defaultValue: task.type })}
-                    </Button>
-                  ))}
-                  {actions.take && (
-                    <Can op="break_assign">
-                      <Button
-                        variant="light"
-                        leftSection={<IconHandGrab size={16} />}
-                        loading={take.isPending}
-                        onClick={() => take.mutate({ ...path, body: {} })}
-                        data-testid="break-take"
-                      >
-                        {t('reconciliation.take')}
-                      </Button>
-                    </Can>
-                  )}
-                </Group>
-              </Group>
-              <SimpleGrid cols={{ base: 2, md: 4 }} mt="md">
-                <Field label={t('reconciliation.firstSeen')}>{formatDate(data.firstSeenOn)}</Field>
-                <Field label={t('reconciliation.lastSeen')}>{formatDate(data.lastSeenOn)}</Field>
-                <Field label={t('reconciliation.assignee')}>{data.assignee ?? '—'}</Field>
-                <Field label={t('reconciliation.lot')}>
-                  {data.lotId ? (
-                    <Anchor component={Link} to={`/inventory/lots/${data.lotId}`} size="sm">
-                      {lot.data ? `${lot.data.issuanceRef} · ${lot.data.status}` : t('registry.openLot')}
-                    </Anchor>
-                  ) : (
-                    t('reconciliation.noLot')
-                  )}
-                </Field>
-                {data.type === 'BALANCE_MISMATCH' && (
-                  <>
-                    <Field label={t('reconciliation.registryQuantity')}>{data.registryQuantity}</Field>
-                    <Field label={t('reconciliation.internalQuantity')}>{data.internalQuantity}</Field>
-                  </>
-                )}
-                {data.acceptanceRequestedBy && (
-                  <Field label={t('reconciliation.acceptanceRequestedBy')}>{data.acceptanceRequestedBy}</Field>
-                )}
-                {data.resolvedBy && (
-                  <Field label={t('reconciliation.resolvedBy')}>
-                    {data.resolvedBy} · {formatDateTime(data.resolvedAt)}
-                  </Field>
-                )}
-              </SimpleGrid>
-              {data.resolution && (
-                <Alert mt="md" color="gray" data-testid="break-resolution">
-                  {data.resolutionAction ? `${t(`reconciliation.actionNames.${data.resolutionAction}`)}: ` : ''}
-                  {data.resolution}
-                </Alert>
-              )}
-            </Card>
-            {mismatches(data.details).length > 0 && (
-              <Card withBorder>
-                <Title order={5} mb="sm">
-                  {t('reconciliation.mismatches')}
-                </Title>
-                <Table>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>{t('reconciliation.field')}</Table.Th>
-                      <Table.Th>{t('reconciliation.registryValue')}</Table.Th>
-                      <Table.Th>{t('reconciliation.ourValue')}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {mismatches(data.details).map((row) => (
-                      <Table.Tr key={row.field}>
-                        <Table.Td>{row.field}</Table.Td>
-                        <Table.Td>{row.registry}</Table.Td>
-                        <Table.Td>{row.internal}</Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Card>
-            )}
-            {facts(data.details).length > 0 && (
-              <Text size="xs" c="dimmed">
-                {facts(data.details)
-                  .map(([key, value]) => `${key}: ${value}`)
-                  .join(' · ')}
-              </Text>
-            )}
-            {(actions.accept || actions.awaitingAcceptance) && (
-              <Card withBorder>
-                <Title order={5} mb="xs">
-                  {t('reconciliation.resolve')}
-                </Title>
-                <Text size="sm" c="dimmed" mb="sm">
-                  {t(`reconciliation.typeHints.${data.type}`)}
-                </Text>
-                {actions.awaitingAcceptance ? (
-                  <Alert color="yellow" data-testid="break-pending-acceptance">
-                    {t('reconciliation.awaitingAcceptance', { by: data.acceptanceRequestedBy ?? '' })}
-                  </Alert>
-                ) : (
-                  <Can op="break_accept">
-                    <Group gap="xs">
-                      {actions.confirmInstruction && (
-                        <Button onClick={() => setDialog('confirmInstruction')}>
-                          {t('reconciliation.actions.confirmInstruction')}
-                        </Button>
-                      )}
-                      {actions.withdrawLot && (
-                        <Button color="orange" onClick={() => setDialog('withdrawLot')} data-testid="break-withdraw">
-                          {t('reconciliation.actions.withdrawLot')}
-                        </Button>
-                      )}
-                      {actions.recordReceipt && (
-                        <Button onClick={() => setDialog('recordReceipt')}>
-                          {t('reconciliation.actions.recordReceipt')}
-                        </Button>
-                      )}
-                      {actions.replaceLot && (
-                        <Button onClick={() => setDialog('replaceLot')}>
-                          {t('reconciliation.actions.replaceLot')}
-                        </Button>
-                      )}
-                      {actions.correctLot && (
-                        <Button variant="light" onClick={() => setDialog('correctLot')}>
-                          {t('reconciliation.actions.correctLot')}
-                        </Button>
-                      )}
-                      {actions.correctHolding && (
-                        <Button onClick={() => setDialog('correctHolding')}>
-                          {t('reconciliation.actions.correctHolding')}
-                        </Button>
-                      )}
-                      <Button
-                        variant="light"
-                        color="grape"
-                        onClick={() => setDialog('accept')}
-                        data-testid="break-accept"
-                      >
-                        {t('reconciliation.actions.accept')}
-                      </Button>
-                    </Group>
-                  </Can>
-                )}
-              </Card>
-            )}
-            {dialog === 'confirmInstruction' && (
-              <NoteModal
-                title={t('reconciliation.actions.confirmInstruction')}
-                hint={t('reconciliation.confirmInstructionHint')}
-                action={t('reconciliation.actions.confirmInstruction')}
-                withReference
-                pending={confirmInstruction.isPending}
-                error={confirmInstruction.error}
-                onSubmit={(note, reference) =>
-                  confirmInstruction.mutate({ ...path, body: { note, externalRef: reference || undefined } })
-                }
-                onClose={() => setDialog(null)}
-              />
-            )}
-            {dialog === 'withdrawLot' && (
-              <NoteModal
-                title={t('reconciliation.actions.withdrawLot')}
-                hint={t('reconciliation.withdrawHint')}
-                action={t('reconciliation.actions.withdrawLot')}
-                pending={withdrawLot.isPending}
-                error={withdrawLot.error}
-                onSubmit={(note) => withdrawLot.mutate({ ...path, body: { note } })}
-                onClose={() => setDialog(null)}
-              />
-            )}
-            {dialog === 'correctHolding' && (
-              <NoteModal
-                title={t('reconciliation.actions.correctHolding')}
-                hint={t('reconciliation.correctHoldingHint')}
-                action={t('reconciliation.actions.correctHolding')}
-                pending={correctHolding.isPending}
-                error={correctHolding.error}
-                onSubmit={(note) => correctHolding.mutate({ ...path, body: { note } })}
-                onClose={() => setDialog(null)}
-              />
-            )}
-            {dialog === 'accept' && (
-              <NoteModal
-                title={t('reconciliation.actions.accept')}
-                hint={t('reconciliation.acceptHint')}
-                action={t('risk.sendForApproval')}
-                pending={accept.isPending}
-                error={accept.error}
-                onSubmit={(note) => accept.mutate({ ...path, body: { note } })}
-                onClose={() => setDialog(null)}
-              />
-            )}
-            {(dialog === 'recordReceipt' || dialog === 'replaceLot') && (
-              <ReceiptModal
-                brk={data}
-                holderEntityId={holder}
-                lot={dialog === 'replaceLot' ? lot.data : undefined}
-                replace={dialog === 'replaceLot'}
-                onClose={() => setDialog(null)}
-              />
-            )}
-            {dialog === 'correctLot' && lot.data && (
-              <CorrectLotModal brk={data} lot={lot.data} onClose={() => setDialog(null)} />
+            {(tasks.data?.items ?? []).map((task) => (
+              <Button
+                key={task.id}
+                component={Link}
+                to={`/inbox/${task.id}`}
+                variant={actions.take ? 'light' : 'filled'}
+                leftSection={<IconInbox size={16} />}
+                data-testid={`task-${task.type}`}
+              >
+                {t(`reconciliation.tasks.${task.type}`, { defaultValue: task.type })}
+              </Button>
+            ))}
+            {actions.take && (
+              <Can op="break_assign">
+                <Button
+                  leftSection={<IconHandGrab size={16} />}
+                  loading={take.isPending}
+                  onClick={() => take.mutate({ ...path, body: {} })}
+                  data-testid="break-take"
+                >
+                  {t('reconciliation.take')}
+                </Button>
+              </Can>
             )}
           </>
+        }
+      />
+      <DetailLayout
+        summary={[
+          {
+            label: t('reconciliation.lot'),
+            value: data.lotId ? (
+              <Anchor component={Link} to={`/inventory/lots/${data.lotId}`} size="sm">
+                {lot.data ? lot.data.issuanceRef : t('registry.openLot')}
+              </Anchor>
+            ) : (
+              t('reconciliation.noLot')
+            ),
+          },
+          ...(lot.data
+            ? [{ label: t('reconciliation.lotStatus'), value: <StatusBadge status={lot.data.status} /> }]
+            : []),
+          {
+            label: t('reconciliation.age'),
+            value: age === null ? '—' : t('reconciliation.ageValue', { count: age }),
+          },
+          { label: t('reconciliation.firstSeen'), value: formatDate(data.firstSeenOn) || '—' },
+          { label: t('reconciliation.lastSeen'), value: formatDate(data.lastSeenOn) || '—' },
+          { label: t('reconciliation.assignee'), value: data.assignee ?? '—' },
+          ...(data.type === 'BALANCE_MISMATCH'
+            ? [
+                { label: t('reconciliation.registryQuantity'), value: data.registryQuantity ?? '—' },
+                { label: t('reconciliation.internalQuantity'), value: data.internalQuantity ?? '—' },
+              ]
+            : []),
+        ]}
+        aside={
+          <LifecycleTimeline
+            title={t('reconciliation.lifecycle.title')}
+            steps={breakSteps(data, (key) => t(`reconciliation.lifecycle.${key}`))}
+            testId="break-lifecycle"
+          />
+        }
+      >
+        {data.resolution && (
+          <Alert color="gray" title={t('reconciliation.resolutionTitle')} data-testid="break-resolution">
+            {data.resolutionAction ? `${t(`reconciliation.actionNames.${data.resolutionAction}`)}: ` : ''}
+            {data.resolution}
+          </Alert>
         )}
-      </QueryState>
+        {(actions.accept || actions.awaitingAcceptance) && (
+          <Paper withBorder radius="lg" p="lg">
+            <Title order={3} size="h5">
+              {t('reconciliation.resolve')}
+            </Title>
+            <Text size="sm" c="dimmed" mb="md">
+              {t(`reconciliation.typeHints.${data.type}`)}
+            </Text>
+            {actions.awaitingAcceptance ? (
+              <Alert color="yellow" data-testid="break-pending-acceptance">
+                {t('reconciliation.awaitingAcceptance', { by: data.acceptanceRequestedBy ?? '' })}
+              </Alert>
+            ) : (
+              <Can op="break_accept">
+                <Group gap="xs">
+                  {actions.confirmInstruction && (
+                    <Button onClick={() => setDialog('confirmInstruction')}>
+                      {t('reconciliation.actions.confirmInstruction')}
+                    </Button>
+                  )}
+                  {actions.recordReceipt && (
+                    <Button onClick={() => setDialog('recordReceipt')}>
+                      {t('reconciliation.actions.recordReceipt')}
+                    </Button>
+                  )}
+                  {actions.replaceLot && (
+                    <Button onClick={() => setDialog('replaceLot')}>{t('reconciliation.actions.replaceLot')}</Button>
+                  )}
+                  {actions.correctHolding && (
+                    <Button onClick={() => setDialog('correctHolding')}>
+                      {t('reconciliation.actions.correctHolding')}
+                    </Button>
+                  )}
+                  {actions.correctLot && (
+                    <Button variant="default" onClick={() => setDialog('correctLot')}>
+                      {t('reconciliation.actions.correctLot')}
+                    </Button>
+                  )}
+                  <Button variant="default" onClick={() => setDialog('accept')} data-testid="break-accept">
+                    {t('reconciliation.actions.accept')}
+                  </Button>
+                  {actions.withdrawLot && (
+                    <Button
+                      variant="light"
+                      color="red"
+                      onClick={() => setDialog('withdrawLot')}
+                      data-testid="break-withdraw"
+                    >
+                      {t('reconciliation.actions.withdrawLot')}
+                    </Button>
+                  )}
+                </Group>
+              </Can>
+            )}
+          </Paper>
+        )}
+        <Paper withBorder radius="lg" p="lg">
+          <Title order={3} size="h5">
+            {t('reconciliation.detailsTitle')}
+          </Title>
+          <Text size="sm" c="dimmed" mb="sm">
+            {t('reconciliation.detailsHint')}
+          </Text>
+          {mismatched.length > 0 && (
+            <Table verticalSpacing="sm" mb="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('reconciliation.field')}</Table.Th>
+                  <Table.Th>{t('reconciliation.registryValue')}</Table.Th>
+                  <Table.Th>{t('reconciliation.ourValue')}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {mismatched.map((row) => (
+                  <Table.Tr key={row.field}>
+                    <Table.Td c="dimmed">{row.field}</Table.Td>
+                    <Table.Td fw={600}>{row.registry}</Table.Td>
+                    <Table.Td>{row.internal}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+          {otherFacts.length > 0 ? (
+            <FactGrid facts={otherFacts.map(([key, value]) => ({ label: key, value }))} cols={3} />
+          ) : (
+            mismatched.length === 0 && (
+              <Text size="sm" c="dimmed">
+                {t('reconciliation.noDetails')}
+              </Text>
+            )
+          )}
+        </Paper>
+      </DetailLayout>
+      {dialog === 'confirmInstruction' && (
+        <NoteModal
+          title={t('reconciliation.actions.confirmInstruction')}
+          hint={t('reconciliation.confirmInstructionHint')}
+          action={t('reconciliation.actions.confirmInstruction')}
+          withReference
+          pending={confirmInstruction.isPending}
+          error={confirmInstruction.error}
+          onSubmit={(note, reference) =>
+            confirmInstruction.mutate({ ...path, body: { note, externalRef: reference || undefined } })
+          }
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'withdrawLot' && (
+        <NoteModal
+          title={t('reconciliation.actions.withdrawLot')}
+          hint={t('reconciliation.withdrawHint')}
+          action={t('reconciliation.actions.withdrawLot')}
+          pending={withdrawLot.isPending}
+          error={withdrawLot.error}
+          onSubmit={(note) => withdrawLot.mutate({ ...path, body: { note } })}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'correctHolding' && (
+        <NoteModal
+          title={t('reconciliation.actions.correctHolding')}
+          hint={t('reconciliation.correctHoldingHint')}
+          action={t('reconciliation.actions.correctHolding')}
+          pending={correctHolding.isPending}
+          error={correctHolding.error}
+          onSubmit={(note) => correctHolding.mutate({ ...path, body: { note } })}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'accept' && (
+        <NoteModal
+          title={t('reconciliation.actions.accept')}
+          hint={t('reconciliation.acceptHint')}
+          action={t('risk.sendForApproval')}
+          pending={accept.isPending}
+          error={accept.error}
+          onSubmit={(note) => accept.mutate({ ...path, body: { note } })}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {(dialog === 'recordReceipt' || dialog === 'replaceLot') && (
+        <ReceiptModal
+          brk={data}
+          holderEntityId={holder}
+          lot={dialog === 'replaceLot' ? lot.data : undefined}
+          replace={dialog === 'replaceLot'}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'correctLot' && lot.data && (
+        <CorrectLotModal brk={data} lot={lot.data} onClose={() => setDialog(null)} />
+      )}
     </Stack>
   );
 }

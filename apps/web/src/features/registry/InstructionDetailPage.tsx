@@ -2,43 +2,34 @@ import {
   Alert,
   Anchor,
   Button,
-  Card,
   Group,
   Modal,
-  SimpleGrid,
+  Paper,
   Stack,
   Text,
   TextInput,
-  Timeline,
   Title,
+  UnstyledButton,
 } from '@mantine/core';
-import { IconArrowLeft, IconCheck, IconInbox, IconRefresh, IconX } from '@tabler/icons-react';
-import { useState, type ReactNode } from 'react';
+import { IconAlertTriangle, IconCheck, IconChevronRight, IconInbox, IconRefresh, IconX } from '@tabler/icons-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { Can } from '@/shared/auth/Can';
+import { DetailLayout } from '@/shared/components/DetailLayout';
+import { LifecycleTimeline } from '@/shared/components/LifecycleTimeline';
 import { notifySuccess } from '@/shared/components/notify';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { ReasonModal } from '@/shared/components/ReasonModal';
+import { CardSkeleton } from '@/shared/components/Skeletons';
+import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDateTime } from '@/shared/format/format';
-import { instructionActions, lifecycle, subject, type Instruction } from './model/instructions';
+import { instructionActions, instructionSteps, subject, type Instruction } from './model/instructions';
 import { InstructionStatusBadge } from './RegistryPage';
 import { useInvalidateRegistry } from './TransferModal';
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" component="div">
-        {children}
-      </Text>
-    </Stack>
-  );
-}
 
 /** Records that the registry executed the instruction, with the registry's own reference. */
 function ConfirmModal({ instruction, onClose }: { instruction: Instruction; onClose: () => void }) {
@@ -111,180 +102,211 @@ export function InstructionDetailPage() {
     onSuccess: done(t('registry.resubmitted')),
   });
   const data = instruction.data;
-  const actions = data ? instructionActions(data) : null;
-  const openTasks = (tasks.data?.items ?? []).filter((task) => task.status === 'OPEN');
+  if (!data) {
+    return (
+      <QueryState isPending={false} error={instruction.error}>
+        <Stack gap="lg">
+          <CardSkeleton height={90} />
+          <CardSkeleton height={200} />
+        </Stack>
+      </QueryState>
+    );
+  }
+  const actions = instructionActions(data);
+  const allTasks = tasks.data?.items ?? [];
+  const openTasks = allTasks.filter((task) => task.status === 'OPEN');
   return (
-    <Stack>
-      <Anchor component={Link} to="/registry" size="sm">
-        <Group gap={4}>
-          <IconArrowLeft size={14} />
-          {t('registry.back')}
-        </Group>
-      </Anchor>
-      <QueryState isPending={instruction.isPending} error={instruction.error}>
-        {data && actions && (
+    <Stack gap="lg">
+      <PageHeader
+        breadcrumbs={[{ label: t('registry.title'), to: '/registry' }, { label: data.instructionKey }]}
+        title={data.instructionKey}
+        badge={<InstructionStatusBadge status={data.status} testId="instruction-status" />}
+        description={`${t(`registry.types.${data.type}`)} · ${subject(data)} · ${t('registry.viaChannel', {
+          channel: statusLabel(data.channel ?? 'MANUAL'),
+        })}`}
+        actions={
           <>
-            <Card withBorder>
-              <Group justify="space-between" align="flex-start">
-                <Stack gap={4}>
-                  <Group gap="xs">
-                    <Title order={3}>{data.instructionKey}</Title>
-                    <InstructionStatusBadge status={data.status} testId="instruction-status" />
-                  </Group>
-                  <Text size="sm" c="dimmed">
-                    {t(`registry.types.${data.type}`)} · {subject(data)} ·{' '}
-                    {t('registry.viaChannel', { channel: data.channel })}
-                  </Text>
-                </Stack>
-                <Group gap="xs">
-                  {openTasks.map((task) => (
-                    <Button
-                      key={task.id}
-                      component={Link}
-                      to={`/inbox/${task.id}`}
-                      variant="light"
-                      leftSection={<IconInbox size={16} />}
-                      data-testid={`task-${task.type}`}
-                    >
-                      {t(`registry.tasks.${task.type}`)}
-                    </Button>
-                  ))}
-                  {actions.cancel && (
-                    <Can op="registry_cancel">
-                      <Button
-                        variant="subtle"
-                        color="red"
-                        leftSection={<IconX size={16} />}
-                        onClick={() => setDialog('cancel')}
-                        data-testid="instruction-cancel"
-                      >
-                        {t('registry.cancel')}
-                      </Button>
-                    </Can>
-                  )}
-                  {actions.retry && (
-                    <Can op="registry_retry">
-                      <Button
-                        variant="light"
-                        leftSection={<IconRefresh size={16} />}
-                        loading={retry.isPending}
-                        onClick={() => retry.mutate(path)}
-                        data-testid="instruction-retry"
-                      >
-                        {t('registry.retry')}
-                      </Button>
-                    </Can>
-                  )}
-                  {actions.fail && (
-                    <Can op="registry_fail">
-                      <Button
-                        variant="light"
-                        color="red"
-                        onClick={() => setDialog('fail')}
-                        data-testid="instruction-fail"
-                      >
-                        {t('registry.markFailed')}
-                      </Button>
-                    </Can>
-                  )}
-                  {actions.confirm && (
-                    <Can op="registry_confirm">
-                      <Button
-                        leftSection={<IconCheck size={16} />}
-                        onClick={() => setDialog('confirm')}
-                        data-testid="instruction-confirm"
-                      >
-                        {t('registry.confirm')}
-                      </Button>
-                    </Can>
-                  )}
-                </Group>
-              </Group>
-              {data.lastError && (
-                <Alert color={data.status === 'FAILED' ? 'red' : 'orange'} mt="md" data-testid="instruction-error">
-                  {data.lastError}
-                </Alert>
-              )}
-              <SimpleGrid cols={{ base: 2, md: 4 }} mt="md">
-                <Field label={t('registry.fromRegistry')}>{data.registryCode}</Field>
-                <Field label={t('registry.toRegistry')}>
-                  {data.toRegistryCode ?? '—'} {data.toAccountRef ?? ''}
-                </Field>
-                <Field label={t('registry.lot')}>
-                  {data.lotId ? (
-                    <Anchor component={Link} to={`/inventory/lots/${data.lotId}`} size="sm">
-                      {t('registry.openLot')}
-                    </Anchor>
-                  ) : (
-                    (data.productCode ?? '—')
-                  )}
-                </Field>
-                <Field label={t('registry.plan')}>
-                  {data.planRef ? (
-                    <Anchor component={Link} to={`/allocation/plans/${data.planRef}`} size="sm">
-                      {t('registry.openPlan')}
-                    </Anchor>
-                  ) : (
-                    t('registry.unplanned')
-                  )}
-                </Field>
-                <Field label={t('registry.externalRef')}>{data.externalRef ?? '—'}</Field>
-                <Field label={t('registry.attempts')}>{data.attempts}</Field>
-                <Field label={t('registry.nextAttempt')}>{formatDateTime(data.nextAttemptAt) || '—'}</Field>
-                <Field label={t('registry.expectedEffective')}>{formatDateTime(data.expectedEffectiveAt) || '—'}</Field>
-              </SimpleGrid>
-            </Card>
-            <Card withBorder>
-              <Title order={5} mb="md">
-                {t('registry.lifecycle')}
-              </Title>
-              <Timeline
-                active={lifecycle(data).filter((step) => step.done).length - 1}
-                bulletSize={18}
-                lineWidth={2}
-                data-testid="instruction-lifecycle"
-              >
-                {lifecycle(data).map((step) => (
-                  <Timeline.Item
-                    key={step.key}
-                    title={t(`registry.steps.${step.key}`)}
-                    color={step.key === 'failed' || step.key === 'cancelled' ? 'red' : undefined}
-                  >
-                    <Text size="xs" c="dimmed">
-                      {step.done
-                        ? [formatDateTime(step.at), step.by].filter(Boolean).join(' · ')
-                        : t('registry.notYet')}
-                    </Text>
-                  </Timeline.Item>
-                ))}
-              </Timeline>
-            </Card>
-            {dialog === 'confirm' && <ConfirmModal instruction={data} onClose={() => setDialog(null)} />}
-            {dialog === 'fail' && (
-              <ReasonModal
-                title={t('registry.markFailed')}
-                hint={t('registry.failHint')}
-                action={t('registry.markFailed')}
-                pending={fail.isPending}
-                error={fail.error}
-                onSubmit={(reason) => fail.mutate({ ...path, body: { reason } })}
-                onClose={() => setDialog(null)}
-              />
+            {actions.cancel && (
+              <Can op="registry_cancel">
+                <Button
+                  variant="subtle"
+                  color="red"
+                  leftSection={<IconX size={16} />}
+                  onClick={() => setDialog('cancel')}
+                  data-testid="instruction-cancel"
+                >
+                  {t('registry.cancel')}
+                </Button>
+              </Can>
             )}
-            {dialog === 'cancel' && (
-              <ReasonModal
-                title={t('registry.cancel')}
-                hint={t('registry.cancelHint')}
-                action={t('registry.cancel')}
-                pending={cancel.isPending}
-                error={cancel.error}
-                onSubmit={(reason) => cancel.mutate({ ...path, body: { reason } })}
-                onClose={() => setDialog(null)}
-              />
+            {actions.fail && (
+              <Can op="registry_fail">
+                <Button variant="subtle" color="red" onClick={() => setDialog('fail')} data-testid="instruction-fail">
+                  {t('registry.markFailed')}
+                </Button>
+              </Can>
+            )}
+            {actions.retry && (
+              <Can op="registry_retry">
+                <Button
+                  variant="default"
+                  leftSection={<IconRefresh size={16} />}
+                  loading={retry.isPending}
+                  onClick={() => retry.mutate(path)}
+                  data-testid="instruction-retry"
+                >
+                  {t('registry.retry')}
+                </Button>
+              </Can>
+            )}
+            {openTasks.map((task) => (
+              <Button
+                key={task.id}
+                component={Link}
+                to={`/inbox/${task.id}`}
+                variant={actions.confirm ? 'light' : 'filled'}
+                leftSection={<IconInbox size={16} />}
+                data-testid={`task-${task.type}`}
+              >
+                {t(`registry.tasks.${task.type}`)}
+              </Button>
+            ))}
+            {actions.confirm && (
+              <Can op="registry_confirm">
+                <Button
+                  leftSection={<IconCheck size={16} />}
+                  onClick={() => setDialog('confirm')}
+                  data-testid="instruction-confirm"
+                >
+                  {t('registry.confirm')}
+                </Button>
+              </Can>
             )}
           </>
+        }
+      />
+      <DetailLayout
+        summary={[
+          {
+            label: t('registry.what'),
+            value: (
+              <Text span fw={600} size="sm">
+                {subject(data)}
+              </Text>
+            ),
+          },
+          { label: t('registry.fromRegistry'), value: data.registryCode },
+          {
+            label: t('registry.toRegistry'),
+            value: `${data.toRegistryCode ?? '—'} ${data.toAccountRef ?? ''}`.trim(),
+          },
+          {
+            label: t('registry.lot'),
+            value: data.lotId ? (
+              <Anchor component={Link} to={`/inventory/lots/${data.lotId}`} size="sm">
+                {t('registry.openLot')}
+              </Anchor>
+            ) : (
+              (data.productCode ?? '—')
+            ),
+          },
+          {
+            label: t('registry.plan'),
+            value: data.planRef ? (
+              <Anchor component={Link} to={`/allocation/plans/${data.planRef}`} size="sm">
+                {t('registry.openPlan')}
+              </Anchor>
+            ) : (
+              t('registry.unplanned')
+            ),
+          },
+          { label: t('registry.externalRef'), value: data.externalRef ?? '—' },
+          { label: t('registry.attempts'), value: data.attempts },
+          { label: t('registry.nextAttempt'), value: formatDateTime(data.nextAttemptAt) || '—' },
+          { label: t('registry.expectedEffective'), value: formatDateTime(data.expectedEffectiveAt) || '—' },
+        ]}
+        aside={
+          <LifecycleTimeline
+            title={t('registry.lifecycle')}
+            steps={instructionSteps(data, (key) => t(`registry.steps.${key}`))}
+            testId="instruction-lifecycle"
+          />
+        }
+      >
+        {data.lastError && (
+          <Alert
+            color={data.status === 'FAILED' ? 'red' : 'orange'}
+            icon={<IconAlertTriangle size={18} />}
+            title={data.status === 'CANCELLED' ? t('registry.cancelReason') : t('registry.registrySaid')}
+            data-testid="instruction-error"
+          >
+            {data.lastError}
+          </Alert>
         )}
-      </QueryState>
+        <Paper withBorder radius="lg" p="lg">
+          <Title order={3} size="h5">
+            {t('registry.relatedTasks')}
+          </Title>
+          <Text size="sm" c="dimmed" mb="sm">
+            {t('registry.relatedTasksHint')}
+          </Text>
+          {allTasks.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {t('registry.noTasks')}
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {allTasks.map((task) => (
+                <UnstyledButton
+                  key={task.id}
+                  component={Link}
+                  to={`/inbox/${task.id}`}
+                  className="etrm-task-row"
+                  p="xs"
+                >
+                  <Group justify="space-between" wrap="nowrap">
+                    <Stack gap={0} miw={0}>
+                      <Text size="sm" fw={500}>
+                        {t(`registry.tasks.${task.type}`)}
+                      </Text>
+                      <Text size="xs" c="dimmed" truncate>
+                        {task.requestedBy} · {formatDateTime(task.requestedAt)}
+                      </Text>
+                    </Stack>
+                    <Group gap="xs" wrap="nowrap">
+                      <StatusBadge status={task.status} />
+                      <IconChevronRight size={16} />
+                    </Group>
+                  </Group>
+                </UnstyledButton>
+              ))}
+            </Stack>
+          )}
+        </Paper>
+      </DetailLayout>
+      {dialog === 'confirm' && <ConfirmModal instruction={data} onClose={() => setDialog(null)} />}
+      {dialog === 'fail' && (
+        <ReasonModal
+          title={t('registry.markFailed')}
+          hint={t('registry.failHint')}
+          action={t('registry.markFailed')}
+          pending={fail.isPending}
+          error={fail.error}
+          onSubmit={(reason) => fail.mutate({ ...path, body: { reason } })}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'cancel' && (
+        <ReasonModal
+          title={t('registry.cancel')}
+          hint={t('registry.cancelHint')}
+          action={t('registry.cancel')}
+          pending={cancel.isPending}
+          error={cancel.error}
+          onSubmit={(reason) => cancel.mutate({ ...path, body: { reason } })}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </Stack>
   );
 }

@@ -6,16 +6,6 @@ export type Terms = Confirmation['terms'];
 export type Difference = Confirmation['differences'][number];
 type ReceivedTerms = Body<'ReceiveConfirmation'>['terms'];
 
-export const STATUS_COLORS: Record<ConfirmationStatus, string> = {
-  ISSUED: 'blue',
-  SUPERSEDED: 'gray',
-  RECEIVED: 'yellow',
-  MATCHED: 'teal',
-  MISMATCHED: 'red',
-  OVERRIDDEN: 'grape',
-  DISPUTED: 'orange',
-};
-
 export const QUEUE_VIEWS = ['open', 'settled', 'all'] as const;
 export type QueueView = (typeof QUEUE_VIEWS)[number];
 
@@ -84,6 +74,18 @@ export function termRows(ours: Terms | undefined, theirs: Terms, differences: Di
   return keys
     .filter((key) => mine[key] || other[key])
     .map((key) => ({ key, ours: mine[key] ?? '', theirs: other[key] ?? '', severity: verdicts.get(key) ?? null }));
+}
+
+/**
+ * The fields a confirmation differs in, once each and named as the term rows name them (`legs[1].price` → `price`,
+ * every delivery field → `deliveries`); notes are left out.
+ */
+export function differenceFields(differences: Difference[]): string[] {
+  const fields = differences
+    .filter((difference) => difference.severity !== 'NOTE')
+    .map((difference) => difference.field.replace(/^legs\[\d+]\./, ''))
+    .map((field) => (field.startsWith('deliveries') ? 'deliveries' : field));
+  return [...new Set(fields)];
 }
 
 /** Differences outside the legs (trade date, product family, number of legs). */
