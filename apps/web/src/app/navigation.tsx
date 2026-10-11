@@ -21,6 +21,7 @@ import {
   IconInbox,
   IconPuzzle,
   IconRefresh,
+  IconRoute,
   IconScale,
   IconTimeline,
 } from '@tabler/icons-react';
@@ -67,6 +68,7 @@ export const NAVIGATION: NavSection[] = [
     items: [
       { path: '/', label: 'nav.home', icon: <IconHome size={ICON} /> },
       { path: '/inbox', label: 'nav.inbox', icon: <IconInbox size={ICON} />, badge: 'inbox' },
+      { path: '/guide', label: 'nav.guide', icon: <IconRoute size={ICON} /> },
     ],
   },
   {

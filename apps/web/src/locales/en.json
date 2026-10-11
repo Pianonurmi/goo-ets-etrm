@@ -37,7 +37,8 @@
     "main": "Main navigation",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
-    "demo": "Demo"
+    "demo": "Demo",
+    "guide": "Demo guide"
   },
   "header": {
     "entity": "Legal entity",
@@ -53,7 +54,7 @@
     "signedInAs": "Signed in as",
     "demoBadge": "Demo · resets nightly",
     "inbox": "Inbox: {{count}} to do",
-    "help": "Help and keyboard shortcuts",
+    "help": "Help",
     "display": "Display",
     "density": "Density",
     "comfortable": "Comfortable",
@@ -1877,12 +1878,13 @@
   },
   "palette": {
     "open": "Search screens and trades",
-    "placeholder": "Go to a screen, or find a trade by number, reference or UTI",
+    "placeholder": "Go to a screen, find a trade by number, reference or UTI, or search the help",
     "screens": "Screens",
     "trades": "Trades",
     "searching": "Searching…",
     "nothing": "Nothing found",
-    "placeholderShort": "Search screens and trades…"
+    "placeholderShort": "Search screens and trades…",
+    "help": "Help"
   },
   "settlement": {
     "title": "Settlement",
@@ -2610,7 +2612,8 @@
     "sidebar": "Collapse or expand the sidebar",
     "density": "Switch density",
     "scheme": "Switch light and dark",
-    "close": "Close a dialog or menu"
+    "close": "Close a dialog or menu",
+    "help": "Help for this screen"
   },
   "demo": {
     "title": "Demo",
@@ -2634,5 +2637,14 @@
       "seeding": "Creating the example data: step {{done}} of {{total}}",
       "done": "Ready. Opening the sign-in page…"
     }
+  },
+  "help": {
+    "title": "Help",
+    "openManual": "Open in the manual",
+    "shortcuts": "Keyboard shortcuts",
+    "manual": "User manual",
+    "manualHint": "How each area works, who does what, and what to try in the demo.",
+    "contents": "Contents",
+    "takeTour": "Take the tour of this screen"
   }
 }

@@ -5,3 +5,5 @@ CREATE DATABASE etrm_test OWNER etrm;
 CREATE DATABASE etrm_e2e OWNER etrm;
 -- Playwright against the public showcase (showcase and demo profiles).
 CREATE DATABASE etrm_showcase_e2e OWNER etrm;
+-- Screenshots of the manual (apps/web, npm run docs:screenshots).
+CREATE DATABASE etrm_docs OWNER etrm;

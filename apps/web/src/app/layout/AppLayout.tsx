@@ -13,18 +13,23 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
-import { Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, NavLink as RouterLink, useLocation } from 'react-router';
 import { useSession } from '@/shared/auth/SessionContext';
 import { TableSkeleton } from '@/shared/components/Skeletons';
 import { density, setDensity, setSidebarCollapsed, useSidebarCollapsed } from '@/shared/context/preferences';
 import { useActionableCounts } from '@/features/inbox/hooks';
+import { useActiveTour, welcomed } from '@/shared/tour/store';
 import { ProvenaLogo, ProvenaMark } from '../brand/Logo';
 import { visibleSections } from '../navigation';
 import { CommandPalette } from './CommandPalette';
 import { Header } from './Header';
 import { ShortcutsModal } from './ShortcutsModal';
+
+const HelpDrawer = lazy(() => import('../help/HelpDrawer'));
+const TourHost = lazy(() => import('@/shared/tour/TourHost'));
+const WelcomeModal = lazy(() => import('../WelcomeModal'));
 
 function InboxBadge() {
   const { total } = useActionableCounts();
@@ -57,6 +62,10 @@ export function AppLayout() {
   const { me, config } = useSession();
   const [opened, { toggle, close }] = useDisclosure();
   const [shortcuts, { open: openShortcuts, close: closeShortcuts }] = useDisclosure();
+  const [help, { open: openHelp, close: closeHelp }] = useDisclosure();
+  const tour = useActiveTour();
+  // The showcase greets a first visit; a running tour or a dev server does not need it.
+  const [welcome] = useState(() => config.authMode === 'SHOWCASE' && !welcomed());
   const collapsed = useSidebarCollapsed();
   const { setColorScheme } = useMantineColorScheme();
   const scheme = useComputedColorScheme('light');
@@ -64,7 +73,7 @@ export function AppLayout() {
   const sections = visibleSections(me.roles);
   const banner = config.authMode === 'DEV_HEADERS' ? 24 : 0;
   useHotkeys([
-    ['shift+?', openShortcuts],
+    ['shift+?', openHelp],
     ['[', () => setSidebarCollapsed(!collapsed)],
     ['shift+D', () => setDensity(density() === 'compact' ? 'comfortable' : 'compact')],
     ['shift+L', () => setColorScheme(scheme === 'dark' ? 'light' : 'dark')],
@@ -87,7 +96,7 @@ export function AppLayout() {
       <AppShell.Header>
         <DevBanner />
         <Box h={60}>
-          <Header opened={opened} toggle={toggle} onHelp={openShortcuts} />
+          <Header opened={opened} toggle={toggle} onHelp={openHelp} />
         </Box>
       </AppShell.Header>
       <AppShell.Navbar aria-label={t('nav.main')}>
@@ -155,6 +164,21 @@ export function AppLayout() {
       </AppShell.Main>
       <CommandPalette />
       <ShortcutsModal opened={shortcuts} onClose={closeShortcuts} />
+      {tour && (
+        <Suspense fallback={null}>
+          <TourHost active={tour} />
+        </Suspense>
+      )}
+      {welcome && !tour && (
+        <Suspense fallback={null}>
+          <WelcomeModal />
+        </Suspense>
+      )}
+      {help && (
+        <Suspense fallback={null}>
+          <HelpDrawer opened={help} onClose={closeHelp} onShortcuts={openShortcuts} />
+        </Suspense>
+      )}
     </AppShell>
   );
 }

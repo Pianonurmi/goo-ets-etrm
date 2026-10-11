@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchScreens, searchesTrades } from './palette';
+import { matchHelp, matchScreens, searchesTrades } from './palette';
 
 const screens = [
   { path: '/', label: 'Home' },
@@ -35,5 +35,17 @@ describe('command palette', () => {
   it('searches trades from two characters', () => {
     expect(searchesTrades('T')).toBe(false);
     expect(searchesTrades(' TR ')).toBe(true);
+  });
+
+  it('finds help headings and page titles from two characters, titles first', () => {
+    const index = [
+      { page: 'trading', title: 'Trading', headings: [{ text: 'Capture a trade', anchor: 'capture-a-trade' }] },
+      { page: 'risk', title: 'Risk', headings: [{ text: 'Limits and breaches', anchor: 'limits-and-breaches' }] },
+    ];
+    expect(matchHelp(index, 'c')).toEqual([]);
+    expect(matchHelp(index, 'capture')).toEqual([
+      { path: '/help/trading#capture-a-trade', label: 'Capture a trade', page: 'Trading' },
+    ]);
+    expect(matchHelp(index, 'risk').map((hit) => hit.path)).toEqual(['/help/risk', '/help/risk#limits-and-breaches']);
   });
 });

@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Kbd, Tooltip } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { IconArrowsExchange, IconSearch } from '@tabler/icons-react';
+import { IconArrowsExchange, IconBook2, IconSearch } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -9,8 +9,9 @@ import { $api } from '@/shared/api/client';
 import { useSession } from '@/shared/auth/SessionContext';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate } from '@/shared/format/format';
+import { useHelpIndex } from '../help/pages';
 import { visibleSections } from '../navigation';
-import { matchScreens, searchesTrades, type PaletteScreen } from './model/palette';
+import { matchHelp, matchScreens, searchesTrades, type PaletteScreen } from './model/palette';
 
 /** Opens the palette; also bound to mod+K. */
 export function PaletteButton() {
@@ -59,6 +60,8 @@ export function CommandPalette() {
     { enabled: searchesTrades(debounced) },
   );
   const tradeHits = searchesTrades(debounced) ? (trades.data?.items ?? []) : [];
+  const helpIndex = useHelpIndex(query.trim().length >= 2);
+  const helpHits = matchHelp(helpIndex.data ?? [], query);
   const go = (path: string) => {
     void navigate(path);
     spotlight.close();
@@ -79,6 +82,7 @@ export function CommandPalette() {
                 label={screen.label}
                 description={screen.section}
                 onClick={() => go(screen.path)}
+                data-testid="palette-screen"
               />
             ))}
           </Spotlight.ActionsGroup>
@@ -103,7 +107,21 @@ export function CommandPalette() {
             ))}
           </Spotlight.ActionsGroup>
         )}
-        {matches.length === 0 && tradeHits.length === 0 && (
+        {helpHits.length > 0 && (
+          <Spotlight.ActionsGroup label={t('palette.help')}>
+            {helpHits.map((hit) => (
+              <Spotlight.Action
+                key={hit.path}
+                label={hit.label}
+                description={hit.page}
+                leftSection={<IconBook2 size={16} />}
+                onClick={() => go(hit.path)}
+                data-testid="palette-help"
+              />
+            ))}
+          </Spotlight.ActionsGroup>
+        )}
+        {matches.length === 0 && tradeHits.length === 0 && helpHits.length === 0 && (
           <Spotlight.Empty>{trades.isFetching ? t('palette.searching') : t('palette.nothing')}</Spotlight.Empty>
         )}
       </Spotlight.ActionsList>

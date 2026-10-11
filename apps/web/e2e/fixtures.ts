@@ -25,8 +25,17 @@ export async function expectShell(page: Page): Promise<void> {
 /** The demo sign-in of the `showcase` project (user `demo`); the config passes it to the jar. */
 export const SHOWCASE_PASSWORD = process.env.ETRM_DEMO_PASSWORD ?? 'e2e-showcase-password';
 
-/** Signs in to the showcase through the login page, as a visitor would. */
-export async function signIn(page: Page, password: string = SHOWCASE_PASSWORD, username = 'demo'): Promise<void> {
+/**
+ * Signs in to the showcase through the login page, as a visitor would. The first-visit welcome is marked as seen
+ * unless [welcome] is set, so it does not cover the screens a test works on.
+ */
+export async function signIn(
+  page: Page,
+  password: string = SHOWCASE_PASSWORD,
+  username = 'demo',
+  welcome = false,
+): Promise<void> {
+  if (!welcome) await page.addInitScript(() => window.localStorage.setItem('etrm.welcomed', 'true'));
   await page.goto('/');
   await page.getByTestId('login-username').fill(username);
   await page.getByTestId('login-password').fill(password);

@@ -4,11 +4,13 @@
 // with the translations of every screen) and its stylesheet have budgets of their own (increment 7 plan, M0b).
 // The total went from 1000 to 1060 kB with the increment 7 design pass (M9): KPI strips, charts and lifecycle
 // timelines on every screen, all in lazy chunks; the first page stayed within its own budget.
+// Then to 1100 kB for the help manual and tours (M10, M11): the markdown renderer (about 28 kB) loads only when
+// help is opened, the tours (about 9 kB) only when one starts.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const BUDGET_KB = { entry: 330, entryCss: 50, chunk: 360, total: 1060 };
+const BUDGET_KB = { entry: 330, entryCss: 50, chunk: 360, total: 1100 };
 const dist = new URL('../build/dist/', import.meta.url).pathname;
 const assets = join(dist, 'assets');
 const kb = (bytes) => Math.round(bytes / 102.4) / 10;

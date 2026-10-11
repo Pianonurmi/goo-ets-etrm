@@ -38,3 +38,36 @@ export function matchScreens(screens: PaletteScreen[], query: string, limit = 8)
 export function searchesTrades(query: string): boolean {
   return query.trim().length >= 2;
 }
+
+export interface HelpHit {
+  path: string;
+  label: string;
+  page: string;
+}
+
+/**
+ * Help headings (and page titles) containing every word of the query, from two characters on; titles first. The
+ * index is built from docs/user-guide at build time.
+ */
+export function matchHelp(
+  index: { page: string; title: string; headings: { text: string; anchor: string }[] }[],
+  query: string,
+  limit = 5,
+): HelpHit[] {
+  const words = normalise(query).split(/\s+/).filter(Boolean);
+  if (query.trim().length < 2 || words.length === 0) return [];
+  const hits = index.flatMap((entry) => [
+    { path: `/help/${entry.page}`, label: entry.title, page: entry.title, rank: 0 },
+    ...entry.headings.map((heading) => ({
+      path: `/help/${entry.page}#${heading.anchor}`,
+      label: heading.text,
+      page: entry.title,
+      rank: 1,
+    })),
+  ]);
+  return hits
+    .filter((hit) => words.every((word) => normalise(`${hit.label} ${hit.page}`).includes(word)))
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, limit)
+    .map(({ path, label, page }) => ({ path, label, page }));
+}

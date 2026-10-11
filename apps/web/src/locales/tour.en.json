@@ -1,0 +1,318 @@
+{
+  "orientation": {
+    "title": "Find your way around",
+    "summary": "The screen, the inbox, personas and help in two minutes.",
+    "steps": {
+      "welcome": {
+        "title": "Welcome to Provena",
+        "body": "A trading and risk system for guarantees of origin and EU allowances. This short tour shows where things are."
+      },
+      "kpis": {
+        "title": "Your figures",
+        "body": "The home page shows what matters for your role: open work, positions, valuations and deadlines."
+      },
+      "work": {
+        "title": "Your work",
+        "body": "Tasks waiting for you. Middle office approves trades, so this step shows Mia Middle's work. Every approval needs a second person, so the inbox is where most work starts."
+      },
+      "entity": {
+        "title": "Legal entity",
+        "body": "Every screen shows one of your companies at a time. DEMO-FI books in euros, DEMO-SE in Swedish kronor."
+      },
+      "search": {
+        "title": "Search",
+        "body": "Jump to a screen, find a trade by number or reference, or search the help: Ctrl K or /."
+      },
+      "inbox": {
+        "title": "The inbox",
+        "body": "All approvals in one place: trades, plans, curves, invoices, limits and more."
+      },
+      "persona": {
+        "title": "Personas",
+        "body": "In the demo you act as a person with a role. Switch here to play both sides of a four-eyes step."
+      },
+      "help": {
+        "title": "Help",
+        "body": "The ? opens the manual page for the screen you are on, and tours like this one."
+      }
+    }
+  },
+  "trade": {
+    "title": "Capture and approve a trade",
+    "summary": "A trader captures a guarantee of origin sale, middle office approves it.",
+    "steps": {
+      "form": {
+        "title": "Instrument and product",
+        "body": "Choose GoO or EUA and the instrument: forwards, spots, futures and more."
+      },
+      "counterparty": {
+        "title": "With whom",
+        "body": "The book and the counterparty. An intercompany counterparty asks for the mirror book of the other company."
+      },
+      "pricing": {
+        "title": "Fixed or index",
+        "body": "A leg has a fixed price, or follows a price index plus a spread fixed later."
+      },
+      "criteria": {
+        "title": "Which certificates",
+        "body": "For guarantees of origin, the criteria say which certificates qualify: country, energy source, technology, age, support."
+      },
+      "capture": {
+        "title": "Capture",
+        "body": "The trade is checked against limits and waits for approval. Try it: fill in the quantities and capture."
+      },
+      "approve": {
+        "title": "Approve as middle office",
+        "body": "Middle office finds the trade in the inbox. The trader who captured it cannot approve it."
+      },
+      "blotter": {
+        "title": "The blotter",
+        "body": "Every trade, newest first, with its status. The Open deliveries tab shows what still has to be delivered."
+      }
+    }
+  },
+  "confirmations": {
+    "title": "Confirm a trade",
+    "summary": "Our confirmation, theirs, and what happens when they differ.",
+    "steps": {
+      "list": {
+        "title": "Confirmations",
+        "body": "Their confirmations are matched against ours field by field. Mismatches and disputes show here."
+      },
+      "ours": {
+        "title": "Our confirmation",
+        "body": "Open a trade and use its Confirmations tab to issue our PDF or enter theirs."
+      },
+      "break": {
+        "title": "A break",
+        "body": "A mismatch becomes a task for a second person: approve to override, reject to dispute."
+      }
+    }
+  },
+  "inventory": {
+    "title": "Certificates and criteria",
+    "summary": "Lots, expiry and finding certificates by criteria.",
+    "steps": {
+      "lots": {
+        "title": "Certificates",
+        "body": "Every lot is a range of certificate numbers with the same attributes in one registry account."
+      },
+      "ladder": {
+        "title": "Expiry ladder",
+        "body": "How many MWh expire in each coming month, so nothing is left to lapse."
+      },
+      "criteria": {
+        "title": "Criteria",
+        "body": "The same criteria builder as on trades: describe what a delivery needs."
+      },
+      "search": {
+        "title": "Search",
+        "body": "Find the lots that satisfy the criteria and how many MWh they hold."
+      },
+      "allowances": {
+        "title": "Allowances",
+        "body": "EU allowances per registry account, with movements and transfers."
+      }
+    }
+  },
+  "allocation": {
+    "title": "Allocate and deliver",
+    "summary": "Match certificates to obligations and send them to the registry.",
+    "steps": {
+      "workbench": {
+        "title": "Obligations",
+        "body": "Open deliveries and cancellations, with how much of each the inventory can cover."
+      },
+      "solver": {
+        "title": "Solver",
+        "body": "Greedy is fast; the exact solver finds the best plan for constraints like device shares."
+      },
+      "whatIf": {
+        "title": "What if",
+        "body": "Try a plan without storing anything."
+      },
+      "propose": {
+        "title": "Propose",
+        "body": "A proposed plan waits for approval by someone else."
+      },
+      "approve": {
+        "title": "Approve the plan",
+        "body": "Approving reserves the lots and creates the registry instructions."
+      },
+      "registry": {
+        "title": "Registry",
+        "body": "Instructions are sent to the registries and confirmed; failures come back as tasks."
+      }
+    }
+  },
+  "valuation": {
+    "title": "Curves, valuation and P&L",
+    "summary": "From market quotes to official curves, valuations and P&L explain.",
+    "steps": {
+      "curves": {
+        "title": "Curves",
+        "body": "Forward prices by delivery period, built from the quotes of a day."
+      },
+      "snapshot": {
+        "title": "Snapshot",
+        "body": "A built curve becomes official when a second person signs it off."
+      },
+      "runs": {
+        "title": "Valuation runs",
+        "body": "Every open trade valued at the official curves of a day."
+      },
+      "explain": {
+        "title": "P&L explain",
+        "body": "What changed between two official runs: new trades, price moves, deliveries and time."
+      },
+      "signOff": {
+        "title": "Sign-off",
+        "body": "The second risk person signs off curves and runs in the inbox."
+      }
+    }
+  },
+  "risk": {
+    "title": "Limits and breaches",
+    "summary": "Limits, utilisation and what happens on a breach.",
+    "steps": {
+      "limits": {
+        "title": "Limits",
+        "body": "Limits by type and scope, with their current utilisation."
+      },
+      "measure": {
+        "title": "Measure",
+        "body": "Measure utilisation now; it also runs on a schedule and on every trade."
+      },
+      "request": {
+        "title": "Request a limit",
+        "body": "A new limit or a change needs a second risk person."
+      },
+      "breaches": {
+        "title": "Breaches",
+        "body": "A breach opens a task to acknowledge or resolve. DEMO-SE has one open."
+      }
+    }
+  },
+  "ets": {
+    "title": "EU ETS compliance",
+    "summary": "Emissions, free allocation, surrenders and deadlines.",
+    "steps": {
+      "position": {
+        "title": "Compliance position",
+        "body": "Allowances held against emissions to cover, per installation and year."
+      },
+      "deadlines": {
+        "title": "Deadlines",
+        "body": "Verification and surrender deadlines, on the calendar and on the home page."
+      },
+      "installations": {
+        "title": "Installations",
+        "body": "The installations with their permits and registry accounts."
+      },
+      "emissions": {
+        "title": "Emissions",
+        "body": "Open an installation to record estimates and verified emissions; verified ones need a second person."
+      }
+    }
+  },
+  "settlement": {
+    "title": "Invoice, pay and net",
+    "summary": "From delivered trades to invoices, payments and netting.",
+    "steps": {
+      "items": {
+        "title": "Settlement items",
+        "body": "Every delivery becomes an item: price, net amount and VAT treatment."
+      },
+      "run": {
+        "title": "Run invoices",
+        "body": "Drafts are created per counterparty from the open items."
+      },
+      "issue": {
+        "title": "Issue",
+        "body": "A second accountant issues the invoice from the inbox; it gets its number and PDF."
+      },
+      "payments": {
+        "title": "Payments",
+        "body": "Record payments or import a bank file, then allocate them to invoices."
+      },
+      "netting": {
+        "title": "Netting",
+        "body": "Offset what you owe and are owed with one counterparty, then settle the difference."
+      }
+    }
+  },
+  "monthEnd": {
+    "title": "Close the month",
+    "summary": "Period end, closes and the GL interface.",
+    "steps": {
+      "period": {
+        "title": "The period",
+        "body": "Month end works on one period at a time; last month is selected."
+      },
+      "status": {
+        "title": "Status",
+        "body": "Open, soft closed or hard closed. A soft close can be reopened."
+      },
+      "periodEnd": {
+        "title": "Period end",
+        "body": "Revaluations and accruals for the month; running it again posts only the difference."
+      },
+      "checklist": {
+        "title": "Hard close",
+        "body": "What still blocks the hard close, such as an export the ERP has not acknowledged."
+      },
+      "ledger": {
+        "title": "Ledger",
+        "body": "The hash-chained journal: corrections are reversals, never edits."
+      }
+    }
+  },
+  "admin": {
+    "title": "Master data and audit",
+    "summary": "Reference data, four-eyes changes and the audit trail.",
+    "steps": {
+      "reference": {
+        "title": "Reference data",
+        "body": "Companies, counterparties, registries, devices and books, with their history."
+      },
+      "changes": {
+        "title": "Change requests",
+        "body": "Sensitive data (registry and bank accounts) changes only with a second person's approval."
+      },
+      "audit": {
+        "title": "Audit trail",
+        "body": "Every change with who, when and why."
+      },
+      "demo": {
+        "title": "The demo",
+        "body": "The administrator can reset the demo; it is rebuilt every night anyway."
+      }
+    }
+  },
+  "ui": {
+    "next": "Next",
+    "back": "Back",
+    "finish": "Finish",
+    "skip": "End tour",
+    "progress": "{{current}} of {{total}}",
+    "switchTo": "This step is for {{name}}.",
+    "switchButton": "Switch to {{name}}",
+    "notFound": "This part is not on the screen right now; read on or move to the next step.",
+    "dialog": "Guided tour",
+    "minutes_one": "{{count}} minute",
+    "minutes_other": "{{count}} minutes",
+    "done": "Done",
+    "start": "Start",
+    "again": "Again",
+    "guideTitle": "Demo guide",
+    "guideDescription": "Short guided scenarios. Each switches personas for you where a second person is needed.",
+    "personas": "As {{names}}",
+    "takeTour": "Take the tour of this screen",
+    "welcomeTitle": "Welcome to the Provena demo",
+    "welcomeBody": "This is a working system with fictitious companies and prices. You act as personas: switch from the menu at the top right to play each role, including the second person every approval needs.",
+    "welcomeShared": "Everyone shares the same data, and it is rebuilt every night.",
+    "welcomeStart": "Start the orientation",
+    "welcomeGuide": "Open the demo guide",
+    "welcomeSkip": "Look around myself"
+  }
+}

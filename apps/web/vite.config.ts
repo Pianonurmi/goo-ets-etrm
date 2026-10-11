@@ -2,18 +2,22 @@
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { helpPlugin } from './vite.help';
 
 // 127.0.0.1, not localhost: the dev profile listens on IPv4 loopback only.
 const backend = process.env.ETRM_API_URL ?? 'http://127.0.0.1:8080';
+// The help manual and its screenshots live in the repository's docs/ (one source for the repo and the app).
+const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 // The UI is served by the API jar from the same origin (ADR 0025); in development Vite proxies the API.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), helpPlugin(repositoryRoot)],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
     port: 5173,
+    fs: { allow: [repositoryRoot] },
     proxy: {
       '/api': backend,
       '/actuator': backend,

@@ -69,9 +69,14 @@ test.describe('hardening', () => {
     await expect(page.getByTestId('dev-banner')).toBeVisible();
     await page.keyboard.press('ControlOrMeta+k');
     await page.getByTestId('palette-search').fill('ledg');
-    await expect(page.getByRole('button', { name: /Ledger/ })).toHaveCount(0);
+    // Middle office has no ledger screen; the manual's ledger page may still be found.
+    await expect(page.getByTestId('palette-screen').filter({ hasText: /Ledger/ })).toHaveCount(0);
     await page.getByTestId('palette-search').fill('valu');
-    await page.getByRole('button', { name: /Valuation/ }).click();
+    await page
+      .getByTestId('palette-screen')
+      .filter({ hasText: /Valuation/ })
+      .first()
+      .click();
     await expect(page).toHaveURL(/\/valuation$/);
 
     await page.getByTestId('palette-button').click();

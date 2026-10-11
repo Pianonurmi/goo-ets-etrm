@@ -14,6 +14,9 @@ val sources = files(
     "package.json",
     "tsconfig.json",
     "vite.config.ts",
+    "vite.help.ts",
+    rootProject.file("docs/user-guide"),
+    rootProject.file("docs/images"),
     "eslint.config.js",
     ".prettierrc.json",
 )
@@ -58,6 +61,7 @@ val formatWeb = registerCheck("formatCheckWeb", "format:check", "Prettier check 
 val typecheckWeb = registerCheck("typecheckWeb", "typecheck", "TypeScript type check")
 val testWeb = registerCheck("testWeb", "test:coverage", "Vitest unit and component tests")
 val apiCoverage = registerCheck("apiCoverageWeb", "coverage:api", "Every API operation has a UI caller or a reason in api-only.json")
+val helpCheck = registerCheck("helpWeb", "check:help", "The manual's pages, links, anchors and screenshots")
 apiCoverage.configure {
     inputs.file(openApiSnapshot)
     inputs.file("api-only.json")
@@ -84,7 +88,7 @@ val bundleBudget by tasks.registering(Exec::class) {
     doLast { stamp.get().asFile.apply { parentFile.mkdirs() }.writeText("ok\n") }
 }
 
-tasks.named("check") { dependsOn(lintWeb, formatWeb, typecheckWeb, testWeb, apiCoverage, bundleBudget) }
+tasks.named("check") { dependsOn(lintWeb, formatWeb, typecheckWeb, testWeb, apiCoverage, helpCheck, bundleBudget) }
 tasks.named("assemble") { dependsOn(viteBuild) }
 
 /** The bundle, consumed by :apps:api. */

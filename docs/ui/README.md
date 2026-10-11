@@ -107,6 +107,24 @@ Tests at every level: [testing.md](testing.md).
 - **Legal entity:** the header selector scopes every screen. Its choice is kept per browser.
 
 
+## Help, tours and the demo guide
+
+- **Manual:** `docs/user-guide/*.md` is the one source for the repository and the app. The build copies the pages to
+  `/help/pages/` and the screenshots of `docs/images` to `/help/images/`, and writes `/help/index.json` (titles and
+  headings) for the palette search (`vite.help.ts`). They are static content, not part of the code bundle.
+- The `?` button (or `Shift ?`) opens the page for the screen in view (`app/help/routes.ts`, route → page#heading);
+  `/help/:page` shows the whole manual. Pages are rendered by `markdown-to-jsx` with raw HTML off.
+- `npm run check:help` (in `check`) fails on a missing page, a link or heading that goes nowhere, or an image over
+  300 kB (12 MB in all).
+- **Tours:** `shared/tour/tours.ts` defines eleven tours. A step points at a CSS selector, preferably a
+  `data-testid` (a contract the end-to-end tests keep stable), and may name the persona it is for; the card then
+  offers to switch. `TourHost` (lazy) dims the page around the target, and the arrow keys and Escape work.
+  Progress is kept in the browser. The texts are their own lazy namespace, `locales/tour.en.json`.
+- **Demo guide:** `/guide` lists the tours with time, personas and what is done. In the showcase a first visit is
+  greeted by `WelcomeModal`.
+- **Screenshots:** `npm run docs:screenshots` (its own config, `playwright.docs.config.ts`) takes the pictures of
+  the manual and the README from the showcase on database `etrm_docs`. Review them before committing.
+
 ## Conventions
 
 - **API calls:** go through `$api` (TanStack Query) or `api` (openapi-fetch); paths and bodies are typed from the

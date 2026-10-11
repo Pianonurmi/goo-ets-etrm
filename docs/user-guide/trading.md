@@ -1,0 +1,94 @@
+# Trading
+
+Trades are captured by traders (or by middle office on their behalf), approved by a second person, confirmed with
+the counterparty, and then delivered and settled. The blotter under **Trades** shows the trades of the selected
+legal entity, newest first. It opens with four cards: trades pending approval, trades captured in the last 7 days,
+open deliveries, and deliveries due in 30 days. Most cards link to the trades or deliveries behind them.
+
+## Who does what
+
+| Step | Who |
+|---|---|
+| Capture, amend, cancel | Trader, middle office |
+| Approve or reject | Middle office or risk, never the person who captured the trade |
+| Confirm, record deliveries, settle | Middle office, back office |
+| Check limits | Trader, middle office, risk, auditor |
+
+## The blotter
+
+- Search by trade number, external reference or UTI; filter by status, product and trade date. Filters stay in
+  the address, so a view can be bookmarked.
+- The **Blotter** tab lists the trades. If none match your filters, an empty state offers **Clear filters**; with
+  no trades at all it offers **New trade**.
+- The **Open deliveries** tab lists what still has to be delivered or received, earliest first, across all trades.
+  Click a row to open its trade.
+
+## Capture a trade
+
+Open **Trades → New trade**.
+
+1. Choose the product (**GoO** or **EUA**), the instrument, the book and the counterparty.
+2. For each leg: side, quantity, price and currency, and the delivery schedule (a window and a delivery date per
+   delivery; the quantities must add up to the leg).
+3. For guarantees of origin, describe which certificates qualify with the **criteria builder**: country or region,
+   energy source, technology, support, device age, vintage and labels. The summary under the builder shows how the
+   criteria read and how specific they are; the **JSON** tab shows the same criteria as text. Once the trade is
+   captured, its **Legs and deliveries** tab shows the **Product bucket** the criteria fall in.
+4. **Capture trade.** The trade waits for approval in the inbox of middle office and risk.
+
+The form checks what it can before sending; anything the server refuses appears next to its field or at the top.
+
+### Futures
+
+Choose the instrument **Future**: the product switches to EUA and only exchanges and clearing houses are offered.
+Pick the **futures contract**: it sets the allowance product, currency, venue and the single delivery on the
+contract's delivery date. The quantity must be whole lots of the contract size.
+
+### Index pricing
+
+Switch a leg's **Pricing** to **Index**, choose the price index and enter the **spread**. The price is fixed later
+from the index fixing plus the spread; until then the delivery waits for its price in settlement.
+
+### Broker, master agreement and intercompany trades
+
+- **Broker** and **master agreement** are optional; the agreement field suggests the counterparty's agreements.
+- When the counterparty is one of our own companies, the trade is **intercompany**: choose the **mirror book** of the
+  other company. Its mirror trade is captured with this one, with the sides reversed.
+
+## Approval and pre-trade checks
+
+Every trade runs pre-trade checks (credit and limits) when it is captured. Findings are shown on the trade under
+**Pre-trade checks**; a finding that needs risk approval is red. **Check limits** runs the checks again against
+today's limits without storing anything.
+
+The trade's **Approval task** button opens its inbox task. The trader can withdraw the trade from approval there
+(**Cancel task**, with a reason), which cancels the trade.
+
+> **Try it in the demo:** as *Tia Trader*, capture a GoO sale to *Aurora Power*. Switch to *Mia Middle* and approve
+> it from the inbox.
+
+## Amendments and versions
+
+A trade's page opens with its key facts (notional, counterparty, book, trader, references) and, beside them, a
+**Lifecycle** timeline: captured, approved, confirmed, delivered, settled, with who did each step and when. A
+cancelled or disputed trade ends in a failed step.
+
+**Amend** is in the **More actions** menu (the three dots) at the top of the page, together with **Cancel trade**.
+It opens the form with a reason; saving creates a new version, and an approved trade goes back for approval. The
+**Versions** tab shows what changed between versions, field by field.
+
+## Confirmation, delivery and settlement
+
+- **Confirm** (shown once the trade is approved) records the counterparty's confirmation reference. Delivery
+  obligations open when a trade is confirmed (or, for entities set up that way, when it is approved).
+- The **Legs and deliveries** tab has a **Deliver** menu per delivery:
+  - **Record delivery** by hand (date, quantity, reference);
+  - **Transfer allowances** submits the Union Registry transfer for an allowance sale; the delivery is recorded when
+    the registry confirms it;
+  - **Match receipt** links a received lot (GoO) or an incoming allowance movement (EUA) to a purchase.
+- A delivered trade can be settled with **Mark settled**.
+- The **Documents** tab lists our confirmation PDFs with **Verify**, which checks the stored hash.
+- The **Mark to market** tab shows the trade's value in the official valuation of the **Valuation date** you choose.
+
+See [Confirmations](confirmations.md) for matching the counterparty's confirmation, and
+[Settlement](settlement.md) for invoices.

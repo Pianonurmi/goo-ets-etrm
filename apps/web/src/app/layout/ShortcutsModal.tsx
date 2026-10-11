@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['Ctrl', 'K'], label: 'shortcuts.palette' },
   { keys: ['/'], label: 'shortcuts.palette' },
-  { keys: ['?'], label: 'shortcuts.sheet' },
+  { keys: ['?'], label: 'shortcuts.help' },
   { keys: ['['], label: 'shortcuts.sidebar' },
   { keys: ['Shift', 'D'], label: 'shortcuts.density' },
   { keys: ['Shift', 'L'], label: 'shortcuts.scheme' },

@@ -122,3 +122,99 @@ html[data-density='compact'] {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* The in-app manual (app/help): readable measure, quiet tables, screenshots framed like the cards. */
+.etrm-help {
+  max-width: 820px;
+  line-height: 1.6;
+  font-size: var(--mantine-font-size-sm);
+}
+.etrm-help h1 {
+  font-size: 1.6rem;
+  font-weight: 650;
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.01em;
+}
+.etrm-help h2 {
+  font-size: 1.2rem;
+  font-weight: 620;
+  margin: 2rem 0 0.5rem;
+  scroll-margin-top: 80px;
+}
+.etrm-help h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.4rem;
+  scroll-margin-top: 80px;
+}
+.etrm-help p,
+.etrm-help ul,
+.etrm-help ol {
+  margin: 0 0 0.75rem;
+}
+.etrm-help li + li {
+  margin-top: 0.2rem;
+}
+.etrm-help code {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--mantine-color-default-hover);
+}
+.etrm-help table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 1rem;
+}
+.etrm-help th,
+.etrm-help td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+.etrm-help th {
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+}
+.etrm-help blockquote {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid var(--mantine-primary-color-filled);
+  background: var(--mantine-primary-color-light);
+  border-radius: 0 6px 6px 0;
+}
+.etrm-help blockquote p:last-child {
+  margin-bottom: 0;
+}
+.etrm-help-image {
+  border: 1px solid var(--mantine-color-default-border);
+  margin: 0.5rem 0 1rem;
+}
+
+/* Guided tours (shared/tour): a spotlight cut out of a dimmed page, and the step card above it. */
+.etrm-tour-spotlight {
+  position: fixed;
+  z-index: 400;
+  border-radius: 8px;
+  outline: 2px solid var(--mantine-primary-color-filled);
+  pointer-events: none;
+  transition: all 160ms ease;
+}
+.etrm-tour-veil {
+  position: fixed;
+  z-index: 400;
+  background: rgba(15, 23, 42, 0.5);
+  pointer-events: none;
+}
+.etrm-tour-card {
+  position: fixed;
+  z-index: 401;
+}
+@media (prefers-reduced-motion: reduce) {
+  .etrm-tour-spotlight {
+    transition: none;
+  }
+}

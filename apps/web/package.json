@@ -19,8 +19,10 @@
     "build": "vite build",
     "budget": "node scripts/check-bundle.mjs",
     "coverage:api": "node scripts/check-api-coverage.mjs",
+    "check:help": "node scripts/check-help.mjs",
     "preview": "vite preview",
     "e2e": "playwright test",
+    "docs:screenshots": "playwright test -c playwright.docs.config.ts",
     "sbom": "cyclonedx-npm --omit dev --output-format JSON --output-file build/sbom/etrm-web.cdx.json"
   },
   "dependencies": {
@@ -40,6 +42,7 @@
     "ag-grid-react": "36.2.0",
     "dayjs": "1.11.23",
     "i18next": "26.4.3",
+    "markdown-to-jsx": "9.10.3",
     "oidc-client-ts": "3.5.0",
     "openapi-fetch": "0.17.0",
     "openapi-react-query": "0.5.4",

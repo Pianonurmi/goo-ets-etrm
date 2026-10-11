@@ -85,4 +85,15 @@ test.describe('showcase', () => {
     await page.getByTestId('login-submit').click();
     await expect(page.getByTestId('login-error')).toContainText('Too many attempts');
   });
+
+  test('a first visit is welcomed once, with a way into the guide', async ({ page }) => {
+    await signIn(page, undefined, undefined, true);
+    await expect(page.getByTestId('welcome')).toBeVisible();
+    await page.getByTestId('welcome-guide').click();
+    await expect(page).toHaveURL(/\/guide$/);
+    await expect(page.getByTestId('guide-orientation')).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('guide-orientation')).toBeVisible();
+    await expect(page.getByTestId('welcome')).toHaveCount(0);
+  });
 });

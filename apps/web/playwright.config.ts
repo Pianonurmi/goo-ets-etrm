@@ -38,7 +38,8 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /showcase\.spec\.ts/,
+      // The documentation screenshots have their own config (playwright.docs.config.ts).
+      testIgnore: [/showcase\.spec\.ts/, /e2e\/docs\//],
       use: { ...devices['Desktop Chrome'], launchOptions: executablePath ? { executablePath } : {} },
     },
     {
