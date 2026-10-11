@@ -44,6 +44,14 @@ dependencies {
     testImplementation(libs.kotest.property)
     testImplementation(libs.mockk)
     testRuntimeOnly(libs.junit.platform.launcher)
+
+    // Security fixes ahead of the Spring Boot BOM; each entry in the catalogue says when it can go.
+    constraints {
+        listOf(libs.tomcat.embed.core, libs.tomcat.embed.el, libs.tomcat.embed.websocket).forEach {
+            implementation(it)
+            testImplementation(it)
+        }
+    }
 }
 
 val sharedTestDatabase = gradle.sharedServices.registerIfAbsent("sharedTestDatabase", com.pianonurmi.build.SharedTestDatabase::class) {
