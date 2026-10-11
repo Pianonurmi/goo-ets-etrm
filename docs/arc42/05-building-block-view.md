@@ -91,5 +91,5 @@ flowchart LR
 | `src/app` | Boot (UI config, sign-in), providers, lazy routes, navigation filtered by role, command palette (mod+K), accessible theme |
 | `src/shared/api` | `openapi-fetch` client and TanStack Query hooks typed from `apps/api/openapi/etrm-api.json` (ADR 0027), problem errors, downloads |
 | `src/shared/auth` | OIDC with PKCE or dev personas (ADR 0026), session (`/me`), permissions keyed by operation id (ADR 0028) |
-| `src/features/*` | Screens per area: inbox, trades, criteria, inventory, allocation, positions, market data, valuation, risk, ETS, ledger, month end, reports, admin, audit. Pure logic lives in `model/` with unit tests |
+| `src/features/*` | Screens per area: inbox, trades, confirmations, criteria, inventory, allocation, positions, registry, reconciliation, settlement, market data, valuation, risk, ETS, ledger, month end, reports, admin, audit. Pure logic lives in `model/` with unit tests |
 | `e2e/` | Playwright journeys against the jar with demo data, accessibility (axe) and CSP checks |

@@ -95,7 +95,9 @@ function BreaksTab({ entityId }: { entityId: string }) {
   const breaks = $api.useQuery('get', '/api/v1/inventory/breaks', {
     params: { query: { status: closed ? CLOSED_STATUSES : undefined, type: type ?? undefined } },
   });
-  const ageing = $api.useQuery('get', '/api/v1/inventory/breaks/ageing', {});
+  const ageing = $api.useQuery('get', '/api/v1/inventory/breaks/ageing', {
+    params: { query: { legalEntityId: entityId } },
+  });
   const accountNumbers = useMemo(
     () => new Map((accounts.data ?? []).map((account) => [account.id, account.accountNumber])),
     [accounts.data],

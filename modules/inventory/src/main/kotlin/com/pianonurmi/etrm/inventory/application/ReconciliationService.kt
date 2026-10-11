@@ -327,7 +327,7 @@ class ReconciliationService(
     override fun requireBreak(id: UUID): ReconciliationBreakView = repository.findBreak(id) ?: throw NotFoundException("ReconciliationBreak", id)
 
     @Transactional(readOnly = true)
-    override fun ageing(): BreakAgeing = repository.ageing(LocalDate.now(clock))
+    override fun ageing(registryAccountIds: Set<UUID>?): BreakAgeing = repository.ageing(LocalDate.now(clock), registryAccountIds)
 
     private fun attributeMismatch(line: StatementLine, lot: LotView): Map<String, Any?>? {
         val mismatches = mutableMapOf<String, Any?>()

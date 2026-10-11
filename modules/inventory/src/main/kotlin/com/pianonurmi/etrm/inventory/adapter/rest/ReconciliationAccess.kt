@@ -31,6 +31,20 @@ class ReconciliationAccess(private val actorProvider: ActorProvider, private val
         return rows.filter { actor.canAccess(holders.getOrPut(account(it)) { holderOf(account(it)) }) }
     }
 
+    /**
+     * The registry accounts a reader may count breaks of: those of [legalEntityId] when given, else those of the
+     * user's entities; null when every entity is in scope.
+     */
+    fun accountsInScope(legalEntityId: UUID?): Set<UUID>? {
+        val actor = reader()
+        val entities = when {
+            legalEntityId != null -> setOf(legalEntityId.also(actor::requireEntity))
+            actor.seesAllEntities -> return null
+            else -> actor.legalEntityScope
+        }
+        return entities.flatMap { referenceData.registryAccounts(HolderType.LEGAL_ENTITY, it) }.map { it.id }.toSet()
+    }
+
     private fun holderOf(registryAccountId: UUID?): UUID? {
         val account = registryAccountId?.let(referenceData::requireRegistryAccount) ?: return null
         return account.holderId.takeIf { account.holderType == HolderType.LEGAL_ENTITY }

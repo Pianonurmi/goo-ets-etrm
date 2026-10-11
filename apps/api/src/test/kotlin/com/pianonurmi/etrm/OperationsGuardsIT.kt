@@ -30,7 +30,14 @@ class OperationsGuardsIT {
     private var port: Int = 0
 
     /** One entity's operations data: a delivered sale, a pending transfer, a statement break and a mismatched confirmation. */
-    private data class Operations(val s: ApiScenario, val itemId: String, val instructionId: String, val breakId: String, val confirmationId: String)
+    private data class Operations(
+        val s: ApiScenario,
+        val itemId: String,
+        val instructionId: String,
+        val breakId: String,
+        val confirmationId: String,
+        val documentId: String,
+    )
 
     private fun operations(): Operations {
         val s = ApiScenario(port).referenceData()
@@ -55,6 +62,7 @@ class OperationsGuardsIT {
         s.asUser("middle").post("/api/v1/workflow/tasks/$task/approve").then().statusCode(200)
         val ours = s.asUser("middle").get("/api/v1/trades/$captured/confirmations").then().extract().jsonPath()
         val terms = JsonPath.from(ours.prettify()).getMap<String, Any?>("[0].terms").toMutableMap()
+        val documentId = ours.getString("[0].documentId")
 
         @Suppress("UNCHECKED_CAST")
         val leg = (terms["legs"] as List<Map<String, Any?>>).single().toMutableMap()
@@ -63,7 +71,7 @@ class OperationsGuardsIT {
         terms["legs"] = listOf(leg)
         val confirmationId: String = s.asUser("middle").body(mapOf("terms" to terms, "reference" to "THEIRS-${s.entityId}", "source" to "MANUAL"))
             .post("/api/v1/confirmations/counterparty").then().statusCode(201).body("status", equalTo("MISMATCHED")).extract().path("id")
-        return Operations(s, itemId, instructionId, breakId, confirmationId)
+        return Operations(s, itemId, instructionId, breakId, confirmationId, documentId)
     }
 
     @Test
@@ -122,5 +130,13 @@ class OperationsGuardsIT {
             .body("id", hasItem(mine.confirmationId)).body("id", not(hasItem(theirs.confirmationId)))
         scoped().get("/api/v1/confirmations?legalEntityId=${theirs.s.entityId}").then().statusCode(403)
         scoped().get("/api/v1/confirmations/${theirs.confirmationId}").then().statusCode(403)
+
+        // Issued documents (our confirmation PDFs) and the break ageing figures follow the same scope.
+        scoped().get("/api/v1/documents/${mine.documentId}/content").then().statusCode(200)
+        scoped().get("/api/v1/documents/${theirs.documentId}/content").then().statusCode(403)
+        scoped().get("/api/v1/documents/${theirs.documentId}").then().statusCode(403)
+        scoped().get("/api/v1/inventory/breaks/ageing").then().statusCode(200).body("upToOneDay", equalTo(1))
+        scoped().get("/api/v1/inventory/breaks/ageing?legalEntityId=${mine.s.entityId}").then().statusCode(200).body("upToOneDay", equalTo(1))
+        scoped().get("/api/v1/inventory/breaks/ageing?legalEntityId=${theirs.s.entityId}").then().statusCode(403)
     }
 }

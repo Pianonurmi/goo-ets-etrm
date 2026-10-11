@@ -70,7 +70,13 @@ export function ConfirmationDetailPage() {
                     </Badge>
                   </Group>
                   <Text size="sm" c="dimmed">
-                    <Anchor component={Link} to={`/trades/${data.tradeId}`} size="sm" data-testid="confirmation-trade">
+                    <Anchor
+                      component={Link}
+                      to={`/trades/${data.tradeId}`}
+                      size="sm"
+                      underline="always"
+                      data-testid="confirmation-trade"
+                    >
                       {data.tradeNumber}
                     </Anchor>{' '}
                     · v{data.tradeVersion} ·{' '}

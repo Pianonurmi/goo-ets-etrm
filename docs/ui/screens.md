@@ -161,8 +161,7 @@ legal-entity scope; the UI only mirrors them.
   registry lacks certificates, record a receipt when it has more, replace or correct our lot when attributes differ,
   book the difference for allowance balances. Any open break can be accepted as it is; a second person approves the
   acceptance in the inbox.
-- The ageing figures count open breaks of every account (the endpoint is not yet limited to the user's entities;
-  increment 5 M6); the queue shows the selected entity's accounts.
+- The ageing figures and the queue show the selected entity's accounts.
 
 ## Confirmations (`features/confirmations`)
 

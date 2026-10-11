@@ -213,7 +213,9 @@ class InventoryController(
     ): ReconciliationBreakView = reconciliationQuery.requireBreak(id).also { reconciliationAccess.reader(it.registryAccountId) }
 
     @GetMapping("/breaks/ageing")
-    fun ageing(): BreakAgeing = reconciliationAccess.reader().let { reconciliationQuery.ageing() }
+    fun ageing(
+        @RequestParam(required = false) legalEntityId: UUID?,
+    ): BreakAgeing = reconciliationQuery.ageing(reconciliationAccess.accountsInScope(legalEntityId))
 
     private fun requireStatement(id: UUID): StatementView = reconciliationQuery.statement(id) ?: throw NotFoundException("Statement", id)
 }

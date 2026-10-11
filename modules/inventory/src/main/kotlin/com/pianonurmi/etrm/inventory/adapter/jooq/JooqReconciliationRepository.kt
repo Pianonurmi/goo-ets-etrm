@@ -232,14 +232,17 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
         .limit(filter.limit)
         .fetch(::toBreak)
 
-    override fun ageing(today: LocalDate): BreakAgeing {
+    override fun ageing(today: LocalDate, registryAccountIds: Set<UUID>?): BreakAgeing {
         val days = DSL.field("{0} - {1}", Int::class.java, DSL.inline(today), RECONCILIATION_BREAK.FIRST_SEEN_ON)
         val r = dsl.select(
             DSL.count().filterWhere(days.le(1)),
             DSL.count().filterWhere(days.gt(1).and(days.le(7))),
             DSL.count().filterWhere(days.gt(7).and(days.le(30))),
             DSL.count().filterWhere(days.gt(30)),
-        ).from(RECONCILIATION_BREAK).where(RECONCILIATION_BREAK.STATUS.`in`(OPEN_STATUSES)).fetchSingle()
+        ).from(RECONCILIATION_BREAK)
+            .where(RECONCILIATION_BREAK.STATUS.`in`(OPEN_STATUSES))
+            .and(registryAccountIds?.let { RECONCILIATION_BREAK.REGISTRY_ACCOUNT_ID.`in`(it) } ?: DSL.noCondition())
+            .fetchSingle()
         return BreakAgeing(r.value1(), r.value2(), r.value3(), r.value4())
     }
 

@@ -129,7 +129,7 @@ interface ReconciliationRepository {
 
     fun breaks(filter: BreakFilter): List<ReconciliationBreakView>
 
-    fun ageing(today: java.time.LocalDate): com.pianonurmi.etrm.inventory.api.BreakAgeing
+    fun ageing(today: java.time.LocalDate, registryAccountIds: Set<UUID>?): com.pianonurmi.etrm.inventory.api.BreakAgeing
 }
 
 /** Range arithmetic for reconciliation: subtracts covered ranges from a target range. */

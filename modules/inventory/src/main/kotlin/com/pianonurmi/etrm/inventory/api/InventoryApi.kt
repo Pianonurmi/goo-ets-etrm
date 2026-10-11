@@ -367,7 +367,8 @@ interface ReconciliationQuery {
 
     fun requireBreak(id: UUID): ReconciliationBreakView
 
-    fun ageing(): BreakAgeing
+    /** Open breaks by age, of [registryAccountIds] only when given (the accounts of the user's entities). */
+    fun ageing(registryAccountIds: Set<UUID>? = null): BreakAgeing
 }
 
 data class ReconciliationBreakDetected(val breakView: ReconciliationBreakView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata

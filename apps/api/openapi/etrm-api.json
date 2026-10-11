@@ -11428,6 +11428,15 @@
     "/api/v1/inventory/breaks/ageing" : {
       "get" : {
         "operationId" : "inventory_ageing",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
