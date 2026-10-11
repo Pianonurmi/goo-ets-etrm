@@ -81,6 +81,9 @@ data class ConfirmationView(
     val createdAt: Instant,
     val decidedBy: String?,
     val note: String?,
+    /** The trade's counterparty and legal entity, for queues and filters. */
+    val counterpartyId: UUID? = null,
+    val legalEntityId: UUID? = null,
 )
 
 /** A confirmation received from the counterparty (JSON or manual entry). */

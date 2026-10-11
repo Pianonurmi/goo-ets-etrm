@@ -81,7 +81,7 @@ class JooqConfirmationRepository(private val dsl: DSLContext) : ConfirmationRepo
         )
         .fetchOne(::toView)
 
-    private fun select() = dsl.select(TRADE_CONFIRMATION.asterisk(), TRADE.TRADE_NUMBER)
+    private fun select() = dsl.select(TRADE_CONFIRMATION.asterisk(), TRADE.TRADE_NUMBER, TRADE.COUNTERPARTY_ID, TRADE.LEGAL_ENTITY_ID)
         .from(TRADE_CONFIRMATION)
         .join(TRADE).on(TRADE.ID.eq(TRADE_CONFIRMATION.TRADE_ID))
 
@@ -102,5 +102,7 @@ class JooqConfirmationRepository(private val dsl: DSLContext) : ConfirmationRepo
         createdAt = r.get(TRADE_CONFIRMATION.CREATED_AT)!!,
         decidedBy = r.get(TRADE_CONFIRMATION.DECIDED_BY),
         note = r.get(TRADE_CONFIRMATION.NOTE),
+        counterpartyId = r.get(TRADE.COUNTERPARTY_ID),
+        legalEntityId = r.get(TRADE.LEGAL_ENTITY_ID),
     )
 }

@@ -32,7 +32,8 @@
     "audit": "Audit trail",
     "settlement": "Settlement",
     "registry": "Registry",
-    "reconciliation": "Reconciliation"
+    "reconciliation": "Reconciliation",
+    "confirmations": "Confirmations"
   },
   "header": {
     "entity": "Legal entity",
@@ -1532,6 +1533,71 @@
     "tasks": {
       "RECONCILIATION_BREAK": "Break task",
       "BREAK_ACCEPTANCE": "Acceptance task"
+    }
+  },
+  "confirmations": {
+    "title": "Confirmations",
+    "description": "Counterparty confirmations of {{entity}}'s trades, matched against ours",
+    "back": "Back to confirmations",
+    "views": {
+      "open": "To work on",
+      "settled": "Matched or overridden",
+      "all": "All received"
+    },
+    "trade": "Trade",
+    "theirReference": "Their reference",
+    "differences": "Differences",
+    "source": "Source",
+    "receivedAt": "Received",
+    "receivedBy": "Received by",
+    "hint": "A confirmation that differs from ours opens a task: a second middle or back office user overrides it (the trade is confirmed) or disputes it.",
+    "upload": "Upload CSV",
+    "uploadHint": "One line per delivery: confirmation_ref, our_trade_ref or counterparty_trade_ref, trade_date, product_family, product, quantity, unit, price, currency, delivery_date, and optionally amount, payment_date, seller_name, buyer_name, seller_lei, buyer_lei, seller_account, buyer_account. Lines with the same confirmation_ref form one confirmation.",
+    "csv": "Confirmations (CSV)",
+    "uploaded_one": "{{count}} confirmation received",
+    "uploaded_other": "{{count}} confirmations received",
+    "enterTheirs": "Enter their confirmation",
+    "enterHint": "Starts from our terms. Enter what the counterparty's confirmation states; it is matched against ours when you save it.",
+    "quantity": "Quantity ({{unit}})",
+    "price": "Price ({{currency}})",
+    "amount": "Amount ({{currency}})",
+    "deliveryDate": "First delivery date",
+    "receiveAndMatch": "Receive and match",
+    "received": {
+      "MATCHED": "Received; it matches ours",
+      "MISMATCHED": "Received; it differs from ours and waits for a decision",
+      "RECEIVED": "Received; it is matched when ours is issued"
+    },
+    "receivedAny": "Confirmation received",
+    "issueOurs": "Issue our confirmation",
+    "issued": "Our confirmation issued",
+    "breakTask": "Break task",
+    "ourPdf": "Our confirmation (PDF)",
+    "mismatchHint": "Their terms differ from ours. A second person overrides the differences (the trade is confirmed) or disputes the confirmation in the inbox.",
+    "tradeDate": "Trade date",
+    "decidedBy": "Decided by",
+    "directions": {
+      "OURS": "Ours",
+      "THEIRS": "Theirs"
+    },
+    "comparison": "Their terms against ours",
+    "terms": "Terms",
+    "field": "Field",
+    "ours": "Ours",
+    "theirs": "Theirs",
+    "value": "Value",
+    "fields": {
+      "seller.name": "Seller",
+      "seller.lei": "Seller LEI",
+      "buyer.name": "Buyer",
+      "buyer.lei": "Buyer LEI",
+      "product": "Product",
+      "quantity": "Quantity",
+      "price": "Price",
+      "amount": "Amount",
+      "sellerAccount": "Seller account",
+      "buyerAccount": "Buyer account",
+      "deliveries": "Deliveries"
     }
   }
 }

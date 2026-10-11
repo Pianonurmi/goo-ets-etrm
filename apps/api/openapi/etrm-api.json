@@ -1519,6 +1519,10 @@
       },
       "ConfirmationView" : {
         "properties" : {
+          "counterpartyId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
           "createdAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -1546,6 +1550,10 @@
           "id" : {
             "format" : "uuid",
             "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
           },
           "matchedAgainst" : {
             "format" : "uuid",

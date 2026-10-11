@@ -38,6 +38,8 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   trade_recordDelivery: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
   trade_settle: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
   confirmation_issue: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  confirmation_receive: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
+  confirmation_receiveCsv: ['MIDDLE_OFFICE', 'BACK_OFFICE'],
   allocation_propose: ['TRADER', 'MIDDLE_OFFICE', 'BACK_OFFICE'],
   allocation_whatIf: ['TRADER', 'MIDDLE_OFFICE', 'BACK_OFFICE'],
   allocation_approve: ['MIDDLE_OFFICE', 'BACK_OFFICE'],

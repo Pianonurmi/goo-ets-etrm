@@ -10,7 +10,9 @@ legal-entity scope; the UI only mirrors them.
 | Approval inbox | `/inbox` | `workflow_inbox` (cursor paging, filters in the URL), `workflow_taskTypes`, `workflow_counts`, `workflow_bulk` | candidates of each task type |
 | Trade blotter | `/trades` | `trade_search` (one query per page, keyset cursor, filters and `q` in the URL), `referenceData_counterparties`, `referenceData_books` | everyone in scope |
 | Trade capture and amendment | `/trades/new`, `/trades/:tradeId/amend` | `trade_capture`, `trade_amend`, criteria builder, `referenceData_registryAccounts`, `product_allowances` | TRADER, MIDDLE_OFFICE |
-| Trade detail | `/trades/:tradeId` | `trade_trade`, `trade_versions` (diff per version), `confirmation_forTrade`, `valuation_tradeMtm`, `trade_confirm`, `trade_cancel`, link to the approval task | confirm: MIDDLE_OFFICE, BACK_OFFICE; amend/cancel: TRADER, MIDDLE_OFFICE |
+| Trade detail | `/trades/:tradeId` | `trade_trade`, `trade_versions` (diff per version), `confirmation_forTrade`, `confirmation_issue`, `confirmation_receive` (their terms entered by hand), `valuation_tradeMtm`, `trade_confirm`, `trade_cancel`, link to the approval task | confirm: MIDDLE_OFFICE, BACK_OFFICE; amend/cancel: TRADER, MIDDLE_OFFICE |
+| Confirmations | `/confirmations` (`view` and `counterparty` in the URL) | `confirmation_queue` (the selected entity), `confirmation_receiveCsv` | upload: MIDDLE_OFFICE, BACK_OFFICE; read in scope |
+| Confirmation detail | `/confirmations/:confirmationId` | `confirmation_confirmation`, `confirmation_forTrade`, `document_content` (our PDF), link to the `CONFIRMATION_BREAK` task | override or dispute (inbox): MIDDLE_OFFICE, BACK_OFFICE, never the person who received it |
 | Allocation workbench | `/allocation` | `allocation_obligations`, `allocation_coverage`, `allocation_plans`, `allocation_whatIf` (stores nothing), `allocation_propose` | propose and what-if: TRADER, MIDDLE_OFFICE, BACK_OFFICE |
 | Allocation plan | `/allocation/plans/:planId` | `allocation_plan`, link to the `ALLOCATION_APPROVAL` task, `allocation_cancel` | approve (inbox): MIDDLE_OFFICE, BACK_OFFICE, never the proposer |
 | Positions | `/positions` | `position_goo` (buckets, coverage, expiry ladder chart), `position_ets` (compliance ladder by year) | everyone in scope |
@@ -161,3 +163,14 @@ legal-entity scope; the UI only mirrors them.
   acceptance in the inbox.
 - The ageing figures count open breaks of every account (the endpoint is not yet limited to the user's entities;
   increment 5 M6); the queue shows the selected entity's accounts.
+
+## Confirmations (`features/confirmations`)
+
+- The queue shows counterparty confirmations to work on (received, mismatched, disputed); the counterparty comes
+  from the trade (`ConfirmationView.counterpartyId`).
+- The detail lines up their terms against the confirmation of ours they were matched with, field by field, and
+  marks what the matcher recorded (MISMATCH or NOTE). Fields are named as the matcher names them (`legs[1].price`).
+- Their confirmation can be entered by hand from the trade's confirmations tab: it starts from our terms and takes
+  the counterparty's quantity, price, amount and first delivery date (`model/confirmations.ts`, `enteredTerms`).
+- A mismatch opens `CONFIRMATION_BREAK`: approving overrides it (the trade is confirmed with method OVERRIDE),
+  rejecting disputes it.

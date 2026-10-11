@@ -21,8 +21,9 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
+import { ReceiveConfirmationModal, useInvalidateConfirmations } from '@/features/confirmations/ConfirmationModals';
 import type { Schema } from '@/shared/api/types';
-import { useCan } from '@/shared/auth/Can';
+import { Can, useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
@@ -269,11 +270,40 @@ function Versions({ tradeId }: { tradeId: string }) {
 
 function Confirmations({ tradeId }: { tradeId: string }) {
   const { t } = useTranslation();
+  const invalidate = useInvalidateConfirmations();
+  const [entering, setEntering] = useState(false);
   const confirmations = $api.useQuery('get', '/api/v1/trades/{tradeId}/confirmations', {
     params: { path: { tradeId } },
   });
+  const issue = $api.useMutation('post', '/api/v1/trades/{tradeId}/confirmations', {
+    onSuccess: () => {
+      notifySuccess(t('confirmations.issued'));
+      void invalidate();
+    },
+  });
+  const current = (confirmations.data ?? []).find((c) => c.direction === 'OURS' && c.status === 'ISSUED');
   return (
     <QueryState isPending={confirmations.isPending} error={confirmations.error}>
+      <Group justify="flex-end" mb="sm">
+        <Can op="confirmation_issue">
+          <Button
+            variant="light"
+            size="xs"
+            loading={issue.isPending}
+            onClick={() => issue.mutate({ params: { path: { tradeId } } })}
+            data-testid="issue-confirmation"
+          >
+            {t('confirmations.issueOurs')}
+          </Button>
+        </Can>
+        {current && (
+          <Can op="confirmation_receive">
+            <Button size="xs" onClick={() => setEntering(true)} data-testid="enter-theirs">
+              {t('confirmations.enterTheirs')}
+            </Button>
+          </Can>
+        )}
+      </Group>
       {(confirmations.data ?? []).length === 0 ? (
         <Text size="sm" c="dimmed">
           {t('trades.noConfirmations')}
@@ -284,6 +314,7 @@ function Confirmations({ tradeId }: { tradeId: string }) {
             <Table.Tr>
               <Table.Th>{t('trades.direction')}</Table.Th>
               <Table.Th>{t('trades.columns.status')}</Table.Th>
+              <Table.Th>{t('confirmations.theirReference')}</Table.Th>
               <Table.Th>{t('trades.source')}</Table.Th>
               <Table.Th>{t('trades.version', { version: '' })}</Table.Th>
               <Table.Th>{t('trades.differences')}</Table.Th>
@@ -294,7 +325,12 @@ function Confirmations({ tradeId }: { tradeId: string }) {
             {(confirmations.data ?? []).map((confirmation) => (
               <Table.Tr key={confirmation.id}>
                 <Table.Td>{confirmation.direction}</Table.Td>
-                <Table.Td>{confirmation.status}</Table.Td>
+                <Table.Td>
+                  <Anchor component={Link} to={`/confirmations/${confirmation.id}`} size="sm">
+                    {confirmation.status}
+                  </Anchor>
+                </Table.Td>
+                <Table.Td>{confirmation.reference}</Table.Td>
                 <Table.Td>{confirmation.source}</Table.Td>
                 <Table.Td>{confirmation.tradeVersion}</Table.Td>
                 <Table.Td>{confirmation.differences.length}</Table.Td>
@@ -304,6 +340,7 @@ function Confirmations({ tradeId }: { tradeId: string }) {
           </Table.Tbody>
         </Table>
       )}
+      {entering && current && <ReceiveConfirmationModal ours={current} onClose={() => setEntering(false)} />}
     </QueryState>
   );
 }

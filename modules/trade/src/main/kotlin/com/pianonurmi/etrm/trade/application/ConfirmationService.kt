@@ -124,6 +124,8 @@ class ConfirmationService(
             createdAt = clock.instant(),
             decidedBy = null,
             note = null,
+            counterpartyId = trade.counterpartyId,
+            legalEntityId = trade.legalEntityId,
         )
         repository.insert(ours)
         // A confirmation from the counterparty that arrived before ours (or before an amendment) is matched now.
@@ -158,6 +160,8 @@ class ConfirmationService(
             createdAt = clock.instant(),
             decidedBy = null,
             note = null,
+            counterpartyId = trade.counterpartyId,
+            legalEntityId = trade.legalEntityId,
         )
         repository.insert(theirs)
         val ours = currentOurs(trade.id)

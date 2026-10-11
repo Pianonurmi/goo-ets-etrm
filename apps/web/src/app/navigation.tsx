@@ -9,6 +9,7 @@ import {
   IconFileInvoice,
   IconBuildingArch,
   IconGitCompare,
+  IconChecklist,
   IconListDetails,
   IconPackages,
   IconBook2,
@@ -71,6 +72,12 @@ export const NAVIGATION: NavSection[] = [
     title: 'nav.sectionTrading',
     items: [
       { path: '/trades', label: 'nav.trades', icon: <IconArrowsExchange size={ICON} /> },
+      {
+        path: '/confirmations',
+        label: 'nav.confirmations',
+        icon: <IconChecklist size={ICON} />,
+        roles: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'TRADER', 'AUDITOR'],
+      },
       { path: '/market-data', label: 'nav.marketData', icon: <IconChartLine size={ICON} /> },
       { path: '/market-data/curves', label: 'nav.curves', icon: <IconTimeline size={ICON} /> },
     ],

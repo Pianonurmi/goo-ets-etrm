@@ -18,6 +18,7 @@ const SCREENS = [
   '/',
   '/inbox',
   '/trades',
+  '/confirmations',
   '/inventory',
   '/positions',
   '/registry',
