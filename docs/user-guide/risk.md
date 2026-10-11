@@ -10,6 +10,8 @@ date, compliance short) and scope (whole entity, book, product family). **Reques
 approval; a change (**Request change**, on the limit's page) needs a second risk person too. Switch on **Show
 pending, rejected and retired** to see limits that are not active.
 
+![Risk limits](../images/risk-limits.png)
+
 Utilisation is measured on demand (**Measure now**) and by schedule. Open a limit to see its key facts, its
 utilisation, its breaches and a **Lifecycle** timeline. A breach opens a task to acknowledge or resolve it; the
 **Breaches** tab lists them, and **Open breaches only** hides the closed ones.

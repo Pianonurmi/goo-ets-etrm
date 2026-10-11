@@ -20,5 +20,7 @@ timeline and the differences between the registry and our books. **Take** assign
 choose the action that fits: confirm the transfer, record a receipt, withdraw or replace a lot, correct a lot or
 book the difference for a holding, or **Accept as is**. Accepting needs a second person to approve it in the inbox.
 
+![Reconciliation breaks](../images/reconciliation-breaks.png)
+
 > **Try it in the demo:** the **Breaks** tab has open and closed breaks. **Take** an open one as *Bo
 > Backoffice*.

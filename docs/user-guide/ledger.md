@@ -8,6 +8,8 @@ hash-chained: corrections are reversals, never edits.
 The page opens with three cards: the period to close (with its status and blockers), posting rule changes waiting for
 approval, and the active accounts. Click a card to go to month end, the rules or the accounts. The tabs are:
 
+![Ledger entries](../images/ledger-entries.png)
+
 - **Entries** by period, with their lines; **Verify journal** checks the chain. Open an entry to **Reverse entry**
   (with a reason).
 - **Trial balance** and **Accounts**.
@@ -20,6 +22,8 @@ approval, and the active accounts. Click a card to go to month end, the rules or
 Choose the month with the period picker in the page header. Four cards show the period and what to do next, the
 hard-close blockers, the latest period-end run and the latest GL export. The tabs are **Close**, **GL interface** and
 **Policies**.
+
+![Month end: close, blockers and period end](../images/monthend-close.png)
 
 1. On **Close**, **Run period end** posts the revaluations and accruals the month needs (re-running posts only the
    difference).

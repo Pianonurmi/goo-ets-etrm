@@ -3,6 +3,8 @@
 Allocation decides which lots deliver which obligations: sales, intercompany deliveries, and cancellations for
 disclosure or own consumption.
 
+![The allocation workbench](../images/allocation-workbench.png)
+
 ## Obligations and coverage
 
 The **Allocation workbench** opens with four cards: **Demand**, **Covered**, **Shortfall** (all in MWh) and the

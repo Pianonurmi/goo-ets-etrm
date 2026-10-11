@@ -2,6 +2,8 @@
 
 A **valuation run** values every open trade at the official curves of a day: mark to market by trade and delivery.
 
+![Valuation runs](../images/valuation-runs.png)
+
 The page opens with four cards: the official mark to market of the latest official run, the latest run and its
 status, the runs awaiting sign-off, and the exceptions in the latest run (deliveries without a price or rate). Three
 tabs follow: **Runs**, **Official run** and **P&L explain**.

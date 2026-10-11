@@ -35,8 +35,9 @@ import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/forma
 import { CreateCurveModal, OfficialCurve, PriceLookupPanel } from './CurveTools';
 import { signOffSteps } from './model/lifecycle';
 
-export function SnapshotStatusBadge({ status }: { status: string }) {
-  return <StatusBadge status={status} data-testid="snapshot-status" />;
+/** The snapshot page's badge is `snapshot-status`; rows of the snapshot list use their own id, so the two never mix. */
+export function SnapshotStatusBadge({ status, testId = 'snapshot-status' }: { status: string; testId?: string }) {
+  return <StatusBadge status={status} data-testid={testId} />;
 }
 
 function useRefreshCurves() {
@@ -169,7 +170,7 @@ export function CurvesPage() {
                   >
                     <Table.Td>v{snapshot.version}</Table.Td>
                     <Table.Td>
-                      <SnapshotStatusBadge status={snapshot.status} />
+                      <SnapshotStatusBadge status={snapshot.status} testId="snapshot-row-status" />
                     </Table.Td>
                     <Table.Td ta="right">{snapshot.points.length}</Table.Td>
                     <Table.Td ta="right" c={snapshot.gaps.length > 0 ? 'orange' : undefined}>

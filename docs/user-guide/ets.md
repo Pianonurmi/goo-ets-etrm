@@ -2,6 +2,8 @@
 
 For each installation: verified emissions, free allocation and the allowances to surrender by the deadline.
 
+![EU ETS compliance by installation](../images/ets-overview.png)
+
 The page shows one compliance year; change it in the page header. It opens with four cards: the net allowance
 position, emissions (best estimate, and the verified figure once there is one), free allocation received, and the
 next deadline. Below them are the compliance table by installation, a chart of allowances held against emissions,

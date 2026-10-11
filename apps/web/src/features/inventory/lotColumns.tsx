@@ -58,7 +58,7 @@ export function lotColumns(t: TFunction): ColDef<Lot>[] {
             {formatDate(params.data.expiryDate)}{' '}
             {days !== null && days <= 60 && (
               <Badge size="xs" variant="light" radius="xl" tt="none" color={days <= 30 ? 'red' : 'orange'}>
-                {t('inventory.expiresIn', { count: days })}
+                {days < 0 ? t('inventory.expiredShort') : t('inventory.expiresIn', { count: days })}
               </Badge>
             )}
           </span>

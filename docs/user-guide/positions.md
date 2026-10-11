@@ -7,6 +7,8 @@ The **Guarantees of origin** tab opens with four cards: **Live certificates**, *
 vintage: live, held, reserved and in-transfer MWh, what expires within 90 days, and the number of lots. **Shortfall** is the open demand that the
 certificates held cannot cover.
 
+![GoO positions with the expiry ladder](../images/positions-goo.png)
+
 ## EU ETS position
 
 The **EU ETS** tab shows allowances held against the entity's compliance obligation, for the **Compliance year** you

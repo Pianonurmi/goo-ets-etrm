@@ -3,6 +3,8 @@
 This is a working system with fictitious companies, counterparties, certificates and prices. Everything you do is
 real within the demo: trades are validated, approvals need a second person, and the ledger posts.
 
+![The sign-in page of the demo](../images/showcase-login.png)
+
 ## Personas
 
 After signing in you act as a **persona**: a person with a role. Switch persona from the menu at the top right.
@@ -45,6 +47,12 @@ About six months of business for two companies:
    Controller* issue the invoice.
 3. As *Rhea Risk*, open a limit in breach and see its utilisation and breaches.
 4. As *Ada Accountant*, open month end and see what blocks the hard close of last month.
+
+![The demo guide](../images/guide.png)
+
+![A step of a guided tour](../images/tour-step.png)
+
+![The help drawer next to the month-end screen](../images/help-drawer.png)
 
 ## Shared and temporary
 

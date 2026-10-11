@@ -19,7 +19,8 @@ interface Shot {
   dark?: boolean;
 }
 
-const firstRow = '.ag-center-cols-container [role="row"] [role="gridcell"]';
+// The first data cell of the first grid on the page (header cells are column headers, not grid cells).
+const firstRow = '[role="grid"] [role="row"] [role="gridcell"]';
 
 const SHOTS: Shot[] = [
   { name: 'home-trader', persona: 'trader', path: '/' },
@@ -78,6 +79,8 @@ const SHOTS: Shot[] = [
     persona: 'accountant',
     path: '/month-end',
     then: async (page) => {
+      // The blurred backdrop makes a PNG over the 300 kB limit; the dimming alone shows the drawer just as well.
+      await page.addStyleTag({ content: '.mantine-Drawer-overlay { backdrop-filter: none !important; }' });
       await page.getByTestId('help-button').click();
       await expect(page.getByTestId('help-content')).toBeVisible();
     },
@@ -95,8 +98,9 @@ const SHOTS: Shot[] = [
   },
 ];
 
+/** Lets data load and charts draw. The app polls (inbox count), so the network is never idle for long: wait a little. */
 async function settle(page: Page) {
-  await page.waitForLoadState('networkidle').catch(() => undefined);
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
   await page.waitForTimeout(800);
 }
 
@@ -108,6 +112,7 @@ test('the sign-in page', async ({ page }) => {
 });
 
 test('every screen of the manual', async ({ page }) => {
+  test.setTimeout(900_000);
   await signIn(page);
   await expect(page.getByTestId('persona-menu')).toBeVisible();
   for (const shot of SHOTS) {
@@ -126,7 +131,7 @@ test('every screen of the manual', async ({ page }) => {
         await page
           .locator(shot.open.selector ?? firstRow)
           .first()
-          .click();
+          .click({ timeout: 30_000 });
         await expect(page).toHaveURL(shot.open.url);
         await settle(page);
       }

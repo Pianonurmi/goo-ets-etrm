@@ -4,6 +4,8 @@ Provena is a trading and risk management system for Guarantees of Origin (GoO) a
 It follows a certificate from the trade to the registry, the invoice and the general ledger, with a second person
 approving every step that moves value.
 
+![The trader's home page](../images/home-trader.png)
+
 ## The screen
 
 - **Sidebar.** The areas you may use, grouped into trading, operations, finance and risk, and administration. What
@@ -24,6 +26,8 @@ approving every step that moves value.
 
 Every approval goes through the inbox: trades, allocation plans, curve snapshots, valuation runs, limits,
 verified emissions, invoices, posting rules, master data changes and reconciliation breaks.
+
+![The approval inbox of middle office](../images/inbox-middle.png)
 
 - By default the list shows open tasks you may decide (**Only what I can decide**). Switch that off to see tasks that
   wait for someone else, or use the status, task type and order selectors and the other switches to narrow the list.

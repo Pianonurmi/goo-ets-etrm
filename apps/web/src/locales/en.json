@@ -392,6 +392,7 @@
     "noMatch": "No certificates match",
     "expiresIn_one": "{{count}} day",
     "expiresIn_other": "{{count}} days",
+    "expiredShort": "expired",
     "movementsOf": "Movements of {{product}}",
     "back": "Back to inventory",
     "lotTitle": "{{quantity}} MWh {{source}}",
@@ -547,6 +548,8 @@
     "quantity": "Quantity",
     "expiresInLong_one": "Expires in {{count}} day",
     "expiresInLong_other": "Expires in {{count}} days",
+    "expiredAgo_one": "Expired {{count}} day ago",
+    "expiredAgo_other": "Expired {{count}} days ago",
     "producedIn": "produced {{from}} – {{to}}",
     "gsrn": "Device GSRN",
     "acquiredThrough": "Acquired through"

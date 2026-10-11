@@ -13,6 +13,8 @@ The **Settlement items** tab starts with the items that need attention. Switch b
 **Open**, **Invoiced** and **All**; the eye opens an item with its price, VAT and source. An item of an index-priced
 trade waits until its price is fixed (**Fix price**).
 
+![Settlement items](../images/settlement-items.png)
+
 ## Invoices
 
 1. **Run invoices** (for one counterparty or all) creates drafts from open items delivered up to a date.
@@ -21,6 +23,10 @@ trade waits until its price is fixed (**Fix price**).
    timeline. **Discard** removes a draft; its deliveries become open again.
 3. **Register purchase invoice** registers a supplier's invoice, matched against our open purchases.
 4. A **Credit note** on an issued invoice drafts the correction.
+
+![Invoices](../images/settlement-invoices.png)
+
+![An invoice with its lines and lifecycle](../images/settlement-invoice.png)
 
 ## Payments and netting
 

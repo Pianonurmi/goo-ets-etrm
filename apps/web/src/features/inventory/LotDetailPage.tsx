@@ -99,7 +99,7 @@ function LotBody({ lot }: { lot: Lot }) {
             <LotStatusBadge status={lot.status} testId="lot-status" />
             {days !== null && days <= 60 && (
               <Badge color={days <= 30 ? 'red' : 'orange'} variant="light" radius="xl" tt="none">
-                {t('inventory.expiresInLong', { count: days })}
+                {days < 0 ? t('inventory.expiredAgo', { count: -days }) : t('inventory.expiresInLong', { count: days })}
               </Badge>
             )}
           </Group>

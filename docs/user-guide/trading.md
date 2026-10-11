@@ -23,9 +23,13 @@ open deliveries, and deliveries due in 30 days. Most cards link to the trades or
 - The **Open deliveries** tab lists what still has to be delivered or received, earliest first, across all trades.
   Click a row to open its trade.
 
+![The trade blotter](../images/trades-blotter.png)
+
 ## Capture a trade
 
 Open **Trades → New trade**.
+
+![The capture form](../images/trades-new.png)
 
 1. Choose the product (**GoO** or **EUA**), the instrument, the book and the counterparty.
 2. For each leg: side, quantity, price and currency, and the delivery schedule (a window and a delivery date per
@@ -73,6 +77,8 @@ A trade's page opens with its key facts (notional, counterparty, book, trader, r
 **Lifecycle** timeline: captured, approved, confirmed, delivered, settled, with who did each step and when. A
 cancelled or disputed trade ends in a failed step.
 
+![A trade with its key facts and lifecycle](../images/trades-detail.png)
+
 **Amend** is in the **More actions** menu (the three dots) at the top of the page, together with **Cancel trade**.
 It opens the form with a reason; saving creates a new version, and an approved trade goes back for approval. The
 **Versions** tab shows what changed between versions, field by field.
@@ -89,6 +95,8 @@ It opens the form with a reason; saving creates a new version, and an approved t
 - A delivered trade can be settled with **Mark settled**.
 - The **Documents** tab lists our confirmation PDFs with **Verify**, which checks the stored hash.
 - The **Mark to market** tab shows the trade's value in the official valuation of the **Valuation date** you choose.
+
+![Open deliveries across all trades](../images/trades-deliveries.png)
 
 See [Confirmations](confirmations.md) for matching the counterparty's confirmation, and
 [Settlement](settlement.md) for invoices.

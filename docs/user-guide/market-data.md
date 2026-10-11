@@ -7,6 +7,8 @@ Prices and rates come from market data only; no other screen stores a price.
 The page opens with three cards: **Suspect quotes**, **Active instruments** and **Active curves**. The tabs below
 hold the detail.
 
+![Market data quotes](../images/marketdata-quotes.png)
+
 - **Quotes** per instrument and day (settlement, mid, bid, ask, close, fixing). Pick an instrument to see its
   quotes; **Record quote** adds one by hand. The **Suspect quotes** tab lists the flagged ones; give a reason and
   **Acknowledge** a quote that is right.
@@ -21,6 +23,8 @@ hold the detail.
 
 A **curve** gives forward prices by delivery period for one product, built from the quotes of a day. A curve
 snapshot becomes **official** when a second person signs it off in the inbox.
+
+![Curves and snapshots](../images/marketdata-curves.png)
 
 - **New curve** (in the page header) defines one (product or bucket, currency, quote types, staleness limit and an
   optional proxy curve).

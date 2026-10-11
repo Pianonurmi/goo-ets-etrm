@@ -12,6 +12,10 @@ The **Certificates** tab lists the live lots of the entity, with an **expiry lad
 Open a lot to see its key facts, its **History** (every event in the hash-chained lot journal) beside them, and
 what you may do with it under **Actions**.
 
+![Certificate lots](../images/inventory-lots.png)
+
+![A lot with its journal](../images/inventory-lot.png)
+
 - **Receive certificates** (back office, registry operator), in the page header, records lots that arrived in our
   account.
 - On a lot, **Actions** are in two groups. **In the registry:** **New transfer** to another account and **Cancel in
@@ -23,6 +27,8 @@ what you may do with it under **Actions**.
 ## Criteria search
 
 Find lots by criteria, the same builder as on trades: which certificates would satisfy a delivery, and how many.
+
+![Searching lots by criteria](../images/inventory-search.png)
 
 ## Allowances
 

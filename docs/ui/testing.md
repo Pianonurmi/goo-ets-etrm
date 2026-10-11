@@ -35,3 +35,20 @@ signs in as `demo` (password `ETRM_DEMO_PASSWORD`, a test default otherwise) on 
 - Mantine selects open with a click on the input and a click on the `option`.
 - Wait for the state the user waits for, such as a narrowed grid or a status badge, before acting. Do not click rows
   while a search is still replacing them.
+- Tours point at `data-testid` selectors; `help.spec.ts` runs every tour to its end and fails when a step loses its
+  anchor, so keep a test id a tour uses, or move the step with the screen.
+
+## Documentation screenshots
+
+The pictures in `docs/images` (the manual, the README and the deck) come from `e2e/docs/screenshots.spec.ts`, run by
+its own Playwright config: the jar in the `showcase,demo` profiles on database `etrm_docs`, signed in as a visitor,
+1440 × 900, light mode plus one dark shot.
+
+```bash
+cd apps/web && E2E_DOCS_DB_URL=jdbc:postgresql://localhost:5432/etrm_docs npm run docs:screenshots
+npm run check:help   # every image at most 300 kB, all of them at most 12 MB
+```
+
+Look at every changed image before committing it. The **Documentation screenshots** workflow
+(`.github/workflows/docs-screenshots.yml`, manual and weekly) takes them in CI and uploads them as an artifact; it
+does not commit them.

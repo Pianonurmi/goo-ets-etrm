@@ -5,6 +5,8 @@ choose **Run** to see the rows, or **Download CSV**. Until you run it, the scree
 numbered and logged with a hash of its content in the **Export log**, where an earlier export can be downloaded
 again with **Download again**.
 
+![The report catalogue](../images/reports-catalogue.png)
+
 ## EMIR
 
 The **EMIR** tab shows **Reporting completeness**: whether every reportable trade has all its fields. Reportable

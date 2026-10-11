@@ -10,6 +10,10 @@ The **Instructions** tab opens with four cards: open instructions, those waiting
 registry, and those that need attention (failed, or the outcome is unknown). Switch the list between **Open**,
 **Needs attention**, **Done** and **All**, and filter by registry and asset.
 
+![Registry instructions](../images/registry-instructions.png)
+
+![An instruction with its lifecycle](../images/registry-instruction.png)
+
 - Statuses: pending approval, pending (approved, waiting to be sent), dispatching, sent, unknown (the outcome is not
   known yet), acknowledged, confirmed, failed and cancelled.
 - A transfer or cancellation waits for a second person in the inbox before it is sent.

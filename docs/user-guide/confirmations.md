@@ -3,6 +3,8 @@
 Our confirmation of a trade is issued as a PDF; the counterparty's confirmation is entered or imported and matched
 against ours, field by field.
 
+![Confirmations to work on](../images/confirmations-list.png)
+
 ## Our confirmation
 
 On a trade's **Confirmations** tab, **Issue our confirmation** renders the PDF from the trade's current version. An
