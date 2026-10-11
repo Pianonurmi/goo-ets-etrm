@@ -1,0 +1,7 @@
+apiVersion: v2
+name: etrm
+description: GoO and EU ETS trading and risk management (Spring Boot jar with the web UI)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [etrm, guarantees-of-origin, eu-ets]

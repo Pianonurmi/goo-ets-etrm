@@ -1,0 +1,6 @@
+goo-ets-etrm {{ .Chart.AppVersion }} is deployed as {{ include "etrm.fullname" . }}.
+{{- if .Values.ingress.enabled }}
+UI and API: https://{{ .Values.ingress.host }}/
+{{- end }}
+Actuator (inside the cluster only): http://{{ include "etrm.fullname" . }}:{{ .Values.service.managementPort }}/actuator/health
+Migrations run at start-up; the first replica to start applies them (Flyway locks per schema).

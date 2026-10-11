@@ -1,0 +1,174 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "etrm.fullname" . }}
+  labels:
+    {{- include "etrm.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "etrm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "etrm.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.service.managementPort | quote }}
+        prometheus.io/path: /actuator/prometheus
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "etrm.fullname" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      # Graceful shutdown: 30 s per phase in the application, plus time for the endpoints to drop the pod.
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "etrm.selectorLabels" . | nindent 14 }}
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "etrm.selectorLabels" . | nindent 14 }}
+      containers:
+        - name: etrm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: {{ .Values.service.managementPort }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.profiles | quote }}
+            - name: ETRM_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            - name: ETRM_MANAGEMENT_PORT
+              value: {{ .Values.service.managementPort | quote }}
+            - name: ETRM_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.urlKey }}
+            - name: ETRM_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.usernameKey }}
+            - name: ETRM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.passwordKey }}
+            - name: ETRM_OIDC_ISSUER
+              value: {{ .Values.oidc.issuer | quote }}
+            {{- with .Values.oidc.browserIssuer }}
+            - name: ETRM_OIDC_BROWSER_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            - name: ETRM_OIDC_WEB_CLIENT
+              value: {{ .Values.oidc.webClientId | quote }}
+            - name: ETRM_KAFKA_ENABLED
+              value: {{ .Values.kafka.enabled | quote }}
+            {{- if .Values.kafka.enabled }}
+            - name: ETRM_KAFKA_BOOTSTRAP_SERVERS
+              value: {{ required "kafka.bootstrapServers is required when kafka.enabled" .Values.kafka.bootstrapServers | quote }}
+            - name: ETRM_EVENTS_REPLICAS
+              value: {{ .Values.kafka.topicReplicas | quote }}
+            {{- end }}
+            {{- with .Values.tracing.otlpEndpoint }}
+            - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            - name: ETRM_TRACE_SAMPLING
+              value: {{ .Values.tracing.sampling | quote }}
+            - name: ETRM_REGISTRY_OUTBOX_DIR
+              value: /var/lib/etrm/registry-outbox
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: management
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              # Let the endpoints controller remove the pod before the application stops accepting requests.
+              sleep:
+                seconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: registry-outbox
+              mountPath: /var/lib/etrm/registry-outbox
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: registry-outbox
+          {{- if .Values.registryOutbox.persistence }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.registryOutbox.existingClaim | default (printf "%s-registry-outbox" (include "etrm.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

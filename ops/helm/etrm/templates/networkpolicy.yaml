@@ -1,0 +1,28 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "etrm.fullname" . }}
+  labels:
+    {{- include "etrm.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "etrm.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    # The ingress controller reaches the HTTP port.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+      ports:
+        - port: http
+    # Prometheus scrapes the management port (kubelet probes come from the node and are not filtered by most CNIs).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+      ports:
+        - port: management
+{{- end }}

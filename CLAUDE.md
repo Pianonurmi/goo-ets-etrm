@@ -50,6 +50,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - CSV in and out goes through `platform.text.Csv` (RFC 4180). PDFs and other issued documents go through the `document` module; templates live in `src/main/resources/documents/templates/`.
 - Java 25 (toolchain in `build-logic`; Gradle runs on 21+). Virtual threads are on: requests and jobs run on them. Do not hold a lock across blocking I/O. API tests run with two carrier threads, so pinning shows up as a hang (`ConcurrencyIT`). Playwright starts the jar with `ETRM_JAVA` (a Java 25 binary) when `java` on the PATH is older.
 - Observability (`docs/operations/observability.md`): Prometheus metrics, OpenTelemetry traces (OTLP when configured), `X-Trace-Id` on every response, ECS JSON logs in the `json` profile; the `kubernetes` profile moves the actuator to its own port, open only there.
+- Kubernetes (`docs/operations/kubernetes.md`): Helm chart `ops/helm/etrm`, PostgreSQL from `ops/k8s/postgres-cluster.yaml` (CloudNativePG). A new environment variable or port goes into the chart too; CI lints it and validates the rendered manifests with kubeconform.
 - Scheduled jobs use `@SchedulerLock`; the lock provider is configured in `apps/api` (`SchedulingConfiguration`).
 - Four-eyes rules live in services and in database checks; tests use the `X-Actor` / `X-Roles` headers (and optionally `X-Entities`, default all entities) in the `dev` and `test` profiles.
 - Approvals go through the workflow inbox: the owning module registers a `TaskHandler` and applies the decision in the same transaction.

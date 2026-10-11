@@ -1,0 +1,16 @@
+{{- if and .Values.registryOutbox.persistence (not .Values.registryOutbox.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "etrm.fullname" . }}-registry-outbox
+  labels:
+    {{- include "etrm.labels" . | nindent 4 }}
+spec:
+  accessModes: [{{ if gt (int .Values.replicaCount) 1 }}ReadWriteMany{{ else }}ReadWriteOnce{{ end }}]
+  {{- with .Values.registryOutbox.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.registryOutbox.size }}
+{{- end }}

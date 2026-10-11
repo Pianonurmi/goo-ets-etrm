@@ -1,0 +1,94 @@
+# Image built by CI from ops/Dockerfile.
+image:
+  repository: ghcr.io/pianonurmi/goo-ets-etrm
+  tag: ""          # defaults to the chart's appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Two or more: ShedLock runs each scheduled job on one replica; the pod disruption budget keeps one serving.
+replicaCount: 2
+
+# Label in the UI header and in logs and traces (e.g. PROD, UAT).
+environment: PROD
+
+# Spring profiles: kubernetes (actuator on its own port, readiness with the database) and json (ECS logs).
+profiles: kubernetes,json
+
+database:
+  # Secret with the JDBC URL and credentials. The default is the one CloudNativePG creates for the
+  # application user of the cluster in ops/k8s/postgres-cluster.yaml (<cluster>-app with jdbc-uri, username, password).
+  existingSecret: etrm-db-app
+  urlKey: jdbc-uri
+  usernameKey: username
+  passwordKey: password
+
+oidc:
+  # Issuer the API validates tokens against, and the one the browser signs in with if it differs.
+  issuer: https://login.example.com/realms/etrm
+  browserIssuer: ""
+  webClientId: etrm-web
+
+kafka:
+  # Selected domain events to Kafka (ADR 0029).
+  enabled: false
+  bootstrapServers: ""
+  topicReplicas: 3
+
+tracing:
+  # OTLP endpoint of the OpenTelemetry collector, e.g. http://otel-collector.observability:4318/v1/traces
+  otlpEndpoint: ""
+  sampling: "0.1"
+
+# Extra environment variables (list of name/value or valueFrom entries).
+extraEnv: []
+
+service:
+  type: ClusterIP
+  port: 80
+  managementPort: 9090
+
+ingress:
+  enabled: true
+  className: nginx
+  host: etrm.example.com
+  tlsSecret: etrm-tls
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  minAvailable: 1
+
+# Files the registry FILE channel writes for manual pickup. With more than one replica use a ReadWriteMany claim.
+registryOutbox:
+  persistence: false
+  existingClaim: ""
+  size: 1Gi
+  storageClass: ""
+
+networkPolicy:
+  enabled: true
+  # Namespaces allowed to reach the HTTP port (the ingress controller) and the management port (Prometheus).
+  ingressNamespace: ingress-nginx
+  monitoringNamespace: monitoring
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

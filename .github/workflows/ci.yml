@@ -10,6 +10,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          sudo mv kubeconform /usr/local/bin/
+      - name: Lint the Helm chart
+        run: helm lint --strict ops/helm/etrm
+      # Default values and every optional part switched on, against the Kubernetes schemas; CRDs (ServiceMonitor,
+      # CloudNativePG) against the community catalogue.
+      - name: Validate rendered manifests
+        run: |
+          helm template etrm ops/helm/etrm > default.yaml
+          helm template etrm ops/helm/etrm --set autoscaling.enabled=false --set registryOutbox.persistence=true \
+            --set kafka.enabled=true --set kafka.bootstrapServers=kafka:9092 --set serviceMonitor.enabled=true \
+            --set tracing.otlpEndpoint=http://otel:4318/v1/traces > full.yaml
+          kubeconform -strict -summary -kubernetes-version 1.31.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            default.yaml full.yaml ops/k8s/postgres-cluster.yaml
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45

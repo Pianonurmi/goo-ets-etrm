@@ -1,0 +1,73 @@
+# Highly available PostgreSQL for the ETRM with CloudNativePG (operator installed separately: https://cloudnative-pg.io).
+# One primary and two replicas across zones, synchronous commit to at least one replica, continuous WAL archiving
+# and a nightly base backup to object storage. The operator creates the secret etrm-db-app (jdbc-uri, username,
+# password) that the Helm chart reads by default, and the services etrm-db-rw (primary) and etrm-db-ro (replicas).
+# Fill in the object store, the credentials secret and the storage class for the target cluster.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: etrm-db
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  primaryUpdateStrategy: unsupervised
+  # A commit returns once one replica has the WAL: losing the primary loses no acknowledged trade or journal entry.
+  postgresql:
+    synchronous:
+      method: any
+      number: 1
+      dataDurability: required
+    parameters:
+      max_connections: "200"
+      shared_buffers: 1GB
+      wal_compression: "on"
+      # Partition maintenance and month-end runs hold locks briefly; fail fast instead of queueing behind them.
+      lock_timeout: 30s
+      log_min_duration_statement: 1s
+  bootstrap:
+    initdb:
+      database: etrm
+      owner: etrm
+  storage:
+    size: 100Gi
+    storageClass: standard
+  walStorage:
+    size: 20Gi
+    storageClass: standard
+  resources:
+    requests:
+      cpu: "1"
+      memory: 4Gi
+    limits:
+      memory: 4Gi
+  affinity:
+    topologyKey: topology.kubernetes.io/zone
+    enablePodAntiAffinity: true
+  monitoring:
+    enablePodMonitor: true
+  backup:
+    retentionPolicy: 35d
+    barmanObjectStore:
+      destinationPath: s3://etrm-backups/etrm-db
+      s3Credentials:
+        accessKeyId:
+          name: etrm-backup-credentials
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: etrm-backup-credentials
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: etrm-db-nightly
+spec:
+  # Seconds field first (six-field cron): 01:15 UTC, after the end-of-day jobs.
+  schedule: "0 15 1 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: etrm-db
