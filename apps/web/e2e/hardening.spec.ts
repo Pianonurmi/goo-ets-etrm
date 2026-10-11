@@ -21,6 +21,8 @@ const SCREENS = [
   '/inventory',
   '/positions',
   '/registry',
+  '/reconciliation',
+  '/reconciliation?tab=statements',
   '/registry?tab=routes',
   '/registry?tab=formats',
   '/settlement',

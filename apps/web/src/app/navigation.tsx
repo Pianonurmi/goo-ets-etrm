@@ -8,6 +8,7 @@ import {
   IconFileCheck,
   IconFileInvoice,
   IconBuildingArch,
+  IconGitCompare,
   IconListDetails,
   IconPackages,
   IconBook2,
@@ -84,6 +85,12 @@ export const NAVIGATION: NavSection[] = [
         path: '/registry',
         label: 'nav.registry',
         icon: <IconBuildingArch size={ICON} />,
+        roles: REGISTRY_READERS,
+      },
+      {
+        path: '/reconciliation',
+        label: 'nav.reconciliation',
+        icon: <IconGitCompare size={ICON} />,
         roles: REGISTRY_READERS,
       },
       {

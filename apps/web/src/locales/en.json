@@ -31,7 +31,8 @@
     "changeRequests": "Change requests",
     "audit": "Audit trail",
     "settlement": "Settlement",
-    "registry": "Registry"
+    "registry": "Registry",
+    "reconciliation": "Reconciliation"
   },
   "header": {
     "entity": "Legal entity",
@@ -1411,6 +1412,126 @@
       "confirmed": "Confirmed",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    }
+  },
+  "reconciliation": {
+    "title": "Reconciliation",
+    "description": "Registry statements against the books of {{entity}}",
+    "back": "Back to breaks",
+    "tabs": {
+      "breaks": "Breaks",
+      "statements": "Statements"
+    },
+    "type": "Type",
+    "anyType": "Any type",
+    "types": {
+      "MISSING_INTERNALLY": "In the registry, not in our books",
+      "MISSING_IN_REGISTRY": "In our books, not in the registry",
+      "ATTRIBUTE_MISMATCH": "Attributes differ",
+      "BALANCE_MISMATCH": "Allowance balance differs"
+    },
+    "subject": "Certificates or balance",
+    "account": "Account",
+    "ageDays": "Age (days)",
+    "firstSeen": "First seen",
+    "lastSeen": "Last seen",
+    "assignee": "Assignee",
+    "resolution": "Resolution",
+    "show": "Show",
+    "openBreaks": "Open breaks",
+    "closedBreaks": "Closed breaks",
+    "ageing": {
+      "upToOneDay": "Up to a day",
+      "upToOneWeek": "Up to a week",
+      "upToOneMonth": "Up to a month",
+      "older": "Older"
+    },
+    "uploadHoldings": "Upload holdings statement",
+    "uploadHoldingsHint": "The account's holdings as the registry exports them. It is read with the registry's statement format, then reconciled at once: new differences become breaks, and breaks the registry no longer shows clear themselves.",
+    "statementDate": "Statement date",
+    "statementContent": "Statement",
+    "uploadAndReconcile": "Upload and reconcile",
+    "statementResult": "{{lines}} lines read; {{breaks}} breaks",
+    "uploadTransactions": "Upload transaction export",
+    "uploadTransactionsHint": "A registry's transaction export: open instructions it shows as completed are confirmed, failed ones are failed. It affects every legal entity, so it needs access to all of them.",
+    "import": "Import",
+    "transactionResult": "{{lines}} lines: {{confirmed}} confirmed, {{failed}} failed, {{final}} already final, {{unmatched}} unmatched",
+    "line": "Line",
+    "statementKinds": {
+      "GOO": "Certificates",
+      "ALLOWANCE": "Allowances"
+    },
+    "source": "Source",
+    "lines": "Lines",
+    "breaks": "Breaks",
+    "statementOf": "Statement of {{date}}",
+    "noBreaks": "No breaks: the registry agrees with our books.",
+    "take": "Take",
+    "taken": "Break assigned to you",
+    "lot": "Our lot",
+    "noLot": "None of ours",
+    "registryQuantity": "Registry",
+    "internalQuantity": "Our books",
+    "acceptanceRequestedBy": "Acceptance requested by",
+    "resolvedBy": "Closed by",
+    "actionNames": {
+      "CONFIRM_INSTRUCTION": "Instruction confirmed",
+      "RECORD_RECEIPT": "Receipt recorded",
+      "WITHDRAW_LOT": "Lot withdrawn",
+      "REPLACE_LOT": "Lot replaced",
+      "CORRECT_LOT": "Lot corrected",
+      "CORRECT_HOLDING": "Holding corrected"
+    },
+    "mismatches": "Registry against our books",
+    "field": "Field",
+    "registryValue": "Registry",
+    "ourValue": "Our books",
+    "resolve": "Resolve",
+    "typeHints": {
+      "MISSING_INTERNALLY": "The registry shows certificates we have no lot for: record them as received, or accept the difference.",
+      "MISSING_IN_REGISTRY": "We hold certificates the registry no longer shows: confirm the transfer that took them, withdraw our lot, or accept the difference.",
+      "ATTRIBUTE_MISMATCH": "Our lot describes the certificates differently: correct the correctable fields, replace the lot with the registry's version, or accept the difference.",
+      "BALANCE_MISMATCH": "Our allowance balance differs from the registry's: book the difference as a correction, or accept it."
+    },
+    "awaitingAcceptance": "{{by}} asked to accept this break as it is; another person decides in the inbox.",
+    "actions": {
+      "accept": "Accept as is",
+      "confirmInstruction": "Confirm the transfer",
+      "withdrawLot": "Withdraw our lot",
+      "recordReceipt": "Record receipt",
+      "replaceLot": "Replace our lot",
+      "correctLot": "Correct our lot",
+      "correctHolding": "Book the difference"
+    },
+    "note": "Note",
+    "confirmInstructionHint": "The registry executed the transfer that holds these certificates; it is confirmed and the lot leaves our books.",
+    "withdrawHint": "The certificates are no longer ours in the registry; the missing range is split off and withdrawn.",
+    "correctHoldingHint": "Books the difference between the registry's balance and ours as a correction movement.",
+    "acceptHint": "The difference stays in our books as it is, with your reason. A second person approves it in the inbox.",
+    "acceptanceRequested": "Acceptance requested; it waits for a second person",
+    "resolved": "Break resolved",
+    "receiptHint": "The certificates as the registry shows them become a lot of ours on this account.",
+    "replaceHint": "Our lot is withdrawn and replaced by a lot with the registry's attributes.",
+    "certificates": "Issuance {{issuance}}, certificates {{start}}–{{end}}",
+    "deviceGsrn": "Device GSRN",
+    "acquisitionSource": "Acquired by",
+    "sources": {
+      "ISSUANCE": "Issuance",
+      "TRANSFER_IN": "Transfer in",
+      "OPENING_BALANCE": "Opening balance"
+    },
+    "productionStart": "Production from",
+    "productionEnd": "Production until (exclusive)",
+    "issueDate": "Issue date",
+    "issuingBody": "Issuing body",
+    "issuingCountry": "Issuing country",
+    "costBasis": "Cost per MWh (EUR)",
+    "expiryDate": "Expiry date",
+    "supportProduction": "Production support received",
+    "supportInvestment": "Investment support received",
+    "tasks": {
+      "RECONCILIATION_BREAK": "Break task",
+      "BREAK_ACCEPTANCE": "Acceptance task"
     }
   }
 }

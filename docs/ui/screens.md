@@ -40,6 +40,9 @@ legal-entity scope; the UI only mirrors them.
 | Registry instructions | `/registry` (`view`, `registry` and `asset` in the URL) | `registry_search` (keyset cursor, the selected entity), `referenceData_registries`, `registry_transfer` | read: REGISTRY_OPERATOR, BACK_OFFICE, MIDDLE_OFFICE, ACCOUNTANT, RISK, AUDITOR in scope; transfer: REGISTRY_OPERATOR, BACK_OFFICE, MIDDLE_OFFICE (approval by another person in the inbox) |
 | Instruction detail | `/registry/instructions/:instructionId` | `registry_instruction`, `registry_confirm`, `registry_fail`, `registry_cancel`, `registry_retry`, links to `INSTRUCTION_APPROVAL` and `INSTRUCTION_FOLLOW_UP` tasks | REGISTRY_OPERATOR, BACK_OFFICE on the holder |
 | Transfer routes, statement formats | `/registry?tab=routes` (`from` in the URL), `/registry?tab=formats` | `registry_routes`, `registry_upsertRoute`, `registry_formats` | routes: MIDDLE_OFFICE, BACK_OFFICE |
+| Reconciliation: breaks | `/reconciliation` (`closed` and `type` in the URL) | `inventory_breaks` (limited to the selected entity's accounts), `inventory_ageing`, `referenceData_registryAccounts` | read: REGISTRY_OPERATOR, BACK_OFFICE, MIDDLE_OFFICE, ACCOUNTANT, RISK, AUDITOR in scope |
+| Reconciliation: statements | `/reconciliation?tab=statements` (`account` in the URL) | `inventory_statements`, `registry_importHoldings` (CSV as text, reconciled at once), `registry_importTransactions` (registry-wide) | REGISTRY_OPERATOR, BACK_OFFICE on the account's holder; transactions need every entity |
+| Break detail | `/reconciliation/breaks/:breakId` | `inventory_reconciliationBreak`, `inventory_lot`, `break_assign`, `break_confirmInstruction`, `break_withdrawLot`, `break_recordReceipt`, `break_replaceLot`, `break_correctLot`, `break_correctHolding`, `break_accept`, links to `RECONCILIATION_BREAK` and `BREAK_ACCEPTANCE` tasks | REGISTRY_OPERATOR, BACK_OFFICE; acceptance approved by another BACK_OFFICE or MIDDLE_OFFICE user in the inbox |
 | Settlement items | `/settlement` (`view` in the URL: needs attention, open, invoiced, all) | `settlement_items`, `settlement_fixPrice`, `settlement_reevaluate`, `settlement_run` (invoice run), `settlement_registerPurchaseInvoice` | fix price: MIDDLE_OFFICE, BACK_OFFICE; evaluate again: ACCOUNTANT, BACK_OFFICE, MIDDLE_OFFICE; runs and purchase invoices: BACK_OFFICE, ACCOUNTANT; read: BACK_OFFICE, ACCOUNTANT, MIDDLE_OFFICE, RISK, AUDITOR in scope |
 | Invoices | `/settlement?tab=invoices` (status, kind and counterparty in the URL) | `settlement_invoices`, `settlement_export` (issued, CSV) | read as settlement items |
 | Invoice detail | `/settlement/invoices/:invoiceId` | `settlement_invoice`, `settlement_submit`, `settlement_discard`, `payment_creditNote`, `payment_allocations`, `document_content` (PDF), link to the `INVOICE_APPROVAL` task | BACK_OFFICE, ACCOUNTANT; approval (inbox) by another person |
@@ -145,3 +148,16 @@ legal-entity scope; the UI only mirrors them.
   it cannot be done) before it is submitted, and waits for a second person in the inbox.
 - Statement formats are shown read-only; they change through the API (`registry_upsertFormat`, middle or back
   office).
+
+## Reconciliation (`features/reconciliation`)
+
+- A holdings upload is read with the registry's statement format and reconciled at once. New differences become
+  breaks; breaks the registry no longer shows are cleared automatically. A lot in transfer that the statement no
+  longer shows counts as executed by the registry.
+- The break detail offers only the resolutions the server allows for the break's type and its lot's status
+  (`model/breaks.ts`, mirroring `BreakResolutionService`): confirm the transfer or withdraw our lot when the
+  registry lacks certificates, record a receipt when it has more, replace or correct our lot when attributes differ,
+  book the difference for allowance balances. Any open break can be accepted as it is; a second person approves the
+  acceptance in the inbox.
+- The ageing figures count open breaks of every account (the endpoint is not yet limited to the user's entities;
+  increment 5 M6); the queue shows the selected entity's accounts.

@@ -18,6 +18,7 @@ const SUBJECT_ROUTES: Record<string, (ref: string) => string> = {
   INVOICE: (ref) => `/settlement/invoices/${ref}`,
   VAT_RULE: () => '/settlement?tab=vat-rules',
   REGISTRY_INSTRUCTION: (ref) => `/registry/instructions/${ref}`,
+  RECONCILIATION_BREAK: (ref) => `/reconciliation/breaks/${ref}`,
 };
 
 /** Subject types whose screens exist; extended as screens are added. */

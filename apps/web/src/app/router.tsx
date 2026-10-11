@@ -20,6 +20,7 @@ registerSubjectScreens(
   'INVOICE',
   'VAT_RULE',
   'REGISTRY_INSTRUCTION',
+  'RECONCILIATION_BREAK',
 );
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
@@ -140,6 +141,18 @@ export const router = createBrowserRouter([
         path: 'registry/instructions/:instructionId',
         lazy: async () => ({
           Component: (await import('@/features/registry/InstructionDetailPage')).InstructionDetailPage,
+        }),
+      },
+      {
+        path: 'reconciliation',
+        lazy: async () => ({
+          Component: (await import('@/features/reconciliation/ReconciliationPage')).ReconciliationPage,
+        }),
+      },
+      {
+        path: 'reconciliation/breaks/:breakId',
+        lazy: async () => ({
+          Component: (await import('@/features/reconciliation/BreakDetailPage')).BreakDetailPage,
         }),
       },
       {
