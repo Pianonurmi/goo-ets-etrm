@@ -315,6 +315,9 @@ class ReconciliationService(
     override fun statement(id: UUID): StatementView? = repository.statement(id)
 
     @Transactional(readOnly = true)
+    override fun statements(registryAccountId: UUID, limit: Int): List<StatementView> = repository.statements(registryAccountId, limit)
+
+    @Transactional(readOnly = true)
     override fun openBreaks(registryAccountId: UUID?): List<ReconciliationBreakView> = repository.breaks(BreakFilter(registryAccountId))
 
     @Transactional(readOnly = true)

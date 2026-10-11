@@ -16,9 +16,9 @@ Increment 1 is delivered. These points deliberately differ from the plan below:
 | ArchUnit plus Spring Modulith verification | Spring Modulith verification only (`ModularityTests`) | Modulith already enforces named interfaces and allowed dependencies; ArchUnit stays in the version catalog for finer rules |
 | Kotlin explicit API mode | Not enabled; `-Werror` is | Modules expose their API through Modulith named interfaces instead |
 | Kover gate 85 % on domain modules | 70 % total line coverage rule, generated jOOQ code excluded | Raise per module as increments add tests |
-| OWASP dependency check | Not configured; Dependabot, Trivy image scan and CycloneDX SBOM are | Add with an NVD API key in increment 5 |
+| OWASP dependency check | Not configured; Dependabot, Trivy image scan and CycloneDX SBOM are | Add with an NVD API key in increment 6 |
 | OR-Tools CP-SAT exact solver | `Solver` port only; `EXACT` falls back to greedy and records it | Native library risk; greedy plus max-flow bounds met the increment 1 needs |
-| Lot table partitioned by expiry year | Not partitioned | Planned with the other partitioning work in increment 5 |
+| Lot table partitioned by expiry year | Not partitioned | Planned with the other partitioning work in increment 6 |
 | Coverage with priority-ordered augmentation per obligation | Augmentation per priority tier | Same guarantee for higher priorities at a fraction of the cost (ADR 0007) |
 | Benchmark 100 k lots × 5 k obligations | Benchmark test defaults to 20 k × 1 k; full size via system properties | Keeps CI fast; see the README for the full-size command |
 | File paths in section 7 | Actual layout uses `api`, `domain`, `application`, `adapter/rest`, `adapter/jooq` per module | See `CLAUDE.md` and arc42 section 5 |
@@ -333,9 +333,15 @@ Market data feeds (EEX/ICE, GoO platforms, ECB FX), curves, MtM, P&L explain, li
 
 React + TypeScript (Vite), design system, trade blotter, inventory explorer with criteria builder, allocation workbench (plan review, what-if), coverage & expiry dashboards, ledger browser, approval inbox, admin.
 
-### Increment 5 — Scale & operations
+### Increment 5 — Operations screens
 
-Kafka externalisation of events, Helm/Kubernetes, HA PostgreSQL, performance benchmarks, DR drills, penetration test, SOC-style controls documentation.
+Screens for the operations the backend already runs: settlement items, invoices, payments, netting and VAT rules;
+registry instructions and transfer routes; statements and reconciliation breaks; counterparty confirmation matching.
+REST guards, missing read endpoints and demo data come first.
+
+### Increment 6 — Scale & operations
+
+Observability and supply-chain hardening, Java 25 with virtual threads, Kafka externalisation of events, Helm/Kubernetes, HA PostgreSQL, performance benchmarks, DR drills, penetration test, SOC-style controls documentation.
 
 ---
 

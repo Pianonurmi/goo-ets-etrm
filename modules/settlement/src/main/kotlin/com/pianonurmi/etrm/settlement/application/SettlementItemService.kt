@@ -199,6 +199,7 @@ class SettlementItemService(
         val items = repository.forSchedule(command.scheduleId)
         val currency = items.firstOrNull()?.currency
             ?: throw NotFoundException("Delivered schedule", command.scheduleId)
+        items.forEach { actor.requireEntity(it.legalEntityId) }
         repository.upsertPriceFixing(PriceFixingView(command.scheduleId, items.first().tradeId, command.price, currency, command.note, actor.userId))
         return items.filter { it.status == SettlementItemStatus.NEEDS_ATTENTION }.map { reevaluate(it.id) }
     }

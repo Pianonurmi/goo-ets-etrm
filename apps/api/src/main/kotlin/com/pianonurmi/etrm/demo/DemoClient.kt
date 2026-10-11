@@ -10,6 +10,7 @@ enum class DemoUser(val id: String, val roles: String) {
     MIDDLE("middle", "MIDDLE_OFFICE"),
     BACKOFFICE("backoffice", "BACK_OFFICE,REGISTRY_OPERATOR"),
     ACCOUNTANT("accountant", "ACCOUNTANT"),
+    CONTROLLER("controller", "ACCOUNTANT"),
     RISK("risk", "RISK,MIDDLE_OFFICE"),
     RISK2("risk2", "RISK,MIDDLE_OFFICE"),
     ADMIN("admin", "ADMIN"),
@@ -38,6 +39,26 @@ class DemoClient(baseUrl: String) {
     }
 
     fun post(user: DemoUser, path: String, json: String? = null): Map<String, Any?> = send(client.post().uri(path), user, json)
+
+    /** A body Jackson serialises, for terms read back from the API. */
+    fun postBody(user: DemoUser, path: String, body: Any): Map<String, Any?> {
+        @Suppress("UNCHECKED_CAST")
+        return client.post().uri(path).headers { it.actAs(user) }.contentType(MediaType.APPLICATION_JSON).body(body)
+            .retrieve().body(Any::class.java) as? Map<String, Any?> ?: emptyMap()
+    }
+
+    /** CSV uploads (statements, payments, confirmations). */
+    fun postText(user: DemoUser, path: String, text: String): Map<String, Any?> {
+        @Suppress("UNCHECKED_CAST")
+        return client.post().uri(path).headers { it.actAs(user) }.contentType(MediaType.TEXT_PLAIN).body(text)
+            .retrieve().body(Any::class.java) as? Map<String, Any?> ?: emptyMap()
+    }
+
+    fun postForList(user: DemoUser, path: String, json: String): List<Map<String, Any?>> {
+        @Suppress("UNCHECKED_CAST")
+        return client.post().uri(path).headers { it.actAs(user) }.contentType(MediaType.APPLICATION_JSON).body(json)
+            .retrieve().body(Any::class.java) as? List<Map<String, Any?>> ?: emptyList()
+    }
 
     fun put(user: DemoUser, path: String, json: String): Map<String, Any?> = send(client.put().uri(path), user, json)
 

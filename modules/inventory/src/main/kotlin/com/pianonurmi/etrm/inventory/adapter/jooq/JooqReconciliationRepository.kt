@@ -119,6 +119,14 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
         )
     }
 
+    override fun statements(registryAccountId: UUID, limit: Int): List<StatementView> = dsl.select(REGISTRY_STATEMENT.ID)
+        .from(REGISTRY_STATEMENT)
+        .where(REGISTRY_STATEMENT.REGISTRY_ACCOUNT_ID.eq(registryAccountId))
+        .orderBy(REGISTRY_STATEMENT.STATEMENT_DATE.desc(), REGISTRY_STATEMENT.ID.desc())
+        .limit(limit.coerceIn(1, 500))
+        .fetch(REGISTRY_STATEMENT.ID)
+        .mapNotNull { statement(it) }
+
     override fun lines(statementId: UUID): List<StatementLine> = dsl.selectFrom(REGISTRY_STATEMENT_LINE)
         .where(REGISTRY_STATEMENT_LINE.STATEMENT_ID.eq(statementId))
         .orderBy(REGISTRY_STATEMENT_LINE.LINE_NO)

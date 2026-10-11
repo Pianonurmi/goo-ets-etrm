@@ -60,14 +60,22 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
         DemoTrades(api, calendar).book(finland, sweden, counterparties)
         accounting(finland)
         DemoCompliance(api, calendar).seed(finland, counterparties)
+        val (nordvind, rheinstrom, aurora) = counterparties
+        DemoOperations(api, calendar).seed(finland, DemoCounterparties(nordvind, rheinstrom, aurora))
     }
 
+    /** Nordvind has a netting agreement with us, so its invoices can be settled net. */
     private fun counterparties(): List<String> = listOf(
-        Triple("CP-NORDVIND", "Nordvind Energi AS (fictitious)", "NO"),
-        Triple("CP-RHEINSTROM", "Rheinstrom Handel GmbH (fictitious)", "DE"),
-        Triple("CP-AURORA", "Aurora Power Oy (fictitious)", "FI"),
-    ).map { (code, name, country) ->
-        api.post(DemoUser.ADMIN, "/api/v1/reference/counterparties", """{"code":"$code","name":"$name","country":"$country"}""").id()
+        Triple("CP-NORDVIND", "Nordvind Energi AS (fictitious)", "NO") to true,
+        Triple("CP-RHEINSTROM", "Rheinstrom Handel GmbH (fictitious)", "DE") to false,
+        Triple("CP-AURORA", "Aurora Power Oy (fictitious)", "FI") to false,
+    ).map { (party, netting) ->
+        val (code, name, country) = party
+        api.post(
+            DemoUser.ADMIN,
+            "/api/v1/reference/counterparties",
+            """{"code":"$code","name":"$name","country":"$country","nettingAgreed":$netting}""",
+        ).id()
     }
 
     private fun entity(code: String, name: String, country: String, lei: String, gsrnSeed: Int): DemoEntity {

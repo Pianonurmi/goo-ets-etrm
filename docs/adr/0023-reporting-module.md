@@ -48,6 +48,6 @@
 
 ## Consequences
 - Report output is reproducible and audited, at the cost of storing every export's content. Retention and
-  archiving come with the increment 5 data lifecycle work.
+  archiving come with the increment 6 data lifecycle work.
 - EMIR reporting stays a manual or delegated submission from the export until compliance verifies the layout and a
   trade repository connection is chosen.

@@ -13,5 +13,5 @@ certificates and trade amendments arrive late and backdated.
 - Corrections to the ledger are reversals, never edits.
 
 ## Consequences
-- Storage grows with history; partitioning the version and event tables by time is the planned mitigation (increment 5).
+- Storage grows with history; partitioning the version and event tables by time is the planned mitigation (increment 6).
 - Services must pass the effective time explicitly; the tests cover the backdated-correction case.

@@ -104,6 +104,8 @@ interface ReconciliationRepository {
 
     fun statement(id: UUID): StatementView?
 
+    fun statements(registryAccountId: UUID, limit: Int): List<StatementView>
+
     fun lines(statementId: UUID): List<StatementLine>
 
     fun insertAllowanceStatement(view: StatementView, importedBy: String, lines: List<AllowanceStatementLine>)

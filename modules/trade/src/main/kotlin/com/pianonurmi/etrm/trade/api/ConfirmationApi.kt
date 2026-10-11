@@ -104,8 +104,21 @@ interface ConfirmationCommand {
     fun receiveCsv(counterpartyId: UUID, content: String): List<ConfirmationView>
 }
 
+/** Counterparty confirmations to work on, newest first. */
+data class ConfirmationFilter(
+    val statuses: Set<ConfirmationStatus> = setOf(ConfirmationStatus.RECEIVED, ConfirmationStatus.MISMATCHED, ConfirmationStatus.DISPUTED),
+    val counterpartyId: UUID? = null,
+    val legalEntityId: UUID? = null,
+    val limit: Int = 200,
+    /** Restricts the list to these legal entities; set by the service from the user's scope. */
+    val legalEntityIds: Set<UUID>? = null,
+)
+
 interface ConfirmationQuery {
     fun confirmation(id: UUID): ConfirmationView?
+
+    /** Counterparty confirmations (direction THEIRS) in the user's entities. */
+    fun queue(filter: ConfirmationFilter): List<ConfirmationView>
 
     fun forTrade(tradeId: UUID): List<ConfirmationView>
 }

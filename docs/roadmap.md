@@ -6,7 +6,8 @@
 | 2 | Registry integrations (outbox, statement formats, Union Registry, API channel), reconciliation break workflow, settlement and invoicing with VAT and netting, counterparty confirmation matching, full approval inbox | delivered (G-REX and NECS mappings wait for their specifications; see the milestone list below) |
 | 3 | Valuation and market data (file imports, ECB FX), curves, MtM and P&L explain, period-end accounting, risk limits and credit exposure, ETS compliance (installations, verified emissions, free allocation, surrender), EMIR/MiFID data, reporting, GL interface | delivered (vendor feeds, EMIR layout and SAP layout wait for specifications; see the architecture plan's status) |
 | 4 | Web UI (React + TypeScript, bundled in the API jar): approval inbox, trade blotter and capture, inventory explorer with criteria builder, allocation workbench, coverage and expiry dashboards, market data and curves, valuation, risk, ETS compliance, ledger, month end, reports, admin | delivered (out of scope, for a later increment: settlement, invoice and payment screens; registry instructions and breaks; confirmation file matching) |
-| 5 | Scale and operations: Kafka externalisation of events, Helm/Kubernetes, HA PostgreSQL, partitioning of version and event tables, exact (CP-SAT) solver, performance and DR drills, penetration test | planned |
+| 5 | Operations screens: settlement items, invoices, payments, netting and VAT rules; registry instructions and transfer routes; statements and reconciliation breaks; counterparty confirmation matching. Backend first: role and entity guards on these areas, the missing read endpoints and demo data | in progress |
+| 6 | Scale and operations: observability (Prometheus registry, tracing, JSON logs) and supply chain (SBOM, blocking image scan); Java 25 with virtual threads; Kafka externalisation of events through Spring Modulith; Helm/Kubernetes, HA PostgreSQL; partitioning of version and event tables; exact (CP-SAT) solver; load tests, DR drills, penetration test | planned |
 
 Known gaps to close before production: AIB and registry external code lists; sign-off of accounting policies (MtM by
 book type, NRV, provision), VAT rules and PFE add-ons; the receiving GL's file specification; market data vendors for
@@ -59,3 +60,15 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M9 | Ledger entries filtered by account with keyset paging (`accountCode`, `afterEntryNumber`); ledger browser (entries with reversal and manual entries, trial balance, accounts, posting rules and history), month end (soft and hard close with the blocker checklist, period-end runs, GL exports and acknowledgement, GL balance import and reconciliation, policies), reports (catalogue by role, generated parameter forms, grid or CSV, export log, EMIR); role-aware UI (ADR 0028) | done |
 | M10 | Administration: legal entities with books, registry accounts, party details and history; counterparties with four-eyes registry account and bank account changes; registries (integration mode change requests); devices; taxonomy tree editor with region countries; product buckets with the criteria builder, allowance products, futures contracts; change requests; audit trail viewer. Role checks added to taxonomy and bucket writes, party addresses and VAT, and audit reads. Virtual threads off on Java 21 (deadlock found in UI testing) | done |
 | M11 | Hardening: command palette (mod+K or /) over screens and trades; WCAG AA contrast in the theme with axe checks on the main screens; CSP violation check; bundle budget in `check`; arc42 sections 5, 7 and 8, UI docs | done |
+
+## Increment 5 milestones
+
+| Milestone | Scope | Status |
+|---|---|---|
+| M0 | REST guards: settlement reads for finance and control roles with entity scope; registry instructions (submit, operate) and transfer routes by role and holder; statement import, reconcile and break reads by the account holder; counterparty confirmations received by middle or back office, read within entity scope. New reads: instruction search (keyset cursor), statements by account, single payment and settlement item, the counterparty confirmation queue. CSV imports declared as `text/csv`. Demo operations data (invoices paid and pending, a netting draft, a purchase invoice, a pending transfer, a statement break, a mismatched confirmation); `OperationsGuardsIT` | done |
+| M1 | Settlement items and invoices: items needing attention, invoice runs, invoice list and detail with PDF, submit, discard, credit note, purchase invoices | planned |
+| M2 | Payments, netting, VAT rules and settlement reports | planned |
+| M3 | Registry instructions: queue, detail and actions, unplanned transfers, transfer routes and statement formats | planned |
+| M4 | Reconciliation: statements and uploads, break queue and resolution, accept with four eyes | planned |
+| M5 | Counterparty confirmations: queue, field comparison, manual and CSV receipt, override and dispute through the inbox | planned |
+| M6 | Hardening and docs for the new screens | planned |

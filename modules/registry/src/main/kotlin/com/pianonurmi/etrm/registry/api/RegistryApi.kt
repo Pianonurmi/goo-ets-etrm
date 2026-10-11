@@ -200,8 +200,29 @@ interface RegistryInstructionCommand {
     fun retry(instructionId: UUID): RegistryInstructionView
 }
 
+/** Instructions of any status, newest first, paged by an opaque cursor. */
+data class InstructionSearch(
+    val statuses: Set<InstructionStatus>? = null,
+    val registryCode: String? = null,
+    val holderEntityId: UUID? = null,
+    val assetKind: AssetKind? = null,
+    /** Created at or after this instant. */
+    val from: Instant? = null,
+    /** Created before this instant. */
+    val to: Instant? = null,
+    val limit: Int = 100,
+    val cursor: String? = null,
+    /** Restricts the search to these holders; set by the service from the user's scope. */
+    val holderEntityIds: Set<UUID>? = null,
+)
+
+data class InstructionPage(val items: List<RegistryInstructionView>, val nextCursor: String?)
+
 interface RegistryInstructionQuery {
     fun instruction(id: UUID): RegistryInstructionView?
+
+    /** Instructions the current user may see (entity scope), filtered and paged. */
+    fun search(search: InstructionSearch): InstructionPage
 
     fun requireInstruction(id: UUID): RegistryInstructionView
 

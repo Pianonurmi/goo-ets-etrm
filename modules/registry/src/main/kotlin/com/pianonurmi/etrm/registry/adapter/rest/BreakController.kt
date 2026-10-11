@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.registry.adapter.rest
 
 import com.pianonurmi.etrm.inventory.api.LotCorrection
 import com.pianonurmi.etrm.inventory.api.ReconciliationBreakView
+import com.pianonurmi.etrm.inventory.api.ReconciliationQuery
 import com.pianonurmi.etrm.registry.api.AssignBreak
 import com.pianonurmi.etrm.registry.api.BreakNote
 import com.pianonurmi.etrm.registry.api.BreakResolutionCommand
@@ -19,53 +20,60 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/registry/breaks/{id}")
 @Tag(name = "Reconciliation breaks", description = "Investigate, correct or accept reconciliation breaks")
-class BreakController(private val breaks: BreakResolutionCommand) {
+class BreakController(
+    private val breaks: BreakResolutionCommand,
+    private val reconciliation: ReconciliationQuery,
+    private val access: RegistryAccess,
+) {
+    /** Break work needs registry operator or back office rights on the account holder's entity. */
+    private fun guard(id: UUID) = access.importer(reconciliation.requireBreak(id).registryAccountId)
+
     @PostMapping("/assign")
     fun assign(
         @PathVariable id: UUID,
         @RequestBody(required = false) body: AssignBreak?,
-    ): ReconciliationBreakView = breaks.assign(id, body?.assignee)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.assign(id, body?.assignee) }
 
     @PostMapping("/confirm-instruction")
     fun confirmInstruction(
         @PathVariable id: UUID,
         @RequestBody body: ConfirmInstructionForBreak,
-    ): ReconciliationBreakView = breaks.confirmInstruction(id, body.externalRef, body.note)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.confirmInstruction(id, body.externalRef, body.note) }
 
     @PostMapping("/record-receipt")
     fun recordReceipt(
         @PathVariable id: UUID,
         @RequestBody body: ReceiveForBreak,
-    ): ReconciliationBreakView = breaks.recordReceipt(id, body.receipt, body.note)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.recordReceipt(id, body.receipt, body.note) }
 
     @PostMapping("/withdraw-lot")
     fun withdrawLot(
         @PathVariable id: UUID,
         @RequestBody body: BreakNote,
-    ): ReconciliationBreakView = breaks.withdrawLot(id, body.note)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.withdrawLot(id, body.note) }
 
     @PostMapping("/replace-lot")
     fun replaceLot(
         @PathVariable id: UUID,
         @RequestBody body: ReceiveForBreak,
-    ): ReconciliationBreakView = breaks.replaceLot(id, body.receipt, body.note)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.replaceLot(id, body.receipt, body.note) }
 
     @PostMapping("/correct-lot")
     fun correctLot(
         @PathVariable id: UUID,
         @RequestBody body: LotCorrection,
-    ): ReconciliationBreakView = breaks.correctLot(id, body)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.correctLot(id, body) }
 
     @PostMapping("/correct-holding")
     fun correctHolding(
         @PathVariable id: UUID,
         @RequestBody body: BreakNote,
-    ): ReconciliationBreakView = breaks.correctHolding(id, body.note)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.correctHolding(id, body.note) }
 
     /** Opens a BREAK_ACCEPTANCE task for a second person. */
     @PostMapping("/accept")
     fun accept(
         @PathVariable id: UUID,
         @RequestBody body: BreakNote,
-    ): ReconciliationBreakView = breaks.requestAcceptance(id, body.note)
+    ): ReconciliationBreakView = guard(id).let { _ -> breaks.requestAcceptance(id, body.note) }
 }

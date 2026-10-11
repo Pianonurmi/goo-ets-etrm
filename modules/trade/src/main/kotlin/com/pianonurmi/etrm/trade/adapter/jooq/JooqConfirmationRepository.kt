@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.trade.adapter.jooq.generated.tables.Trade.TRADE
 import com.pianonurmi.etrm.trade.adapter.jooq.generated.tables.TradeConfirmation.TRADE_CONFIRMATION
 import com.pianonurmi.etrm.trade.api.ConfirmationDirection
+import com.pianonurmi.etrm.trade.api.ConfirmationFilter
 import com.pianonurmi.etrm.trade.api.ConfirmationSource
 import com.pianonurmi.etrm.trade.api.ConfirmationStatus
 import com.pianonurmi.etrm.trade.api.ConfirmationTerms
@@ -13,6 +14,7 @@ import com.pianonurmi.etrm.trade.domain.ConfirmationRepository
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.Record
+import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import tools.jackson.core.type.TypeReference
 import java.time.Instant
@@ -60,6 +62,16 @@ class JooqConfirmationRepository(private val dsl: DSLContext) : ConfirmationRepo
 
     override fun forTrade(tradeId: UUID): List<ConfirmationView> =
         select().where(TRADE_CONFIRMATION.TRADE_ID.eq(tradeId)).orderBy(TRADE_CONFIRMATION.CREATED_AT, TRADE_CONFIRMATION.ID).fetch(::toView)
+
+    override fun theirs(filter: ConfirmationFilter): List<ConfirmationView> = select()
+        .where(TRADE_CONFIRMATION.DIRECTION.eq(ConfirmationDirection.THEIRS.name))
+        .and(TRADE_CONFIRMATION.STATUS.`in`(filter.statuses.map(ConfirmationStatus::name)))
+        .and(filter.counterpartyId?.let { TRADE.COUNTERPARTY_ID.eq(it) } ?: DSL.noCondition())
+        .and(filter.legalEntityId?.let { TRADE.LEGAL_ENTITY_ID.eq(it) } ?: DSL.noCondition())
+        .and(filter.legalEntityIds?.let { TRADE.LEGAL_ENTITY_ID.`in`(it) } ?: DSL.noCondition())
+        .orderBy(TRADE_CONFIRMATION.CREATED_AT.desc(), TRADE_CONFIRMATION.ID.desc())
+        .limit(filter.limit.coerceIn(1, 500))
+        .fetch(::toView)
 
     override fun theirs(tradeId: UUID, reference: String): ConfirmationView? = select()
         .where(

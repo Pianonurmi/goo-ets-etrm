@@ -25,6 +25,8 @@ import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
 import com.pianonurmi.etrm.registry.api.InstructionOutcomeUnknown
 import com.pianonurmi.etrm.registry.api.InstructionOverdue
+import com.pianonurmi.etrm.registry.api.InstructionPage
+import com.pianonurmi.etrm.registry.api.InstructionSearch
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.api.InstructionSubmitted
 import com.pianonurmi.etrm.registry.api.InstructionType
@@ -269,6 +271,13 @@ class RegistryInstructionService(
 
     @Transactional(readOnly = true)
     override fun open(registryCode: String?): List<RegistryInstructionView> = repository.open(registryCode?.uppercase())
+
+    @Transactional(readOnly = true)
+    override fun search(search: InstructionSearch): InstructionPage {
+        val actor = actorProvider.current()
+        search.holderEntityId?.let(actor::requireEntity)
+        return repository.search(search.copy(holderEntityIds = actor.entityFilter))
+    }
 
     @Transactional(readOnly = true)
     override fun forPlan(planRef: UUID): List<RegistryInstructionView> = repository.forPlan(planRef)

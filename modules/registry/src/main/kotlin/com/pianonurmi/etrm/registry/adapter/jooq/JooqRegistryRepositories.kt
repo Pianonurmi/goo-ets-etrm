@@ -10,12 +10,15 @@ import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.TransferRoute.
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.records.RegistryInstructionRecord
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.records.StatementFormatRecord
 import com.pianonurmi.etrm.registry.api.AssetKind
+import com.pianonurmi.etrm.registry.api.InstructionPage
+import com.pianonurmi.etrm.registry.api.InstructionSearch
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.api.InstructionType
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.registry.api.StatementFormatView
 import com.pianonurmi.etrm.registry.api.StatementKind
 import com.pianonurmi.etrm.registry.api.TransferRoute
+import com.pianonurmi.etrm.registry.domain.InstructionCursor
 import com.pianonurmi.etrm.registry.domain.RegistryInstructionRepository
 import com.pianonurmi.etrm.registry.domain.StatementFormatRepository
 import com.pianonurmi.etrm.registry.domain.TransferRouteRepository
@@ -26,6 +29,8 @@ import org.springframework.stereotype.Repository
 import tools.jackson.core.type.TypeReference
 import java.time.Instant
 import java.util.UUID
+
+private const val MAX_SEARCH = 500
 
 @Repository
 class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryInstructionRepository {
@@ -106,6 +111,29 @@ class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryI
         .and(registryCode?.let { REGISTRY_INSTRUCTION.REGISTRY_CODE.eq(it) } ?: DSL.noCondition())
         .orderBy(REGISTRY_INSTRUCTION.CREATED_AT)
         .fetch(::toView)
+
+    override fun search(search: InstructionSearch): InstructionPage {
+        val limit = search.limit.coerceIn(1, MAX_SEARCH)
+        val after = search.cursor?.let(InstructionCursor::decode)
+        val conditions = listOfNotNull(
+            search.statuses?.takeIf { it.isNotEmpty() }?.let { REGISTRY_INSTRUCTION.STATUS.`in`(it.map(InstructionStatus::name)) },
+            search.registryCode?.let { REGISTRY_INSTRUCTION.REGISTRY_CODE.eq(it.uppercase()) },
+            search.holderEntityId?.let { REGISTRY_INSTRUCTION.HOLDER_ENTITY_ID.eq(it) },
+            search.holderEntityIds?.let { REGISTRY_INSTRUCTION.HOLDER_ENTITY_ID.`in`(it) },
+            search.assetKind?.let { REGISTRY_INSTRUCTION.ASSET_KIND.eq(it.name) },
+            search.from?.let { REGISTRY_INSTRUCTION.CREATED_AT.ge(it) },
+            search.to?.let { REGISTRY_INSTRUCTION.CREATED_AT.lt(it) },
+            after?.let { DSL.row(REGISTRY_INSTRUCTION.CREATED_AT, REGISTRY_INSTRUCTION.ID).lt(it.createdAt, it.id) },
+        )
+        val rows = dsl.selectFrom(REGISTRY_INSTRUCTION)
+            .where(DSL.and(conditions))
+            .orderBy(REGISTRY_INSTRUCTION.CREATED_AT.desc(), REGISTRY_INSTRUCTION.ID.desc())
+            .limit(limit + 1)
+            .fetch(::toView)
+        val items = rows.take(limit)
+        val next = if (rows.size > limit) items.last().let { InstructionCursor(it.createdAt, it.id).encode() } else null
+        return InstructionPage(items, next)
+    }
 
     override fun forPlan(planRef: UUID): List<RegistryInstructionView> =
         dsl.selectFrom(REGISTRY_INSTRUCTION).where(REGISTRY_INSTRUCTION.PLAN_REF.eq(planRef)).orderBy(REGISTRY_INSTRUCTION.CREATED_AT).fetch(::toView)

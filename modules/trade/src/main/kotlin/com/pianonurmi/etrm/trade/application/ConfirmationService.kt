@@ -17,6 +17,7 @@ import com.pianonurmi.etrm.trade.api.ConfirmTrade
 import com.pianonurmi.etrm.trade.api.ConfirmationClosed
 import com.pianonurmi.etrm.trade.api.ConfirmationCommand
 import com.pianonurmi.etrm.trade.api.ConfirmationDirection
+import com.pianonurmi.etrm.trade.api.ConfirmationFilter
 import com.pianonurmi.etrm.trade.api.ConfirmationMatched
 import com.pianonurmi.etrm.trade.api.ConfirmationMismatched
 import com.pianonurmi.etrm.trade.api.ConfirmationQuery
@@ -135,6 +136,7 @@ class ConfirmationService(
         if (command.reference.isBlank()) throw ValidationException("The counterparty's confirmation reference is required")
         if (command.terms.legs.isEmpty()) throw ValidationException("A confirmation needs at least one leg")
         val trade = findTrade(command)
+        actorProvider.current().requireEntity(trade.legalEntityId)
         repository.theirs(trade.id, command.reference.trim())?.let { return it }
         repository.forTrade(trade.id)
             .filter { it.direction == ConfirmationDirection.THEIRS && it.status in OPEN_THEIRS }
@@ -195,6 +197,13 @@ class ConfirmationService(
 
     @Transactional(readOnly = true)
     override fun confirmation(id: UUID): ConfirmationView? = repository.find(id)
+
+    @Transactional(readOnly = true)
+    override fun queue(filter: ConfirmationFilter): List<ConfirmationView> {
+        val actor = actorProvider.current()
+        filter.legalEntityId?.let(actor::requireEntity)
+        return repository.theirs(filter.copy(legalEntityIds = actor.entityFilter))
+    }
 
     @Transactional(readOnly = true)
     override fun forTrade(tradeId: UUID): List<ConfirmationView> = repository.forTrade(tradeId)

@@ -358,6 +358,9 @@ interface ReconciliationCommand {
 interface ReconciliationQuery {
     fun statement(id: UUID): StatementView?
 
+    /** Statements of an account, newest statement date first. */
+    fun statements(registryAccountId: UUID, limit: Int = 100): List<StatementView>
+
     fun openBreaks(registryAccountId: UUID? = null): List<ReconciliationBreakView>
 
     fun breaks(filter: BreakFilter): List<ReconciliationBreakView>

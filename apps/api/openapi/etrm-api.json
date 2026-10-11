@@ -3975,6 +3975,21 @@
         "required" : [ "active", "country", "eligibleProducts", "eutlId", "id", "kind", "legalEntityId", "name", "registryAccountId", "validFrom", "version" ],
         "type" : "object"
       },
+      "InstructionPage" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RegistryInstructionView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "items" ],
+        "type" : "object"
+      },
       "InstrumentView" : {
         "properties" : {
           "active" : {
@@ -10317,6 +10332,75 @@
         "tags" : [ "Audit" ]
       }
     },
+    "/api/v1/confirmations" : {
+      "get" : {
+        "operationId" : "confirmation_queue",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "enum" : [ "ISSUED", "SUPERSEDED", "RECEIVED", "MATCHED", "MISMATCHED", "OVERRIDDEN", "DISPUTED" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
+          }
+        }, {
+          "in" : "query",
+          "name" : "counterpartyId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 200,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ConfirmationView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Trade confirmations" ]
+      }
+    },
     "/api/v1/confirmations/counterparty" : {
       "post" : {
         "operationId" : "confirmation_receive",
@@ -10369,7 +10453,12 @@
         } ],
         "requestBody" : {
           "content" : {
-            "application/json" : {
+            "text/csv" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "text/plain" : {
               "schema" : {
                 "type" : "string"
               }
@@ -12214,6 +12303,53 @@
       }
     },
     "/api/v1/inventory/statements" : {
+      "get" : {
+        "operationId" : "inventory_statements",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "registryAccountId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 100,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/StatementView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Inventory" ]
+      },
       "post" : {
         "operationId" : "inventory_importStatement",
         "requestBody" : {
@@ -17296,6 +17432,102 @@
         "tags" : [ "Registry" ]
       }
     },
+    "/api/v1/registry/instructions/search" : {
+      "get" : {
+        "operationId" : "registry_search",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "enum" : [ "PENDING_APPROVAL", "PENDING", "DISPATCHING", "SENT", "UNKNOWN", "ACKNOWLEDGED", "CONFIRMED", "FAILED", "CANCELLED" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
+          }
+        }, {
+          "in" : "query",
+          "name" : "registryCode",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "holderEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "assetKind",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "GOO_LOT", "ALLOWANCE" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 100,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructionPage"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Registry" ]
+      }
+    },
     "/api/v1/registry/instructions/surrenders" : {
       "post" : {
         "operationId" : "registry_surrender",
@@ -17774,7 +18006,12 @@
         } ],
         "requestBody" : {
           "content" : {
-            "application/json" : {
+            "text/csv" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "text/plain" : {
               "schema" : {
                 "type" : "string"
               }
@@ -17835,7 +18072,12 @@
         } ],
         "requestBody" : {
           "content" : {
-            "application/json" : {
+            "text/csv" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "text/plain" : {
               "schema" : {
                 "type" : "string"
               }
@@ -19110,6 +19352,43 @@
         "tags" : [ "Settlement" ]
       }
     },
+    "/api/v1/settlement/items/{id}" : {
+      "get" : {
+        "operationId" : "settlement_item",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SettlementItemView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Settlement" ]
+      }
+    },
     "/api/v1/settlement/items/{id}/reevaluate" : {
       "post" : {
         "operationId" : "settlement_reevaluate",
@@ -19513,7 +19792,12 @@
         } ],
         "requestBody" : {
           "content" : {
-            "application/json" : {
+            "text/csv" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "text/plain" : {
               "schema" : {
                 "type" : "string"
               }
@@ -19534,6 +19818,43 @@
               }
             },
             "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Payments and netting" ]
+      }
+    },
+    "/api/v1/settlement/payments/{id}" : {
+      "get" : {
+        "operationId" : "payment_payment",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PaymentView"
+                }
+              }
+            },
+            "description" : "OK"
           },
           "default" : {
             "content" : {

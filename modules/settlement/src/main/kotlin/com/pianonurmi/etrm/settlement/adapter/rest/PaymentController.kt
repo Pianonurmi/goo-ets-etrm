@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.settlement.api.AllocationView
 import com.pianonurmi.etrm.settlement.api.CashForecastRow
 import com.pianonurmi.etrm.settlement.api.EcSalesListRow
 import com.pianonurmi.etrm.settlement.api.InvoiceCommand
+import com.pianonurmi.etrm.settlement.api.InvoiceQuery
 import com.pianonurmi.etrm.settlement.api.InvoiceView
 import com.pianonurmi.etrm.settlement.api.NettingCommand
 import com.pianonurmi.etrm.settlement.api.NettingQuery
@@ -42,80 +43,114 @@ class PaymentController(
     private val netting: NettingCommand,
     private val nettingQuery: NettingQuery,
     private val reports: SettlementReports,
+    private val invoiceQuery: InvoiceQuery,
+    private val access: SettlementAccess,
 ) {
     @PostMapping("/payments")
     @ResponseStatus(HttpStatus.CREATED)
     fun record(
         @RequestBody body: RecordPayment,
-    ): PaymentView = payments.record(body)
+    ): PaymentView {
+        access.inScope(body.legalEntityId)
+        return payments.record(body)
+    }
 
     /** Bank statement lines: `bank_reference,value_date,amount,currency[,counterparty,remittance]`. */
-    @PostMapping("/payments/csv")
+    @PostMapping("/payments/csv", consumes = ["text/csv", "text/plain"])
     @ResponseStatus(HttpStatus.CREATED)
     fun importCsv(
         @RequestParam legalEntityId: UUID,
         @RequestBody content: String,
-    ): List<PaymentView> = payments.importCsv(legalEntityId, content)
+    ): List<PaymentView> {
+        access.inScope(legalEntityId)
+        return payments.importCsv(legalEntityId, content)
+    }
 
     @GetMapping("/payments")
     fun list(
         @RequestParam legalEntityId: UUID,
         @RequestParam(required = false) counterpartyId: UUID?,
         @RequestParam(defaultValue = "false") unappliedOnly: Boolean,
-    ): List<PaymentView> = paymentQuery.payments(legalEntityId, counterpartyId, unappliedOnly)
+    ): List<PaymentView> = access.reader(legalEntityId).let { paymentQuery.payments(legalEntityId, counterpartyId, unappliedOnly) }
+
+    @GetMapping("/payments/{id}")
+    fun payment(
+        @PathVariable id: UUID,
+    ): PaymentView = requirePayment(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/payments/{id}/allocations")
     fun allocate(
         @PathVariable id: UUID,
         @RequestBody body: AllocatePayment,
-    ): PaymentView = payments.allocate(id, body)
+    ): PaymentView {
+        access.inScope(requirePayment(id).legalEntityId)
+        return payments.allocate(id, body)
+    }
 
     @GetMapping("/invoices/{id}/allocations")
     fun allocations(
         @PathVariable id: UUID,
-    ): List<AllocationView> = paymentQuery.allocations(id)
+    ): List<AllocationView> {
+        access.reader(requireInvoice(id).legalEntityId)
+        return paymentQuery.allocations(id)
+    }
 
     @PostMapping("/invoices/{id}/credit-note")
     @ResponseStatus(HttpStatus.CREATED)
     fun creditNote(
         @PathVariable id: UUID,
         @RequestBody body: DiscardRequest,
-    ): InvoiceView = invoices.creditNote(id, body.reason)
+    ): InvoiceView {
+        access.inScope(requireInvoice(id).legalEntityId)
+        return invoices.creditNote(id, body.reason)
+    }
 
     @PostMapping("/netting")
     @ResponseStatus(HttpStatus.CREATED)
     fun prepareNetting(
         @RequestBody body: PrepareNetting,
-    ): NettingStatementView = netting.prepare(body)
+    ): NettingStatementView {
+        access.inScope(body.legalEntityId)
+        return netting.prepare(body)
+    }
 
     @GetMapping("/netting")
     fun nettingStatements(
         @RequestParam legalEntityId: UUID,
         @RequestParam(required = false) counterpartyId: UUID?,
-    ): List<NettingStatementView> = nettingQuery.statements(legalEntityId, counterpartyId)
+    ): List<NettingStatementView> = access.reader(legalEntityId).let { nettingQuery.statements(legalEntityId, counterpartyId) }
 
     @GetMapping("/netting/{id}")
     fun nettingStatement(
         @PathVariable id: UUID,
-    ): NettingStatementView = nettingQuery.statement(id) ?: throw NotFoundException("NettingStatement", id)
+    ): NettingStatementView = requireStatement(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/netting/{id}/agree")
     fun agree(
         @PathVariable id: UUID,
         @RequestBody(required = false) body: AgreeNetting?,
-    ): NettingStatementView = netting.agree(id, body?.counterpartyRef)
+    ): NettingStatementView {
+        access.inScope(requireStatement(id).legalEntityId)
+        return netting.agree(id, body?.counterpartyRef)
+    }
 
     @PostMapping("/netting/{id}/settle")
     fun settle(
         @PathVariable id: UUID,
         @RequestBody(required = false) body: SettleNetting?,
-    ): NettingStatementView = netting.settle(id, body?.paymentId)
+    ): NettingStatementView {
+        access.inScope(requireStatement(id).legalEntityId)
+        return netting.settle(id, body?.paymentId)
+    }
 
     @PostMapping("/netting/{id}/cancel")
     fun cancelNetting(
         @PathVariable id: UUID,
         @RequestBody body: DiscardRequest,
-    ): NettingStatementView = netting.cancel(id, body.reason)
+    ): NettingStatementView {
+        access.inScope(requireStatement(id).legalEntityId)
+        return netting.cancel(id, body.reason)
+    }
 
     @GetMapping("/reports/ageing")
     fun ageing(
@@ -141,6 +176,12 @@ class PaymentController(
         @RequestParam legalEntityId: UUID,
         @RequestParam period: YearMonth,
     ): List<EcSalesListRow> = reports.ecSalesList(legalEntityId, period.atDay(1), period.plusMonths(1).atDay(1))
+
+    private fun requirePayment(id: UUID): PaymentView = paymentQuery.payment(id) ?: throw NotFoundException("Payment", id)
+
+    private fun requireInvoice(id: UUID): InvoiceView = invoiceQuery.invoice(id) ?: throw NotFoundException("Invoice", id)
+
+    private fun requireStatement(id: UUID): NettingStatementView = nettingQuery.statement(id) ?: throw NotFoundException("NettingStatement", id)
 }
 
 data class AgreeNetting(val counterpartyRef: String? = null)

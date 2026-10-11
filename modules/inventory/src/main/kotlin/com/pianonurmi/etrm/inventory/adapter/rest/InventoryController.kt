@@ -24,6 +24,7 @@ import com.pianonurmi.etrm.inventory.api.ReconciliationQuery
 import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.inventory.api.SplitResult
 import com.pianonurmi.etrm.inventory.api.StatementView
+import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -52,6 +53,7 @@ class InventoryController(
     private val holdingQuery: AllowanceHoldingQuery,
     private val reconciliationCommand: ReconciliationCommand,
     private val reconciliationQuery: ReconciliationQuery,
+    private val reconciliationAccess: ReconciliationAccess,
 ) {
     @GetMapping("/lots")
     fun lots(
@@ -175,33 +177,45 @@ class InventoryController(
     @ResponseStatus(HttpStatus.CREATED)
     fun importStatement(
         @Valid @RequestBody body: ImportStatement,
-    ): StatementView = reconciliationCommand.importStatement(body)
+    ): StatementView = reconciliationAccess.importer(body.registryAccountId).let { reconciliationCommand.importStatement(body) }
 
     @PostMapping("/statements/{id}/reconcile")
     fun reconcile(
         @PathVariable id: UUID,
-    ): StatementView = reconciliationCommand.reconcile(id)
+    ): StatementView {
+        reconciliationAccess.importer(requireStatement(id).registryAccountId)
+        return reconciliationCommand.reconcile(id)
+    }
+
+    @GetMapping("/statements")
+    fun statements(
+        @RequestParam registryAccountId: UUID,
+        @RequestParam(defaultValue = "100") limit: Int,
+    ): List<StatementView> = reconciliationAccess.reader(registryAccountId).let { reconciliationQuery.statements(registryAccountId, limit) }
 
     @GetMapping("/statements/{id}")
     fun statement(
         @PathVariable id: UUID,
-    ): StatementView? = reconciliationQuery.statement(id)
+    ): StatementView = requireStatement(id).also { reconciliationAccess.reader(it.registryAccountId) }
 
     @GetMapping("/breaks")
     fun breaks(
         @RequestParam(required = false) registryAccountId: UUID?,
         @RequestParam(required = false) status: Set<BreakStatus>?,
         @RequestParam(required = false) type: BreakType?,
-    ): List<ReconciliationBreakView> =
-        reconciliationQuery.breaks(BreakFilter(registryAccountId, status ?: BreakStatus.entries.filter { it.open }.toSet(), type))
+    ): List<ReconciliationBreakView> = reconciliationAccess.visible(
+        reconciliationQuery.breaks(BreakFilter(registryAccountId, status ?: BreakStatus.entries.filter { it.open }.toSet(), type)),
+    ) { it.registryAccountId }
 
     @GetMapping("/breaks/{id}")
     fun reconciliationBreak(
         @PathVariable id: UUID,
-    ): ReconciliationBreakView = reconciliationQuery.requireBreak(id)
+    ): ReconciliationBreakView = reconciliationQuery.requireBreak(id).also { reconciliationAccess.reader(it.registryAccountId) }
 
     @GetMapping("/breaks/ageing")
-    fun ageing(): BreakAgeing = reconciliationQuery.ageing()
+    fun ageing(): BreakAgeing = reconciliationAccess.reader().let { reconciliationQuery.ageing() }
+
+    private fun requireStatement(id: UUID): StatementView = reconciliationQuery.statement(id) ?: throw NotFoundException("Statement", id)
 }
 
 data class LotSearchRequest(

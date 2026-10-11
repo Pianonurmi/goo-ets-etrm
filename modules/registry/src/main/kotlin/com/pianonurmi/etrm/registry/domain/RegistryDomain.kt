@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.registry.domain
 
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
+import com.pianonurmi.etrm.registry.api.InstructionPage
+import com.pianonurmi.etrm.registry.api.InstructionSearch
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.registry.api.StatementFormatView
@@ -167,6 +169,8 @@ interface RegistryInstructionRepository {
     fun update(instruction: RegistryInstructionView, responsePayload: Map<String, Any?>?): Boolean
 
     fun open(registryCode: String?): List<RegistryInstructionView>
+
+    fun search(search: InstructionSearch): InstructionPage
 
     fun forPlan(planRef: UUID): List<RegistryInstructionView>
 

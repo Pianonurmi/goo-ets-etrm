@@ -47,6 +47,7 @@ class SettlementController(
     private val vatQuery: VatRuleQuery,
     private val invoiceCommand: InvoiceCommand,
     private val invoiceQuery: InvoiceQuery,
+    private val access: SettlementAccess,
 ) {
     @GetMapping("/items")
     fun items(
@@ -54,12 +55,20 @@ class SettlementController(
         @RequestParam(required = false) counterpartyId: UUID?,
         @RequestParam(required = false) tradeId: UUID?,
         @RequestParam(required = false) status: Set<SettlementItemStatus>?,
-    ): List<SettlementItemView> = itemQuery.items(SettlementItemFilter(legalEntityId, counterpartyId, status, tradeId))
+    ): List<SettlementItemView> = access.visible(itemQuery.items(SettlementItemFilter(legalEntityId, counterpartyId, status, tradeId))) { it.legalEntityId }
+
+    @GetMapping("/items/{id}")
+    fun item(
+        @PathVariable id: UUID,
+    ): SettlementItemView = requireItem(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/items/{id}/reevaluate")
     fun reevaluate(
         @PathVariable id: UUID,
-    ): SettlementItemView = itemCommand.reevaluate(id)
+    ): SettlementItemView {
+        access.inScope(requireItem(id).legalEntityId)
+        return itemCommand.reevaluate(id)
+    }
 
     /** Fixes the price of an index or formula delivery schedule. */
     @PostMapping("/price-fixings")
@@ -70,7 +79,7 @@ class SettlementController(
     @GetMapping("/vat-rules")
     fun vatRules(
         @RequestParam(defaultValue = "false") includeRetired: Boolean,
-    ): List<VatRuleView> = vatQuery.rules(includeRetired)
+    ): List<VatRuleView> = access.reader().let { vatQuery.rules(includeRetired) }
 
     @PostMapping("/vat-rules")
     @ResponseStatus(HttpStatus.CREATED)
@@ -85,19 +94,25 @@ class SettlementController(
         @RequestParam supplierCountry: String,
         @RequestParam customerCountry: String,
         @RequestParam taxPointDate: LocalDate,
-    ): VatDetermination = vatQuery.determine(productFamily, supplierCountry, customerCountry, taxPointDate)
+    ): VatDetermination = access.reader().let { vatQuery.determine(productFamily, supplierCountry, customerCountry, taxPointDate) }
 
     @PostMapping("/invoice-runs")
     @ResponseStatus(HttpStatus.CREATED)
     fun run(
         @RequestBody body: InvoiceRun,
-    ): List<InvoiceView> = invoiceCommand.run(body)
+    ): List<InvoiceView> {
+        access.inScope(body.legalEntityId)
+        return invoiceCommand.run(body)
+    }
 
     @PostMapping("/purchase-invoices")
     @ResponseStatus(HttpStatus.CREATED)
     fun registerPurchaseInvoice(
         @RequestBody body: RegisterPurchaseInvoice,
-    ): InvoiceView = invoiceCommand.registerPurchaseInvoice(body)
+    ): InvoiceView {
+        access.inScope(body.legalEntityId)
+        return invoiceCommand.registerPurchaseInvoice(body)
+    }
 
     @GetMapping("/invoices")
     fun invoices(
@@ -107,23 +122,29 @@ class SettlementController(
         @RequestParam(required = false) status: Set<InvoiceStatus>?,
         @RequestParam(required = false) from: LocalDate?,
         @RequestParam(required = false) to: LocalDate?,
-    ): List<InvoiceView> = invoiceQuery.invoices(InvoiceFilter(legalEntityId, counterpartyId, kind, status, from, to))
+    ): List<InvoiceView> = access.visible(invoiceQuery.invoices(InvoiceFilter(legalEntityId, counterpartyId, kind, status, from, to))) { it.legalEntityId }
 
     @GetMapping("/invoices/{id}")
     fun invoice(
         @PathVariable id: UUID,
-    ): InvoiceView = invoiceQuery.invoice(id) ?: throw NotFoundException("Invoice", id)
+    ): InvoiceView = requireInvoice(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/invoices/{id}/submit")
     fun submit(
         @PathVariable id: UUID,
-    ): InvoiceView = invoiceCommand.submit(id)
+    ): InvoiceView {
+        access.inScope(requireInvoice(id).legalEntityId)
+        return invoiceCommand.submit(id)
+    }
 
     @PostMapping("/invoices/{id}/discard")
     fun discard(
         @PathVariable id: UUID,
         @RequestBody body: DiscardRequest,
-    ): InvoiceView = invoiceCommand.discard(id, body.reason)
+    ): InvoiceView {
+        access.inScope(requireInvoice(id).legalEntityId)
+        return invoiceCommand.discard(id, body.reason)
+    }
 
     /** Invoices as CSV (`format=csv`) or JSON. */
     @GetMapping("/invoices/export")
@@ -133,6 +154,7 @@ class SettlementController(
         @RequestParam(required = false) to: LocalDate?,
         @RequestParam(defaultValue = "csv") format: String,
     ): ResponseEntity<Any> {
+        access.reader(legalEntityId)
         val filter = InvoiceFilter(legalEntityId = legalEntityId, statuses = setOf(InvoiceStatus.ISSUED), from = from, toExclusive = to, limit = 10_000)
         return if (format.equals("json", ignoreCase = true)) {
             ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(invoiceQuery.invoices(filter))
@@ -143,6 +165,10 @@ class SettlementController(
                 .body(invoiceQuery.export(filter))
         }
     }
+
+    private fun requireItem(id: UUID): SettlementItemView = itemQuery.item(id) ?: throw NotFoundException("SettlementItem", id)
+
+    private fun requireInvoice(id: UUID): InvoiceView = invoiceQuery.invoice(id) ?: throw NotFoundException("Invoice", id)
 }
 
 data class DiscardRequest(val reason: String)
