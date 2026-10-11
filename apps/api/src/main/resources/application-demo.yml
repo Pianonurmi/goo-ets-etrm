@@ -1,0 +1,4 @@
+# Demo data (DemoDataSeeder), together with dev, test or showcase.
+etrm:
+  migrations:
+    additional-modules: demo

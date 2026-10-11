@@ -72,6 +72,12 @@ class DemoDataSeederIT {
 
         operations(finland)
 
+        // The run log is public progress: the UI waits on it while the data is being created.
+        RestAssured.given().baseUri("http://localhost").port(port).get("/api/v1/ui-config").then().statusCode(200)
+            .body("demoSeed.state", equalTo("COMPLETED"))
+            .body("demoSeed.completedSteps", equalTo(seeder.current()!!.stepCount))
+            .body("demoSeed.stepCount", greaterThan(5))
+
         seeder.seed() shouldBe false
         asUser("trader", "TRADER").get("/api/v1/trades?legalEntityId=$finland").then().body("size()", equalTo(TRADES))
     }

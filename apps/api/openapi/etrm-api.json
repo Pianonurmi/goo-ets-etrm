@@ -2893,6 +2893,31 @@
         "required" : [ "deliveryDate", "quantity" ],
         "type" : "object"
       },
+      "DemoSeedView" : {
+        "properties" : {
+          "completedSteps" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "finishedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "state" : {
+            "enum" : [ "RUNNING", "COMPLETED", "FAILED" ],
+            "type" : "string"
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          },
+          "stepCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "completedSteps", "state", "stepCount" ],
+        "type" : "object"
+      },
       "DescendantOf" : {
         "properties" : {
           "attribute" : {
@@ -8892,6 +8917,13 @@
           },
           "demo" : {
             "type" : "boolean"
+          },
+          "demoSeed" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/DemoSeedView"
+            }, {
+              "type" : "null"
+            } ]
           },
           "environment" : {
             "type" : "string"

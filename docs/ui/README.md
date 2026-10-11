@@ -41,7 +41,12 @@ REST API (`DemoDataSeeder`):
   invoice and a netting draft with Nordvind, a manual transfer waiting for a second person, a registry statement
   with a break, and a counterparty confirmation that does not match ours.
 
-It does nothing when `DEMO-FI` exists. Drop the database to start over.
+The seeder runs as named steps (`DemoScenario.steps()`) and logs each run and step in schema `etrm_demo`, which only
+the `demo` profile migrates. A step that fails stops the run with the failed request and response in the log; the
+next start resumes at that step with the same dates, and the values earlier steps produced come back from the log
+(`DemoContext`). Until the run ends the application is not ready (readiness probe down), and `ui-config` reports
+`demoSeed` progress, which the UI shows as "Preparing the demo data". It does nothing once a run has completed (or
+when `DEMO-FI` exists from before the run log). Drop the database to start over.
 
 `ETRM_API_URL` points the Vite proxy elsewhere. `./gradlew build -Petrm.skipWeb` builds the backend without the UI.
 

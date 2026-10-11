@@ -96,4 +96,4 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M0 | Foundations: persona catalogue on the server (`web/Personas.kt`, in `ui-config`); dev headers honoured only in dev and test; the dev profile binds loopback (`ProfileGuard`); `npm run coverage:api` maps every OpenAPI operation to a UI caller or an `api-only.json` entry | done |
 | M0b | Design system and app shell (ADR 0034) | waiting for brand approval |
 | M1 | Showcase sign-in (ADR 0032): `showcase` profile with demo accounts from the environment, session cookie, CSRF, sign-in throttle, `X-Persona` against the server catalogue, in-memory seed token for the demo seeder; sign-in page, demo banner, account menu; `ShowcaseSecurityIT` and the Playwright `showcase` project | done |
-
+| M2 | Seeder restructure: named steps (`DemoStep`, `DemoContext`), run and step log in schema `etrm_demo` (demo profile only, `etrm.migrations.additional-modules`), a failed run resumes at its failing step with the same dates, seed progress in `ui-config` and a "Preparing the demo data" screen; readiness stays down until the run ends | done |

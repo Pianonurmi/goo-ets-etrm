@@ -137,8 +137,8 @@ Comes before every new screen in this increment, so the login page, help, tours 
 - Completed steps are skipped on a re-run. The run stops at the first failure and records the request, response, duration and status FAILED.
 - The seeder runs under dev, test or showcase, synchronously on ApplicationReadyEvent, so readiness stays down until it finishes.
 - Seed status is exposed in `ui-config`.
-- Fewer calls: market data history as CSV imports, `workflow` bulk approvals, deterministic price walks (`Random(42)`).
-- Tests: `DemoDataSeederIT` extended, plus a new `ShowcaseSeedIT` on a sibling database `showcase`.
+- Fewer calls: market data history as CSV imports, `workflow` bulk approvals, deterministic price walks (`Random(42)`). Moved to M3, with the dataset that needs them (today's seed takes about 12 s).
+- Tests: `DemoDataSeederIT` extended and `DemoSeedRunnerIT` (resume after a failure). Seeding under `showcase` with the seed token is covered by the Playwright `showcase` project, so no separate `ShowcaseSeedIT`.
 
 ### M3 and M4: Filled portfolios
 Six months of history, with all dates relative to today (`DemoCalendar`). The order is:

@@ -11,6 +11,7 @@ import { lazy, StrictMode, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { App } from './app/App';
+import { PreparingDemo } from './app/pages/PreparingDemo';
 import { cssVariablesResolver, theme } from './app/theme';
 import { startSession, type UiConfig } from './shared/auth/session';
 
@@ -19,6 +20,7 @@ const LoginPage = lazy(() => import('./app/pages/LoginPage'));
 type BootState =
   | { kind: 'starting' }
   | { kind: 'login'; config: UiConfig }
+  | { kind: 'seeding'; config: UiConfig }
   | { kind: 'ready'; config: UiConfig }
   | { kind: 'failed'; message: string };
 
@@ -38,7 +40,8 @@ function Boot() {
   useEffect(() => {
     startSession()
       .then(({ config, ready, needsLogin }) => {
-        if (needsLogin) setState({ kind: 'login', config });
+        if (config.demoSeed?.state === 'RUNNING') setState({ kind: 'seeding', config });
+        else if (needsLogin) setState({ kind: 'login', config });
         else if (ready) setState({ kind: 'ready', config });
       })
       .catch((error: unknown) => {
@@ -46,6 +49,7 @@ function Boot() {
       });
   }, []);
   if (state.kind === 'ready') return <App config={state.config} />;
+  if (state.kind === 'seeding') return <PreparingDemo config={state.config} />;
   if (state.kind === 'login') {
     const { config } = state;
     return (

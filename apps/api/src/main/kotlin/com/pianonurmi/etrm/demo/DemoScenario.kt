@@ -50,19 +50,24 @@ data class DemoEntity(
  * valuation and last month's period end, risk limits and an ETS installation, plus open approvals in the personas' inboxes.
  */
 class DemoScenario(private val api: DemoClient, private val calendar: DemoCalendar) {
-    fun run() {
-        val counterparties = counterparties()
-        val finland = entity("DEMO-FI", "Demo Energia Oy", "FI", "529900DEMOFI00000137", gsrnSeed = 1)
-        val sweden = entity("DEMO-SE", "Demo Kraft AB", "SE", "529900DEMOSE00000115", gsrnSeed = 4)
-        marketData()
-        DemoInventory(api, calendar).receive(finland, issuanceSeed = 1)
-        DemoInventory(api, calendar).receive(sweden, issuanceSeed = 2)
-        DemoTrades(api, calendar).book(finland, sweden, counterparties)
-        accounting(finland)
-        DemoCompliance(api, calendar).seed(finland, counterparties)
-        val (nordvind, rheinstrom, aurora) = counterparties
-        DemoOperations(api, calendar).seed(finland, DemoCounterparties(nordvind, rheinstrom, aurora))
-    }
+    /** The steps in order; each names what it creates, and the run log shows them while seeding. */
+    fun steps(): List<DemoStep> = listOf(
+        DemoStep("Counterparties") { it.put(COUNTERPARTIES, counterparties()) },
+        DemoStep("Legal entity DEMO-FI") { it.put(FINLAND, entity("DEMO-FI", "Demo Energia Oy", "FI", "529900DEMOFI00000137", gsrnSeed = 1)) },
+        DemoStep("Legal entity DEMO-SE") { it.put(SWEDEN, entity("DEMO-SE", "Demo Kraft AB", "SE", "529900DEMOSE00000115", gsrnSeed = 4)) },
+        DemoStep("Market data and curves") { marketData() },
+        DemoStep("Certificates DEMO-FI") { DemoInventory(api, calendar).receive(it.get(FINLAND), issuanceSeed = 1) },
+        DemoStep("Certificates DEMO-SE") { DemoInventory(api, calendar).receive(it.get(SWEDEN), issuanceSeed = 2) },
+        DemoStep("Trades") { DemoTrades(api, calendar).book(it.get(FINLAND), it.get(SWEDEN), it.counterparties()) },
+        DemoStep("Valuation and period end") { accounting(it.get(FINLAND)) },
+        DemoStep("Risk limits and ETS") { DemoCompliance(api, calendar).seed(it.get(FINLAND), it.counterparties()) },
+        DemoStep("Operations") {
+            val (nordvind, rheinstrom, aurora) = it.counterparties()
+            DemoOperations(api, calendar).seed(it.get(FINLAND), DemoCounterparties(nordvind, rheinstrom, aurora))
+        },
+    )
+
+    private fun DemoContext.counterparties(): List<String> = get<List<*>>(COUNTERPARTIES).map { it.toString() }
 
     /** Nordvind has a netting agreement with us, so its invoices can be settled net. */
     private fun counterparties(): List<String> = listOf(
@@ -193,6 +198,10 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
     private data class Device(val name: String, val source: String, val technology: String, val capacityKw: Int, val commissioned: String)
 
     companion object {
+        private const val COUNTERPARTIES = "counterparties"
+        private const val FINLAND = "finland"
+        private const val SWEDEN = "sweden"
+
         private val DEVICES = listOf(
             Device("Koski hydro", "HYDRO_RESERVOIR", "HYDRO_TURBINE_STORAGE", 25_000, "2012-05-01"),
             Device("Virta run-of-river", "HYDRO_RUN_OF_RIVER", "HYDRO_TURBINE_ROR", 8_000, "2019-03-15"),

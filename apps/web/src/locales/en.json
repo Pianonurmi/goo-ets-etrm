@@ -1625,5 +1625,10 @@
     "aboutReset": "Everything is reset to the example portfolio every night.",
     "aboutFictitious": "All companies, counterparties, devices, registries and prices are fictitious.",
     "access": "Ask the person who shared this demo with you for the sign-in details."
+  },
+  "demoSeed": {
+    "title": "Preparing the demo data",
+    "text": "The example portfolio is being created through the application's own API. This takes a minute or two after a start or a reset.",
+    "progress": "Step {{done}} of {{total}}"
   }
 }

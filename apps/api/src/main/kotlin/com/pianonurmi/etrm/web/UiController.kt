@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 
 data class UiConfigView(
@@ -18,9 +19,27 @@ data class UiConfigView(
     val environment: String,
     val version: String,
     val demo: Boolean,
+    /** Progress of the demo data (demo profile only); the UI waits while it is RUNNING. */
+    val demoSeed: DemoSeedView?,
     /** Personas the user can act as (development headers only); absent with real sign-in. */
     val personas: List<PersonaView>?,
 )
+
+enum class DemoSeedState { RUNNING, COMPLETED, FAILED }
+
+data class DemoSeedView(
+    val state: DemoSeedState,
+    /** The step running, or the one that failed. */
+    val step: String?,
+    val completedSteps: Int,
+    val stepCount: Int,
+    val finishedAt: Instant?,
+)
+
+/** Implemented by the demo seeder; absent without the demo profile. Keeps `web` free of a dependency on `demo`. */
+fun interface DemoSeedStatus {
+    fun current(): DemoSeedView?
+}
 
 data class PersonaView(val id: String, val name: String, val roles: List<Role>)
 
@@ -45,6 +64,7 @@ class UiController(
     private val actors: ActorProvider,
     private val environment: Environment,
     private val build: ObjectProvider<BuildProperties>,
+    private val demoSeed: ObjectProvider<DemoSeedStatus>,
 ) {
     /** Public: the browser reads it before signing in. */
     @GetMapping("/ui-config")
@@ -56,6 +76,7 @@ class UiController(
         environment = properties.environment,
         version = build.ifAvailable?.version ?: "dev",
         demo = environment.matchesProfiles("demo"),
+        demoSeed = demoSeed.ifAvailable?.current(),
         personas = Personas.ALL
             .takeIf { properties.authMode != UiProperties.AuthMode.OIDC }
             ?.map { PersonaView(it.id, it.name, it.roles.sorted()) },

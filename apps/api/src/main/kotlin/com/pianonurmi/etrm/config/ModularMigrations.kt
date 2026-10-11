@@ -54,6 +54,8 @@ data class MigrationProperties(
     val enabled: Boolean = true,
     /** Module order; a module only migrates when its migration folder is present on the classpath. */
     val modules: List<String> = DEFAULT_ORDER,
+    /** Schemas outside the business modules, migrated after them: `demo` (the seeder's run log) in the demo profile. */
+    val additionalModules: List<String> = emptyList(),
 ) {
     companion object {
         val DEFAULT_ORDER = listOf(
@@ -89,7 +91,7 @@ class ModularMigrations(private val dataSource: DataSource, private val properti
             return
         }
         val resolver = PathMatchingResourcePatternResolver()
-        properties.modules.forEach { module ->
+        (properties.modules + properties.additionalModules).forEach { module ->
             val location = "classpath:db/migration/$module"
             val present = resolver.getResources("$location/*.sql").isNotEmpty()
             if (!present) {
