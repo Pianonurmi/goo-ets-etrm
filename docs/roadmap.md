@@ -66,7 +66,7 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | REST guards: settlement reads for finance and control roles with entity scope; registry instructions (submit, operate) and transfer routes by role and holder; statement import, reconcile and break reads by the account holder; counterparty confirmations received by middle or back office, read within entity scope. New reads: instruction search (keyset cursor), statements by account, single payment and settlement item, the counterparty confirmation queue. CSV imports declared as `text/csv`. Demo operations data (invoices paid and pending, a netting draft, a purchase invoice, a pending transfer, a statement break, a mismatched confirmation); `OperationsGuardsIT` | done |
-| M1 | Settlement items and invoices: items needing attention, invoice runs, invoice list and detail with PDF, submit, discard, credit note, purchase invoices | planned |
+| M1 | Settlement screen: items needing attention (fix price, evaluate again), invoice runs, invoice list (filters in the URL, CSV export) and detail (parties, lines with VAT treatment, totals, notes, PDF, payments), submit, discard, credit note, purchase invoices matched to deliveries; inbox links for `INVOICE`; role check on evaluating an item again | done |
 | M2 | Payments, netting, VAT rules and settlement reports | planned |
 | M3 | Registry instructions: queue, detail and actions, unplanned transfers, transfer routes and statement formats | planned |
 | M4 | Reconciliation: statements and uploads, break queue and resolution, accept with four eyes | planned |

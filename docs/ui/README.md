@@ -23,7 +23,10 @@ REST API (`DemoDataSeeder`):
 - confirmed GoO and EUA forwards, and two trades waiting in the middle office inbox;
 - signed-off curves (one more waiting for `risk2`), official valuations and last month's period end;
 - for `DEMO-FI`: active credit, tenor and compliance-short limits (a stop loss waiting for `risk2`), a guarantee
-  from one counterparty, and an EU ETS installation with free allocation, allowances and this year's estimates.
+  from one counterparty, and an EU ETS installation with free allocation, allowances and this year's estimates;
+- for `DEMO-FI` operations: deliveries this week, one invoice paid and one waiting for `controller`, a purchase
+  invoice and a netting draft with Nordvind, a manual transfer waiting for a second person, a registry statement
+  with a break, and a counterparty confirmation that does not match ours.
 
 It does nothing when `DEMO-FI` exists. Drop the database to start over.
 

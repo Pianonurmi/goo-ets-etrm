@@ -66,7 +66,7 @@ class SettlementController(
     fun reevaluate(
         @PathVariable id: UUID,
     ): SettlementItemView {
-        access.inScope(requireItem(id).legalEntityId)
+        access.operator(requireItem(id).legalEntityId)
         return itemCommand.reevaluate(id)
     }
 

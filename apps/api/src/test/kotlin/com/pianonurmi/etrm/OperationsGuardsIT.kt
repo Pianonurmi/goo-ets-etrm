@@ -74,6 +74,7 @@ class OperationsGuardsIT {
 
         trader().get("/api/v1/settlement/items").then().statusCode(403)
         trader().get("/api/v1/settlement/items/${mine.itemId}").then().statusCode(403)
+        trader().post("/api/v1/settlement/items/${mine.itemId}/reevaluate").then().statusCode(403)
         trader().get("/api/v1/settlement/invoices").then().statusCode(403)
         trader().get("/api/v1/settlement/payments?legalEntityId=${mine.s.entityId}").then().statusCode(403)
         trader().get("/api/v1/registry/instructions/search").then().statusCode(403)

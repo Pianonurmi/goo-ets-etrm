@@ -6,6 +6,7 @@ import {
   IconBuildingBank,
   IconCategory,
   IconFileCheck,
+  IconFileInvoice,
   IconListDetails,
   IconPackages,
   IconBook2,
@@ -41,11 +42,12 @@ export interface NavSection {
 
 const ICON = 18;
 
-/** Navigation; each milestone of increment 4 adds its screens here. */
+/** Navigation; each milestone adds its screens here. */
 const VALUATION_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'AUDITOR', 'TRADER'];
 const FINANCE: readonly Role[] = ['ACCOUNTANT', 'AUDITOR', 'BACK_OFFICE'];
 const AUDIT_READERS: readonly Role[] = ['AUDITOR', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'];
 const MASTER_DATA: readonly Role[] = ['MIDDLE_OFFICE', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'ACCOUNTANT', 'AUDITOR'];
+const SETTLEMENT_READERS: readonly Role[] = ['BACK_OFFICE', 'ACCOUNTANT', 'MIDDLE_OFFICE', 'RISK', 'AUDITOR'];
 const RISK_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'TRADER', 'AUDITOR'];
 
 export const NAVIGATION: NavSection[] = [
@@ -69,6 +71,12 @@ export const NAVIGATION: NavSection[] = [
       { path: '/inventory', label: 'nav.inventory', icon: <IconCertificate size={ICON} /> },
       { path: '/allocation', label: 'nav.allocation', icon: <IconPuzzle size={ICON} /> },
       { path: '/positions', label: 'nav.positions', icon: <IconChartBar size={ICON} /> },
+      {
+        path: '/settlement',
+        label: 'nav.settlement',
+        icon: <IconFileInvoice size={ICON} />,
+        roles: SETTLEMENT_READERS,
+      },
     ],
   },
   {

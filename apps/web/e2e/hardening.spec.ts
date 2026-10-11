@@ -20,6 +20,8 @@ const SCREENS = [
   '/trades',
   '/inventory',
   '/positions',
+  '/settlement',
+  '/settlement?tab=invoices',
   '/risk',
   '/ets',
   '/ledger',

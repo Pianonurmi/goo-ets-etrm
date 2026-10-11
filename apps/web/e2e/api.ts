@@ -87,3 +87,28 @@ export async function captureDemoTrade(
   if (!task) throw new Error(`No approval task for trade ${trade.id}`);
   return { tradeId: trade.id, taskId: task.id };
 }
+
+/**
+ * A demo GoO sale to Aurora, approved, confirmed and delivered today, so it waits as an open settlement item;
+ * returns the trade id and number.
+ */
+export async function deliveredDemoSale(
+  request: APIRequestContext,
+  quantity = 80,
+): Promise<{ tradeId: string; tradeNumber: string }> {
+  const { tradeId, taskId } = await captureDemoTrade(request, quantity);
+  await asPersona(request, 'middle2', 'MIDDLE_OFFICE').post(`/api/v1/workflow/tasks/${taskId}/approve`, {});
+  const backOffice = asPersona(request, 'backoffice', 'BACK_OFFICE,REGISTRY_OPERATOR');
+  await backOffice.post(`/api/v1/trades/${tradeId}/confirm`, { confirmationRef: `E2E-${tradeId.slice(-8)}` });
+  const trade = await backOffice.get<{ tradeNumber: string; legs: { deliveries: { id: string }[] }[] }>(
+    `/api/v1/trades/${tradeId}`,
+  );
+  const scheduleId = trade.legs[0]?.deliveries[0]?.id;
+  if (!scheduleId) throw new Error(`Trade ${tradeId} has no delivery schedule`);
+  await backOffice.post(`/api/v1/trades/${tradeId}/deliveries`, {
+    scheduleId,
+    quantity,
+    deliveredOn: new Date().toISOString().slice(0, 10),
+  });
+  return { tradeId, tradeNumber: trade.tradeNumber };
+}

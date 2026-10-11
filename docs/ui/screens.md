@@ -37,6 +37,9 @@ legal-entity scope; the UI only mirrors them.
 | Inventory: criteria search | `/inventory?tab=search` | `product_criteriaCatalogue`, `product_validate` (as you type), `taxonomy_list`, `referenceData_registries`, `referenceData_productionDevices`, `inventory_search` | everyone in scope |
 | Inventory: allowances | `/inventory?tab=allowances` | `inventory_holdings`, `inventory_movements` | everyone in scope |
 | Lot detail | `/inventory/lots/:lotId` | `inventory_lot`, `inventory_history`, `inventory_asOf`, `inventory_split`, `inventory_cancel`, `inventory_withdraw` | operations: BACK_OFFICE, REGISTRY_OPERATOR |
+| Settlement items | `/settlement` (`view` in the URL: needs attention, open, invoiced, all) | `settlement_items`, `settlement_fixPrice`, `settlement_reevaluate`, `settlement_run` (invoice run), `settlement_registerPurchaseInvoice` | fix price: MIDDLE_OFFICE, BACK_OFFICE; evaluate again: ACCOUNTANT, BACK_OFFICE, MIDDLE_OFFICE; runs and purchase invoices: BACK_OFFICE, ACCOUNTANT; read: BACK_OFFICE, ACCOUNTANT, MIDDLE_OFFICE, RISK, AUDITOR in scope |
+| Invoices | `/settlement?tab=invoices` (status, kind and counterparty in the URL) | `settlement_invoices`, `settlement_export` (issued, CSV) | read as settlement items |
+| Invoice detail | `/settlement/invoices/:invoiceId` | `settlement_invoice`, `settlement_submit`, `settlement_discard`, `payment_creditNote`, `payment_allocations`, `document_content` (PDF), link to the `INVOICE_APPROVAL` task | BACK_OFFICE, ACCOUNTANT; approval (inbox) by another person |
 | Task detail | `/inbox/:taskId` | `workflow_task`, `workflow_approve`, `workflow_reject`, `workflow_acknowledge`, `workflow_claim`, `workflow_release`, `workflow_assign`, `workflow_comment` | candidates; never the requester when the type is four-eyes |
 
 ## Inbox rules mirrored in the UI (`features/inbox/model/decisions.ts`)
@@ -103,3 +106,16 @@ legal-entity scope; the UI only mirrors them.
 - A bucket's criterion is fixed once created. To change it, retire the bucket and create a new one, so positions
   stay explainable.
 - Taxonomy nodes are retired by an end date, never deleted.
+
+## Settlement (`features/settlement`)
+
+- Settlement items come from recorded deliveries. The items tab opens on those that need attention: an item waits
+  for a price (index or formula trades, fixed by hand with `settlement_fixPrice`) or for a VAT rule or VAT number
+  (evaluated again once the reference data is fixed). Actions are pinned to the right of the grid.
+- An invoice run drafts one sales invoice per counterparty and currency; the drafts are listed with links. A draft
+  is submitted for approval (`INVOICE_APPROVAL`) and issued by a second person in the inbox, which numbers it,
+  freezes the party details and renders the PDF. Discarding a draft reopens its items.
+- A purchase invoice is matched to the supplier's open purchases (all by default, or the ones ticked); the server
+  checks net and VAT within its tolerance. No amounts are added up in the browser.
+- A credit note reverses an issued invoice in full and goes through the same approval.
+- Rules mirrored in the UI: `model/settlement.ts` (actions per invoice state, item views, purchase candidates).

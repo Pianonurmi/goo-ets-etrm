@@ -24,6 +24,12 @@ class SettlementAccess(private val actorProvider: ActorProvider) {
         return rows.filter { actor.canAccess(entity(it)) }
     }
 
+    /** Re-evaluating an item: finance and middle office, on the item's entity (the system re-evaluates without a role). */
+    fun operator(legalEntityId: UUID?): Actor = actorProvider.current().also {
+        it.requireRole(Role.ACCOUNTANT, Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
+        it.requireEntity(legalEntityId)
+    }
+
     /** A command on data of [legalEntityId]: the service checks the role, this checks the scope. */
     fun inScope(legalEntityId: UUID?) = actorProvider.current().requireEntity(legalEntityId)
 
