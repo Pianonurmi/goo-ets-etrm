@@ -1,0 +1,81 @@
+# The public showcase on one server (docs/deploy/vps.md): PostgreSQL, the application in the showcase profile, and
+# Caddy in front. Only Caddy publishes ports. Configure with .env (see .env.example), then: docker compose up -d
+name: provena-demo
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: etrm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: etrm_showcase
+    # Sized for a 4 GB server shared with the application.
+    command: >-
+      postgres -c shared_buffers=256MB -c effective_cache_size=768MB -c work_mem=8MB -c maintenance_work_mem=64MB
+      -c max_connections=40 -c wal_compression=on
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etrm -d etrm_showcase"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    mem_limit: 768m
+
+  app:
+    image: ${ETRM_IMAGE:-ghcr.io/pianonurmi/goo-ets-etrm:main}
+    # A reset ends the process (exit code 75); the restart policy brings it back, the start wipes and seeds again.
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: showcase,demo,json
+      ETRM_DB_URL: jdbc:postgresql://postgres:5432/etrm_showcase
+      ETRM_DB_USER: etrm
+      ETRM_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # The showcase wipes this database on every start; the name must match (ADR 0033).
+      ETRM_SHOWCASE_DATABASE: etrm_showcase
+      ETRM_DEMO_PASSWORD: ${ETRM_DEMO_PASSWORD:-}
+      ETRM_DEMO_USERS: ${ETRM_DEMO_USERS:-}
+      ETRM_ENVIRONMENT: DEMO
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70 -XX:+UseZGC -Djava.security.egd=file:/dev/./urandom
+    read_only: true
+    tmpfs:
+      # OR-Tools unpacks its native library to /tmp, which must allow exec.
+      - /tmp:exec,size=256m
+    mem_limit: 2560m
+    expose:
+      - "8080"
+    healthcheck:
+      # Ready only once the demo data is seeded; Caddy shows the maintenance page until then.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 15s
+      timeout: 5s
+      start_period: 300s
+      retries: 3
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      # ":80" serves plain HTTP on the server's address; a domain name turns on HTTPS with Let's Encrypt.
+      ETRM_SITE_ADDRESS: ${ETRM_SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./maintenance:/srv/maintenance:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    mem_limit: 256m
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

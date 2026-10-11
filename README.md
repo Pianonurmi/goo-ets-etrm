@@ -103,6 +103,7 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 
 | Topic | Where |
 |---|---|
+| Public demo | One server with Docker: PostgreSQL, the `showcase` profile and Caddy (`ops/demo`, [deployment guide](docs/deploy/vps.md)) |
 | Kubernetes | Helm chart `ops/helm/etrm`, CloudNativePG cluster `ops/k8s/postgres-cluster.yaml` ([docs](docs/operations/kubernetes.md)) |
 | Metrics, traces, logs | Prometheus on the management port, OTLP traces, ECS JSON logs ([docs](docs/operations/observability.md)) |
 | Events to other systems | Kafka through Spring Modulith when `ETRM_KAFKA_ENABLED` (ADR 0029) |

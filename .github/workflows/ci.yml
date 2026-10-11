@@ -40,6 +40,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      # Publishes the image to GHCR on main (docs/deploy/vps.md).
+      packages: write
     services:
       postgres:
         image: postgres:17-alpine
@@ -138,6 +142,17 @@ jobs:
           severity: CRITICAL
           trivyignores: .trivyignore
           skip-setup-trivy: true
+      - name: Publish the image (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag "goo-ets-etrm:${{ github.sha }}" "$image:${{ github.sha }}"
+          docker tag "goo-ets-etrm:${{ github.sha }}" "$image:main"
+          docker push "$image:${{ github.sha }}"
+          docker push "$image:main"
       - name: Image SBOM
         if: always()
         uses: aquasecurity/trivy-action@v0.36.0
