@@ -35,6 +35,17 @@ spring:
           enabled: false
       republish-outstanding-events-on-restart: true
       completion-mode: update
+      externalization:
+        # Selected domain events go to Kafka (see ExternalEvents). Off unless a broker is configured.
+        enabled: ${ETRM_KAFKA_ENABLED:false}
+  kafka:
+    bootstrap-servers: ${ETRM_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      # Spring Modulith converts events to JSON bytes with the application's mapper.
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      properties:
+        enable.idempotence: true
   security:
     oauth2:
       resourceserver:

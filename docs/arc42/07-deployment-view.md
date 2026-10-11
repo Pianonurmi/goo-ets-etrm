@@ -6,6 +6,7 @@
 | Database | PostgreSQL 16/17 with `ltree` and `btree_gist`; one schema per module | Managed PostgreSQL with point-in-time recovery; RPO 15 min, RTO 4 h |
 | Identity | Keycloak (dev) via `ops/docker-compose.yml` | Corporate OIDC provider (e.g. Entra ID) |
 | Observability | Prometheus metrics (separate management port in Kubernetes), OpenTelemetry traces over OTLP when configured, `X-Trace-Id` on every response, ECS JSON logs in the `json` profile ([operations/observability.md](../operations/observability.md)) | OpenTelemetry collector, Grafana |
+| Events | Selected domain events to Kafka when `ETRM_KAFKA_ENABLED` (ADR 0029) | Managed Kafka, three replicas |
 | Build | Gradle, jOOQ codegen against a PostgreSQL service in CI | Same |
 
 Environment variables: `ETRM_DB_URL`, `ETRM_DB_USER`, `ETRM_DB_PASSWORD`, `ETRM_OIDC_ISSUER`; for the web UI

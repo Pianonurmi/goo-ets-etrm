@@ -18,7 +18,14 @@ dependencies {
         .filter { it.path.startsWith(":modules:") }
         .forEach { implementation(project(it.path)) }
 
+    // Selected domain events go to Kafka through Spring Modulith's externalisation (off unless configured).
+    implementation(libs.spring.boot.starter.kafka)
+    implementation(libs.spring.modulith.events.kafka)
+
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.kafka)
+    testImplementation(libs.testcontainers.junit)
     if (!skipWeb) web(project(path = ":apps:web", configuration = "webDist"))
 }
 

@@ -40,6 +40,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Each `modules/<name>/` is a bounded context under `com.pianonurmi.etrm.<name>` with `api/`, `domain/`, `application/`, `adapter/rest`, `adapter/jooq`. Package names `in`/`out` are rejected by ktlint.
 - `<Name>Module.kt` declares `@ApplicationModule(allowedDependencies = [...])`. Other modules may only use packages marked `@NamedInterface` (`api`, and `product :: criteria`). `apps/api` `ModularityTests` fails the build otherwise. Add the Gradle dependency and the allowed dependency together.
 - Each module owns schema `etrm_<name>`, migrations in `src/main/resources/db/migration/<name>/`, no cross-schema foreign keys. A new module must be added to `ModularMigrations.DEFAULT_ORDER` in `apps/api` and to `settings.gradle.kts`.
+- Selected events go to Kafka after commit through the Modulith publication registry (ADR 0029, `ExternalEvents` in `apps/api`); off unless `ETRM_KAFKA_ENABLED`. Their JSON is a public contract; `KafkaExternalizationIT` needs Docker.
 - Cross-module side effects go through `DomainEvent`s published in the command transaction. Listeners must be idempotent on the event id. Use the `eventType` extension property, not a member.
 - Jackson 3 (`tools.jackson.*`). Enums travel by constant name (`Json.configure`); do not override `toString()` on enums used in JSON.
 - No floating point in the domain. Periods are closed-open `LocalDateRange`. Instants are UTC. Ids are UUIDv7 (`Ids`).
