@@ -195,7 +195,7 @@ object GlExportFormat {
         "dimensions",
     )
 
-    fun csv(entries: List<JournalEntryView>, memoAccounts: Set<String>): String = Csv.write(
+    fun csv(entries: List<JournalEntryView>, memoAccounts: Set<String>): String = Csv.writeForSpreadsheet(
         header,
         entries.sortedBy { it.entryNumber }.flatMap { e ->
             e.lines.filter { it.accountCode !in memoAccounts }.map { l ->

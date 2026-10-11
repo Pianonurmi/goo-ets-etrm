@@ -77,6 +77,14 @@ class SecuredChainIT {
     }
 
     @Test
+    fun `the API description needs a token outside development`() {
+        client.get().uri("/v3/api-docs").retrieve().toBodilessEntity().statusCode.value() shouldBe 401
+        client.get().uri("/swagger-ui/index.html").retrieve().toBodilessEntity().statusCode.value() shouldBe 401
+        client.get().uri("/v3/api-docs").header("Authorization", "Bearer trader-token").retrieve().toBodilessEntity()
+            .statusCode.value() shouldBe 200
+    }
+
+    @Test
     fun `me reads roles, name and entity scope from the token`() {
         val me = client.get().uri("/api/v1/me").header("Authorization", "Bearer trader-token").retrieve().body(Map::class.java)!!
         me["userId"] shouldBe "u-trader"

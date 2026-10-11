@@ -18,6 +18,23 @@ object Csv {
         rows.forEach { append(line(it, delimiter)).append("\r\n") }
     }
 
+    /**
+     * CSV for people to open in a spreadsheet: text that a spreadsheet would run as a formula (starting with `=`, `+`,
+     * `-`, `@`, a tab or a carriage return) gets a leading `'`. Numbers, including negative ones, are left alone.
+     * Files for other systems (registry, GL interface) use [write], which never alters a value.
+     */
+    fun writeForSpreadsheet(header: List<String>, rows: List<List<Any?>>, delimiter: Char = ','): String =
+        write(header.map { defuse(it).toString() }, rows.map { row -> row.map(::defuse) }, delimiter)
+
+    fun defuse(value: Any?): Any? {
+        if (value !is CharSequence) return value
+        val text = value.toString()
+        return if (text.isNotEmpty() && text[0] in FORMULA_START && !NUMBER.matches(text)) "'$text" else value
+    }
+
+    private val FORMULA_START = setOf('=', '+', '-', '@', '\t', '\r')
+    private val NUMBER = Regex("[+-]?\\d+(\\.\\d+)?")
+
     /** Parses [content] into records of fields. Blank lines are skipped. */
     @Suppress("CyclomaticComplexMethod")
     fun parse(content: String, delimiter: Char = ','): List<List<String>> {

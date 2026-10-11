@@ -1,0 +1,71 @@
+name: ZAP baseline
+
+# Passive scan of the running application as a production profile serves it: the UI shell, public endpoints and the
+# headers of protected ones (docs/security/penetration-test.md). Rules and reviewed findings: .zap/rules.tsv.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: etrm
+          POSTGRES_PASSWORD: etrm
+          POSTGRES_DB: etrm_codegen
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U etrm -d etrm_codegen"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ETRM_CODEGEN_DB_URL: jdbc:postgresql://localhost:5432/etrm_codegen
+      ETRM_DB_USER: etrm
+      ETRM_DB_PASSWORD: etrm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            25
+            21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: Boot jar
+        run: ./gradlew :apps:api:bootJar
+      - name: Start the application (secured chain, no identity provider reachable)
+        run: |
+          PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_zap"
+          ETRM_DB_URL=jdbc:postgresql://localhost:5432/etrm_zap ETRM_OIDC_ISSUER=http://localhost:8081/realms/etrm \
+            nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar > app.log 2>&1 &
+          for i in $(seq 1 90); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
+          curl -fs http://localhost:8080/actuator/health/readiness
+      - name: ZAP baseline
+        run: |
+          mkdir -p zap && cp .zap/rules.tsv zap/ && chmod -R a+rwx zap
+          # -I: warnings are reported, only rules set to FAIL in rules.tsv fail the job.
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" zaproxy/zap-stable:2.16.1 \
+            zap-baseline.py -t http://localhost:8080/ -c rules.tsv -r zap-report.html -J zap-report.json -m 3 -I
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap
+          path: |
+            zap/zap-report.html
+            zap/zap-report.json
+            app.log
+          retention-days: 30

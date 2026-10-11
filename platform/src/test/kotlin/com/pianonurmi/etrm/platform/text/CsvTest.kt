@@ -17,4 +17,12 @@ class CsvTest {
         Csv.parse("x;y\n\n1;\"2;3\"\n") shouldBe listOf(listOf("x;y"), listOf("1;\"2;3\""))
         Csv.parse("x;y\n\n1;\"2;3\"\n", ';') shouldBe listOf(listOf("x", "y"), listOf("1", "2;3"))
     }
+
+    @Test
+    fun `spreadsheet CSV defuses formulas but keeps numbers and machine CSV unchanged`() {
+        val rows = listOf(listOf("=HYPERLINK(\"http://x\")", "+1+1", "-12.50", "-cmd", "@SUM(A1)", "plain", java.math.BigDecimal("-3")))
+        val text = Csv.writeForSpreadsheet(listOf("a", "b", "c", "d", "e", "f", "g"), rows)
+        Csv.parse(text)[1] shouldBe listOf("'=HYPERLINK(\"http://x\")", "'+1+1", "-12.50", "'-cmd", "'@SUM(A1)", "plain", "-3")
+        Csv.parse(Csv.write(listOf("a"), listOf(listOf("=1+1"))))[1] shouldBe listOf("=1+1")
+    }
 }

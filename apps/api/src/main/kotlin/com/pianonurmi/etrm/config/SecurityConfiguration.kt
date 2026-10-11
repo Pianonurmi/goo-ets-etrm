@@ -50,7 +50,9 @@ class SecurityConfiguration {
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
         .headers { browserHeaders(it, ui) }
         .authorizeHttpRequests {
-            it.requestMatchers("/actuator/health/**", "/actuator/info", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+            it.requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+            // The API description helps an attacker map the surface; outside development it needs a token unless opted in.
+            if (properties.publicApiDocs) it.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
             // A separate management port (Kubernetes) is reachable only inside the cluster: Prometheus scrapes it.
             it.requestMatchers(managementPortOnly(managementPort)).permitAll()
             it.requestMatchers(HttpMethod.GET, "/api/v1/ui-config").permitAll()
@@ -144,6 +146,8 @@ data class SecurityProperties(
     val rolesClaim: String = "roles",
     val legalEntitiesClaim: String = "legal_entities",
     val displayNameClaim: String = "name",
+    /** Serve the OpenAPI document and Swagger UI without a token (secured profiles only; dev and test always do). */
+    val publicApiDocs: Boolean = false,
 )
 
 class SpringSecurityActorProvider(private val properties: SecurityProperties) : ActorProvider {

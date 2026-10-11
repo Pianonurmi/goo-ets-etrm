@@ -1,0 +1,10 @@
+# ZAP baseline rules (zap-baseline.py -c). Format: rule id, action (IGNORE, INFO, WARN, FAIL), reason.
+# Only rules whose finding was reviewed are listed; everything else keeps the baseline default (WARN).
+10020	FAIL	Anti-clickjacking header: frame-ancestors 'none' and X-Frame-Options DENY are set
+10021	FAIL	X-Content-Type-Options nosniff is set by Spring Security
+10038	FAIL	Content Security Policy header is set on every response
+10055	WARN	CSP: style-src 'unsafe-inline' is needed by Mantine's runtime styles; scripts stay 'self' only
+10096	IGNORE	Timestamp disclosure: ISO dates in API responses are business data
+10049	IGNORE	Storable and cacheable content: hashed assets are immutable by design; the API sets no-store
+10027	IGNORE	Suspicious comments: words such as "select" and "query" in minified third-party bundles (dayjs, Mantine), reviewed 2026-10-11
+10109	IGNORE	Modern web application: informational, the UI is a single-page application by design

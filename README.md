@@ -99,6 +99,18 @@ export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 9. Credit (`CreditLimitBreachIT`): a credit limit approved by a second risk user. A trade over it needs risk's approval;
    the breach opens a task that closes when the limit is raised.
 
+## Operations
+
+| Topic | Where |
+|---|---|
+| Kubernetes | Helm chart `ops/helm/etrm`, CloudNativePG cluster `ops/k8s/postgres-cluster.yaml` ([docs](docs/operations/kubernetes.md)) |
+| Metrics, traces, logs | Prometheus on the management port, OTLP traces, ECS JSON logs ([docs](docs/operations/observability.md)) |
+| Events to other systems | Kafka through Spring Modulith when `ETRM_KAFKA_ENABLED` (ADR 0029) |
+| Database | Monthly partitions of the audit trail and lot journal, archiving ([docs](docs/operations/database.md)) |
+| Load tests | `k6 run -e PROFILE=smoke ops/load/etrm.js` ([docs and baseline](docs/operations/load-testing.md)) |
+| Disaster recovery | Runbook and `ops/dr/drill.sh` ([docs](docs/operations/disaster-recovery.md)) |
+| Supply chain and security | SBOMs, Trivy gate, OWASP check ([docs](docs/operations/supply-chain.md)); ZAP baseline and pen-test scope ([docs](docs/security/penetration-test.md)) |
+
 ## Repository layout
 
 ```
@@ -108,6 +120,6 @@ modules/<name>/  bounded contexts: api / domain / application / adapter, own sch
 apps/api/        Spring Boot application: migrations runner, security, problem details, demo data, end-to-end tests
 apps/web/        web UI (React, TypeScript, Vite), bundled into the API jar
 docs/            arc42, ADRs, domain and integration notes, roadmap, glossary
-ops/             docker-compose, Dockerfile, Keycloak realm
+ops/             docker-compose, Dockerfile, Keycloak realm, Helm chart, CloudNativePG cluster, k6 load test, DR drill
 config/detekt/   static analysis configuration
 ```

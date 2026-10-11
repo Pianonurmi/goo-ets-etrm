@@ -319,7 +319,7 @@ class InvoiceService(
     override fun invoices(filter: InvoiceFilter): List<InvoiceView> = repository.find(filter)
 
     @Transactional(readOnly = true)
-    override fun export(filter: InvoiceFilter): String = Csv.write(
+    override fun export(filter: InvoiceFilter): String = Csv.writeForSpreadsheet(
         listOf("number", "kind", "status", "invoice_date", "tax_point_date", "due_date", "counterparty", "supplier_ref", "currency", "net", "vat", "gross"),
         repository.find(filter).map {
             listOf(

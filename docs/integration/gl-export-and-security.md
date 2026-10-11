@@ -40,5 +40,11 @@ entity) exports the period's journal entries that no earlier export carried ([AD
 ## Security
 - Production: OIDC resource server (`spring.security.oauth2.resourceserver.jwt.issuer-uri`), roles from the `roles` claim, legal-entity scope from `legal_entities`.
 - `dev` / `test` profiles: no token; `X-Actor` and `X-Roles` headers identify the caller so four-eyes flows can be exercised.
+- The OpenAPI document (`/v3/api-docs`) and Swagger UI need a token outside `dev` and `test`. Set
+  `etrm.security.public-api-docs=true` to serve them openly, for example in an internal integration environment.
+- CSV for people (reports, the invoice export, the journal export) goes through `Csv.writeForSpreadsheet`. Text that a
+  spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a carriage return) gets a leading
+  `'`; numbers are left alone. Files for other systems (GL interface, registry files) are written unchanged.
+- Penetration test preparation, the ZAP baseline and the rules of engagement: `docs/security/penetration-test.md`.
 - Roles: TRADER, MIDDLE_OFFICE, BACK_OFFICE, REGISTRY_OPERATOR, ACCOUNTANT, RISK, AUDITOR, ADMIN. Segregation of duties is enforced in services (approver ≠ requester) and database constraints.
 - Role and legal-entity checks: trade capture, amendment and cancellation (TRADER or MIDDLE_OFFICE), approval (MIDDLE_OFFICE or RISK), confirmation (MIDDLE_OFFICE or BACK_OFFICE); ledger periods, exports and rules (ACCOUNTANT), FX rates (ACCOUNTANT or MIDDLE_OFFICE), ledger queries (entity access); settlement reports (finance, risk and audit roles with entity access); ETS installations and emissions (MIDDLE_OFFICE, BACK_OFFICE or RISK; verified emissions approved by a second person); risk limits and credit support (RISK, four eyes); reference data maintenance (MIDDLE_OFFICE; registry accounts and devices also BACK_OFFICE and REGISTRY_OPERATOR); credit limits are risk limits since ADR 0022.

@@ -71,7 +71,7 @@ class ReportingService(
     }
 
     private fun render(result: ReportResult, format: ReportFormat): String = when (format) {
-        ReportFormat.CSV -> Csv.write(result.columns, result.rows.map { row -> result.columns.map { cell(row[it]) } })
+        ReportFormat.CSV -> Csv.writeForSpreadsheet(result.columns, result.rows.map { row -> result.columns.map { cell(row[it]) } })
         ReportFormat.JSON -> Json.mapper.writeValueAsString(mapOf("report" to result.code, "columns" to result.columns, "rows" to result.rows))
     }
 
