@@ -64,10 +64,11 @@ services:
     environment:
       # ":80" serves plain HTTP on the server's address; a domain name turns on HTTPS with Let's Encrypt.
       ETRM_SITE_ADDRESS: ${ETRM_SITE_ADDRESS:-:80}
+    # The host ports; change them in .env when 80 or 443 is taken (a homelab server, docs/deploy/homelab.md).
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - "${ETRM_HTTP_PORT:-80}:80"
+      - "${ETRM_HTTPS_PORT:-443}:443"
+      - "${ETRM_HTTPS_PORT:-443}:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./maintenance:/srv/maintenance:ro

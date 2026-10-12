@@ -105,9 +105,11 @@ password. `ETRM_DEMO_USERS` (`alice:secret-one,bob:secret-two`) sets several sig
 | `ETRM_DEMO_PASSWORD` / `ETRM_DEMO_USERS` | Demo sign-in: user `demo`, or a list of `user:password` pairs |
 | `ETRM_SITE_ADDRESS` | `:80` for plain HTTP; a domain name turns on HTTPS from Let's Encrypt |
 | `ETRM_IMAGE` | `ghcr.io/pianonurmi/goo-ets-etrm:main`, or a commit tag to pin a version |
+| `ETRM_HTTP_PORT` / `ETRM_HTTPS_PORT` | Host ports for Caddy (80 and 443); change them when those are taken |
 
 The demo wipes its database on every start and resets nightly at 04:15 Helsinki time. To put it on a server, with a
-firewall, a domain, backups and a security checklist, follow the [deployment guide](docs/deploy/vps.md).
+firewall, a domain, backups and a security checklist, follow the [deployment guide](docs/deploy/vps.md). For a
+headless VM on your own network (homelab), see [running the demo in a homelab](docs/deploy/homelab.md).
 
 ## Quick start B: developer build
 
@@ -212,6 +214,7 @@ external penetration test is in [docs/security/penetration-test.md](docs/securit
 - [Getting started](docs/user-guide/getting-started.md): the user guide, one page per area (also served in the app
   under `/help/`).
 - [Deployment guide](docs/deploy/vps.md): the public demo on one server.
+- [Homelab guide](docs/deploy/homelab.md): the demo on a VM in your own network, without a domain.
 - [Web UI](docs/ui/README.md) and the [design system](docs/ui/design-system.md).
 - [Roadmap](docs/roadmap.md): what each increment delivered.
 - [Documentation index](docs/README.md): architecture, domain notes, integration, glossary.

@@ -4,6 +4,8 @@ The showcase (ADR 0032, ADR 0033) runs on one small server with Docker: PostgreS
 `showcase` profile, and Caddy in front. Files: `ops/demo/`. The image comes from GitHub Container Registry; CI
 publishes `ghcr.io/pianonurmi/goo-ets-etrm:main` and `:<commit>` after the vulnerability gate on every push to `main`.
 
+For a VM in your own network without a domain, the shorter [homelab guide](homelab.md) is enough.
+
 ## 1. The server
 
 - Ubuntu 24.04 LTS, 2 vCPUs, 4 GB RAM, 40 GB disk. The application takes up to 2.5 GB, PostgreSQL 768 MB.
