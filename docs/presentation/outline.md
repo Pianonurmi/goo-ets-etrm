@@ -142,14 +142,14 @@ run inside a database transaction.
 
 - Each module owns its schema and exposes one API package; any other dependency fails the build.
 - The OpenAPI document is committed and the web types are generated from it.
-- 41 architecture decision records, arc42 and a manual inside the application.
+- 42 architecture decision records, arc42 and a manual inside the application.
 - Warnings are errors, static analysis, a coverage rule; `main` moves only on a green pipeline. Current stack: Java 25,
   Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript.
 
 ## 16. Roadmap: nine increments, each one shippable
 
 - 1 core domain; 2 registries, settlement, inbox; 3 market data, valuation, risk, ETS, period end; 4–5 the web UI;
-  6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping and this documentation.
+  6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping, versioned releases (0.9.0) and this documentation.
 
 ## 17. Path to production
 

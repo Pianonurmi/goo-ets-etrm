@@ -2,7 +2,8 @@
 
 The showcase (ADR 0032, ADR 0033) runs on one small server with Docker: PostgreSQL, the application in the
 `showcase` profile, and Caddy in front. Files: `ops/demo/`. The image comes from GitHub Container Registry; CI
-publishes `ghcr.io/pianonurmi/goo-ets-etrm:main` and `:<commit>` after the vulnerability gate on every push to `main`.
+publishes `ghcr.io/pianonurmi/goo-ets-etrm:main` and `:<commit>` after the vulnerability gate on every push to `main`,
+and `:X.Y.Z`, `:X.Y` and `:latest` for every release ([releases](../operations/releases.md)).
 
 For a VM in your own network without a domain, the shorter [homelab guide](homelab.md) is enough.
 
@@ -35,7 +36,7 @@ nano .env
 | `ETRM_DEMO_PASSWORD` | The password of the sign-in `demo`, 12 characters or more. Obvious ones are refused at start. |
 | `ETRM_DEMO_USERS` | Instead, several sign-ins: `alice:secret-one,bob:secret-two`. A value may be a `{bcrypt}` hash. |
 | `ETRM_SITE_ADDRESS` | `:80` for plain HTTP on the server's address; a domain name for HTTPS (step 5). |
-| `ETRM_IMAGE` | `ghcr.io/pianonurmi/goo-ets-etrm:main`, or a commit tag to pin a version. |
+| `ETRM_IMAGE` | `ghcr.io/pianonurmi/goo-ets-etrm:main` for every green commit, a release (`:0.9.0`, or `:0.9` for its patches), or a commit tag. |
 
 If the repository's package is private, sign in to the registry once:
 `echo <token with read:packages> | docker login ghcr.io -u <github user> --password-stdin`.
@@ -71,7 +72,7 @@ Point an `A` (and `AAAA`) record at the server, set `ETRM_SITE_ADDRESS=demo.exam
 
 | Task | How |
 |---|---|
-| Update to the latest image | `docker compose pull app && docker compose up -d app` (a restart resets the demo) |
+| Update the image | Set the version in `ETRM_IMAGE` if you pin one, then `docker compose pull app && docker compose up -d app` (a restart resets the demo) |
 | Reset the data now | Administration → Demo as the `admin` persona (needs a reason), or `docker compose restart app` |
 | Nightly reset | Automatic at 04:15 Europe/Helsinki (`ETRM_SHOWCASE_RESET_CRON` to change) |
 | Logs | `docker compose logs -f app` (JSON lines; the sign-in name is in `etrm.login`) |
@@ -95,5 +96,5 @@ Point an `A` (and `AAAA`) record at the server, set `ETRM_SITE_ADDRESS=demo.exam
 - [ ] SSH keys only, firewall with 22, 80 and 443, unattended upgrades on.
 - [ ] `.env` is `chmod 600` and holds strong, unique passwords.
 - [ ] HTTPS with a domain before sharing the link widely.
-- [ ] The image is a published CI build (vulnerability gate passed); pin a commit tag for a talk or a customer visit.
+- [ ] The image is a published CI build (vulnerability gate passed); pin a release (`:0.9.0`) for a talk or a customer visit.
 - [ ] Nobody relies on the data: it is shared by every visitor and reset every night (see `docs/security/showcase.md`).

@@ -7,7 +7,7 @@
 | `adr/` | Architecture decision records (MADR format) |
 | `domain/` | Domain model notes: GoO attribute schema, criteria language, allocation engine, posting rules, EU ETS, trade confirmations, settlement, VAT, market data, valuation, regulatory data |
 | `integration/` | Registry integration (outbox, statement formats, Union Registry, breaks, API adapters), the generic registry REST contract, ECB reference rates, GL export, security |
-| `operations/` | Running the system: observability, supply chain, Kubernetes and the Helm chart, database partitions and archiving, load testing, disaster recovery |
+| `operations/` | Running the system: releases and image tags, observability, supply chain, Kubernetes and the Helm chart, database partitions and archiving, load testing, disaster recovery |
 | `security/` | Penetration test preparation: scope, accounts, rules of engagement |
 | `ui/` | Web UI conventions and screens |
 | `roadmap.md` | Increment plan |

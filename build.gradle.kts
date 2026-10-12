@@ -4,7 +4,7 @@ plugins {
 
 allprojects {
     group = "com.pianonurmi.etrm"
-    version = "0.1.0-SNAPSHOT"
+    // The version comes from gradle.properties (docs/operations/releases.md).
 }
 
 dependencies {

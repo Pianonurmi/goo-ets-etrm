@@ -143,7 +143,7 @@ record.
   - the OpenAPI document is a committed contract;
   - the web client's types are generated from it;
   - a check fails when an API operation has no screen and no recorded reason.
-- **Decisions are written down:** 41 architecture decision records, arc42 documentation, and a user manual inside
+- **Decisions are written down:** 42 architecture decision records, arc42 documentation, and a user manual inside
   the application.
 - **Tests at every level:**
   - unit and integration tests against PostgreSQL;
@@ -211,7 +211,7 @@ More detail: the [architecture plan](docs/architecture-plan.md), [arc42](docs/ar
 | 6 | Scale and operations: observability, supply chain, Java 25, Kafka, Kubernetes, partitioning, CP-SAT, load tests, DR |
 | 7 | Public showcase: design system, demo data, in-app manual and guided tours |
 | 8 | GoO portfolio management: value-based allocation, available to sell, product hierarchy, future supply, portfolio value, GoO limits |
-| 9 | Housekeeping: current CI actions and dependency majors, this documentation (in progress) |
+| 9 | Housekeeping: current CI actions and dependency majors, versioned releases, this documentation |
 
 **On the path to production, waiting on outside input:**
 - the external penetration test;
@@ -222,7 +222,9 @@ More detail: the [architecture plan](docs/architecture-plan.md), [arc42](docs/ar
 - market data vendors;
 - the EMIR field layout and trade repository delegation.
 
-Each increment and milestone is listed in the [roadmap](docs/roadmap.md).
+Each increment and milestone is listed in the [roadmap](docs/roadmap.md). Each increment is a minor version: releases
+are tagged `vX.Y.Z` with notes in the [changelog](CHANGELOG.md), and images are published as `X.Y.Z`, `X.Y` and
+`latest` ([releases](docs/operations/releases.md)).
 
 ## Try it
 
@@ -253,7 +255,7 @@ Then open `http://127.0.0.1/` and sign in as `demo`.
 | `POSTGRES_PASSWORD` | Database password; only the containers use it |
 | `ETRM_DEMO_PASSWORD` / `ETRM_DEMO_USERS` | Demo sign-in: user `demo`, or a list of `user:password` pairs |
 | `ETRM_SITE_ADDRESS` | `:80` for plain HTTP; a domain name turns on HTTPS from Let's Encrypt |
-| `ETRM_IMAGE` | `ghcr.io/pianonurmi/goo-ets-etrm:main`, or a commit tag to pin a version |
+| `ETRM_IMAGE` | `:main` follows every green commit; `:0.9.0` pins a release, `:0.9` takes its patches ([releases](docs/operations/releases.md)) |
 | `ETRM_HTTP_PORT` / `ETRM_HTTPS_PORT` | Host ports for Caddy; change them when 80 or 443 are taken |
 
 For a server with a domain, backups and a security checklist, see the [deployment guide](docs/deploy/vps.md). For a VM

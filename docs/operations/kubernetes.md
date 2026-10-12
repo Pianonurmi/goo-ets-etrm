@@ -15,11 +15,14 @@ kubectl -n etrm apply -f ops/k8s/postgres-cluster.yaml     # creates etrm-db-rw,
 
 kubectl -n etrm create secret tls etrm-tls --cert=... --key=...
 helm upgrade --install etrm ops/helm/etrm -n etrm \
-  --set image.tag=<git sha> \
+  --set image.tag=0.9.0 \
   --set ingress.host=etrm.example.com \
   --set oidc.issuer=https://login.example.com/realms/etrm \
   --set environment=PROD
 ```
+
+The chart deploys its `appVersion` image unless `image.tag` says otherwise; pin a release, and see
+[releases](releases.md) for the image tags and upgrades.
 
 Flyway migrates at start-up. Each module's migrations run under PostgreSQL's advisory lock, so when two replicas start
 together the second one waits and then finds nothing to do. A rolling update keeps every old pod serving

@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: ["**"]
+    # A release: vX.Y.Z publishes the image under its version and creates the GitHub release (docs/operations/releases.md).
+    tags: ["v*"]
   pull_request:
 
 concurrency:
@@ -46,7 +48,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      # Publishes the image to GHCR on main (docs/deploy/vps.md).
+      # Publishes the image to GHCR from main and from release tags (docs/operations/releases.md).
       packages: write
     services:
       postgres:
@@ -76,6 +78,9 @@ jobs:
             echo "ETRM_TEST_DB_URL=jdbc:postgresql://localhost:$port/etrm_test"
           } >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
+      - name: Release version matches the tag (release tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ops/release/check-version.sh "${GITHUB_REF_NAME#v}"
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
       - uses: actions/setup-java@v6
         with:
@@ -136,7 +141,12 @@ jobs:
             apps/web/build/test-results/**
           retention-days: 7
       - name: Build container image
-        run: docker build -t goo-ets-etrm:${{ github.sha }} -f ops/Dockerfile .
+        run: |
+          version=$(sed -n 's/^version=//p' gradle.properties)
+          docker build -t "goo-ets-etrm:${{ github.sha }}" -f ops/Dockerfile \
+            --label org.opencontainers.image.version="$version" \
+            --label org.opencontainers.image.revision="${{ github.sha }}" \
+            --label org.opencontainers.image.created="$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
       - name: Image vulnerabilities (report critical and high)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -155,17 +165,25 @@ jobs:
           severity: CRITICAL
           trivyignores: .trivyignore
           skip-setup-trivy: true
-      - name: Publish the image (main only)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Publish the image (main and release tags)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker tag "goo-ets-etrm:${{ github.sha }}" "$image:${{ github.sha }}"
-          docker tag "goo-ets-etrm:${{ github.sha }}" "$image:main"
-          docker push "$image:${{ github.sha }}"
-          docker push "$image:main"
+          # main: main and the commit; vX.Y.Z: X.Y.Z, X.Y, latest and the commit (ops/release/image-tags.sh).
+          for tag in $(ops/release/image-tags.sh "$GITHUB_REF" "$GITHUB_SHA"); do
+            docker tag "goo-ets-etrm:${{ github.sha }}" "$image:$tag"
+            docker push "$image:$tag"
+          done
+      - name: Upload the jar (release tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: jar
+          path: apps/api/build/libs/api.jar
+          retention-days: 7
       - name: Image SBOM
         if: always()
         uses: aquasecurity/trivy-action@v0.36.0
@@ -185,3 +203,49 @@ jobs:
             apps/web/build/sbom/etrm-web.cdx.json
             etrm-image.cdx.json
           retention-days: 90
+
+  # A release tag: the GitHub release with the changelog section, the jar and the SBOMs, once the build is green.
+  release:
+    needs: [chart, build]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: sbom
+          path: dist/sbom
+      - uses: actions/download-artifact@v8
+        with:
+          name: jar
+          path: dist/jar
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            ops/release/release-notes.sh "$version"
+            echo
+            echo "### Container image"
+            echo
+            echo "\`\`\`"
+            echo "docker pull $image:$version"
+            echo "\`\`\`"
+            echo
+            if [[ "$version" == *-* ]]; then
+              echo "A pre-release: also tagged with the commit \`$GITHUB_SHA\`; no floating tag moves."
+            else
+              echo "Also tagged \`${version%.*}\` (follows the patch releases of ${version%.*}), \`latest\` and the commit \`$GITHUB_SHA\`."
+            fi
+          } > notes.md
+          mv dist/jar/api.jar "dist/provena-$version.jar"
+          mapfile -t sboms < <(find dist/sbom -name '*.cdx.json')
+          flags=()
+          [[ "$version" == *-* ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Provena $version" --notes-file notes.md "${flags[@]}" \
+            "dist/provena-$version.jar" "${sboms[@]}"
