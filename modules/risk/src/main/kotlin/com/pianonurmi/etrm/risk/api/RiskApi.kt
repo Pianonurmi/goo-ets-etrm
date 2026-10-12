@@ -23,6 +23,21 @@ enum class LimitType {
 
     /** EU ETS allowances short of the compliance obligation for a year, in tonnes. */
     COMPLIANCE_SHORT,
+
+    /**
+     * GoO certificates of one product bucket that no obligation uses, after netting through the eligibility flow
+     * (ADR 0040): the book's open exposure to that product. In MWh, or in EUR at the bucket's mark.
+     */
+    GOO_CONCENTRATION,
+
+    /** Held GoO certificates expiring within the scope's horizon that no obligation uses, in MWh. */
+    GOO_EXPIRY,
+
+    /**
+     * Sales delivered with certificates worth more than their own product on the valuation-grade allocation: MWh, or
+     * the give-away in EUR.
+     */
+    GOO_BASIS,
 }
 
 /** What a limit applies to; which fields matter depends on the limit type. */
@@ -32,6 +47,10 @@ data class LimitScope(
     val productFamily: ProductFamily? = null,
     val allowanceProductCode: String? = null,
     val complianceYear: Int? = null,
+    /** GoO concentration (and optionally expiry): the product bucket. */
+    val bucketCode: String? = null,
+    /** GoO expiry: certificates expiring within this many days. */
+    val horizonDays: Int? = null,
 )
 
 enum class LimitStatus { PENDING_APPROVAL, ACTIVE, REJECTED, RETIRED }

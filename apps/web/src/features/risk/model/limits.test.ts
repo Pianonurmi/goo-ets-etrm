@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { limitSteps, limitUnit, scopeLabel, utilisationBar, utilisationColor } from './limits';
+import {
+  LIMIT_FIELDS,
+  LIMIT_TYPES,
+  limitSteps,
+  limitUnit,
+  scopeLabel,
+  utilisationBar,
+  utilisationColor,
+} from './limits';
 
 const names = {
   counterparty: (id: string) => (id === 'cp-1' ? 'Nordvind' : undefined),
   book: (id: string) => (id === 'b-1' ? 'DEMO-FI-TRD' : undefined),
+  horizon: (days: number) => `expiring within ${days} days`,
 };
 
 describe('limits', () => {
@@ -13,6 +22,11 @@ describe('limits', () => {
     expect(scopeLabel({ productFamily: 'GUARANTEE_OF_ORIGIN' }, names)).toBe('GoO');
     expect(scopeLabel({ allowanceProductCode: 'EUA', complianceYear: 2026 }, names)).toBe('EUA 2026');
     expect(scopeLabel({}, names)).toBe('');
+    expect(scopeLabel({ bucketCode: 'NORDIC_HYDRO' }, names)).toBe('NORDIC_HYDRO');
+    expect(scopeLabel({ bucketCode: 'NORDIC_HYDRO', horizonDays: 90 }, names)).toBe(
+      'NORDIC_HYDRO · expiring within 90 days',
+    );
+    expect(scopeLabel({ horizonDays: 30 }, names)).toBe('expiring within 30 days');
   });
 
   it('gives the unit of each limit type', () => {
@@ -25,6 +39,31 @@ describe('limits', () => {
     expect(limitUnit({ type: 'POSITION_NET', currency: null, scope: { productFamily: 'EMISSION_ALLOWANCE' } })).toBe(
       't',
     );
+  });
+
+  it('measures GoO limits in MWh, or in EUR when a currency is set', () => {
+    expect(limitUnit({ type: 'GOO_CONCENTRATION', currency: null, scope: { bucketCode: 'NORDIC_HYDRO' } })).toBe('MWh');
+    expect(limitUnit({ type: 'GOO_CONCENTRATION', currency: 'EUR', scope: { bucketCode: 'NORDIC_HYDRO' } })).toBe(
+      'EUR',
+    );
+    expect(limitUnit({ type: 'GOO_BASIS', currency: undefined, scope: {} })).toBe('MWh');
+    expect(limitUnit({ type: 'GOO_BASIS', currency: 'EUR', scope: {} })).toBe('EUR');
+    expect(limitUnit({ type: 'GOO_EXPIRY', currency: null, scope: { horizonDays: 60 } })).toBe('MWh');
+  });
+
+  it('scopes GoO limits to the whole entity, with a bucket and a horizon where they apply', () => {
+    expect(LIMIT_TYPES).toEqual(expect.arrayContaining(['GOO_CONCENTRATION', 'GOO_EXPIRY', 'GOO_BASIS']));
+    expect(LIMIT_FIELDS.GOO_CONCENTRATION).toMatchObject({ bucket: 'required', horizon: 'hidden', book: false });
+    expect(LIMIT_FIELDS.GOO_CONCENTRATION.currency).toBe('optional');
+    expect(LIMIT_FIELDS.GOO_EXPIRY).toMatchObject({ bucket: 'optional', horizon: 'required', currency: 'hidden' });
+    expect(LIMIT_FIELDS.GOO_BASIS).toMatchObject({ bucket: 'hidden', horizon: 'hidden', currency: 'optional' });
+    for (const type of ['GOO_CONCENTRATION', 'GOO_EXPIRY', 'GOO_BASIS'] as const) {
+      expect(LIMIT_FIELDS[type].book).toBe(false);
+    }
+    const others = LIMIT_TYPES.filter((type) => !type.startsWith('GOO_'));
+    for (const type of others) {
+      expect(LIMIT_FIELDS[type]).toMatchObject({ bucket: 'hidden', horizon: 'hidden' });
+    }
   });
 
   it('builds the lifecycle from request to approval, rejection or retirement', () => {

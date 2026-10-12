@@ -45,6 +45,36 @@ class DemoCompliance(private val api: DemoClient, private val calendar: DemoCale
         api.post(DemoUser.RISK, "/api/v1/risk/measure?legalEntityId=${entity.id}")
     }
 
+    /**
+     * GoO limits (ADR 0040) on the book as it stands at the end of the seed: a Nordic hydro concentration limit set
+     * just above today's free certificates, so it shows in warning; an expiry limit; a basis limit in EUR.
+     */
+    fun gooLimits(entity: DemoEntity) {
+        @Suppress("UNCHECKED_CAST")
+        val nodes = (
+            api.get(
+                DemoUser.RISK,
+                "/api/v1/allocation/portfolio?holderEntityId=${entity.id}",
+            ) as Map<String, Any?>
+        )["nodes"] as List<Map<String, Any?>>
+        val free = nodes.firstOrNull { it["bucketCode"] == "NORDIC_HYDRO" }?.get("freeMwh")?.toString()?.toLong() ?: 0L
+        // About 90 % used: above the 80 % warning level, below the limit.
+        val amount = if (free > 0) (free * 10 + 8) / 9 else 1000
+        approvedLimit(
+            """{"legalEntityId":"${entity.id}","type":"GOO_CONCENTRATION","scope":{"bucketCode":"NORDIC_HYDRO"},"amount":$amount,"warningPct":80,
+               "reason":"Desk mandate: unsold Nordic hydro"}""",
+        )
+        approvedLimit(
+            """{"legalEntityId":"${entity.id}","type":"GOO_EXPIRY","scope":{"horizonDays":90},"amount":5000,
+               "reason":"Certificates expiring unsold within a quarter"}""",
+        )
+        approvedLimit(
+            """{"legalEntityId":"${entity.id}","type":"GOO_BASIS","scope":{},"amount":5000,"currency":"EUR",
+               "reason":"Give-away on generic sales"}""",
+        )
+        api.post(DemoUser.RISK, "/api/v1/risk/measure?legalEntityId=${entity.id}")
+    }
+
     private fun approvedLimit(json: String) {
         val limit = api.post(DemoUser.RISK, "/api/v1/risk/limits", json).id()
         api.approveTask(DemoUser.RISK2, "LIMIT_CHANGE", limit)

@@ -32,6 +32,11 @@ class PortfolioValueService(
 ) : PortfolioValueQuery {
     override fun value(holderEntityId: UUID, asOf: LocalDate): PortfolioValue? {
         authorise(holderEntityId)
+        return compute(holderEntityId, asOf)
+    }
+
+    /** [value] without the role check, for measures risk takes on behalf of its users (ADR 0040). */
+    internal fun compute(holderEntityId: UUID, asOf: LocalDate): PortfolioValue? {
         val (built, stamp) = flows.buildAt(holderEntityId, asOf)
         val problem = built.problem
         val assignments = PortfolioValuer.allocate(problem) ?: return null
@@ -90,6 +95,7 @@ class PortfolioValueService(
             shortfallMwh = problem.obligations.sumOf { it.demand } - allocated,
             deliveredValueEur = total { it.opportunityCost },
             giveAwayEur = giveAway,
+            giveAwayMwh = assignments.filter { (it.score.giveAwayPerMwh ?: BigDecimal.ZERO).signum() > 0 }.sumOf { it.quantityMwh },
             transferFeesEur = fees,
             expiryHaircutEur = haircut,
             netEur = inventory - giveAway - fees - haircut,

@@ -6,10 +6,23 @@ import { $api } from '@/shared/api/client';
 import { decimal } from '@/shared/api/types';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
+import { useBucketCodes } from '@/features/marketdata/InstrumentActions';
 import { useBooks, useCounterparties } from '@/features/trades/hooks';
-import { LIMIT_FIELDS, LIMIT_TYPES, type Limit, type LimitType } from './model/limits';
+import { HORIZON_DAYS, LIMIT_FIELDS, LIMIT_TYPES, type Limit, type LimitType } from './model/limits';
 
 type Family = NonNullable<Limit['scope']['productFamily']>;
+
+function validHorizon(value: number | string): boolean {
+  const days = Number(value);
+  return value !== '' && Number.isInteger(days) && days >= HORIZON_DAYS.min && days <= HORIZON_DAYS.max;
+}
+
+/** The currency to send: always for money limits, only when EUR is chosen for GoO limits, never otherwise. */
+function requestCurrency(kind: 'required' | 'optional' | 'hidden', currency: string, gooUnit: 'MWH' | 'EUR') {
+  if (kind === 'required') return currency;
+  if (kind === 'optional' && gooUnit === 'EUR') return 'EUR';
+  return undefined;
+}
 
 export function useInvalidateRisk() {
   const queryClient = useQueryClient();
@@ -36,6 +49,7 @@ export function RequestLimitModal({
   const { t } = useTranslation();
   const counterparties = useCounterparties();
   const books = useBooks(entityId);
+  const buckets = useBucketCodes();
   const invalidate = useInvalidateRisk();
   const [type, setType] = useState<LimitType>(replaces?.type ?? 'CREDIT_EXPOSURE');
   const [counterpartyId, setCounterpartyId] = useState<string | null>(replaces?.scope.counterpartyId ?? null);
@@ -45,6 +59,9 @@ export function RequestLimitModal({
   const [year, setYear] = useState<number>(replaces?.scope.complianceYear ?? new Date().getFullYear());
   const [amount, setAmount] = useState(replaces ? String(replaces.amount) : '');
   const [currency, setCurrency] = useState(replaces?.currency ?? 'EUR');
+  const [bucketCode, setBucketCode] = useState<string | null>(replaces?.scope.bucketCode ?? null);
+  const [horizonDays, setHorizonDays] = useState<number | string>(replaces?.scope.horizonDays ?? HORIZON_DAYS.initial);
+  const [gooUnit, setGooUnit] = useState<'MWH' | 'EUR'>(replaces?.currency === 'EUR' ? 'EUR' : 'MWH');
   const [warningPct, setWarningPct] = useState<number>(replaces?.warningPct ?? 80);
   const [validFrom, setValidFrom] = useState('');
   const [reason, setReason] = useState('');
@@ -61,7 +78,9 @@ export function RequestLimitModal({
     amount.trim() !== '' &&
     reason.trim() !== '' &&
     (fields.counterparty !== 'required' || counterpartyId !== null) &&
-    (fields.productFamily !== 'required' || family !== null);
+    (fields.productFamily !== 'required' || family !== null) &&
+    (fields.bucket !== 'required' || bucketCode !== null) &&
+    (fields.horizon !== 'required' || validHorizon(horizonDays));
   const submit = () =>
     request.mutate({
       body: {
@@ -69,13 +88,15 @@ export function RequestLimitModal({
         type,
         scope: {
           counterpartyId: fields.counterparty === 'hidden' ? undefined : (counterpartyId ?? undefined),
-          bookId: bookId ?? undefined,
+          bookId: fields.book ? (bookId ?? undefined) : undefined,
           productFamily: fields.productFamily === 'hidden' ? undefined : (family ?? undefined),
           allowanceProductCode: type === 'COMPLIANCE_SHORT' ? allowance : undefined,
           complianceYear: type === 'COMPLIANCE_SHORT' ? year : undefined,
+          bucketCode: fields.bucket === 'hidden' ? undefined : (bucketCode ?? undefined),
+          horizonDays: fields.horizon === 'hidden' ? undefined : Number(horizonDays),
         },
         amount: decimal(amount),
-        currency: fields.currency ? currency : undefined,
+        currency: requestCurrency(fields.currency, currency, gooUnit),
         warningPct,
         validFrom: validFrom || undefined,
         replaces: replaces?.id,
@@ -100,7 +121,9 @@ export function RequestLimitModal({
           value={type}
           allowDeselect={false}
           disabled={Boolean(replaces)}
+          data-testid="limit-type"
           onChange={(value) => value && setType(value)}
+          description={t(`risk.typeHints.${type}`)}
         />
         {fields.counterparty === 'required' && (
           <Select
@@ -126,7 +149,33 @@ export function RequestLimitModal({
             required={fields.productFamily === 'required'}
           />
         )}
-        {type !== 'CREDIT_EXPOSURE' && type !== 'COMPLIANCE_SHORT' && (
+        {fields.bucket !== 'hidden' && (
+          <Select
+            label={t('risk.bucket')}
+            data={buckets}
+            value={bucketCode}
+            onChange={setBucketCode}
+            searchable
+            clearable={fields.bucket === 'optional'}
+            required={fields.bucket === 'required'}
+            placeholder={fields.bucket === 'optional' ? t('risk.allBuckets') : undefined}
+            data-testid="limit-bucket"
+          />
+        )}
+        {fields.horizon !== 'hidden' && (
+          <NumberInput
+            label={t('risk.horizonDays')}
+            value={horizonDays}
+            onChange={setHorizonDays}
+            min={HORIZON_DAYS.min}
+            max={HORIZON_DAYS.max}
+            allowDecimal={false}
+            allowNegative={false}
+            required
+            data-testid="limit-horizon"
+          />
+        )}
+        {fields.book && (
           <Select
             label={t('trades.columns.book')}
             data={books.list.map((book) => ({ value: book.id, label: `${book.code} · ${book.name}` }))}
@@ -160,12 +209,25 @@ export function RequestLimitModal({
             required
             data-testid="limit-amount"
           />
-          {fields.currency && (
+          {fields.currency === 'required' && (
             <TextInput
               label={t('trades.form.currency')}
               value={currency}
               onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())}
               maxLength={3}
+            />
+          )}
+          {fields.currency === 'optional' && (
+            <Select
+              label={t('risk.unit')}
+              data={[
+                { value: 'MWH', label: t('risk.unitMwh') },
+                { value: 'EUR', label: t(type === 'GOO_CONCENTRATION' ? 'risk.unitEur' : 'risk.unitEurBasis') },
+              ]}
+              value={gooUnit}
+              allowDeselect={false}
+              onChange={(value) => value && setGooUnit(value === 'EUR' ? 'EUR' : 'MWH')}
+              data-testid="limit-unit"
             />
           )}
           <NumberInput

@@ -3,8 +3,10 @@
 | Term | Meaning |
 |---|---|
 | AIB / EECS | Association of Issuing Bodies; European Energy Certificate System, the standard behind GoO registries and the hub |
+| Basis (GoO) | Give-away handed over by sales delivered with certificates worth more than their own product; limited by GOO_BASIS (ADR 0040) |
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
 | Cheapest to deliver | For a GoO sale, the average value per MWh of the certificates that deliver it on the valuation-grade allocation; a management view next to the bucket mark (ADR 0039) |
+| Concentration (GoO) | Held certificates of one product bucket that no obligation uses after netting through the flow: the book's open exposure to that product (ADR 0040) |
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Criteria | Typed predicate tree describing which certificates satisfy a delivery |
 | EUA / EUAA | EU Allowance (general) / EU Aviation Allowance |

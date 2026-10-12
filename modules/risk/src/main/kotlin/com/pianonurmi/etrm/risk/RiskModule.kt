@@ -17,6 +17,7 @@ import org.springframework.modulith.PackageInfo
         "settlement :: api",
         "position :: api",
         "workflow :: api",
+        "allocation :: api",
     ],
 )
 class RiskModule

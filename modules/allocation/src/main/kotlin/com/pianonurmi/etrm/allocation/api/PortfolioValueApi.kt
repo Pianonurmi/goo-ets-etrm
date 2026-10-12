@@ -29,6 +29,8 @@ data class PortfolioValue(
     val shortfallMwh: Long,
     val deliveredValueEur: BigDecimal,
     val giveAwayEur: BigDecimal,
+    /** Delivered with certificates worth more than the sale's own product: the MWh behind [giveAwayEur]. */
+    val giveAwayMwh: Long,
     val transferFeesEur: BigDecimal,
     val expiryHaircutEur: BigDecimal,
     val netEur: BigDecimal,

@@ -72,3 +72,8 @@
   receivables changed since then are seen at the next measurement.
 - Not modelled: wrong-way risk, exposure profiles over time, margining of exchange trades, limits on concentration
   and on uncovered expiring certificates (planned for a later increment), and bank holidays in tenors.
+
+## Amendment (ADR 0040)
+Three GoO limit types measure the book netted through the eligibility flow: concentration by product bucket,
+unused certificates expiring within a horizon, and basis (give-away handed over). They apply to a whole legal entity,
+never to a book.

@@ -1500,7 +1500,20 @@
       "POSITION_NET": "Net position",
       "TENOR_MAX_MONTHS": "Maximum tenor",
       "STOP_LOSS_MTD": "Stop loss (month to date)",
-      "COMPLIANCE_SHORT": "Compliance short"
+      "COMPLIANCE_SHORT": "Compliance short",
+      "GOO_CONCENTRATION": "GoO concentration",
+      "GOO_EXPIRY": "GoO expiry",
+      "GOO_BASIS": "GoO basis"
+    },
+    "typeHints": {
+      "CREDIT_EXPOSURE": "Exposure to one counterparty, in money.",
+      "POSITION_NET": "Net position of a product family, optionally of one book.",
+      "TENOR_MAX_MONTHS": "Longest tenor a trade may have, in months.",
+      "STOP_LOSS_MTD": "Loss for the month to date, in money.",
+      "COMPLIANCE_SHORT": "Allowances still missing for a compliance year, in tonnes.",
+      "GOO_CONCENTRATION": "Unsold certificates of one product bucket: held GoO that no obligation uses. Applies to the whole entity.",
+      "GOO_EXPIRY": "Held certificates that expire within the horizon and that no obligation uses. Applies to the whole entity.",
+      "GOO_BASIS": "Sales delivered with certificates worth more than their own product (the give-away). Applies to the whole entity."
     },
     "creditKinds": {
       "CASH_RECEIVED": "Cash received",
@@ -1514,6 +1527,14 @@
     "fourEyesHint": "Applies once a second person approves it in the inbox.",
     "sendForApproval": "Send for approval",
     "limitType": "Limit type",
+    "bucket": "Product bucket",
+    "allBuckets": "All buckets",
+    "horizonDays": "Horizon (days)",
+    "horizonScope": "expiring within {{days}} days",
+    "unit": "Unit",
+    "unitMwh": "MWh",
+    "unitEur": "EUR at the bucket's mark",
+    "unitEurBasis": "EUR",
     "productFamily": "Product family",
     "allBooks": "All books",
     "amount": "Amount",

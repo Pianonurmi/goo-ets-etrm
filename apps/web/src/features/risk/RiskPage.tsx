@@ -57,14 +57,16 @@ interface LimitRow extends Limit {
 }
 
 export function useScopeNames(entityId: string | undefined): ScopeNames {
+  const { t } = useTranslation();
   const counterparties = useCounterparties();
   const books = useBooks(entityId);
   return useMemo(
     () => ({
       counterparty: (id: string) => counterparties.byId.get(id)?.name,
       book: (id: string) => books.byId.get(id)?.code,
+      horizon: (days: number) => t('risk.horizonScope', { days }),
     }),
-    [counterparties.byId, books.byId],
+    [counterparties.byId, books.byId, t],
   );
 }
 

@@ -5473,6 +5473,9 @@
             "format" : "uuid",
             "type" : [ "string", "null" ]
           },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
           "complianceYear" : {
             "format" : "int32",
             "type" : [ "integer", "null" ]
@@ -5480,6 +5483,10 @@
           "counterpartyId" : {
             "format" : "uuid",
             "type" : [ "string", "null" ]
+          },
+          "horizonDays" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
           },
           "productFamily" : {
             "enum" : [ "GUARANTEE_OF_ORIGIN", "EMISSION_ALLOWANCE" ],
@@ -8978,7 +8985,7 @@
             "$ref" : "#/components/schemas/LimitScope"
           },
           "type" : {
-            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT" ],
+            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT", "GOO_CONCENTRATION", "GOO_EXPIRY", "GOO_BASIS" ],
             "type" : "string"
           },
           "validFrom" : {
@@ -9133,7 +9140,7 @@
             "type" : "string"
           },
           "type" : {
-            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT" ],
+            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT", "GOO_CONCENTRATION", "GOO_EXPIRY", "GOO_BASIS" ],
             "type" : "string"
           },
           "validFrom" : {

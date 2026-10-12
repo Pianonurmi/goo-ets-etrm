@@ -36,6 +36,8 @@ class CreditLimitBreachIT {
         s.asUser("risk-a", RISK).post("/api/v1/workflow/tasks/$taskId/approve").then().statusCode(403)
         s.asUser("risk-b", RISK).post("/api/v1/workflow/tasks/$taskId/approve").then().statusCode(200)
         s.asUser("risk-a", RISK).get("/api/v1/risk/limits/$limitId").then().statusCode(200).body("status", equalTo("ACTIVE"))
+        // Measured as soon as it takes effect, without waiting for the next measurement.
+        s.asUser("risk-a", RISK).get("/api/v1/risk/limits/$limitId/utilisation").then().statusCode(200)
         return limitId
     }
 

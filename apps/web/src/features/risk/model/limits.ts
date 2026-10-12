@@ -12,30 +12,108 @@ export const LIMIT_TYPES: LimitType[] = [
   'TENOR_MAX_MONTHS',
   'STOP_LOSS_MTD',
   'COMPLIANCE_SHORT',
+  'GOO_CONCENTRATION',
+  'GOO_EXPIRY',
+  'GOO_BASIS',
 ];
 
+export interface LimitFields {
+  counterparty: 'required' | 'hidden';
+  productFamily: 'required' | 'optional' | 'hidden';
+  /** The product bucket a GoO limit is scoped to. */
+  bucket: 'hidden' | 'required' | 'optional';
+  /** Days ahead a GoO expiry limit looks. */
+  horizon: 'hidden' | 'required';
+  /** Whether the limit can be set on one book; GoO limits apply to the whole entity. */
+  book: boolean;
+  /** `required`: always a money amount; `optional`: MWh, or EUR when chosen; `hidden`: no currency. */
+  currency: 'required' | 'optional' | 'hidden';
+}
+
+export const HORIZON_DAYS = { min: 1, max: 730, initial: 90 };
+
 /** Which scope fields and amount unit a limit type uses (mirrors the service's validation). */
-export const LIMIT_FIELDS: Record<
-  LimitType,
-  { counterparty: 'required' | 'hidden'; productFamily: 'required' | 'optional' | 'hidden'; currency: boolean }
-> = {
-  CREDIT_EXPOSURE: { counterparty: 'required', productFamily: 'hidden', currency: true },
-  POSITION_NET: { counterparty: 'hidden', productFamily: 'required', currency: false },
-  TENOR_MAX_MONTHS: { counterparty: 'hidden', productFamily: 'optional', currency: false },
-  STOP_LOSS_MTD: { counterparty: 'hidden', productFamily: 'optional', currency: true },
-  COMPLIANCE_SHORT: { counterparty: 'hidden', productFamily: 'hidden', currency: false },
+export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
+  CREDIT_EXPOSURE: {
+    counterparty: 'required',
+    productFamily: 'hidden',
+    bucket: 'hidden',
+    horizon: 'hidden',
+    book: false,
+    currency: 'required',
+  },
+  POSITION_NET: {
+    counterparty: 'hidden',
+    productFamily: 'required',
+    bucket: 'hidden',
+    horizon: 'hidden',
+    book: true,
+    currency: 'hidden',
+  },
+  TENOR_MAX_MONTHS: {
+    counterparty: 'hidden',
+    productFamily: 'optional',
+    bucket: 'hidden',
+    horizon: 'hidden',
+    book: true,
+    currency: 'hidden',
+  },
+  STOP_LOSS_MTD: {
+    counterparty: 'hidden',
+    productFamily: 'optional',
+    bucket: 'hidden',
+    horizon: 'hidden',
+    book: true,
+    currency: 'required',
+  },
+  COMPLIANCE_SHORT: {
+    counterparty: 'hidden',
+    productFamily: 'hidden',
+    bucket: 'hidden',
+    horizon: 'hidden',
+    book: false,
+    currency: 'hidden',
+  },
+  GOO_CONCENTRATION: {
+    counterparty: 'hidden',
+    productFamily: 'hidden',
+    bucket: 'required',
+    horizon: 'hidden',
+    book: false,
+    currency: 'optional',
+  },
+  GOO_EXPIRY: {
+    counterparty: 'hidden',
+    productFamily: 'hidden',
+    bucket: 'optional',
+    horizon: 'required',
+    book: false,
+    currency: 'hidden',
+  },
+  GOO_BASIS: {
+    counterparty: 'hidden',
+    productFamily: 'hidden',
+    bucket: 'hidden',
+    horizon: 'hidden',
+    book: false,
+    currency: 'optional',
+  },
 };
 
 export interface ScopeNames {
   counterparty: (id: string) => string | undefined;
   book: (id: string) => string | undefined;
+  /** The wording for an expiry horizon, e.g. "expiring within 90 days". */
+  horizon: (days: number) => string;
 }
 
-/** A short human description of what a limit applies to, e.g. "Nordvind · book DEMO-FI-TRD · EUA 2026". */
+/** A short human description of what a limit applies to, e.g. "Nordvind · book DEMO-FI-TRD · EUA 2026" or "NORDIC_HYDRO · expiring within 90 days". */
 export function scopeLabel(scope: LimitScope, names: ScopeNames): string {
   const parts: string[] = [];
   if (scope.counterpartyId) parts.push(names.counterparty(scope.counterpartyId) ?? scope.counterpartyId);
   if (scope.bookId) parts.push(names.book(scope.bookId) ?? scope.bookId);
+  if (scope.bucketCode) parts.push(scope.bucketCode);
+  if (scope.horizonDays != null) parts.push(names.horizon(scope.horizonDays));
   if (scope.productFamily) parts.push(scope.productFamily === 'GUARANTEE_OF_ORIGIN' ? 'GoO' : 'EUA');
   const allowance = [scope.allowanceProductCode, scope.complianceYear].filter((part) => part != null).join(' ');
   if (allowance) parts.push(allowance);
@@ -48,6 +126,11 @@ export function limitUnit(limit: Pick<Limit, 'type' | 'currency' | 'scope'>): st
     case 'CREDIT_EXPOSURE':
     case 'STOP_LOSS_MTD':
       return limit.currency ?? '';
+    case 'GOO_CONCENTRATION':
+    case 'GOO_BASIS':
+      return limit.currency || 'MWh';
+    case 'GOO_EXPIRY':
+      return 'MWh';
     case 'TENOR_MAX_MONTHS':
       return 'months';
     case 'COMPLIANCE_SHORT':

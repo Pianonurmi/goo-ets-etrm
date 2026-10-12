@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.risk.application
 
+import com.pianonurmi.etrm.allocation.api.GooRiskQuery
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingQuery
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotQuery
@@ -12,7 +13,9 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.position.api.PositionQuery
+import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
 import com.pianonurmi.etrm.referencedata.api.CounterpartyView
@@ -100,6 +103,10 @@ class RiskService(
     private val clock: Clock,
     /** Every module's pre-trade check (this one's through [RiskTriggers]), for [recheck]; resolved when used. */
     private val checks: ObjectProvider<TradeApprovalCheck>? = null,
+    /** GoO measures from allocation (ADR 0040); resolved when used. */
+    private val goo: ObjectProvider<GooRiskQuery>? = null,
+    private val buckets: ProductBucketQuery? = null,
+    private val savepoints: Savepoints = Savepoints.NONE,
 ) : RiskQuery, RiskCommand {
     private val log = LoggerFactory.getLogger(RiskService::class.java)
 
@@ -146,16 +153,7 @@ class RiskService(
         ) {
             throw ValidationException("validTo must follow validFrom")
         }
-        when (command.type) {
-            LimitType.CREDIT_EXPOSURE -> {
-                val counterparty = command.scope.counterpartyId ?: throw ValidationException("A credit limit names its counterparty (or group parent)")
-                referenceData.requireCounterparty(counterparty)
-                if (command.currency.isNullOrBlank()) throw ValidationException("A credit limit has a currency")
-            }
-            LimitType.STOP_LOSS_MTD -> if (command.currency.isNullOrBlank()) throw ValidationException("A stop loss has a currency")
-            LimitType.POSITION_NET -> if (command.scope.productFamily == null) throw ValidationException("A position limit names a product family")
-            LimitType.TENOR_MAX_MONTHS, LimitType.COMPLIANCE_SHORT -> Unit
-        }
+        validateScope(command)
         if (command.type != LimitType.CREDIT_EXPOSURE && command.legalEntityId == null) throw ValidationException("Only credit limits apply across entities")
         command.scope.bookId?.let { book ->
             if (referenceData.requireBook(book).legalEntityId != command.legalEntityId) throw ValidationException("The book belongs to another legal entity")
@@ -257,8 +255,47 @@ class RiskService(
         return activeLimits(legalEntityId, today).map { evaluate(it, today) }
     }
 
-    /** One limit against the current figures; group-wide credit limits use the exposures stored per entity. */
-    fun evaluate(limit: RiskLimitView, today: LocalDate = LocalDate.now(clock)): LimitUtilisationView {
+    /** What each limit type needs in its scope and currency. */
+    private fun validateScope(command: RequestLimit) {
+        when (command.type) {
+            LimitType.CREDIT_EXPOSURE -> {
+                val counterparty = command.scope.counterpartyId ?: throw ValidationException("A credit limit names its counterparty (or group parent)")
+                referenceData.requireCounterparty(counterparty)
+                if (command.currency.isNullOrBlank()) throw ValidationException("A credit limit has a currency")
+            }
+            LimitType.STOP_LOSS_MTD -> if (command.currency.isNullOrBlank()) throw ValidationException("A stop loss has a currency")
+            LimitType.POSITION_NET -> if (command.scope.productFamily == null) throw ValidationException("A position limit names a product family")
+            LimitType.TENOR_MAX_MONTHS, LimitType.COMPLIANCE_SHORT -> Unit
+            LimitType.GOO_CONCENTRATION -> {
+                val code = command.scope.bucketCode ?: throw ValidationException("A concentration limit names its product bucket")
+                if (buckets != null && buckets.buckets(true).none { it.code == code }) throw ValidationException("No active product bucket $code")
+                requireEurOrMwh(command)
+            }
+            LimitType.GOO_EXPIRY -> {
+                val days = command.scope.horizonDays ?: throw ValidationException("An expiry limit has a horizon in days")
+                if (days !in 1..MAX_HORIZON_DAYS) throw ValidationException("The horizon is 1 to $MAX_HORIZON_DAYS days")
+                if (!command.currency.isNullOrBlank()) throw ValidationException("An expiry limit is in MWh")
+            }
+            LimitType.GOO_BASIS -> requireEurOrMwh(command)
+        }
+        if (command.type in GOO_LIMITS && command.scope.bookId != null) {
+            // Certificates serve obligations across books: the flow nets the whole entity, it cannot be split by book.
+            throw ValidationException("GoO limits apply to the whole legal entity, not to a book")
+        }
+    }
+
+    private fun requireEurOrMwh(command: RequestLimit) {
+        if (!command.currency.isNullOrBlank() && command.currency != EUR) throw ValidationException("A GoO limit is in MWh, or in EUR")
+    }
+
+    /**
+     * One limit against the current figures; group-wide credit limits use the exposures stored per entity. An overload
+     * rather than a default date: called through the transactional proxy, a default would read the proxy's own
+     * (unset) clock.
+     */
+    fun evaluate(limit: RiskLimitView): LimitUtilisationView = evaluate(limit, LocalDate.now(clock))
+
+    fun evaluate(limit: RiskLimitView, today: LocalDate): LimitUtilisationView {
         val (value, detail) = measureLimit(limit, today, null)
         val utilisation = Utilisation.of(limit.id, value, limit, detail, clock.instant())
         repository.upsertUtilisation(utilisation)
@@ -277,6 +314,53 @@ class RiskService(
         LimitType.COMPLIANCE_SHORT -> {
             val year = limit.scope.complianceYear ?: today.year
             BigDecimal(maxOf(0L, -positions.complianceLadder(limit.legalEntityId!!, year).netPosition)) to "compliance year $year"
+        }
+        LimitType.GOO_CONCENTRATION, LimitType.GOO_EXPIRY, LimitType.GOO_BASIS -> gooMeasure(limit)
+    }
+
+    /**
+     * GoO measures come from allocation's flow (ADR 0040). Measured in a savepoint: a failure leaves the limit at
+     * zero with a note rather than failing the measurement of every other limit.
+     */
+    private fun gooMeasure(limit: RiskLimitView): Pair<BigDecimal, String?> {
+        val query = goo?.ifAvailable ?: return BigDecimal.ZERO to "GoO measures are not available"
+        val entity = limit.legalEntityId!!
+        val inEur = limit.currency == EUR
+        return try {
+            savepoints.attempt {
+                when (limit.type) {
+                    LimitType.GOO_CONCENTRATION -> {
+                        val code = limit.scope.bucketCode!!
+                        val measured = query.concentration(entity, code) ?: return@attempt BigDecimal.ZERO to "no active bucket $code"
+                        if (inEur) {
+                            (measured.valueEur ?: BigDecimal.ZERO) to "${measured.freeMwh} MWh of $code free" + (
+                                measured.markEur?.let {
+                                    " at $it EUR"
+                                } ?: ", no mark"
+                            )
+                        } else {
+                            BigDecimal(measured.freeMwh) to "$code certificates no obligation uses"
+                        }
+                    }
+                    LimitType.GOO_EXPIRY -> {
+                        val days = limit.scope.horizonDays!!
+                        BigDecimal(query.unusedExpiringMwh(entity, days, limit.scope.bucketCode)) to "unused, expiring within $days days"
+                    }
+                    else -> {
+                        val basis = query.basis(entity) ?: return@attempt BigDecimal.ZERO to "the allocation cannot be solved here"
+                        if (inEur) {
+                            basis.giveAwayEur to "${basis.mwh} MWh delivered above their product"
+                        } else {
+                            BigDecimal(
+                                basis.mwh,
+                            ) to "give-away ${basis.giveAwayEur} EUR"
+                        }
+                    }
+                }
+            }
+        } catch (e: RuntimeException) {
+            log.warn("GoO limit {} could not be measured", limit.id, e)
+            BigDecimal.ZERO to "not measured: ${e.message}"
         }
     }
 
@@ -439,7 +523,9 @@ class RiskService(
         return creditFindings(trade, counterparty, limits, today) +
             limits.filter { it.type == LimitType.POSITION_NET && inScope(trade, it.scope) }.mapNotNull { positionFinding(trade, it) } +
             limits.filter { it.type == LimitType.TENOR_MAX_MONTHS && inScope(trade, it.scope) }.mapNotNull { tenorFinding(trade, it, today) } +
-            limits.filter { (it.type == LimitType.STOP_LOSS_MTD && inScope(trade, it.scope)) || it.type == LimitType.COMPLIANCE_SHORT }
+            limits.filter { it.type == LimitType.GOO_CONCENTRATION && trade.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN }
+                .mapNotNull { concentrationFinding(trade, it) } +
+            limits.filter { (it.type == LimitType.STOP_LOSS_MTD && inScope(trade, it.scope)) || it.type == LimitType.COMPLIANCE_SHORT || it.type in GOO_LIMITS }
                 .filter { repository.utilisation(it.id)?.status == UtilisationStatus.BREACH && relevant(trade, it) }
                 .map { ApprovalFinding("LIMIT_IN_BREACH", FindingSeverity.WARN, "${it.type} limit ${it.id} is in breach") }
     }
@@ -455,8 +541,38 @@ class RiskService(
         return checks?.orderedStream()?.toList()?.takeIf { it.isNotEmpty() }?.flatMap { it.check(trade) } ?: preTradeFindings(trade)
     }
 
-    private fun relevant(trade: TradeView, limit: RiskLimitView): Boolean =
-        limit.type != LimitType.COMPLIANCE_SHORT || trade.productFamily == ProductFamily.EMISSION_ALLOWANCE
+    private fun relevant(trade: TradeView, limit: RiskLimitView): Boolean = when (limit.type) {
+        LimitType.COMPLIANCE_SHORT -> trade.productFamily == ProductFamily.EMISSION_ALLOWANCE
+        in GOO_LIMITS -> trade.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN
+        else -> true
+    }
+
+    /**
+     * A GoO purchase of the limit's bucket adds to its free certificates once delivered; a sale does not add to it.
+     * Projected on the last measured value, in MWh (or at the bucket's mark for a limit in EUR).
+     */
+    private fun concentrationFinding(trade: TradeView, limit: RiskLimitView): ApprovalFinding? {
+        val bought = trade.legs.filter { it.side == Side.BUY && it.bucketCode == limit.scope.bucketCode }
+            .sumOf { leg -> leg.deliveries.sumOf { it.quantity - it.deliveredQuantity } }
+        if (bought.signum() <= 0) return null
+        val current = repository.utilisation(limit.id)?.value ?: BigDecimal.ZERO
+        val added = if (limit.currency == EUR) {
+            val mark = goo?.ifAvailable?.let { q ->
+                runCatching { savepoints.attempt { q.concentration(limit.legalEntityId!!, limit.scope.bucketCode!!) } }.getOrNull()
+            }?.markEur
+                ?: return null
+            bought * mark
+        } else {
+            bought
+        }
+        val projected = current + added
+        val text = "${limit.scope.bucketCode} free certificates would be ${projected.setScale(0, RoundingMode.HALF_UP)} of ${limit.amount}"
+        return when {
+            projected > limit.amount -> ApprovalFinding("GOO_CONCENTRATION", FindingSeverity.REQUIRES_RISK_APPROVAL, "Over the limit: $text")
+            projected * BigDecimal(PERCENT) >= limit.amount * BigDecimal(limit.warningPct) -> ApprovalFinding("GOO_CONCENTRATION", FindingSeverity.WARN, text)
+            else -> null
+        }
+    }
 
     private fun inScope(trade: TradeView, scope: LimitScope): Boolean =
         (scope.bookId == null || scope.bookId == trade.bookId) &&
@@ -572,5 +688,8 @@ class RiskService(
 
     private companion object {
         const val PERCENT = 100
+        const val EUR = "EUR"
+        const val MAX_HORIZON_DAYS = 730
+        val GOO_LIMITS = setOf(LimitType.GOO_CONCENTRATION, LimitType.GOO_EXPIRY, LimitType.GOO_BASIS)
     }
 }

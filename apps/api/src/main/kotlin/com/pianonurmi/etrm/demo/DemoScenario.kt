@@ -98,6 +98,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
             DemoStep("Certificate lifecycle") { office.certificateLifecycle(it.get(FINLAND), it.get(SWEDEN)) },
             DemoStep("Allocation plans") { office.allocation(it.get(FINLAND), it.get(SWEDEN)) },
             DemoStep("Production forecasts and forward purchases") { office.futureSupply(it.get(FINLAND), it.parties()) },
+            DemoStep("GoO limits") { DemoCompliance(api, calendar).gooLimits(it.get(FINLAND)) },
             DemoStep("Union Registry transfers") { office.registry(it.get(FINLAND)) },
             DemoStep("Invoices and payments") { office.invoicing(it.get(FINLAND), it.parties()) },
             DemoStep("Netting with Vinden") { office.netting(it.get(FINLAND), it.parties()) },

@@ -298,6 +298,7 @@ class ValuationServiceIT {
             shortfallMwh = 0,
             deliveredValueEur = BigDecimal("200.00"),
             giveAwayEur = BigDecimal(giveAway),
+            giveAwayMwh = 50,
             transferFeesEur = BigDecimal("1.00"),
             expiryHaircutEur = BigDecimal.ZERO.setScale(2),
             netEur = (BigDecimal(perMwh) * BigDecimal(held)).setScale(2) - BigDecimal(giveAway) - BigDecimal("1.00"),

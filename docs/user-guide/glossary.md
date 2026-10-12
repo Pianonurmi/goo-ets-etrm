@@ -11,6 +11,7 @@ Terms used on the screens and in this manual.
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
 | Change request | A four-eyes change to sensitive master data, applied when a second person approves it in the inbox |
 | Cheapest to deliver | For a GoO sale, the average value per MWh of the certificates that would deliver it; shown next to the official mark, never booked |
+| Concentration (GoO) | Certificates of one product held but not needed for any sale: the book's open exposure to that product, watched by a GoO concentration limit |
 | Confirmation break | A counterparty confirmation that differs from ours; overridden or disputed by a second person |
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Credit support | Collateral or guarantees that reduce (received) or add to (posted) credit exposure |

@@ -1,11 +1,16 @@
 package com.pianonurmi.etrm.risk
 
+import com.pianonurmi.etrm.allocation.api.GooBasis
+import com.pianonurmi.etrm.allocation.api.GooConcentration
+import com.pianonurmi.etrm.allocation.api.GooRiskQuery
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
+import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
 import com.pianonurmi.etrm.referencedata.api.CounterpartyView
@@ -41,12 +46,15 @@ import com.pianonurmi.etrm.valuation.api.ValuationRunView
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
 import java.time.Clock
@@ -71,6 +79,7 @@ class RiskServiceIT {
     private val openTrades = mutableListOf<TradeView>()
     private val published = mutableListOf<Any>()
     private lateinit var risk: RiskService
+    private lateinit var withGoo: (ObjectProvider<GooRiskQuery>?, ProductBucketQuery?) -> RiskService
     private lateinit var carryOver: CreditLimitCarryOver
 
     private fun counterpartyView(id: UUID, code: String, parentId: UUID?, limit: BigDecimal? = null) = mockk<CounterpartyView> {
@@ -152,21 +161,26 @@ class RiskServiceIT {
         val events = ApplicationEventPublisher { published += it }
         val actors = ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) }
         val repository = JooqRiskRepository(TestDatabase.dsl)
-        risk = RiskService(
-            repository,
-            referenceData,
-            trades,
-            valuations,
-            settlement,
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            actors,
-            events,
-            clock,
-        )
+        withGoo = { goo, buckets ->
+            RiskService(
+                repository,
+                referenceData,
+                trades,
+                valuations,
+                settlement,
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                actors,
+                events,
+                clock,
+                goo = goo,
+                buckets = buckets,
+            )
+        }
+        risk = withGoo(null, null)
         carryOver = CreditLimitCarryOver(repository, referenceData, clock)
     }
 
@@ -285,6 +299,103 @@ class RiskServiceIT {
             it.scope.counterpartyId shouldBe unlimited
             it.amount shouldBe BigDecimal("250000.00")
             it.legalEntityId shouldBe null
+        }
+    }
+
+    @Test
+    fun `GoO limits measure the book netted through the flow and flag purchases that would concentrate it`() {
+        val free = 900L
+        val goo = mockk<GooRiskQuery> {
+            every { concentration(entity, "NORDIC_HYDRO") } answers { GooConcentration("NORDIC_HYDRO", free, BigDecimal("2.00")) }
+            every { unusedExpiringMwh(entity, 60, null) } returns 120
+            every { basis(entity) } returns GooBasis(300, BigDecimal("450.00"))
+        }
+        val buckets = mockk<ProductBucketQuery> {
+            every { buckets(true) } returns listOf(mockk { every { code } returns "NORDIC_HYDRO" })
+        }
+        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, buckets)
+
+        fun approved(request: RequestLimit) = gooRisk.approveLimit(gooRisk.requestLimit(request).id, "risk2")
+
+        // Scope rules: the bucket must exist, the horizon is required, an expiry limit is in MWh, books cannot be split.
+        shouldThrow<ValidationException> {
+            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "MOON_HYDRO"), BigDecimal(1000), reason = "x"))
+        }
+        shouldThrow<ValidationException> { gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(), BigDecimal(100), reason = "x")) }
+        shouldThrow<ValidationException> {
+            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(horizonDays = 60), BigDecimal(100), currency = "EUR", reason = "x"))
+        }
+        shouldThrow<ValidationException> {
+            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(bookId = book), BigDecimal(100), reason = "x"))
+        }
+
+        val concentration =
+            approved(RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "NORDIC_HYDRO"), BigDecimal(1000), reason = "hydro"))
+        val inEur = approved(
+            RequestLimit(
+                entity,
+                LimitType.GOO_CONCENTRATION,
+                LimitScope(bucketCode = "NORDIC_HYDRO"),
+                BigDecimal(2000),
+                currency = "EUR",
+                reason = "hydro EUR",
+            ),
+        )
+        val expiry = approved(RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(horizonDays = 60), BigDecimal(100), reason = "expiry"))
+        val basis = approved(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis"))
+
+        gooRisk.evaluate(concentration).let {
+            it.value.compareTo(BigDecimal(900)) shouldBe 0
+            it.status shouldBe UtilisationStatus.WARNING
+        }
+        gooRisk.evaluate(inEur).value.compareTo(BigDecimal("1800")) shouldBe 0
+        gooRisk.evaluate(expiry).status shouldBe UtilisationStatus.BREACH
+        gooRisk.evaluate(basis).value.compareTo(BigDecimal("450")) shouldBe 0
+        // Externalised to Kafka (ADR 0029): the new type and scope fields are additive in the event's JSON.
+        val breached = published.filterIsInstance<LimitBreached>().single { it.limit.id == expiry.id }
+        Json.mapper.writeValueAsString(breached).let {
+            it shouldContain "\"GOO_EXPIRY\""
+            it shouldContain "\"horizonDays\":60"
+        }
+
+        // A purchase of Nordic hydro adds to the free certificates once delivered: 900 + 200 is over 1000.
+        val purchase = gooTrade(Side.BUY, "NORDIC_HYDRO", 200)
+        gooRisk.preTradeFindings(purchase).filter { it.code == "GOO_CONCENTRATION" }.map { it.severity } shouldContain FindingSeverity.REQUIRES_RISK_APPROVAL
+        // A sale adds nothing to it, but GoO trades are told about GoO limits already in breach.
+        gooRisk.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 200)).map { it.code }.let {
+            it shouldNotContain "GOO_CONCENTRATION"
+            it shouldContain "LIMIT_IN_BREACH"
+        }
+        // Without allocation the GoO limits read zero, with a note, and nothing else fails.
+        withGoo(mockk { every { ifAvailable } returns null }, buckets).evaluate(basis).let {
+            it.value.signum() shouldBe 0
+            it.detail shouldBe "GoO measures are not available"
+        }
+    }
+
+    private fun gooTrade(side: Side, bucket: String, quantity: Int): TradeView {
+        val schedule = mockk<DeliveryScheduleView> {
+            every { this@mockk.quantity } returns BigDecimal(quantity)
+            every { deliveredQuantity } returns BigDecimal.ZERO
+            every { remainingQuantity } returns BigDecimal(quantity)
+            every { deliveryDate } returns LocalDate.of(2026, 12, 15)
+        }
+        val leg = mockk<TradeLegView> {
+            every { this@mockk.side } returns side
+            every { bucketCode } returns bucket
+            every { priceType } returns PriceType.FIXED
+            every { price } returns BigDecimal("2.10")
+            every { priceCurrency } returns Currency.getInstance("EUR")
+            every { allowanceProductCode } returns null
+            every { deliveries } returns listOf(schedule)
+        }
+        return mockk {
+            every { id } returns UUID.randomUUID()
+            every { legalEntityId } returns entity
+            every { bookId } returns book
+            every { counterpartyId } returns counterparty
+            every { productFamily } returns ProductFamily.GUARANTEE_OF_ORIGIN
+            every { legs } returns listOf(leg)
         }
     }
 }
