@@ -58,3 +58,26 @@ the product in market data and run **What if** again.
 
 > **Try it in the demo:** the demo has two executed plans and one waiting for approval. Its **Value** tab shows a
 > generic EU renewable sale delivered with Nordic hydro, and what that gives away. Approve it as *Max Middle*.
+
+## Shadow prices
+
+A plan also says what its choices cost at the margin. **What if** holds this in a collapsed **Shadow prices**
+section under the result title; an opened plan shows it on its **Shadow prices** tab, next to **Lines** and
+**Value**. When the **Value** tab is open, the give-away table gains a **Marginal cost** column with the same figure.
+
+- **Marginal cost** of a sale is what one more MWh delivered to it would cost, including the rerouting of other sales
+  that the extra MWh causes. Sales are listed with the highest marginal cost first. A sale marked **Short** is not
+  fully covered, so its extra MWh may not be available at all.
+- **Scarcity rent** of a supply, a product bucket and production year, is how much the plan's cost would fall with
+  one more MWh of it. The table gives the supply held, the MWh used, the average rent and the highest rent, highest
+  first.
+- **LP minimum cost** is the cheapest cost of covering the same sales, **Plan cost** is what this plan costs, and
+  the **Gap** between them is what better lot choices could still save. It is zero for an optimal plan.
+
+A sale served only with cheap supply can still have a high marginal cost. One more MWh for it has to come from
+somewhere: it takes cheap supply from another sale, and that sale then buys dearer certificates to make up for it.
+The marginal cost follows that whole chain, not the price of the lots in the sale's own lines.
+
+The figures are indicative. They come from a linear program computed in floating point, they are not unique when
+several equally good plans exist, and they are never booked. When the prices could not be computed, the tab states
+the reason instead.

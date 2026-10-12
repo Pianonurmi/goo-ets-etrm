@@ -1,6 +1,6 @@
 # ADR 0035: Value-based allocation in EUR, with the give-away reported
 
-- Status: accepted (M1 of increment 8); shadow prices follow in M2
+- Status: accepted (M1 of increment 8; shadow prices added in M2)
 - Date: 2026-10-12
 - Amends: ADR 0031 (exact allocation with CP-SAT)
 
@@ -50,6 +50,24 @@ priority tiers that the coverage report applies.
     unpriced MWh, and figures per obligation sorted by give-away.
   - The value is stored with the plan (`value_summary`, `V4__plan_value.sql`). Plans scored before this change
     have no value.
+- **Shadow prices (M2):** after the plan, a linear program is solved with GLOP:
+  - It delivers each obligation's planned coverage at the lowest cost, under the same supply, device caps and
+    minimum shares (no lower than the plan achieved).
+  - The plan's own solution is feasible, so the LP always has one.
+  - Its duals give the **marginal cost** per obligation: what one more MWh delivered to it would cost, rerouting
+    included. A sale served only by cheap supply can still have a high marginal cost, because one more MWh for it
+    takes cheap supply from another sale, which then buys dearer.
+  - They also give the **scarcity rent** per lot class: how much the cost would fall with one more MWh of it.
+    Rents are reported per bucket and production year (quantity-weighted average and maximum).
+  - The LP's cost is a bound: the **gap** = plan cost − LP cost is what better lot choices could still save for
+    the same coverage. It is zero for an optimal exact plan, and greedy plans show it.
+  - The duals are computed in floating point and converted to decimals at the boundary. They are labelled
+    *indicative*: a degenerate LP has many dual solutions, of which GLOP returns one. They are never booked.
+  - `PlanPricing` on plans and what-ifs, stored with the plan (`pricing`, `V5__plan_pricing.sql`), with a status:
+    `OPTIMAL`; `SKIPPED` with a reason (no native library, nothing allocated, above
+    `etrm.allocation.pricing.max-pairs`, 300 000 pairs); or `FAILED` (time limit
+    `etrm.allocation.pricing.time-limit`, 5 s).
+  - Scarcity stays the tie-break in the cost. The rents explain a plan; they do not feed back into it.
 
 ## Consequences
 - **Plan cost:** cost and give-away are in money, and the plan's value reconciles with its lines (MWh × per-MWh
@@ -64,5 +82,7 @@ priority tiers that the coverage report applies.
     class order. `unpricedMwh` makes that visible.
   - Generic buckets need curves of their own for their sales to have a give-away. The demo marks EU_RENEWABLE and
     ANY_GOO below their children.
+- **Shadow prices at scale:** they are computed on lot classes, not on the compressed graph (ADR 0036), because
+  classes in one atom can differ in cost. A book above the size limit gets none, with the reason shown.
 - **Solver time:** solving per tier costs CP-SAT one extra solve per priority class, within the same time limit.
   When time runs out, the tiers not yet solved keep the coverage of the best solution found.

@@ -323,6 +323,13 @@
             "additionalProperties" : { },
             "type" : "object"
           },
+          "pricing" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/PlanPricing"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "proposedAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -423,6 +430,13 @@
           "objective" : {
             "additionalProperties" : { },
             "type" : "object"
+          },
+          "pricing" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/PlanPricing"
+            }, {
+              "type" : "null"
+            } ]
           },
           "snapshotSeq" : {
             "format" : "int64",
@@ -5814,6 +5828,26 @@
         "required" : [ "coveredMwh", "demandMwh", "eligibleClassCount", "eligibleSupplyMwh", "obligationId", "shortfallMwh" ],
         "type" : "object"
       },
+      "ObligationShadowPrice" : {
+        "properties" : {
+          "coveredMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "marginalCostEur" : {
+            "type" : "number"
+          },
+          "obligationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "short" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "coveredMwh", "marginalCostEur", "obligationId", "short" ],
+        "type" : "object"
+      },
       "ObligationValue" : {
         "properties" : {
           "averageDeliveredMarkEur" : {
@@ -6310,6 +6344,43 @@
           }
         },
         "required" : [ "calibrated", "maxTenorMonths", "pct", "productFamily" ],
+        "type" : "object"
+      },
+      "PlanPricing" : {
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "gapEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "lpCostEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "obligations" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ObligationShadowPrice"
+            },
+            "type" : "array"
+          },
+          "planCostEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "reason" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "enum" : [ "OPTIMAL", "SKIPPED", "FAILED" ],
+            "type" : "string"
+          },
+          "supply" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SupplyShadowPrice"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "status" ],
         "type" : "object"
       },
       "PlanValue" : {
@@ -8766,6 +8837,33 @@
           }
         },
         "required" : [ "idempotencyKey", "lotId", "toAccountRef", "toRegistryCode" ],
+        "type" : "object"
+      },
+      "SupplyShadowPrice" : {
+        "properties" : {
+          "averageRentEur" : {
+            "type" : "number"
+          },
+          "bucketCode" : {
+            "type" : "string"
+          },
+          "maxRentEur" : {
+            "type" : "number"
+          },
+          "productionYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "supplyMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "usedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "averageRentEur", "bucketCode", "maxRentEur", "productionYear", "supplyMwh", "usedMwh" ],
         "type" : "object"
       },
       "SurrenderRequestView" : {

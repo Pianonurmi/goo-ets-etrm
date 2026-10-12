@@ -15,6 +15,7 @@ import com.pianonurmi.etrm.allocation.api.LineStatus
 import com.pianonurmi.etrm.allocation.api.ObligationKind
 import com.pianonurmi.etrm.allocation.api.ObligationStatus
 import com.pianonurmi.etrm.allocation.api.ObligationView
+import com.pianonurmi.etrm.allocation.api.PlanPricing
 import com.pianonurmi.etrm.allocation.api.PlanStatus
 import com.pianonurmi.etrm.allocation.api.PlanValue
 import com.pianonurmi.etrm.allocation.api.ScoreBreakdown
@@ -160,6 +161,7 @@ class JooqAllocationPlanRepository(private val dsl: DSLContext) : AllocationPlan
             .set(ALLOCATION_PLAN.OBJECTIVE, JSONB.jsonb(Json.mapper.writeValueAsString(plan.objective)))
             .set(ALLOCATION_PLAN.COVERAGE_REPORT, JSONB.jsonb(Json.mapper.writeValueAsString(plan.coverage)))
             .set(ALLOCATION_PLAN.VALUE_SUMMARY, plan.value?.let { JSONB.jsonb(Json.mapper.writeValueAsString(it)) })
+            .set(ALLOCATION_PLAN.PRICING, plan.pricing?.let { JSONB.jsonb(Json.mapper.writeValueAsString(it)) })
             .set(headerValues(plan))
             .set(ALLOCATION_PLAN.VERSION, plan.version)
             .execute()
@@ -289,6 +291,7 @@ class JooqAllocationPlanRepository(private val dsl: DSLContext) : AllocationPlan
             lines = lines,
             version = r.version,
             value = r.valueSummary?.data()?.takeIf { it != "null" }?.let { Json.mapper.readValue(it, PlanValue::class.java) },
+            pricing = r.pricing?.data()?.takeIf { it != "null" }?.let { Json.mapper.readValue(it, PlanPricing::class.java) },
         )
     }
 }

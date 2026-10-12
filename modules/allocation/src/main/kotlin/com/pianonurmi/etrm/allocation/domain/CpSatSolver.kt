@@ -1,6 +1,5 @@
 package com.pianonurmi.etrm.allocation.domain
 
-import com.google.ortools.Loader
 import com.google.ortools.sat.CpModel
 import com.google.ortools.sat.CpSolver
 import com.google.ortools.sat.CpSolverStatus
@@ -47,16 +46,14 @@ class CpSatSolver(
 
     override fun solveDetailed(problem: AllocationProblem): SolveResult {
         val baseline = greedy.solve(problem)
-        if (!nativeLoaded || !nativeUsable) return fallback(baseline, "native OR-Tools library not available")
+        if (!OrTools.available) return fallback(baseline, "native OR-Tools library not available")
         val pairs = problem.obligations.filter { it.demand > 0 }.sumOf { problem.eligible[it.index].cardinality().toLong() }
         if (pairs > settings.maxPairs) return fallback(baseline, "problem too large ($pairs pairs, limit ${settings.maxPairs})")
         if (pairs == 0L) return SolveResult(baseline, name, mapOf("status" to "TRIVIAL"))
         return try {
             ExactModel(problem, baseline).run()
         } catch (e: LinkageError) {
-            // The library loaded but cannot be linked, e.g. extracted to a temp directory mounted noexec.
-            log.error("OR-Tools native library is not usable; exact allocation uses greedy until restart", e)
-            nativeUsable = false
+            OrTools.unusable(e)
             fallback(baseline, "native OR-Tools library not usable")
         }
     }
@@ -225,18 +222,5 @@ class CpSatSolver(
     private companion object {
         val log = LoggerFactory.getLogger(CpSatSolver::class.java)
         const val SCORE_DECIMALS = 4
-
-        @Volatile
-        var nativeUsable = true
-
-        val nativeLoaded: Boolean by lazy {
-            try {
-                Loader.loadNativeLibraries()
-                true
-            } catch (e: LinkageError) {
-                log.warn("OR-Tools native library could not be loaded; exact allocation uses greedy", e)
-                false
-            }
-        }
     }
 }

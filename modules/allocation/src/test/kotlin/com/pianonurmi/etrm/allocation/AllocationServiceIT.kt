@@ -8,6 +8,7 @@ import com.pianonurmi.etrm.allocation.api.ObligationKind
 import com.pianonurmi.etrm.allocation.api.ObligationStatus
 import com.pianonurmi.etrm.allocation.api.OpenObligation
 import com.pianonurmi.etrm.allocation.api.PlanStatus
+import com.pianonurmi.etrm.allocation.api.PricingStatus
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
 import com.pianonurmi.etrm.allocation.application.AllocationService
 import com.pianonurmi.etrm.allocation.application.ObligationService
@@ -344,6 +345,13 @@ class AllocationServiceIT {
             value.giveAwayEur shouldBe BigDecimal("140.00")
             value.unpricedMwh shouldBe 0
             value.byObligation.first().obligationId shouldBe disclosure.id
+        }
+        listOf(whatIf.pricing, proposed.pricing, allocation.plan(proposed.id)?.pricing).forEach { pricing ->
+            pricing.shouldNotBeNull()
+            pricing.status shouldBe PricingStatus.OPTIMAL
+            pricing.obligations.map { it.obligationId }.toSet() shouldBe scope
+            pricing.planCostEur shouldBe proposed.value!!.totalCostEur
+            pricing.gapEur shouldBe BigDecimal("0.00")
         }
         proposed.allocatedMwh shouldBe 1_300
         val hydroLine = proposed.lines.single { it.obligationId == hydroSale.id }

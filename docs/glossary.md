@@ -7,16 +7,22 @@
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Criteria | Typed predicate tree describing which certificates satisfy a delivery |
 | EUA / EUAA | EU Allowance (general) / EU Aviation Allowance |
+| Expiry haircut | Part of a certificate's value lost because it expires within 60 days of delivery; using such a lot costs less (ADR 0035) |
+| Give-away | The premium handed over when a certificate worth more than the sale's own product delivers it: value of the lot − mark of the sale's bucket |
 | GoO | Guarantee of Origin, 1 certificate = 1 MWh |
 | Lot | Contiguous certificate number range with identical attributes in one registry account |
 | Lot class | Lots interchangeable for every criterion and for scoring |
+| Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
 | Obligation | Quantity of certificates to deliver (sale, intercompany) or cancel (disclosure, own consumption) by a date under criteria |
 | Plan | Proposed assignment of lots to obligations; approved plans reserve lots and instruct registries |
+| Scarcity rent | Shadow price of supply: how much a plan's cost would fall with one more MWh of that bucket and year (indicative) |
+| Shadow price | A dual value of the pricing linear program solved after a plan; marginal costs and scarcity rents, never booked |
 | Shortage group | Set of obligations jointly short, with the exhausted supply they compete for |
 | Soft / hard reservation | Claim by a proposal (expires) / by an approved plan (lot status RESERVED) |
 | Statement | Registry export of holdings used for reconciliation |
 | Surrender | Delivery of allowances to the Union Registry against verified emissions |
 | Transfer route | Feasibility, fee and expected days of moving certificates between registries |
+| Value (allocation) | What a certificate is worth to allocation: the best official mark over every bucket it qualifies for |
 | Vintage | Production period window of certificates |
 | Trusted account list | Union Registry list of accounts an account holder may transfer to without the 26-hour delay; entries activate after four working days |
 | Change request | A four-eyes change to sensitive master data, applied when a second person approves it in the inbox |

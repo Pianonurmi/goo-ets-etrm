@@ -10,6 +10,7 @@ import { DataGrid } from '@/shared/grid/DataGrid';
 
 type PlanValue = Schema<'PlanValue'>;
 type ObligationValue = Schema<'ObligationValue'>;
+type PlanPricing = Schema<'PlanPricing'>;
 
 const cents = (value: number | null | undefined) => (value == null ? '—' : formatDecimal(value, 2, 2));
 
@@ -19,17 +20,27 @@ const cents = (value: number | null | undefined) => (value == null ? '—' : for
  */
 export function PlanValuePanel({
   value,
+  pricing,
   obligationLabel,
   kpiTestId,
   gridTestId,
 }: {
   value: PlanValue;
+  /** The plan's shadow prices; when optimal, the give-away grid shows each sale's marginal cost. */
+  pricing?: PlanPricing | null;
   /** A readable name for an obligation id; the panel falls back to a short id. */
   obligationLabel: (obligationId: string) => string | undefined;
   kpiTestId: string;
   gridTestId: string;
 }) {
   const { t } = useTranslation();
+  const marginal = useMemo(
+    () =>
+      pricing?.status === 'OPTIMAL'
+        ? new Map((pricing.obligations ?? []).map((o) => [o.obligationId, o.marginalCostEur]))
+        : undefined,
+    [pricing],
+  );
   const columns = useMemo<ColDef<ObligationValue>[]>(
     () => [
       {
@@ -82,8 +93,20 @@ export function PlanValuePanel({
         type: 'rightAligned',
         valueFormatter: (p) => cents(p.value as number),
       },
+      ...(marginal
+        ? [
+            {
+              colId: 'marginalCost',
+              headerName: t('allocation.value.marginalCost'),
+              width: 170,
+              type: 'rightAligned',
+              valueGetter: (p) => (p.data ? marginal.get(p.data.obligationId) : undefined),
+              valueFormatter: (p) => cents(p.value as number | null | undefined),
+            } satisfies ColDef<ObligationValue>,
+          ]
+        : []),
     ],
-    [t, obligationLabel],
+    [t, obligationLabel, marginal],
   );
   const hint = (key: string) => t(`allocation.value.hints.${key}`);
   const figure = (amount: number) => <Money value={amount} fz="inherit" fw="inherit" />;

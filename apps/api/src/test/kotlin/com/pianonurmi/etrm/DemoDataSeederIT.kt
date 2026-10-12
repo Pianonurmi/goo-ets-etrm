@@ -148,6 +148,7 @@ class DemoDataSeederIT {
         // The generic EU renewable sale is delivered with Nordic hydro, which is worth more than the generic mark.
         pending.getString("find { it.status == 'PROPOSED' }.value.giveAwayEur").toBigDecimal() shouldBeGreaterThan java.math.BigDecimal.ZERO
         pending.getString("find { it.status == 'PROPOSED' }.value.currency") shouldBe "EUR"
+        pending.getString("find { it.status == 'PROPOSED' }.pricing.status") shouldBe "OPTIMAL"
         val instructions = backoffice().get("/api/v1/registry/instructions/search?holderEntityId=$finland&limit=200").then().statusCode(200)
             .extract().jsonPath()
         instructions.getList<String>("items.status") shouldContainAll listOf("CONFIRMED", "FAILED", "PENDING_APPROVAL")

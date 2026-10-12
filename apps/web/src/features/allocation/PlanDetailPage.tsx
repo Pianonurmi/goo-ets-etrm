@@ -19,6 +19,7 @@ import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { LinesByObligation, PlanStatusBadge } from './AllocationPage';
 import { obligationName, planSteps } from './model/plan';
 import { PlanValuePanel } from './PlanValuePanel';
+import { ShadowPricesPanel } from './ShadowPricesPanel';
 
 type Plan = Schema<'AllocationPlanView'>;
 
@@ -61,32 +62,54 @@ function PlanBody({ plan }: { plan: Plan }) {
     ) : (
       <LinesByObligation lines={plan.lines} obligations={byId} />
     );
-  // Plans made before value-based allocation carry no value; they show the lines alone.
-  const body = plan.value ? (
-    <Tabs defaultValue="lines" keepMounted={false}>
-      <Tabs.List>
-        <Tabs.Tab value="lines" data-testid="plan-lines-tab">
-          {t('allocation.lines')}
-        </Tabs.Tab>
-        <Tabs.Tab value="value" data-testid="plan-value-tab">
-          {t('allocation.value.title')}
-        </Tabs.Tab>
-      </Tabs.List>
-      <Tabs.Panel value="lines" pt="md">
-        {lines}
-      </Tabs.Panel>
-      <Tabs.Panel value="value" pt="md">
-        <PlanValuePanel
-          value={plan.value}
-          obligationLabel={obligationLabel}
-          kpiTestId="plan-value-kpis"
-          gridTestId="plan-give-away"
-        />
-      </Tabs.Panel>
-    </Tabs>
-  ) : (
-    lines
-  );
+  // Plans made before value-based allocation carry neither value nor shadow prices; they show the lines alone.
+  const body =
+    plan.value || plan.pricing ? (
+      <Tabs defaultValue="lines" keepMounted={false}>
+        <Tabs.List>
+          <Tabs.Tab value="lines" data-testid="plan-lines-tab">
+            {t('allocation.lines')}
+          </Tabs.Tab>
+          {plan.value && (
+            <Tabs.Tab value="value" data-testid="plan-value-tab">
+              {t('allocation.value.title')}
+            </Tabs.Tab>
+          )}
+          {plan.pricing && (
+            <Tabs.Tab value="shadow-prices" data-testid="plan-shadow-prices">
+              {t('allocation.shadow.title')}
+            </Tabs.Tab>
+          )}
+        </Tabs.List>
+        <Tabs.Panel value="lines" pt="md">
+          {lines}
+        </Tabs.Panel>
+        {plan.value && (
+          <Tabs.Panel value="value" pt="md">
+            <PlanValuePanel
+              value={plan.value}
+              pricing={plan.pricing}
+              obligationLabel={obligationLabel}
+              kpiTestId="plan-value-kpis"
+              gridTestId="plan-give-away"
+            />
+          </Tabs.Panel>
+        )}
+        {plan.pricing && (
+          <Tabs.Panel value="shadow-prices" pt="md">
+            <ShadowPricesPanel
+              pricing={plan.pricing}
+              obligationLabel={obligationLabel}
+              kpiTestId="plan-shadow-kpis"
+              obligationsTestId="plan-shadow-obligations"
+              supplyTestId="plan-shadow-supply"
+            />
+          </Tabs.Panel>
+        )}
+      </Tabs>
+    ) : (
+      lines
+    );
 
   return (
     <Stack gap="lg">

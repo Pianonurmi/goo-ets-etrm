@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.Assignment
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
 import com.pianonurmi.etrm.allocation.domain.CpSatSolver
+import com.pianonurmi.etrm.allocation.domain.GlopPricer
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.allocation.domain.PlanValuation
@@ -69,7 +70,7 @@ import java.util.UUID
  */
 @Service
 @Transactional
-@EnableConfigurationProperties(AllocationSolverSettings::class)
+@EnableConfigurationProperties(AllocationSolverSettings::class, AllocationPricingSettings::class)
 class AllocationService(
     private val plans: AllocationPlanRepository,
     private val obligations: ObligationRepository,
@@ -87,10 +88,12 @@ class AllocationService(
     private val clock: Clock,
     private val savepoints: Savepoints,
     solverSettings: AllocationSolverSettings = AllocationSolverSettings(),
+    pricingSettings: AllocationPricingSettings = AllocationPricingSettings(),
 ) : AllocationCommand, AllocationQuery {
     private val log = LoggerFactory.getLogger(AllocationService::class.java)
     private val greedy: Solver = GreedySolver(criteria::evaluate)
     private val exact: Solver = CpSatSolver(criteria::evaluate, solverSettings.toDomain(), greedy)
+    private val pricer = GlopPricer(criteria::evaluate, pricingSettings.toDomain())
 
     // ----------------------------------------------------------------------------------------------------------
     // Propose
@@ -119,6 +122,7 @@ class AllocationService(
             requireNotNull(plan.coverage) { "computed plans carry coverage" },
             plan.lines,
             plan.value,
+            plan.pricing,
         )
     }
 
@@ -168,6 +172,7 @@ class AllocationService(
             lines = lines,
             version = 1,
             value = PlanValuation.of(lines, open),
+            pricing = pricer.price(problem, assignments, built.scoring::bestBucketCode),
         )
     }
 

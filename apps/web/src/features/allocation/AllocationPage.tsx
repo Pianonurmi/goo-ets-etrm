@@ -1,5 +1,6 @@
 import { BarChart } from '@mantine/charts';
 import {
+  Accordion,
   Alert,
   Anchor,
   Badge,
@@ -39,6 +40,7 @@ import { newKey } from '@/shared/ids';
 import { coverageRows, groupLines, obligationName, type Line } from './model/plan';
 import { ObligationDrawer, OpenObligationModal } from './ObligationPanels';
 import { PlanValuePanel } from './PlanValuePanel';
+import { ShadowPricesPanel } from './ShadowPricesPanel';
 
 type Obligation = Schema<'ObligationView'>;
 type Plan = Schema<'AllocationPlanView'>;
@@ -260,11 +262,28 @@ function WhatIfResult({
         <Stack gap="sm" mb="md">
           <PlanValuePanel
             value={result.value}
+            pricing={result.pricing}
             obligationLabel={obligationLabel}
             kpiTestId="what-if-value-kpis"
             gridTestId="what-if-give-away"
           />
         </Stack>
+      )}
+      {result.pricing && (
+        <Accordion variant="separated" mb="md" data-testid="what-if-shadow-prices">
+          <Accordion.Item value="shadow-prices">
+            <Accordion.Control>{t('allocation.shadow.title')}</Accordion.Control>
+            <Accordion.Panel>
+              <ShadowPricesPanel
+                pricing={result.pricing}
+                obligationLabel={obligationLabel}
+                kpiTestId="what-if-shadow-kpis"
+                obligationsTestId="what-if-shadow-obligations"
+                supplyTestId="what-if-shadow-supply"
+              />
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       )}
       <LinesByObligation lines={result.lines} obligations={obligations} />
     </Paper>

@@ -230,6 +230,7 @@ data class AllocationPlanView(
     val version: Int,
     /** The plan in EUR (ADR 0035); null for plans from before it. */
     val value: PlanValue? = null,
+    val pricing: PlanPricing? = null,
 ) {
     val allocatedMwh: Long get() = lines.filter { it.status != LineStatus.CANCELLED && it.status != LineStatus.FAILED }.sumOf { it.quantityMwh }
 }
@@ -272,6 +273,7 @@ data class AllocationWhatIf(
     val coverage: CoverageReport,
     val lines: List<AllocationLineView>,
     val value: PlanValue? = null,
+    val pricing: PlanPricing? = null,
 )
 
 /**
@@ -304,6 +306,52 @@ data class ObligationValue(
     val deliveredValueEur: BigDecimal,
     val averageDeliveredMarkEur: BigDecimal?,
     val giveAwayEur: BigDecimal?,
+)
+
+enum class PricingStatus {
+    /** The pricing LP was solved to optimality; its duals are the shadow prices. */
+    OPTIMAL,
+
+    /** Not priced: no OR-Tools library, the problem is above the size limit, or nothing was allocated. */
+    SKIPPED,
+
+    /** The LP was not solved (time limit or numerical trouble). */
+    FAILED,
+}
+
+/**
+ * Shadow prices of a plan (ADR 0035): the duals of a linear program that delivers each obligation's planned coverage
+ * at the lowest cost, under the same supply, device caps and minimum shares. They are *indicative*: computed in
+ * floating point, not unique when the LP is degenerate, and never booked.
+ *
+ * - [lpCostEur]: the lowest cost of the plan's coverage; [gapEur] = plan cost − LP cost is what a better choice of
+ *   lots could still save (zero for an optimal exact plan);
+ * - per obligation, the marginal cost: what one more MWh delivered to it would cost, rerouting included;
+ * - per bucket and production year, the scarcity rent: how much the plan's cost would fall with one more MWh of that
+ *   supply.
+ */
+data class PlanPricing(
+    val status: PricingStatus,
+    val reason: String? = null,
+    val currency: String = "EUR",
+    val lpCostEur: BigDecimal? = null,
+    val planCostEur: BigDecimal? = null,
+    val gapEur: BigDecimal? = null,
+    val obligations: List<ObligationShadowPrice> = emptyList(),
+    val supply: List<SupplyShadowPrice> = emptyList(),
+)
+
+/** [short]: the obligation is not fully covered, so its marginal MWh may not be available at that cost or at all. */
+data class ObligationShadowPrice(val obligationId: UUID, val coveredMwh: Long, val short: Boolean, val marginalCostEur: BigDecimal)
+
+/** Scarcity rent of supply in one bucket and production year: quantity-weighted average and highest over its classes. */
+data class SupplyShadowPrice(
+    val bucketCode: String,
+    val productionYear: Int,
+    val supplyMwh: Long,
+    val usedMwh: Long,
+    val averageRentEur: BigDecimal,
+    val maxRentEur: BigDecimal,
 )
 
 interface AllocationQuery {

@@ -21,6 +21,9 @@ test.describe('allocation and positions', () => {
     await expect(page).toHaveURL(/\/allocation\/plans\/[0-9a-f-]{36}$/);
     await expect(page.getByTestId('plan-status')).toHaveText(/^proposed$/i);
     await expect(page.getByTestId('plan-approval-task')).toBeVisible();
+
+    await page.getByTestId('plan-shadow-prices').click();
+    await expect(page.getByTestId('plan-shadow-kpis')).toBeVisible();
   });
 
   test('shows the GoO position with its expiry ladder', async ({ page }) => {
