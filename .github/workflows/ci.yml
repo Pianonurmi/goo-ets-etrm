@@ -14,8 +14,8 @@ jobs:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
         with:
           version: v3.16.2
       # Into the job's own directory (no sudo on a self-hosted runner), checked against the release's checksum.
@@ -75,20 +75,20 @@ jobs:
             echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
             echo "ETRM_TEST_DB_URL=jdbc:postgresql://localhost:$port/etrm_test"
           } >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: |
             25
             21
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
       - name: Create test databases
@@ -104,7 +104,7 @@ jobs:
           (cd apps/web && npm run sbom)
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports
           path: |
@@ -128,7 +128,7 @@ jobs:
         run: npm run e2e
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright
           path: |
@@ -177,7 +177,7 @@ jobs:
           skip-setup-trivy: true
       - name: Upload SBOMs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: |

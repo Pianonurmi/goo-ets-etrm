@@ -4,6 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 10
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
@@ -13,10 +14,16 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 10
+    # One PR for all action bumps; they are tested together by the same workflows.
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: "/apps/web"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 10
     groups:
       react:
         patterns: ["react", "react-dom", "@types/react*", "react-router*"]
@@ -28,3 +35,4 @@ updates:
     directory: "/ops"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 10

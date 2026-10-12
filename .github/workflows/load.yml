@@ -41,19 +41,19 @@ jobs:
             echo "PGPORT=$port"
             echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
           } >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: |
             25
             21
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: true
       - name: Boot jar
@@ -72,7 +72,7 @@ jobs:
         run: k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=${{ inputs.profile }} --summary-export=k6-summary.json ops/load/etrm.js
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: load-${{ inputs.profile }}
           path: |
