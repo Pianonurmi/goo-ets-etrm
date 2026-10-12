@@ -69,7 +69,7 @@ export function CheckLimitsButton({ trade }: { trade: Trade }) {
                     {check.data.map((finding) => (
                       <Table.Tr key={`${finding.code}-${finding.message}`}>
                         <Table.Td w={200}>
-                          <StatusBadge status={finding.severity} />
+                          <StatusBadge status={finding.severity === 'WARN' ? 'WARNING' : finding.severity} />
                         </Table.Td>
                         <Table.Td>
                           <Text size="sm">{finding.message}</Text>

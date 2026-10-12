@@ -5,7 +5,7 @@ in parallel for the whole test:
 
 | Scenario | What a user does | Tag |
 |---|---|---|
-| `reads` | trade search, lots of an entity, GoO position, ETS ladder, inbox and its counts, audit trail | `kind:read` |
+| `reads` | trade search, lots of an entity, GoO position, ETS ladder, inbox and its counts, audit trail; an available-to-sell check (ADR 0036) | `kind:read`, `kind:check` |
 | `trades` | captures an EUA forward (trade approval task, EMIR fields, audit, events), then reads it back | `kind:write` |
 | `allocation` | allocation what-if for the entity: snapshot, problem build and greedy solve, nothing stored | `kind:solve` |
 
@@ -27,6 +27,7 @@ The run fails (k6 exit code 99) when one of these is missed.
 | Reads | p95 < 300 ms, p99 < 800 ms |
 | Writes | p95 < 800 ms, p99 < 2 s |
 | Allocation what-if | p95 < 3 s |
+| Available to sell | p95 < 150 ms |
 | Checks | > 99 % pass |
 
 ## Running
@@ -63,6 +64,12 @@ The baseline is well inside every threshold. Under stress the machine is CPU-bou
 four cores. Latency grows with the queue, but nothing fails: no errors, no timeouts, no pool exhaustion. The read
 thresholds are crossed there, which is the point where a second replica (HPA at 70 % CPU) should already have
 started.
+
+**Increment 8** (2026-10-12, `smoke` only, on a different 4-core cloud container, so not directly comparable
+with the rows above): 6 889 requests, 229 req/s, no errors. Read p95 13 ms, write p95 35 ms. The available-to-sell
+check (`kind:check`) has p95 7 ms. The what-if has p95 121 ms, up from 24 ms. The likely cause (not measured apart): since ADR 0035 every what-if and
+plan also values its lines in EUR and solves the shadow-price LP. Run `baseline` and `stress` again on the reference
+machine before relying on the what-if figure.
 
 The demo data is small: the what-if solves one obligation over 12 lot classes. Solver scale is measured separately
 by `AllocationBenchmarkTest` (`-Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000`).

@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.inventory.api.AllowanceMovementView
 import com.pianonurmi.etrm.inventory.api.AllowanceStatementLine
 import com.pianonurmi.etrm.inventory.api.BreakFilter
 import com.pianonurmi.etrm.inventory.api.CertificateRange
+import com.pianonurmi.etrm.inventory.api.HoldingStamp
 import com.pianonurmi.etrm.inventory.api.LotEventView
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotStatus
@@ -26,6 +27,8 @@ interface LotRepository {
     fun lock(id: UUID): LotView?
 
     fun insert(lot: LotView, change: LotChange)
+
+    fun holdingStamp(holderEntityId: UUID): HoldingStamp
 
     /** Optimistic update: the stored version must equal `lot.version - 1`. */
     fun update(lot: LotView, change: LotChange): Boolean
@@ -64,9 +67,6 @@ interface LotEventJournal {
     fun history(lotId: UUID): List<LotEventView>
 
     fun lastSeq(): Long
-
-    /** Highest sequence among events of lots held by the entity (0 if none). */
-    fun lastSeq(holderEntityId: UUID): Long
 
     fun brokenChains(): List<UUID>
 }

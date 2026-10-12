@@ -120,8 +120,8 @@ interface LotQuery {
 
     fun journalSeq(): Long
 
-    /** The highest journal sequence of events of lots held by [holderEntityId]; 0 when there are none. */
-    fun journalSeq(holderEntityId: UUID): Long
+    /** A cheap fingerprint of everything [holderEntityId] holds; it changes whenever one of its lots does. */
+    fun holdingStamp(holderEntityId: UUID): HoldingStamp
 
     /** Verifies the per-lot hash chains; returns the lot ids whose chain is broken. */
     fun verifyJournal(): List<UUID>
@@ -131,6 +131,15 @@ interface LotQuery {
 
     /** Lots expiring within the window grouped by month, for the expiry ladder. */
     fun expiryLadder(holderEntityId: UUID, from: LocalDate, months: Int): Map<LocalDate, Long>
+}
+
+/**
+ * Lots of one holder in any status: how many, the sum of their versions and of their MWh. Every lot change raises a
+ * version, a split adds a lot and a transfer to another holder removes one, so the stamp changes with each of them.
+ * Caches of derived figures (available to sell, ADR 0036) compare it on every read.
+ */
+data class HoldingStamp(val lots: Long, val versions: Long, val mwh: Long) {
+    override fun toString(): String = "$lots:$versions:$mwh"
 }
 
 // --------------------------------------------------------------------------------------------------------------

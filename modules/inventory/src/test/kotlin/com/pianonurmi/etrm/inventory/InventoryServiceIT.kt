@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.inventory.api.BreakType
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.CancellationPurpose
 import com.pianonurmi.etrm.inventory.api.CertificateRange
+import com.pianonurmi.etrm.inventory.api.HoldingStamp
 import com.pianonurmi.etrm.inventory.api.ImportStatement
 import com.pianonurmi.etrm.inventory.api.LotCorrection
 import com.pianonurmi.etrm.inventory.api.LotFilter
@@ -198,14 +199,20 @@ class InventoryServiceIT {
     }
 
     @Test
-    fun `the journal position of one holder follows the events of its lots only`() {
+    fun `the holding stamp changes with every change to the holder's lots, and only with those`() {
+        val before = lots.holdingStamp(entityId)
         val lot = receive("FI-2026-0099", 90_000, 90_099)
-        val lastEvent = lots.history(lot.id).maxOf { it.seq }
-        lots.journalSeq(entityId) shouldBe lastEvent
-        lots.journalSeq() shouldBeGreaterThanOrEqualTo lots.journalSeq(entityId)
-        lots.journalSeq(UUID.randomUUID()) shouldBe 0L
+        val received = lots.holdingStamp(entityId)
+        received.lots shouldBe before.lots + 1
+        received.mwh shouldBe before.mwh + 100
+        lots.holdingStamp(UUID.randomUUID()) shouldBe HoldingStamp(0, 0, 0)
         lots.reserve(lot.id, 10, UUID.randomUUID())
-        lots.journalSeq(entityId) shouldBeGreaterThan lastEvent
+        // The reservation splits the lot into a reserved part and a remainder; the original's version moves on.
+        lots.holdingStamp(entityId).let {
+            it.lots shouldBeGreaterThan received.lots
+            it.versions shouldBeGreaterThan received.versions
+            it shouldNotBe received
+        }
     }
 
     @Test

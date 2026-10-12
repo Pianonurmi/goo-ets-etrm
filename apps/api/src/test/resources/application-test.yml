@@ -17,6 +17,10 @@ etrm:
     approval-threshold: 0
   registry:
     outbox-dir: build/test-registry-outbox
+  allocation:
+    headroom:
+      # Background preparation would race the schema resets between test classes; tests prepare explicitly.
+      warm-on-miss: false
 logging:
   level:
     com.pianonurmi.etrm: INFO

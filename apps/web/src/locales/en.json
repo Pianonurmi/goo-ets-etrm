@@ -795,7 +795,13 @@
       "disputed": "Disputed",
       "partlyDelivered": "Partly delivered"
     },
-    "tradedOn": "traded {{date}}"
+    "tradedOn": "traded {{date}}",
+    "headroom": {
+      "available": "Available to sell: {{mwh}}",
+      "short": "Available to sell: {{mwh}} (asking {{requested}})",
+      "runsOut": "Runs out: {{supplies}}.",
+      "joint": "Each delivery fits on its own, but together they ask for {{requested}} and the same certificates can serve {{mwh}}."
+    }
   },
   "allocation": {
     "title": "Allocation workbench",
@@ -1045,6 +1051,20 @@
       "surrendered": "{{tonnes}} t surrendered",
       "freeAllocation": "Free allocation {{received}} of {{expected}} t",
       "openTrades": "Open purchases {{bought}} t, sales {{sold}} t"
+    },
+    "view": {
+      "label": "View",
+      "position": "Position",
+      "headroom": "Available to sell"
+    },
+    "headroom": {
+      "title": "Available to sell",
+      "lead": "The most a new sale could receive from the certificates held, per bucket and vintage, for each delivery month-end, without taking anything from sales already agreed. Existing sales may be moved onto other certificates that serve them too.",
+      "note": "An upper bound: the cells share supply and do not add up, and device caps and minimum shares of existing sales are not in it.",
+      "held": "Held",
+      "empty": "No certificates held",
+      "emptyHint": "Available to sell is worked out from the certificates the entity holds.",
+      "computedAt": "Figures as of {{time}}"
     }
   },
   "marketData": {

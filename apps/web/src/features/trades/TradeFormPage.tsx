@@ -28,6 +28,7 @@ import { notifyProblem, notifySuccess } from '@/shared/components/notify';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
+import { useCan } from '@/shared/auth/Can';
 import { applyProblemToForm } from '@/shared/forms/applyProblemToForm';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
 import {
@@ -36,8 +37,11 @@ import {
   useCounterparties,
   useEntityAccounts,
   useFuturesContracts,
+  useHeadroom,
   usePriceIndices,
 } from './hooks';
+import { HeadroomHint, JointHeadroomNote } from './HeadroomHint';
+import { demandRef, headroomByRef, headroomRequest, jointShortfall, ownScheduleIds } from './model/headroom';
 import {
   brokersOf,
   counterpartiesFor,
@@ -141,6 +145,17 @@ function TradeForm({ existing }: { existing?: TradeView }) {
   const capture = $api.useMutation('post', '/api/v1/trades', { meta: { notify: false } });
   const amend = $api.useMutation('put', '/api/v1/trades/{id}', { meta: { notify: false } });
   const family = form.values.productFamily;
+  const headroom = useHeadroom(
+    headroomRequest(form.values, entityId, ownScheduleIds(existing)),
+    useCan('allocation_headroomCheck'),
+  );
+  const headroomOf = headroomByRef(headroom);
+  const joint = jointShortfall(headroom);
+  // The joint figure is for the whole trade: shown once, under the last leg that has deliveries in the check.
+  const jointLeg = form.values.legs.reduce(
+    (last, leg, index) => (leg.deliveries.some((_, d) => headroomOf.has(demandRef(index, d))) ? index : last),
+    -1,
+  );
 
   const failed = (error: unknown) => {
     const problem = asProblemError(error);
@@ -478,45 +493,56 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                 {!future && (
                   <Stack gap="xs">
                     {leg.deliveries.map((_, d) => (
-                      <Group key={d} align="flex-end" wrap="wrap" gap="sm">
-                        <TextInput
-                          type="date"
-                          label={t('trades.form.windowStart')}
-                          w={170}
-                          {...form.getInputProps(`legs.${index}.deliveries.${d}.start`)}
-                        />
-                        <TextInput
-                          type="date"
-                          label={t('trades.form.windowEnd')}
-                          w={190}
-                          {...form.getInputProps(`legs.${index}.deliveries.${d}.endExclusive`)}
-                        />
-                        <TextInput
-                          type="date"
-                          label={t('trades.form.deliveryDate')}
-                          w={170}
-                          {...form.getInputProps(`legs.${index}.deliveries.${d}.deliveryDate`)}
-                        />
-                        <TextInput
-                          label={t('trades.form.quantity', { unit: unitOf(family) })}
-                          inputMode="decimal"
-                          w={170}
-                          data-testid={`leg-${index}-delivery-${d}-quantity`}
-                          {...form.getInputProps(`legs.${index}.deliveries.${d}.quantity`)}
-                        />
-                        {leg.deliveries.length > 1 && (
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            mb={4}
-                            aria-label={t('criteria.remove')}
-                            onClick={() => form.removeListItem(`legs.${index}.deliveries`, d)}
-                          >
-                            <IconTrash size={16} />
-                          </ActionIcon>
+                      <Stack key={d} gap={4}>
+                        <Group align="flex-end" wrap="wrap" gap="sm">
+                          <TextInput
+                            type="date"
+                            label={t('trades.form.windowStart')}
+                            w={170}
+                            {...form.getInputProps(`legs.${index}.deliveries.${d}.start`)}
+                          />
+                          <TextInput
+                            type="date"
+                            label={t('trades.form.windowEnd')}
+                            w={190}
+                            {...form.getInputProps(`legs.${index}.deliveries.${d}.endExclusive`)}
+                          />
+                          <TextInput
+                            type="date"
+                            label={t('trades.form.deliveryDate')}
+                            w={170}
+                            {...form.getInputProps(`legs.${index}.deliveries.${d}.deliveryDate`)}
+                          />
+                          <TextInput
+                            label={t('trades.form.quantity', { unit: unitOf(family) })}
+                            inputMode="decimal"
+                            w={170}
+                            data-testid={`leg-${index}-delivery-${d}-quantity`}
+                            {...form.getInputProps(`legs.${index}.deliveries.${d}.quantity`)}
+                          />
+                          {leg.deliveries.length > 1 && (
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              mb={4}
+                              aria-label={t('criteria.remove')}
+                              onClick={() => form.removeListItem(`legs.${index}.deliveries`, d)}
+                            >
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          )}
+                        </Group>
+                        {leg.side === 'SELL' && (
+                          <HeadroomHint
+                            demand={headroomOf.get(demandRef(index, d))}
+                            testId={`leg-${index}-delivery-${d}-headroom`}
+                          />
                         )}
-                      </Group>
+                      </Stack>
                     ))}
+                    {joint && index === jointLeg && (
+                      <JointHeadroomNote {...joint} testId={`leg-${index}-headroom-joint`} />
+                    )}
                     <Group>
                       <Button
                         size="xs"

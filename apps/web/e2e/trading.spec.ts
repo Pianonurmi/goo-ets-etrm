@@ -41,6 +41,8 @@ test.describe('trading', () => {
     await choose(page, 'leg-0-account', /SIM-DEMO-FI/);
     await page.getByTestId('leg-0-delivery-0-quantity').fill('40');
     await expect(page.getByTestId('criteria-summary')).not.toHaveText('…');
+    // Advice from the certificates held; it never stands in the way of capturing.
+    await expect(page.getByTestId('leg-0-delivery-0-headroom')).toBeVisible();
     await page.getByTestId('submit-trade').click();
 
     await expect(page).toHaveURL(/\/trades\/[0-9a-f-]{36}$/);

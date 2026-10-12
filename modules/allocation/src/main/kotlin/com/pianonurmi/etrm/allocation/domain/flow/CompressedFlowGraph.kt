@@ -118,7 +118,7 @@ class FlowState(val graph: CompressedFlowGraph) {
     val source = 0
     val sink = 1 + atomCount + groupCount
 
-    /** A spare vertex for trial demands ([headroom]); it has no edges outside a trial. */
+    /** A spare vertex that collects a trial's flow ([headroom]); it has no edges outside a trial. */
     val probe = sink + 1
     val network = FlowGraph(probe + 1, atomCount + groupCount + graph.edgeCount)
     private val supplyEdges = IntArray(atomCount)
@@ -193,25 +193,87 @@ class FlowState(val graph: CompressedFlowGraph) {
      * the quantity of its eligible units, which is exact: units of one atom serve the same groups, so existing flow
      * can always be moved onto the units the new demand cannot use.
      */
-    fun headroom(eligibleUnits: BitSet, limit: Long = UNBOUNDED): Long {
-        val eligibleByAtom = LongArray(atomCount)
+    fun headroom(eligibleUnits: BitSet, limit: Long = UNBOUNDED): Long = headroomDetail(eligibleUnits, limit).mwh
+
+    /**
+     * [headroom] with what limits it. [bindingAtoms] are the atoms the new demand may use that stay exhausted: no
+     * augmenting path reaches them, so more of their supply would mean more headroom (the minimal cut). [freeMwh] is
+     * the eligible supply nobody uses, before any rerouting; headroom is at least that.
+     */
+    fun headroomDetail(eligibleUnits: BitSet, limit: Long = UNBOUNDED): Headroom {
+        val eligibleByAtom = eligibleByAtom(eligibleUnits)
+        if (eligibleByAtom.all { it == 0L }) return Headroom(0, 0, IntArray(0))
+        val free = (0 until atomCount).sumOf { minOf(eligibleByAtom[it], atomResidual(it)) }
+        val blocked = BooleanArray(network.vertexCount).apply { this[sink] = true }
+        return trial {
+            eligibleByAtom.forEachIndexed { atom, quantity -> if (quantity > 0) network.addEdge(atomNode(atom), probe, quantity) }
+            val extra = network.augment(source, probe, blocked, limit)
+            val reachable = network.reachableFrom(source, blocked)
+            val binding = (0 until atomCount).filter { eligibleByAtom[it] > 0 && !reachable[atomNode(it)] }.toIntArray()
+            Headroom(extra, free, binding)
+        }
+    }
+
+    /**
+     * The most that several new demands can receive together without taking coverage from anyone: one trial vertex
+     * per demand, capped at its quantity, feeding [probe]. Units of one atom serve the same existing groups, but each
+     * new demand may take a different subset of them, so atoms are split by which new demands their units serve: no
+     * unit is offered twice. Null when there are more demands than [MAX_JOINT].
+     */
+    fun jointHeadroom(demands: List<Pair<BitSet, Long>>): Long? {
+        if (demands.size > MAX_JOINT) return null
+        if (demands.isEmpty()) return 0
+        val vertices = network.vertexCount
+        try {
+            return trial {
+                val nodes = demands.map { (_, quantity) -> network.addVertex().also { network.addEdge(it, probe, quantity) } }
+                val parts = HashMap<Pair<Int, Long>, Long>()
+                graph.units.indices.forEach { u ->
+                    var signature = 0L
+                    demands.forEachIndexed { i, (eligible, _) -> if (eligible[u]) signature = signature or (1L shl i) }
+                    if (signature != 0L) parts.merge(graph.atomOfUnit[u] to signature, graph.units[u].quantityMwh, Long::plus)
+                }
+                parts.forEach { (key, quantity) ->
+                    val part = network.addVertex()
+                    network.addEdge(atomNode(key.first), part, quantity)
+                    nodes.indices.filter { key.second shr it and 1L == 1L }.forEach { network.addEdge(part, nodes[it], UNBOUNDED) }
+                }
+                network.augment(source, probe, BooleanArray(network.vertexCount).apply { this[sink] = true })
+            }
+        } finally {
+            network.truncateVertices(vertices)
+        }
+    }
+
+    private fun eligibleByAtom(eligibleUnits: BitSet): LongArray {
+        val byAtom = LongArray(atomCount)
         var u = eligibleUnits.nextSetBit(0)
         while (u >= 0) {
-            eligibleByAtom[graph.atomOfUnit[u]] += graph.units[u].quantityMwh
+            byAtom[graph.atomOfUnit[u]] += graph.units[u].quantityMwh
             u = eligibleUnits.nextSetBit(u + 1)
         }
-        if (eligibleByAtom.all { it == 0L }) return 0
+        return byAtom
+    }
+
+    /** Runs [block] on trial edges and flow, then puts the graph back exactly as it was. */
+    private inline fun <T> trial(block: () -> T): T {
         val mark = network.mark()
         val residuals = network.snapshot()
-        eligibleByAtom.forEachIndexed { atom, quantity -> if (quantity > 0) network.addEdge(atomNode(atom), probe, quantity) }
-        val blocked = BooleanArray(probe + 1).apply { this[sink] = true }
-        val extra = network.augment(source, probe, blocked, limit)
-        network.rollback(mark)
-        network.restore(residuals)
-        return extra
+        try {
+            return block()
+        } finally {
+            network.rollback(mark)
+            network.restore(residuals)
+        }
     }
 
     companion object {
         const val UNBOUNDED = Long.MAX_VALUE / 4
+
+        /** Demands one joint trial can hold (one bit each in a unit's signature): a trade's deliveries. */
+        const val MAX_JOINT = 63
     }
 }
+
+/** A trial's result: what the new demand can get, the unused eligible supply, and the atoms that limit it. */
+class Headroom(val mwh: Long, val freeMwh: Long, val bindingAtoms: IntArray)

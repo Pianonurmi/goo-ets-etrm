@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.records.Certi
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.CertificateRange
+import com.pianonurmi.etrm.inventory.api.HoldingStamp
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
@@ -93,6 +94,15 @@ class JooqLotRepository(private val dsl: DSLContext) : LotRepository {
         .where(CERTIFICATE_LOT.STATUS.`in`(LotStatus.HELD.name, LotStatus.RESERVED.name), CERTIFICATE_LOT.EXPIRY_DATE.le(asOf))
         .orderBy(CERTIFICATE_LOT.ID)
         .fetch(CERTIFICATE_LOT.ID)
+
+    override fun holdingStamp(holderEntityId: UUID): HoldingStamp = dsl.select(
+        DSL.count(),
+        DSL.coalesce(DSL.sum(CERTIFICATE_LOT.VERSION), DSL.inline(0)),
+        DSL.coalesce(DSL.sum(CERTIFICATE_LOT.QUANTITY_MWH), DSL.inline(0)),
+    )
+        .from(CERTIFICATE_LOT)
+        .where(CERTIFICATE_LOT.HOLDER_ENTITY_ID.eq(holderEntityId))
+        .fetchOne { HoldingStamp(it.value1().toLong(), it.value2().toLong(), it.value3().toLong()) }!!
 
     override fun asOf(lotId: UUID, effectiveAt: Instant, knownAt: Instant): Map<String, Any?>? = dsl.select(CERTIFICATE_LOT_VERSION.DATA)
         .from(CERTIFICATE_LOT_VERSION)

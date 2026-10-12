@@ -15,6 +15,9 @@ interface ObligationRepository {
 
     fun open(holderEntityId: UUID): List<ObligationView>
 
+    /** A fingerprint of the entity's open obligations: count, versions, fulfilled MWh and the newest id. */
+    fun openStamp(holderEntityId: UUID): String
+
     fun insert(obligation: ObligationView)
 
     fun update(obligation: ObligationView): Boolean

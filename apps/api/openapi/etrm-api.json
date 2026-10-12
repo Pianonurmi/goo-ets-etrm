@@ -890,6 +890,23 @@
         "required" : [ "accountName", "bic", "iban" ],
         "type" : "object"
       },
+      "BindingSupply" : {
+        "properties" : {
+          "bucketCode" : {
+            "type" : "string"
+          },
+          "eligibleMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "productionYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "bucketCode", "eligibleMwh", "productionYear" ],
+        "type" : "object"
+      },
       "BookView" : {
         "properties" : {
           "active" : {
@@ -2928,6 +2945,36 @@
         "required" : [ "deliveryDate", "quantity" ],
         "type" : "object"
       },
+      "DemandHeadroom" : {
+        "properties" : {
+          "binding" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BindingSupply"
+            },
+            "type" : "array"
+          },
+          "fits" : {
+            "type" : "boolean"
+          },
+          "freeMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "headroomMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "ref" : {
+            "type" : [ "string", "null" ]
+          },
+          "requestedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "binding", "fits", "freeMwh", "headroomMwh", "requestedMwh" ],
+        "type" : "object"
+      },
       "DemoSeedView" : {
         "properties" : {
           "completedSteps" : {
@@ -3700,6 +3747,169 @@
           }
         },
         "required" : [ "asOf", "coverage", "expiryLadder", "inventory", "legalEntityId", "totalLiveMwh", "totalOpenObligationMwh" ],
+        "type" : "object"
+      },
+      "HeadroomCheck" : {
+        "properties" : {
+          "demands" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HeadroomDemand"
+            },
+            "type" : "array"
+          },
+          "excludeSourceRefs" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
+          },
+          "holderEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "demands", "holderEntityId" ],
+        "type" : "object"
+      },
+      "HeadroomDemand" : {
+        "properties" : {
+          "criterion" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/All"
+            }, {
+              "$ref" : "#/components/schemas/AnyOf"
+            }, {
+              "$ref" : "#/components/schemas/CountryInRegion"
+            }, {
+              "$ref" : "#/components/schemas/DateRange"
+            }, {
+              "$ref" : "#/components/schemas/DescendantOf"
+            }, {
+              "$ref" : "#/components/schemas/DeviceAgeAtDelivery"
+            }, {
+              "$ref" : "#/components/schemas/Equals"
+            }, {
+              "$ref" : "#/components/schemas/InSet"
+            }, {
+              "$ref" : "#/components/schemas/LabelsAll"
+            }, {
+              "$ref" : "#/components/schemas/LabelsAny"
+            }, {
+              "$ref" : "#/components/schemas/MatchAll"
+            }, {
+              "$ref" : "#/components/schemas/Not"
+            }, {
+              "$ref" : "#/components/schemas/NumberRange"
+            }, {
+              "$ref" : "#/components/schemas/Vintage"
+            } ]
+          },
+          "deliveryDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "quantityMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "ref" : {
+            "type" : [ "string", "null" ]
+          },
+          "targetRegistryCode" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "criterion", "deliveryDate", "quantityMwh" ],
+        "type" : "object"
+      },
+      "HeadroomResult" : {
+        "properties" : {
+          "computedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "demands" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DemandHeadroom"
+            },
+            "type" : "array"
+          },
+          "fits" : {
+            "type" : "boolean"
+          },
+          "holderEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "jointMwh" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "requestedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "stamp" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "computedAt", "demands", "fits", "holderEntityId", "requestedMwh", "stamp" ],
+        "type" : "object"
+      },
+      "HeadroomRow" : {
+        "properties" : {
+          "bucketCode" : {
+            "type" : "string"
+          },
+          "headroomMwh" : {
+            "items" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "heldMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "vintageYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "bucketCode", "headroomMwh", "heldMwh", "vintageYear" ],
+        "type" : "object"
+      },
+      "HeadroomTable" : {
+        "properties" : {
+          "computedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "deliveryDates" : {
+            "items" : {
+              "format" : "date",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "holderEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HeadroomRow"
+            },
+            "type" : "array"
+          },
+          "stamp" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "computedAt", "deliveryDates", "holderEntityId", "rows", "stamp" ],
         "type" : "object"
       },
       "HistoryEntryMapStringObject" : {
@@ -10405,6 +10615,81 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CoverageReport"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Allocation" ]
+      }
+    },
+    "/api/v1/allocation/headroom" : {
+      "get" : {
+        "operationId" : "allocation_headroomTable",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "holderEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HeadroomTable"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Allocation" ]
+      }
+    },
+    "/api/v1/allocation/headroom/check" : {
+      "post" : {
+        "operationId" : "allocation_headroomCheck",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/HeadroomCheck"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HeadroomResult"
                 }
               }
             },

@@ -11,7 +11,9 @@ import com.pianonurmi.etrm.allocation.domain.ValuePolicy
 import com.pianonurmi.etrm.inventory.api.LotSnapshot
 import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
+import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
+import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.registry.api.TransferRoute
 import com.pianonurmi.etrm.registry.api.TransferRouteQuery
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -35,6 +37,43 @@ class ProblemBuilder(
 
     private data class EligibilityKey(val criterion: String, val deliveryDate: LocalDate, val targetRegistryCode: String?)
 
+    /**
+     * The classes a demand may take, by the same rule as an obligation's: it expires after the delivery date, a
+     * feasible route reaches the target registry (its own when none is given) and it satisfies the criterion.
+     */
+    fun eligible(
+        classes: List<LotClass>,
+        criterion: Criterion,
+        deliveryDate: LocalDate,
+        targetRegistryCode: String?,
+        routeOf: (String, String) -> TransferRoute = cachedRoutes(),
+    ): BitSet = eligibleClasses(classes, criteria.bind(criterion, criteria.contextFor(deliveryDate)), deliveryDate, targetRegistryCode, routeOf)
+
+    /** Route lookups remembered for the lifetime of the returned function (one build, one cache entry). */
+    fun cachedRoutes(): (String, String) -> TransferRoute {
+        val cache = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, TransferRoute>()
+        return { from, to -> cache.getOrPut(from to to) { routes.route(from, to) } }
+    }
+
+    private fun eligibleClasses(
+        classes: List<LotClass>,
+        bound: BoundCriterion,
+        deliveryDate: LocalDate,
+        targetRegistryCode: String?,
+        routeOf: (String, String) -> TransferRoute,
+    ): BitSet {
+        val bits = BitSet(classes.size)
+        classes.forEach { cls ->
+            if (cls.expiryDate > deliveryDate &&
+                routeOf(cls.registryCode, targetRegistryCode ?: cls.registryCode).feasible &&
+                criteria.evaluate(bound, cls.representative)
+            ) {
+                bits.set(cls.index)
+            }
+        }
+        return bits
+    }
+
     fun build(
         snapshot: LotSnapshot,
         obligations: List<ObligationView>,
@@ -55,27 +94,14 @@ class ProblemBuilder(
                 specificity = criteria.specificity(obligation.criterion),
             )
         }
-        val routeCache = HashMap<Pair<String, String>, TransferRoute>()
-        val routeOf: (String, String) -> TransferRoute = { from, to -> routeCache.getOrPut(from to to) { routes.route(from, to) } }
+        val routeOf = cachedRoutes()
 
         // Eligibility depends only on the criterion, the delivery date and the target registry: obligations that share
         // all three share one row (the criteria evaluation over every class is the dominant cost at scale).
         val rows = HashMap<EligibilityKey, BitSet>()
         val eligible = models.map { obl ->
             val key = EligibilityKey(criteria.toJson(obl.obligation.criterion), obl.obligation.deliveryDate, obl.obligation.targetRegistryCode)
-            rows.getOrPut(key) {
-                val bits = BitSet(classes.size)
-                classes.forEach { cls ->
-                    val target = obl.obligation.targetRegistryCode ?: cls.registryCode
-                    if (cls.expiryDate > obl.obligation.deliveryDate &&
-                        routeOf(cls.registryCode, target).feasible &&
-                        criteria.evaluate(obl.bound, cls.representative)
-                    ) {
-                        bits.set(cls.index)
-                    }
-                }
-                bits
-            }
+            rows.getOrPut(key) { eligibleClasses(classes, obl.bound, obl.obligation.deliveryDate, obl.obligation.targetRegistryCode, routeOf) }
         }
 
         val known = mutableMapOf<Pair<String, Int>, BigDecimal?>()

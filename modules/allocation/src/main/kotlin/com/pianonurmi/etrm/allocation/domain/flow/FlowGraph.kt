@@ -13,14 +13,15 @@ import java.util.ArrayDeque
  * - **trials**: [mark], [snapshot], then [rollback] and [restore] undo a trial edge set and augmentation, so one
  *   solved graph answers many what-if questions.
  */
-class FlowGraph(private val n: Int, expectedEdges: Int = 16) {
+class FlowGraph(vertices: Int, expectedEdges: Int = 16) {
+    private var n = vertices
     private var to = IntArray(maxOf(2, expectedEdges * 2))
     private var cap = LongArray(to.size)
     private var next = IntArray(to.size)
-    private val head = IntArray(n) { -1 }
-    private val level = IntArray(n)
-    private val iter = IntArray(n)
-    private val pathEdges = IntArray(n)
+    private var head = IntArray(n) { -1 }
+    private var level = IntArray(n)
+    private var iter = IntArray(n)
+    private var pathEdges = IntArray(n)
     private var edgeCount = 0
 
     val vertexCount: Int get() = n
@@ -57,6 +58,25 @@ class FlowGraph(private val n: Int, expectedEdges: Int = 16) {
         val current = cap[edge] + cap[edge xor 1]
         require(capacity >= current) { "capacity can only be raised ($capacity < $current)" }
         cap[edge] += capacity - current
+    }
+
+    /** Adds a vertex with no edges (for a trial); returns its index. */
+    fun addVertex(): Int {
+        if (n == head.size) {
+            val size = head.size * 2
+            head = head.copyOf(size)
+            level = level.copyOf(size)
+            iter = iter.copyOf(size)
+            pathEdges = pathEdges.copyOf(size)
+        }
+        head[n] = -1
+        return n++
+    }
+
+    /** Drops the vertices added after the first [count]; their edges must have been rolled back already. */
+    fun truncateVertices(count: Int) {
+        require(count in 0..n) { "cannot truncate $n vertices to $count" }
+        n = count
     }
 
     /** A point to [rollback] to: edges added after it can be removed again. */
@@ -130,7 +150,7 @@ class FlowGraph(private val n: Int, expectedEdges: Int = 16) {
     }
 
     private fun bfs(source: Int, sink: Int, blocked: BooleanArray?): Boolean {
-        level.fill(-1)
+        level.fill(-1, 0, n)
         level[source] = 0
         val queue = ArrayDeque<Int>().apply { add(source) }
         while (queue.isNotEmpty()) {

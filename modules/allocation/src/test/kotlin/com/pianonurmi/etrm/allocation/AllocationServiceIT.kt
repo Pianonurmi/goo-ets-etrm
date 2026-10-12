@@ -3,6 +3,8 @@ package com.pianonurmi.etrm.allocation
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqAllocationPlanRepository
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqObligationRepository
 import com.pianonurmi.etrm.allocation.api.AllocationConstraint
+import com.pianonurmi.etrm.allocation.api.HeadroomCheck
+import com.pianonurmi.etrm.allocation.api.HeadroomDemand
 import com.pianonurmi.etrm.allocation.api.LineStatus
 import com.pianonurmi.etrm.allocation.api.ObligationKind
 import com.pianonurmi.etrm.allocation.api.ObligationStatus
@@ -10,7 +12,9 @@ import com.pianonurmi.etrm.allocation.api.OpenObligation
 import com.pianonurmi.etrm.allocation.api.PlanStatus
 import com.pianonurmi.etrm.allocation.api.PricingStatus
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
+import com.pianonurmi.etrm.allocation.application.AllocationHeadroomSettings
 import com.pianonurmi.etrm.allocation.application.AllocationService
+import com.pianonurmi.etrm.allocation.application.HeadroomService
 import com.pianonurmi.etrm.allocation.application.ObligationService
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
@@ -75,6 +79,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -99,6 +105,8 @@ class AllocationServiceIT {
     private lateinit var allocation: AllocationService
     private lateinit var obligations: ObligationService
     private lateinit var lots: LotService
+    private lateinit var headroom: HeadroomService
+    private lateinit var referenceData: ReferenceDataService
     private lateinit var entityId: UUID
     private lateinit var simAccount: UUID
     private lateinit var manualAccount: UUID
@@ -118,7 +126,7 @@ class AllocationServiceIT {
         val dsl = TestDatabase.dsl
         val clock = Clock.systemUTC()
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
-        val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
+        referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
         val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
         val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
         ProductBucketSeeder(buckets, buckets).seed()
@@ -156,16 +164,23 @@ class AllocationServiceIT {
             )
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus)
+        val problemBuilder = ProblemBuilder(criteria, buckets, routes, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) })
+        headroom = HeadroomService(
+            JooqObligationRepository(dsl),
+            planRepository,
+            problemBuilder,
+            buckets,
+            criteria,
+            lots,
+            actor,
+            clock,
+            settings = AllocationHeadroomSettings(warmOnMiss = false),
+        )
         allocation = AllocationService(
             planRepository,
             JooqObligationRepository(dsl),
             obligations,
-            ProblemBuilder(
-                criteria,
-                buckets,
-                routes,
-                GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) },
-            ),
+            problemBuilder,
             criteria,
             lots,
             lots,
@@ -204,10 +219,18 @@ class AllocationServiceIT {
         }
     }
 
-    private fun receive(gsrn: String, issuance: String, quantity: Long, month: YearMonth = YearMonth.of(2026, 5), cost: String = "1.00") = lots.receive(
+    private fun receive(
+        gsrn: String,
+        issuance: String,
+        quantity: Long,
+        month: YearMonth = YearMonth.of(2026, 5),
+        cost: String = "1.00",
+        holder: UUID = entityId,
+        account: UUID = simAccount,
+    ) = lots.receive(
         ReceiveLots(
-            holderEntityId = entityId,
-            registryAccountId = simAccount,
+            holderEntityId = holder,
+            registryAccountId = account,
             issuanceRef = issuance,
             range = CertificateRange.of(1, quantity),
             deviceGsrn = gsrn,
@@ -222,6 +245,68 @@ class AllocationServiceIT {
             costCurrency = "EUR",
         ),
     )
+
+    @Test
+    fun `available to sell counts what held certificates can still serve, leaves own schedules out and sees changes without events`() {
+        val holder = referenceData.createLegalEntity(CreateLegalEntity("HEADROOM-CO", "Headroom Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        val account = referenceData.createRegistryAccount(
+            CreateRegistryAccount("SIMULATOR", "SIM-HEAD", "Headroom account", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, holder),
+        ).id
+        receive("643000000000000016", "HR-H-1", 1_000, holder = holder, account = account)
+        receive("643000000000000023", "HR-W-1", 1_000, holder = holder, account = account)
+        val nordicHydro = Criterion.all(Criterion.region("NORDIC"), Criterion.energySource("HYDRO"))
+        val sale = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                holder,
+                sourceRef = UUID.randomUUID(),
+                criterion = nordicHydro,
+                quantityMwh = 600,
+                deliveryWindow = LocalDateRange.ofQuarter(2026, 4),
+                deliveryDate = LocalDate.of(2026, 12, 15),
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-HR",
+            ),
+        )
+        val hydro = HeadroomDemand(nordicHydro, 500, LocalDate.of(2026, 11, 30), ref = "hydro")
+        val renewable = HeadroomDemand(Criterion.energySource("RENEWABLE"), 1_500, LocalDate.of(2026, 11, 30), ref = "renewable")
+
+        headroom.checkIfReady(HeadroomCheck(holder, listOf(hydro))) shouldBe null
+        val first = headroom.check(HeadroomCheck(holder, listOf(hydro, renewable)))
+        first.demands[0].let {
+            it.headroomMwh shouldBe 400
+            it.fits shouldBe false
+            it.freeMwh shouldBe 400
+            it.binding.single().productionYear shouldBe 2026
+            it.binding.single().bucketCode shouldContain "HYDRO"
+        }
+        // The hydro sale could take the wind's place for nothing; the wind could not take the hydro's: 2 000 - 600.
+        first.demands[1].headroomMwh shouldBe 1_400
+        first.jointMwh shouldBe 1_400
+        first.fits shouldBe false
+        headroom.checkIfReady(HeadroomCheck(holder, listOf(hydro))).shouldNotBeNull().demands.single().headroomMwh shouldBe 400
+
+        // An amendment of the sale replaces it: its own schedule is not existing demand.
+        headroom.check(HeadroomCheck(holder, listOf(hydro), excludeSourceRefs = setOf(sale.sourceRef!!))).demands.single().headroomMwh shouldBe 1_000
+
+        // A lot received without any event to listen to: the next read sees the new stamp.
+        receive("643000000000000016", "HR-H-2", 300, holder = holder, account = account)
+        val after = headroom.check(HeadroomCheck(holder, listOf(hydro)))
+        after.stamp shouldNotBe first.stamp
+        after.demands.single().let {
+            it.headroomMwh shouldBe 700
+            it.fits shouldBe true
+            it.binding.shouldBeEmpty()
+        }
+
+        val table = headroom.table(holder)
+        table.deliveryDates.size shouldBe 6
+        table.rows.single { it.bucketCode == "ANY_GOO" && it.vintageYear == 2026 }.let {
+            it.heldMwh shouldBe 2_300
+            it.headroomMwh.toSet() shouldBe setOf(1_700L)
+        }
+        table.rows.filter { it.bucketCode == "NORDIC_HYDRO" }.single().headroomMwh.toSet() shouldBe setOf(700L)
+    }
 
     @Test
     fun `constraints are stored with their type and read back`() {

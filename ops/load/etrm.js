@@ -35,6 +35,8 @@ export const options = {
     'http_req_duration{kind:read}': ['p(95)<300', 'p(99)<800'],
     'http_req_duration{kind:write}': ['p(95)<800', 'p(99)<2000'],
     'http_req_duration{kind:solve}': ['p(95)<3000'],
+    // Available to sell (ADR 0036): a trial on prepared figures; the first call per entity prepares them.
+    'http_req_duration{kind:check}': ['p(95)<150'],
     checks: ['rate>0.99'],
   },
 };
@@ -81,8 +83,27 @@ export function reads(ctx) {
     get(`/api/v1/workflow/tasks?status=OPEN&limit=50`, 'inbox');
     get(`/api/v1/workflow/tasks/counts?actionable=true`, 'inbox counts');
     get(`/api/v1/audit/events?limit=50`, 'audit');
+    availableToSell(ctx);
   });
   sleep(p.think);
+}
+
+const NORDIC_HYDRO = {
+  type: 'all',
+  of: [
+    { type: 'countryInRegion', region: 'NORDIC' },
+    { type: 'descendantOf', attribute: 'ENERGY_SOURCE', code: 'HYDRO' },
+  ],
+};
+
+function availableToSell(ctx) {
+  const delivery = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const body = { holderEntityId: ctx.entityId, demands: [{ criterion: NORDIC_HYDRO, quantityMwh: 100, deliveryDate: delivery }] };
+  const res = http.post(`${BASE}/api/v1/allocation/headroom/check`, JSON.stringify(body), {
+    headers: READER,
+    tags: { kind: 'check', name: 'available to sell' },
+  });
+  check(res, { 'available to sell 200': (r) => r.status === 200 });
 }
 
 export function captureTrade(ctx) {

@@ -53,6 +53,17 @@ class JooqObligationRepository(private val dsl: DSLContext) : ObligationReposito
         .orderBy(OBLIGATION.DELIVERY_DATE, OBLIGATION.ID)
         .fetch(::toView)
 
+    override fun openStamp(holderEntityId: UUID): String = dsl.select(
+        DSL.count(),
+        DSL.coalesce(DSL.sum(OBLIGATION.VERSION), DSL.inline(0)),
+        DSL.coalesce(DSL.sum(OBLIGATION.FULFILLED_MWH), DSL.inline(0)),
+        // PostgreSQL has no max(uuid); UUIDv7 text sorts in creation order.
+        DSL.max(OBLIGATION.ID.cast(String::class.java)),
+    )
+        .from(OBLIGATION)
+        .where(OBLIGATION.HOLDER_ENTITY_ID.eq(holderEntityId), OBLIGATION.STATUS.eq(ObligationStatus.OPEN.name))
+        .fetchOne { "${it.value1()}:${it.value2()}:${it.value3()}:${it.value4()}" }!!
+
     override fun insert(obligation: ObligationView) {
         val o = obligation
         dsl.insertInto(OBLIGATION)

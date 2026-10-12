@@ -15,6 +15,7 @@ import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.all
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.region
+import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.PropTestConfig
@@ -190,6 +191,79 @@ class FlowCoreTest {
                 }
                 fits(h) shouldBe true
                 fits(h + 1) shouldBe false
+            }
+        }
+    }
+
+    @Test
+    fun `a short demand names the exhausted supply that limits it, and free supply never exceeds headroom`() {
+        // Hydro (unit 0, 100) of which a hydro sale takes 80; wind (unit 1, 100) nobody needs.
+        val units = listOf(SupplyUnit.Held(0, 100), SupplyUnit.Held(1, 100))
+        val hydro = BitSet().apply { set(0) }
+        val state = FlowState(CompressedFlowGraph.build(units, listOf(FlowDemand(0, 1, 80)), 1, { hydro }, atomKey = { it }))
+
+        val short = state.headroomDetail(hydro)
+        short.mwh shouldBe 20
+        short.freeMwh shouldBe 20
+        short.bindingAtoms.map { state.graph.atoms[it].key } shouldBe listOf(0)
+
+        val either = state.headroomDetail(BitSet().apply { set(0, 2) })
+        either.mwh shouldBe 120
+        either.freeMwh shouldBe 120
+    }
+
+    @Test
+    fun `several new demands together get the most that fits while every group keeps its flow`() {
+        runBlocking {
+            checkAll(
+                PropTestConfig(iterations = 300, seed = 6),
+                Arb.list(Arb.long(0, 60), 1..6),
+                Arb.list(Arb.bind(Arb.long(0, 80), Arb.long(1, 63)) { d, mask -> d to mask }, 1..4),
+                Arb.list(Arb.bind(Arb.long(0, 90), Arb.long(1, 63)) { d, mask -> d to mask }, 1..3),
+            ) { supplies, demandSpecs, newSpecs ->
+                val units = supplies.mapIndexed { i, q -> SupplyUnit.Held(i, q) }
+
+                fun maskOf(mask: Long) = BitSet().apply { units.indices.filter { mask shr it and 1L == 1L }.forEach { set(it) } }
+                val masks = demandSpecs.map { (_, mask) -> maskOf(mask) }
+                val demands = demandSpecs.mapIndexed { i, (d, _) -> FlowDemand(i, 1, d) }
+                val state = FlowState(CompressedFlowGraph.build(units, demands, demands.size, { masks[it] }))
+                val before = state.network.snapshot()
+                val news = newSpecs.map { (q, mask) -> maskOf(mask) to q }
+                val joint = state.jointHeadroom(news)!!
+                state.network.snapshot().contentEquals(before) shouldBe true
+                news.forEach { (eligible, _) -> state.headroomDetail(eligible).let { it.freeMwh shouldBeLessThanOrEqual it.mwh } }
+                val kept = state.graph.groups.map { state.groupFlow(it.index) }
+
+                fun fits(total: Long): Boolean {
+                    // Groups keep exactly their flow; the new demands, each up to its quantity, get `total` together.
+                    val groups = state.graph.groups.size
+                    val sink = 1 + units.size + groups + news.size + 1
+                    val g = FlowGraph(sink + 1)
+                    units.forEach { g.addEdge(0, 1 + it.classIndex, it.quantityMwh) }
+                    state.graph.groups.forEach { grp ->
+                        val node = 1 + units.size + grp.index
+                        var u = grp.eligibleUnits.nextSetBit(0)
+                        while (u >= 0) {
+                            g.addEdge(1 + u, node, FlowState.UNBOUNDED)
+                            u = grp.eligibleUnits.nextSetBit(u + 1)
+                        }
+                        g.addEdge(node, sink, kept[grp.index])
+                    }
+                    val collector = sink - 1
+                    news.forEachIndexed { i, (eligible, q) ->
+                        val node = 1 + units.size + groups + i
+                        var u = eligible.nextSetBit(0)
+                        while (u >= 0) {
+                            g.addEdge(1 + u, node, FlowState.UNBOUNDED)
+                            u = eligible.nextSetBit(u + 1)
+                        }
+                        g.addEdge(node, collector, q)
+                    }
+                    g.addEdge(collector, sink, total)
+                    return g.augment(0, sink) == kept.sum() + total
+                }
+                fits(joint) shouldBe true
+                fits(joint + 1) shouldBe false
             }
         }
     }

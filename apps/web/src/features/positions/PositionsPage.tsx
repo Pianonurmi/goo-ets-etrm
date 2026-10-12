@@ -1,10 +1,22 @@
 import { BarChart } from '@mantine/charts';
-import { Alert, Anchor, NumberInput, Paper, SimpleGrid, Stack, Table, Tabs, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  NumberInput,
+  Paper,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Table,
+  Tabs,
+  Title,
+} from '@mantine/core';
 import type { ColDef } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
+import { useCan } from '@/shared/auth/Can';
 import type { Schema } from '@/shared/api/types';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { KpiCard } from '@/shared/components/KpiCard';
@@ -15,6 +27,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { HeadroomTab } from './HeadroomTab';
 import { ladderSeries } from './model/ladder';
 import { SnapshotsTab } from './SnapshotsTab';
 
@@ -124,6 +137,30 @@ function GooPosition({ entityId }: { entityId: string }) {
         </Stack>
       )}
     </QueryState>
+  );
+}
+
+/** The GoO position, and next to it what the entity can still sell from the certificates it holds. */
+function GooView({ entityId }: { entityId: string }) {
+  const { t } = useTranslation();
+  const canSeeHeadroom = useCan('allocation_headroomTable');
+  const [view, setView] = useState<'position' | 'headroom'>('position');
+  if (!canSeeHeadroom) return <GooPosition entityId={entityId} />;
+  return (
+    <Stack>
+      <SegmentedControl
+        value={view}
+        onChange={(value) => setView(value === 'headroom' ? 'headroom' : 'position')}
+        data={[
+          { value: 'position', label: t('positions.view.position') },
+          { value: 'headroom', label: t('positions.view.headroom') },
+        ]}
+        aria-label={t('positions.view.label')}
+        w="fit-content"
+        data-testid="goo-view"
+      />
+      {view === 'position' ? <GooPosition entityId={entityId} /> : <HeadroomTab entityId={entityId} />}
+    </Stack>
   );
 }
 
@@ -251,7 +288,7 @@ export function PositionsPage() {
             </Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="goo" pt="md">
-            <GooPosition entityId={entity.id} />
+            <GooView entityId={entity.id} />
           </Tabs.Panel>
           <Tabs.Panel value="ets" pt="md">
             <EtsPosition entityId={entity.id} />

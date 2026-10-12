@@ -40,6 +40,8 @@ Run on every captured or amended trade; findings are on the trade and in the app
 | POSITION_LIMIT | REQUIRES_RISK_APPROVAL | the net position after the trade over a position limit |
 | TENOR_LIMIT | REQUIRES_RISK_APPROVAL | the trade delivers beyond a tenor limit |
 | LIMIT_IN_BREACH | WARN | a stop loss on the trade's book, or the compliance short limit (allowances), is in breach |
+| GOO_HEADROOM | WARN / INFO | (allocation, ADR 0036) a GoO sale's delivery, or its deliveries together, exceed what held certificates can still serve; INFO "not checked" while the figures are prepared |
 
 A trade with a REQUIRES_RISK_APPROVAL finding needs approval regardless of the threshold, and only RISK may give it.
-`POST /api/v1/risk/pre-trade-check?tradeId=` re-runs the check for an existing trade.
+`POST /api/v1/risk/pre-trade-check?tradeId=` re-runs the checks for an existing trade: risk's own and every other
+module's (`TradeApprovalCheck`), as on submission.

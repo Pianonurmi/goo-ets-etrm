@@ -71,6 +71,31 @@ The trade's **Approval task** button opens its inbox task. The trader can withdr
 > **Try it in the demo:** as *Tia Trader*, capture a GoO sale to *Aurora Power*. Switch to *Mia Middle* and approve
 > it from the inbox.
 
+## Available to sell
+
+When a leg **sells** guarantees of origin, the capture form shows under each delivery how much you can still sell
+for its criteria and delivery date: **Available to sell: N MWh**. It is worked out from the certificates the entity
+holds and appears a moment after you stop typing; it is not shown to users who may not run the check, for purchases
+and allowance trades, or when the figure cannot be worked out. When a delivery asks for more than is available, the
+hint turns amber, says how much it asks for and names the supply that runs out (bucket, vintage and what is left of
+it).
+
+- **Existing sales stay whole.** The figure is the most a new sale could get without taking anything from sales
+  already agreed. Those sales may be moved onto other certificates that serve them too, so a certificate they use is
+  still counted as available when something else can take its place.
+- **Deliveries of one trade compete.** Each delivery is checked on its own and then all together. When every delivery
+  fits by itself but they do not fit together, a line under the leg says what they ask for and what the same
+  certificates can serve.
+- **An upper bound.** Device caps and minimum shares of existing sales are not in the figure, so a sale that fits can
+  still leave the allocation short. The **Available to sell** table under **Positions** shows the figures for all
+  delivery months.
+- **Advice only.** The hint never blocks capturing or amending. When you amend a trade, its own deliveries are left
+  out so they do not count against themselves.
+
+**Check limits** and the pre-trade checks on a captured trade add the same check as a finding named
+`GOO_HEADROOM`. A warning means a delivery does not fit; an information finding says the figures are still being
+prepared, so the check was not made.
+
 ## Amendments and versions
 
 A trade's page opens with its key facts (notional, counterparty, book, trader, references) and, beside them, a

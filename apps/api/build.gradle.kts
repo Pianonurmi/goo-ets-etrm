@@ -42,6 +42,9 @@ tasks.named<Test>("test") {
     systemProperty("etrm.openapi.snapshot", openApiSnapshot.asFile.absolutePath)
     // Two carrier threads for virtual threads: pinning or a lock held across blocking calls shows up as a hang.
     jvmArgs("-Djdk.virtualThreadScheduler.parallelism=2", "-Djdk.virtualThreadScheduler.maxPoolSize=4")
+    // The cached Spring contexts of every full-context test, plus ArchUnit importing every class (ModularityTests),
+    // outgrew 1 GB in increment 8.
+    maxHeapSize = "1536m"
     inputs.files(openApiSnapshot).withPropertyName("openApiSnapshot")
 }
 

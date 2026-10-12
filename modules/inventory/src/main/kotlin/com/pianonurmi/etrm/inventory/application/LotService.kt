@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.inventory.application
 
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
+import com.pianonurmi.etrm.inventory.api.HoldingStamp
 import com.pianonurmi.etrm.inventory.api.LotCancelled
 import com.pianonurmi.etrm.inventory.api.LotCommand
 import com.pianonurmi.etrm.inventory.api.LotCorrected
@@ -299,7 +300,7 @@ class LotService(
     override fun journalSeq(): Long = journal.lastSeq()
 
     @Transactional(readOnly = true)
-    override fun journalSeq(holderEntityId: UUID): Long = journal.lastSeq(holderEntityId)
+    override fun holdingStamp(holderEntityId: UUID): HoldingStamp = lots.holdingStamp(holderEntityId)
 
     @Transactional(readOnly = true)
     override fun verifyJournal(): List<UUID> = journal.brokenChains()

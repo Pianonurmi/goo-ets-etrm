@@ -52,6 +52,7 @@ import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.FindingSeverity
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeApprovalCheck
 import com.pianonurmi.etrm.trade.api.TradeFilter
 import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
@@ -60,6 +61,7 @@ import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -96,6 +98,8 @@ class RiskService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    /** Every module's pre-trade check (this one's through [RiskTriggers]), for [recheck]; resolved when used. */
+    private val checks: ObjectProvider<TradeApprovalCheck>? = null,
 ) : RiskQuery, RiskCommand {
     private val log = LoggerFactory.getLogger(RiskService::class.java)
 
@@ -440,12 +444,15 @@ class RiskService(
                 .map { ApprovalFinding("LIMIT_IN_BREACH", FindingSeverity.WARN, "${it.type} limit ${it.id} is in breach") }
     }
 
-    /** The pre-trade check of an existing trade against current limits (what-if, nothing is stored). */
+    /**
+     * The pre-trade checks of an existing trade, as they would run on submission (what-if, nothing is stored): this
+     * module's limits and credit, and the other modules' checks, such as available to sell (allocation).
+     */
     @Transactional(readOnly = true)
     fun recheck(tradeId: UUID): List<ApprovalFinding> {
         val trade = trades.requireTrade(tradeId)
         readable(trade.legalEntityId)
-        return preTradeFindings(trade)
+        return checks?.orderedStream()?.toList()?.takeIf { it.isNotEmpty() }?.flatMap { it.check(trade) } ?: preTradeFindings(trade)
     }
 
     private fun relevant(trade: TradeView, limit: RiskLimitView): Boolean =

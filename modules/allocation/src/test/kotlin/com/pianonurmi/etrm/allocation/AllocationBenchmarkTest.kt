@@ -86,7 +86,20 @@ class AllocationBenchmarkTest {
             "benchmark flow: pairs=$pairs compressed groups=${graph.groups.size} atoms=${graph.atoms.size} edges=${graph.edgeCount} " +
                 "solve=${flowMs}ms headroom=${headroomNs / 1_000}us (nordic hydro: $headroom MWh)",
         )
+        // Available to sell (ADR 0036): a check is one detailed trial per delivery and one joint trial; the table one
+        // trial per bucket, vintage and month-end. Eligibility comes from the prepared figures, so it is not timed here.
+        val checks = criteria.map { c ->
+            val bound = com.pianonurmi.etrm.product.domain.CriteriaBinder.bind(c, EngineFixtures.ctx(LocalDate.of(2026, 12, 1)))
+            BitSet().apply { problem.classes.forEach { if (EngineFixtures.evaluate(bound, it.representative)) set(it.index) } }
+        }
+        val checkNs = List(200) { i -> measureNanoTime { state.headroomDetail(checks[i % checks.size]) } }.sorted()
+        val p95Ms = checkNs[checkNs.size * 95 / 100] / 1_000_000.0
+        val jointMs = measureTimeMillis { state.jointHeadroom(List(12) { checks[it % checks.size] to 1_000L }) }
+        val tableMs = measureTimeMillis { repeat(16 * 2 * 6) { state.headroom(checks[it % checks.size]) } }
+        println("benchmark available to sell: check p95=${"%.2f".format(p95Ms)}ms joint(12)=${jointMs}ms table(192 cells)=${tableMs}ms")
         (solveMs < 60_000) shouldBe true
         (coverageMs < 30_000) shouldBe true
+        (p95Ms < 150) shouldBe true
+        (tableMs < 2_000) shouldBe true
     }
 }

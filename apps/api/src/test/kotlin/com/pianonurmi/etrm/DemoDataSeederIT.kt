@@ -61,6 +61,7 @@ class DemoDataSeederIT {
         marketAndValuation(finland, sweden)
         ledger(finland)
         allocationAndRegistry(finland, sweden)
+        availableToSell(finland)
         operations(finland, sweden)
         compliance(finland, sweden)
         inboxes()
@@ -153,6 +154,26 @@ class DemoDataSeederIT {
             .extract().jsonPath()
         instructions.getList<String>("items.status") shouldContainAll listOf("CONFIRMED", "FAILED", "PENDING_APPROVAL")
         instructions.getList<String>("items.findAll { it.type == 'SURRENDER' }.status") shouldContainAll listOf("CONFIRMED")
+    }
+
+    private fun availableToSell(finland: String) {
+        val trader = { asUser("trader", "TRADER").contentType("application/json") }
+        val table = trader().get("/api/v1/allocation/headroom?holderEntityId=$finland").then().statusCode(200).extract().jsonPath()
+        table.getList<String>("deliveryDates").size shouldBe 6
+        table.getList<String>("rows.bucketCode") shouldContainAll listOf("NORDIC_HYDRO", "ANY_GOO")
+        val nextMonthEnd = java.time.YearMonth.now().plusMonths(1).atEndOfMonth()
+        val hydro = """{"type":"all","of":[{"type":"countryInRegion","region":"NORDIC"},{"type":"descendantOf","attribute":"ENERGY_SOURCE","code":"HYDRO"}]}"""
+        val check = trader()
+            .body(
+                """{"holderEntityId":"$finland","demands":[
+                   {"criterion":$hydro,"quantityMwh":1,"deliveryDate":"$nextMonthEnd","ref":"small"},
+                   {"criterion":$hydro,"quantityMwh":100000000,"deliveryDate":"$nextMonthEnd","ref":"huge"}]}""",
+            )
+            .post("/api/v1/allocation/headroom/check").then().statusCode(200).extract().jsonPath()
+        check.getBoolean("demands.find { it.ref == 'small' }.fits") shouldBe true
+        check.getBoolean("demands.find { it.ref == 'huge' }.fits") shouldBe false
+        check.getList<String>("demands.find { it.ref == 'huge' }.binding.bucketCode").size shouldBeGreaterThanOrEqual 1
+        check.getBoolean("fits") shouldBe false
     }
 
     private fun operations(finland: String, sweden: String) {

@@ -6,6 +6,10 @@ import com.pianonurmi.etrm.allocation.api.AllocationPlanView
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.AllocationWhatIf
 import com.pianonurmi.etrm.allocation.api.CoverageReport
+import com.pianonurmi.etrm.allocation.api.HeadroomCheck
+import com.pianonurmi.etrm.allocation.api.HeadroomQuery
+import com.pianonurmi.etrm.allocation.api.HeadroomResult
+import com.pianonurmi.etrm.allocation.api.HeadroomTable
 import com.pianonurmi.etrm.allocation.api.ObligationCommand
 import com.pianonurmi.etrm.allocation.api.ObligationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationView
@@ -38,7 +42,20 @@ class AllocationController(
     private val obligations: ObligationCommand,
     private val obligationQuery: ObligationQuery,
     private val actorProvider: ActorProvider,
+    private val headroom: HeadroomQuery,
 ) {
+    /** Available to sell (ADR 0036): how much of each demand the entity could still sell from held certificates. */
+    @PostMapping("/headroom/check")
+    fun headroomCheck(
+        @RequestBody body: HeadroomCheck,
+    ): HeadroomResult = headroom.check(body)
+
+    /** Available to sell per product bucket and vintage, for delivery at each of the next month-ends. */
+    @GetMapping("/headroom")
+    fun headroomTable(
+        @RequestParam holderEntityId: UUID,
+    ): HeadroomTable = headroom.table(holderEntityId)
+
     @GetMapping("/obligations")
     fun obligations(
         @RequestParam holderEntityId: UUID,
