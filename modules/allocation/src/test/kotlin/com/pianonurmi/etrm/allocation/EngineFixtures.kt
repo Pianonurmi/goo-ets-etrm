@@ -9,19 +9,25 @@ import com.pianonurmi.etrm.allocation.domain.AllocationProblem
 import com.pianonurmi.etrm.allocation.domain.LotClass
 import com.pianonurmi.etrm.allocation.domain.LotClassifier
 import com.pianonurmi.etrm.allocation.domain.ObligationModel
+import com.pianonurmi.etrm.allocation.domain.ProblemShape
+import com.pianonurmi.etrm.allocation.domain.Scoring
+import com.pianonurmi.etrm.allocation.domain.ValuePolicy
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.BoundBuckets
 import com.pianonurmi.etrm.product.api.EnergyCarrier
+import com.pianonurmi.etrm.product.api.ProductBucketView
 import com.pianonurmi.etrm.product.api.criteria.BindContext
 import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.LotAttribute
 import com.pianonurmi.etrm.product.domain.CriteriaBinder
 import com.pianonurmi.etrm.product.domain.CriteriaEvaluator
+import com.pianonurmi.etrm.registry.api.TransferRoute
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.YearMonth
@@ -113,6 +119,8 @@ object EngineFixtures {
         priority: Int = 1,
         constraints: List<AllocationConstraint> = emptyList(),
         id: UUID = Ids.newId(),
+        bucket: String? = null,
+        vintage: Int? = null,
     ) = ObligationView(
         id = id,
         kind = ObligationKind.SALE,
@@ -134,14 +142,34 @@ object EngineFixtures {
         constraints = constraints,
         status = ObligationStatus.OPEN,
         version = 1,
+        bucketCode = bucket,
+        vintageYear = vintage,
     )
 
-    /** Builds a problem with a simple valuation: more specific bucket proxies are not needed, so score = cost basis + scarcity. */
-    fun problem(
-        lots: List<LotView>,
-        obligations: List<ObligationView>,
-        values: (LotView) -> BigDecimal = { it.costBasisPerMwh ?: BigDecimal.ZERO },
-    ): AllocationProblem {
+    fun bucket(code: String, criterion: Criterion, specificity: Int) = ProductBucketView(
+        id = Ids.newId(),
+        code = code,
+        name = code,
+        energyCarrier = EnergyCarrier.ELECTRICITY,
+        criteriaId = Ids.newId(),
+        criterion = criterion,
+        summary = criterion.toString(),
+        specificity = BigDecimal(specificity),
+        markCurveRef = null,
+        sortOrder = specificity,
+        active = true,
+        version = 1,
+    )
+
+    private class Shape(val classes: List<LotClass>, val models: List<ObligationModel>, val eligible: List<BitSet>) : ProblemShape {
+        override val obligations: List<ObligationModel> get() = models
+
+        override fun eligibleSupply(obl: ObligationModel): Long = eligible[obl.index].stream().mapToLong { classes[it].quantity }.sum()
+
+        override fun eligibleClassIndexes(obl: ObligationModel): List<Int> = eligible[obl.index].stream().toArray().toList()
+    }
+
+    private fun shape(lots: List<LotView>, obligations: List<ObligationView>): Shape {
         val classes = LotClassifier.classify(lots, emptyMap())
         val models = obligations.mapIndexed { index, o ->
             val c = ctx(o.deliveryDate)
@@ -168,19 +196,29 @@ object EngineFixtures {
                 }
             }
         }
+        return Shape(classes, models, eligible)
+    }
+
+    /** Builds a problem with a simple valuation: more specific bucket proxies are not needed, so score = cost basis + scarcity. */
+    fun problem(
+        lots: List<LotView>,
+        obligations: List<ObligationView>,
+        values: (LotView) -> BigDecimal = { it.costBasisPerMwh ?: BigDecimal.ZERO },
+    ): AllocationProblem {
+        val shape = shape(lots, obligations)
         val competition = HashMap<Int, BigDecimal>()
-        models.forEach { m ->
-            val supply = eligible[m.index].stream().mapToLong { classes[it].quantity }.sum()
+        shape.models.forEach { m ->
+            val supply = shape.eligibleSupply(m)
             if (supply > 0) {
-                eligible[m.index].stream().forEach { c ->
+                shape.eligible[m.index].stream().forEach { c ->
                     competition.merge(c, BigDecimal(m.demand).divide(BigDecimal(supply), 6, java.math.RoundingMode.HALF_UP), BigDecimal::add)
                 }
             }
         }
         return AllocationProblem(
-            classes,
-            models,
-            eligible,
+            shape.classes,
+            shape.models,
+            shape.eligible,
             scoring = { cls: LotClass, _: ObligationModel ->
                 val value = values(cls.representative)
                 val scarcity = competition[cls.index] ?: BigDecimal.ZERO
@@ -188,6 +226,28 @@ object EngineFixtures {
             },
             // These scores ignore the obligation entirely.
             scoreKey = { Unit },
+        )
+    }
+
+    /** A problem scored as ProblemBuilder scores it (ADR 0035): bucket marks in EUR, expiry haircut, transfer fee. */
+    fun valued(
+        lots: List<LotView>,
+        obligations: List<ObligationView>,
+        buckets: List<ProductBucketView>,
+        marks: (String, Int) -> BigDecimal?,
+        policy: ValuePolicy = ValuePolicy(),
+        feePerMwh: BigDecimal = BigDecimal.ZERO,
+    ): AllocationProblem {
+        val shape = shape(lots, obligations)
+        val bound = BoundBuckets(buckets.map { it to CriteriaBinder.bind(it.criterion, ctx(LocalDate.of(2026, 1, 1))) }, CriteriaEvaluator::matches)
+        val scoring = Scoring(bound, marks, { from, to -> TransferRoute(from, to, true, if (from == to) BigDecimal.ZERO else feePerMwh, 0) }, policy)
+        val scarcity = scoring.scarcityIndex(shape)
+        return AllocationProblem(
+            shape.classes,
+            shape.models,
+            shape.eligible,
+            scoring = { cls, obl -> scoring.score(cls, obl, scarcity) },
+            scoreKey = { obl -> obl.obligation.deliveryDate to obl.obligation.targetRegistryCode },
         )
     }
 

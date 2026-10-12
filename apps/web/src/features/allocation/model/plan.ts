@@ -5,6 +5,7 @@ export type Line = Schema<'AllocationLineView'>;
 type Plan = Schema<'AllocationPlanView'>;
 type PlanStatus = Plan['status'];
 type Coverage = Schema<'CoverageReport'>;
+type NamedObligation = Pick<Schema<'ObligationView'>, 'deliveryDate' | 'tradeRef' | 'criteriaSummary'>;
 type Obligation = Pick<Schema<'ObligationView'>, 'id' | 'deliveryDate' | 'targetAccountRef' | 'kind'>;
 
 export interface LineGroup {
@@ -108,4 +109,9 @@ export function coverageRows(
       covered: row.coveredMwh,
       shortfall: row.shortfallMwh,
     }));
+}
+
+/** Delivery date, then the trade or, without one, the criteria: obligations often share their criteria. */
+export function obligationName(obligation: NamedObligation | undefined): string | undefined {
+  return obligation && `${obligation.deliveryDate} · ${obligation.tradeRef ?? obligation.criteriaSummary}`;
 }

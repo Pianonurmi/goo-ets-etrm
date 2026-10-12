@@ -27,12 +27,12 @@ data class ExactSolverSettings(
  * Exact allocation with OR-Tools CP-SAT. The decision variable is the quantity of each eligible class assigned to each
  * obligation, with class supply, obligation demand and `MaxSharePerDevice` as hard limits. Three objectives are
  * solved in order, each one fixed before the next:
- * 1. cover as much demand as possible;
+ * 1. cover as much demand as possible, priority tier by tier (a lower tier never gains at a higher tier's expense);
  * 2. miss as little of the `MinShare` quotas as possible;
- * 3. deliver at the lowest total score (cost per MWh times quantity, the score greedy sorts by).
+ * 3. deliver at the lowest total cost (EUR per MWh times quantity, ADR 0035: what greedy sorts by).
  *
  * The greedy solution is the starting hint, and the result is never worse than greedy: the two are compared on the
- * three objectives in order (coverage, then shortfall, then cost), and when the exact result is worse, or the solver
+ * three objectives in order (coverage per priority tier, then shortfall, then cost), and when the exact result is worse, or the solver
  * finds nothing in time, or the problem is too large, or the native library cannot load, the greedy result is
  * returned and the reason is reported.
  */
@@ -65,13 +65,17 @@ class CpSatSolver(
     private fun costOf(score: ScoreBreakdown): Long = score.total.movePointRight(SCORE_DECIMALS).setScale(0, RoundingMode.HALF_UP).longValueExact()
 
     /** The three objectives of a solution, in the order they are optimised. */
-    internal data class Objectives(val covered: Long, val shortfall: Long, val cost: Long) {
+    internal data class Objectives(val coveredByTier: List<Long>, val shortfall: Long, val cost: Long) {
         /** The first objective on which this solution is worse than [other], or null when it is at least as good. */
-        fun worseThan(other: Objectives): String? = when {
-            covered != other.covered -> if (covered < other.covered) "coverage" else null
-            shortfall != other.shortfall -> if (shortfall > other.shortfall) "minimum-share shortfall" else null
-            cost > other.cost -> "cost"
-            else -> null
+        fun worseThan(other: Objectives): String? {
+            coveredByTier.zip(other.coveredByTier).forEachIndexed { tier, (mine, theirs) ->
+                if (mine != theirs) return if (mine < theirs) "coverage of priority tier ${tier + 1}" else null
+            }
+            return when {
+                shortfall != other.shortfall -> if (shortfall > other.shortfall) "minimum-share shortfall" else null
+                cost > other.cost -> "cost"
+                else -> null
+            }
         }
     }
 
@@ -126,42 +130,60 @@ class CpSatSolver(
         }
 
         fun run(): SolveResult {
-            val coverage = LinearExpr.sum(vars.map { it.x }.toTypedArray())
             val missed = LinearExpr.sum(shortfalls.toTypedArray())
             val cost = LinearExpr.weightedSum(vars.map { it.x }.toTypedArray(), vars.map { it.cost }.toLongArray())
 
-            model.maximize(coverage)
-            val first = phase() ?: return give("no solution within the time limit")
-            val covered = first.first.sumOf { it.quantityMwh }
-            model.addGreaterOrEqual(coverage, covered)
-            var best = first
+            // Coverage tier by tier, highest priority first (the order coverage analysis grants supply in, ADR 0007):
+            // a lower tier can never gain at a higher tier's expense.
+            var best: kotlin.Pair<List<Assignment>, String>? = null
+            val pending = tiers().toMutableList()
+            while (pending.isNotEmpty()) {
+                val tier = pending.first()
+                model.maximize(tierCoverage(tier))
+                best?.let { hint(it.first) }
+                val solved = phase() ?: break
+                best = solved
+                model.addGreaterOrEqual(tierCoverage(tier), coveredIn(solved.first, tier))
+                pending.removeAt(0)
+            }
+            var top: kotlin.Pair<List<Assignment>, String> = best ?: return give("no solution within the time limit")
+            // Out of time before the last tier: hold the remaining tiers at what the best solution covers, so the
+            // later phases cannot trade their coverage for cost.
+            pending.forEach { tier -> model.addGreaterOrEqual(tierCoverage(tier), coveredIn(top.first, tier)) }
 
             if (shortfalls.isNotEmpty()) {
                 model.minimize(missed)
-                hint(best.first)
+                hint(top.first)
                 val second = phase()
                 if (second != null) {
-                    best = second
+                    top = second
                     model.addLessOrEqual(missed, shortfallOf(second.first))
                 }
             }
             model.minimize(cost)
-            hint(best.first)
-            phase()?.let { best = it }
+            hint(top.first)
+            phase()?.let { top = it }
 
             // The floor: the result must be at least as good as greedy on all three objectives, compared in order.
-            objectivesOf(best.first).worseThan(objectivesOf(baseline))?.let { objective ->
+            objectivesOf(top.first).worseThan(objectivesOf(baseline))?.let { objective ->
                 return give("exact result is worse than greedy on $objective")
             }
             return SolveResult(
-                best.first,
+                top.first,
                 name,
-                mapOf("status" to best.second, "pairs" to vars.size, "wallTimeMs" to settings.timeLimit.toMillis() - remainingMs()),
+                mapOf("status" to top.second, "pairs" to vars.size, "wallTimeMs" to settings.timeLimit.toMillis() - remainingMs()),
             )
         }
 
+        private fun tierCoverage(tier: Int): LinearExpr = LinearExpr.sum(vars.filter { it.obl.priority == tier }.map { it.x }.toTypedArray())
+
+        private fun coveredIn(assignments: List<Assignment>, tier: Int): Long =
+            assignments.filter { problem.obligations[it.obligationIndex].priority == tier }.sumOf { it.quantityMwh }
+
+        private fun tiers(): List<Int> = problem.obligations.filter { it.demand > 0 }.map { it.priority }.distinct().sorted()
+
         private fun objectivesOf(assignments: List<Assignment>) = Objectives(
-            covered = assignments.sumOf { it.quantityMwh },
+            coveredByTier = tiers().map { tier -> coveredIn(assignments, tier) },
             shortfall = shortfallOf(assignments),
             cost = assignments.sumOf { it.quantityMwh * costOf(it.score) },
         )

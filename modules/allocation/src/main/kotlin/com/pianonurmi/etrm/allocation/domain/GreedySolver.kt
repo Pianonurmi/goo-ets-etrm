@@ -8,7 +8,8 @@ import java.math.RoundingMode
 
 /**
  * Deterministic greedy: most constrained obligation first (eligible supply divided by demand), then earliest
- * delivery, then highest static specificity; within an obligation the cheapest-to-deliver class first.
+ * delivery, then highest static specificity; within an obligation the cheapest-to-deliver class first (EUR cost,
+ * ADR 0035; equal costs go to the class fewer obligations compete for).
  * `MinShare` quotas are filled first from the restricted subset; `MaxSharePerDevice` is enforced as a running cap.
  */
 class GreedySolver(private val evaluate: (BoundCriterion, CriteriaSubject) -> Boolean) : Solver {
@@ -76,11 +77,11 @@ class GreedySolver(private val evaluate: (BoundCriterion, CriteriaSubject) -> Bo
     private fun ranked(problem: AllocationProblem, obl: ObligationModel, rankings: HashMap<Any, IntArray>): Sequence<ScoredClass> {
         val keyOf = problem.scoreKey
             ?: return problem.eligibleClasses(obl).map { ScoredClass(it, problem.score(it, obl)) }
-                .sortedWith(compareBy<ScoredClass> { it.score.total }.thenBy { it.cls.index })
+                .sortedWith(BY_COST)
                 .asSequence()
         val order = rankings.getOrPut(keyOf(obl)) {
             problem.classes.map { ScoredClass(it, problem.score(it, obl)) }
-                .sortedWith(compareBy<ScoredClass> { it.score.total }.thenBy { it.cls.index })
+                .sortedWith(BY_COST)
                 .map { it.cls.index }
                 .toIntArray()
         }
@@ -98,3 +99,6 @@ class GreedySolver(private val evaluate: (BoundCriterion, CriteriaSubject) -> Bo
 }
 
 private class ScoredClass(val cls: LotClass, val score: ScoreBreakdown)
+
+/** Cheapest first; between equal costs the class fewer obligations compete for (lower scarcity), then the index. */
+private val BY_COST = compareBy<ScoredClass> { it.score.total }.thenBy { it.score.scarcity }.thenBy { it.cls.index }

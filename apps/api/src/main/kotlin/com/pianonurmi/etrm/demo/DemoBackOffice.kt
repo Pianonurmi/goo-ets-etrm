@@ -93,7 +93,7 @@ class DemoBackOffice(private val api: DemoClient, private val calendar: DemoCale
         executePlan(finland, hydro, "demo-plan-fi-hydro")
         val wind = open(finland).filter { it["criteriaSummary"].toString().contains("WIND", ignoreCase = true) }.take(1).map { it.id() }
         executePlan(finland, wind, "demo-plan-fi-wind")
-        val waiting = open(sweden).take(2).map { it.id() }
+        val waiting = open(sweden).take(2).map { it.id() } + genericSale(sweden)
         if (waiting.isNotEmpty()) {
             api.post(
                 DemoUser.TRADER,
@@ -104,6 +104,19 @@ class DemoBackOffice(private val api: DemoClient, private val calendar: DemoCale
             )
         }
     }
+
+    /**
+     * A generic EU renewable sale. Nordic hydro is the cheapest certificate that qualifies, so the plan delivers it and
+     * shows what that gives away against the generic mark (ADR 0035).
+     */
+    private fun genericSale(entity: DemoEntity): String = api.post(
+        DemoUser.BACKOFFICE,
+        "/api/v1/allocation/obligations",
+        """{"kind":"SALE","holderEntityId":"${entity.id}","criterion":${DemoDesk.criterion("EU_RENEWABLE")},"quantityMwh":200,
+           "deliveryWindow":{"start":"${calendar.today}","endExclusive":"${calendar.today.plusDays(30)}"},"deliveryDate":"${calendar.today.plusDays(20)}",
+           "sourceRef":"${java.util.UUID.nameUUIDFromBytes("demo-generic-sale".toByteArray())}",
+           "targetRegistryCode":"SIMULATOR","targetAccountRef":"SIM-EXT-GENERIC"}""",
+    ).id()
 
     private fun executePlan(entity: DemoEntity, obligationIds: List<String>, key: String) {
         if (obligationIds.isEmpty()) return

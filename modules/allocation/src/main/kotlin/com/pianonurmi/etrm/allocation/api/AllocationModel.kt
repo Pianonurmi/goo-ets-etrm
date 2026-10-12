@@ -136,6 +136,17 @@ enum class PlanStatus {
 
 enum class LineStatus { PROPOSED, RESERVED, INSTRUCTED, CONFIRMED, FAILED, CANCELLED }
 
+/**
+ * What delivering one MWh of a lot class to an obligation costs. Since ADR 0035 ([unit] `EUR_PER_MWH`):
+ * - [opportunityCost]: the lot's value, the best mark among the buckets it qualifies for ([bucketCode]);
+ * - [urgencyBonus]: the expiry haircut taken off that value;
+ * - [transferCost]: the registry transfer fee;
+ * - [total]: value − haircut + fee, what the solvers minimise;
+ * - [scarcity]: demand / eligible supply of the competing obligations, a tie-break only;
+ * - [saleMarkEur] and [giveAwayPerMwh]: the mark of the sale's own bucket and the premium given away (value − that).
+ *
+ * Plans from before ADR 0035 carry unit `SCORE`: a mixed score without the EUR fields.
+ */
 data class ScoreBreakdown(
     val opportunityCost: BigDecimal,
     val transferCost: BigDecimal,
@@ -143,7 +154,17 @@ data class ScoreBreakdown(
     val urgencyBonus: BigDecimal,
     val total: BigDecimal,
     val bucketCode: String?,
-)
+    val saleMarkEur: BigDecimal? = null,
+    val giveAwayPerMwh: BigDecimal? = null,
+    val unit: String = SCORE,
+    /** False when no bucket the lot qualifies for has a price: its value counts as zero. */
+    val priced: Boolean = true,
+) {
+    companion object {
+        const val SCORE = "SCORE"
+        const val EUR_PER_MWH = "EUR_PER_MWH"
+    }
+}
 
 data class AllocationLineView(
     val id: UUID,
@@ -207,6 +228,8 @@ data class AllocationPlanView(
     val coverage: CoverageReport?,
     val lines: List<AllocationLineView>,
     val version: Int,
+    /** The plan in EUR (ADR 0035); null for plans from before it. */
+    val value: PlanValue? = null,
 ) {
     val allocatedMwh: Long get() = lines.filter { it.status != LineStatus.CANCELLED && it.status != LineStatus.FAILED }.sumOf { it.quantityMwh }
 }
@@ -248,6 +271,39 @@ data class AllocationWhatIf(
     val objective: Map<String, Any?>,
     val coverage: CoverageReport,
     val lines: List<AllocationLineView>,
+    val value: PlanValue? = null,
+)
+
+/**
+ * A plan in EUR (ADR 0035), from its lines' score breakdowns:
+ * - [deliveredValueEur]: what the delivered certificates are worth at the best price each qualifies for;
+ * - [expiryHaircutEur]: the part of that value lost to near expiry (those lots lapse unless delivered);
+ * - [transferFeesEur]: registry transfer fees;
+ * - [totalCostEur] = delivered value − haircut + fees, what the solver minimised;
+ * - [giveAwayEur]: the premium handed over where a certificate worth more than the sale's own product delivers it
+ *   (value − the sale bucket's mark, summed); negative when cheaper certificates deliver;
+ * - [unpricedMwh]: delivered MWh whose lots have no priced bucket (valued at zero).
+ */
+data class PlanValue(
+    val currency: String,
+    val totalCostEur: BigDecimal,
+    val deliveredValueEur: BigDecimal,
+    val expiryHaircutEur: BigDecimal,
+    val transferFeesEur: BigDecimal,
+    val giveAwayEur: BigDecimal,
+    val unpricedMwh: Long,
+    val byObligation: List<ObligationValue>,
+)
+
+/** One obligation's share of a [PlanValue]. [giveAwayEur] is null when the sale has no priced bucket. */
+data class ObligationValue(
+    val obligationId: UUID,
+    val saleBucketCode: String?,
+    val saleMarkEur: BigDecimal?,
+    val mwh: Long,
+    val deliveredValueEur: BigDecimal,
+    val averageDeliveredMarkEur: BigDecimal?,
+    val giveAwayEur: BigDecimal?,
 )
 
 interface AllocationQuery {

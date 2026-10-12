@@ -280,6 +280,7 @@ class DemoDesk(private val api: DemoClient, private val calendar: DemoCalendar) 
             "NORDIC_WIND" -> regionAndSource("NORDIC", "WIND")
             "EU_WIND" -> regionAndSource("EEA", "WIND")
             "EU_SOLAR" -> regionAndSource("EEA", "SOLAR")
+            "EU_RENEWABLE" -> regionAndSource("EEA", "RENEWABLE")
             else -> error("No criteria for bucket $bucket")
         }
 

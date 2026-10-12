@@ -1,5 +1,5 @@
 import type { Schema } from '@/shared/api/types';
-import { coverageRows, groupLines, planSteps, type Line } from './plan';
+import { coverageRows, groupLines, type Line, obligationName, planSteps } from './plan';
 
 const line = (obligationId: string, lineNo: number, quantityMwh: number) =>
   ({ obligationId, lineNo, quantityMwh, lotId: `lot-${lineNo}` }) as Line;
@@ -74,5 +74,15 @@ describe('coverageRows', () => {
       { obligationId: 'b', label: 'DISCLOSURE · 12-15', covered: 50, shortfall: 0 },
     ]);
     expect(coverageRows(undefined, obligations)).toEqual([]);
+  });
+});
+
+describe('obligationName', () => {
+  it('names an obligation by date and trade, or by criteria without a trade', () => {
+    expect(obligationName({ deliveryDate: '2026-12-15', tradeRef: 'T-42', criteriaSummary: 'hydro' })).toBe(
+      '2026-12-15 · T-42',
+    );
+    expect(obligationName({ deliveryDate: '2026-12-15', criteriaSummary: 'hydro' })).toBe('2026-12-15 · hydro');
+    expect(obligationName(undefined)).toBeUndefined();
   });
 });

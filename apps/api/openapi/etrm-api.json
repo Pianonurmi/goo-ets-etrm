@@ -346,6 +346,13 @@
             "enum" : [ "PROPOSED", "APPROVED", "RESERVED", "INSTRUCTED", "CONFIRMED", "PARTIALLY_FAILED", "CLOSED", "REJECTED", "EXPIRED", "STALE", "CANCELLED" ],
             "type" : "string"
           },
+          "value" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/PlanValue"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "version" : {
             "format" : "int32",
             "type" : "integer"
@@ -424,6 +431,13 @@
           "solver" : {
             "enum" : [ "GREEDY", "EXACT" ],
             "type" : "string"
+          },
+          "value" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/PlanValue"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
         "required" : [ "computedAt", "coverage", "holderEntityId", "lines", "objective", "snapshotSeq", "solver" ],
@@ -5800,6 +5814,35 @@
         "required" : [ "coveredMwh", "demandMwh", "eligibleClassCount", "eligibleSupplyMwh", "obligationId", "shortfallMwh" ],
         "type" : "object"
       },
+      "ObligationValue" : {
+        "properties" : {
+          "averageDeliveredMarkEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "deliveredValueEur" : {
+            "type" : "number"
+          },
+          "giveAwayEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "obligationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "saleBucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "saleMarkEur" : {
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "deliveredValueEur", "mwh", "obligationId" ],
+        "type" : "object"
+      },
       "ObligationView" : {
         "properties" : {
           "bookId" : {
@@ -6267,6 +6310,40 @@
           }
         },
         "required" : [ "calibrated", "maxTenorMonths", "pct", "productFamily" ],
+        "type" : "object"
+      },
+      "PlanValue" : {
+        "properties" : {
+          "byObligation" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ObligationValue"
+            },
+            "type" : "array"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "deliveredValueEur" : {
+            "type" : "number"
+          },
+          "expiryHaircutEur" : {
+            "type" : "number"
+          },
+          "giveAwayEur" : {
+            "type" : "number"
+          },
+          "totalCostEur" : {
+            "type" : "number"
+          },
+          "transferFeesEur" : {
+            "type" : "number"
+          },
+          "unpricedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "byObligation", "currency", "deliveredValueEur", "expiryHaircutEur", "giveAwayEur", "totalCostEur", "transferFeesEur", "unpricedMwh" ],
         "type" : "object"
       },
       "PnlExplainView" : {
@@ -8220,8 +8297,17 @@
           "bucketCode" : {
             "type" : [ "string", "null" ]
           },
+          "giveAwayPerMwh" : {
+            "type" : [ "number", "null" ]
+          },
           "opportunityCost" : {
             "type" : "number"
+          },
+          "priced" : {
+            "type" : "boolean"
+          },
+          "saleMarkEur" : {
+            "type" : [ "number", "null" ]
           },
           "scarcity" : {
             "type" : "number"
@@ -8231,6 +8317,9 @@
           },
           "transferCost" : {
             "type" : "number"
+          },
+          "unit" : {
+            "type" : "string"
           },
           "urgencyBonus" : {
             "type" : "number"

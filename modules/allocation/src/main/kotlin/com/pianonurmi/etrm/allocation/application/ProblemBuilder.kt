@@ -7,13 +7,14 @@ import com.pianonurmi.etrm.allocation.domain.LotClassifier
 import com.pianonurmi.etrm.allocation.domain.ObligationModel
 import com.pianonurmi.etrm.allocation.domain.ProblemShape
 import com.pianonurmi.etrm.allocation.domain.Scoring
-import com.pianonurmi.etrm.allocation.domain.ScoringWeights
+import com.pianonurmi.etrm.allocation.domain.ValuePolicy
 import com.pianonurmi.etrm.inventory.api.LotSnapshot
 import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.registry.api.TransferRoute
 import com.pianonurmi.etrm.registry.api.TransferRouteQuery
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -22,11 +23,13 @@ import java.util.UUID
 
 /** Assembles an [AllocationProblem] from live inventory, open obligations, criteria, buckets, routes and marks. */
 @Component
+@EnableConfigurationProperties(AllocationValueSettings::class)
 class ProblemBuilder(
     private val criteria: CriteriaService,
     private val buckets: ProductBucketQuery,
     private val routes: TransferRouteQuery,
     private val marks: GooMarks,
+    private val valueSettings: AllocationValueSettings = AllocationValueSettings(),
 ) {
     data class Built(val problem: AllocationProblem, val scoring: Scoring)
 
@@ -37,7 +40,7 @@ class ProblemBuilder(
         obligations: List<ObligationView>,
         softReserved: Map<UUID, Long>,
         asOf: LocalDate,
-        weights: ScoringWeights = ScoringWeights(),
+        policy: ValuePolicy = valueSettings.toDomain(),
     ): Built {
         val classes = LotClassifier.classify(snapshot.lots, softReserved)
         val models = obligations.filter { it.remainingMwh > 0 }.mapIndexed { index, obligation ->
@@ -80,7 +83,7 @@ class ProblemBuilder(
             buckets = buckets.bind(criteria.contextFor(asOf)),
             marks = { code, year -> known.getOrPut(code to year) { marks.mark(code, year, asOf) } },
             routes = routeOf,
-            weights = weights,
+            policy = policy,
         )
         val shape = object : ProblemShape {
             override val obligations: List<ObligationModel> = models

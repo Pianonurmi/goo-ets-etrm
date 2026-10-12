@@ -82,6 +82,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
             DemoStep("Addresses, VAT numbers and bank accounts") { office.partyDetails(it.parties(), it.get(SWEDEN)) },
             DemoStep("Instruments, futures and curves") { market.instruments() },
             DemoStep("Price and FX history") { market.history() },
+            DemoStep("Generic GoO curves") { market.genericCurves() },
             DemoStep("Certificates DEMO-FI") { DemoInventory(api, calendar).receive(it.get(FINLAND), issuanceSeed = 1) },
             DemoStep("Certificates DEMO-SE") { DemoInventory(api, calendar).receive(it.get(SWEDEN), issuanceSeed = 2) },
         ) + calendar.historyMonths.map { month ->

@@ -1,7 +1,7 @@
-import { Button, Group, Modal, Stack, Text, Textarea } from '@mantine/core';
+import { Button, Group, Modal, Stack, Tabs, Text, Textarea } from '@mantine/core';
 import { IconInbox, IconX } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
@@ -17,7 +17,8 @@ import { QueryState } from '@/shared/components/QueryState';
 import { CardSkeleton } from '@/shared/components/Skeletons';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { LinesByObligation, PlanStatusBadge } from './AllocationPage';
-import { planSteps } from './model/plan';
+import { obligationName, planSteps } from './model/plan';
+import { PlanValuePanel } from './PlanValuePanel';
 
 type Plan = Schema<'AllocationPlanView'>;
 
@@ -47,9 +48,45 @@ function PlanBody({ plan }: { plan: Plan }) {
     },
   });
   const byId = useMemo(() => new Map((obligations.data ?? []).map((o) => [o.id, o])), [obligations.data]);
+  const obligationLabel = useCallback((id: string) => obligationName(byId.get(id)), [byId]);
   const approvalTask = task.data?.items[0];
   const title = t('allocation.planTitle', { mwh: formatDecimal(plan.allocatedMwh ?? 0) });
   const shortfall = plan.coverage?.totalShortfallMwh;
+
+  const lines =
+    plan.lines.length === 0 ? (
+      <Text size="sm" c="dimmed">
+        {t('allocation.noLines')}
+      </Text>
+    ) : (
+      <LinesByObligation lines={plan.lines} obligations={byId} />
+    );
+  // Plans made before value-based allocation carry no value; they show the lines alone.
+  const body = plan.value ? (
+    <Tabs defaultValue="lines" keepMounted={false}>
+      <Tabs.List>
+        <Tabs.Tab value="lines" data-testid="plan-lines-tab">
+          {t('allocation.lines')}
+        </Tabs.Tab>
+        <Tabs.Tab value="value" data-testid="plan-value-tab">
+          {t('allocation.value.title')}
+        </Tabs.Tab>
+      </Tabs.List>
+      <Tabs.Panel value="lines" pt="md">
+        {lines}
+      </Tabs.Panel>
+      <Tabs.Panel value="value" pt="md">
+        <PlanValuePanel
+          value={plan.value}
+          obligationLabel={obligationLabel}
+          kpiTestId="plan-value-kpis"
+          gridTestId="plan-give-away"
+        />
+      </Tabs.Panel>
+    </Tabs>
+  ) : (
+    lines
+  );
 
   return (
     <Stack gap="lg">
@@ -114,13 +151,7 @@ function PlanBody({ plan }: { plan: Plan }) {
           />
         }
       >
-        {plan.lines.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t('allocation.noLines')}
-          </Text>
-        ) : (
-          <LinesByObligation lines={plan.lines} obligations={byId} />
-        )}
+        {body}
       </DetailLayout>
       <Modal opened={cancelling} onClose={() => setCancelling(false)} title={t('allocation.cancel')}>
         <Stack>

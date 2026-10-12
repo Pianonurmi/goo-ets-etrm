@@ -72,6 +72,7 @@ import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
@@ -158,7 +159,12 @@ class AllocationServiceIT {
             planRepository,
             JooqObligationRepository(dsl),
             obligations,
-            ProblemBuilder(criteria, buckets, routes, GooMarks { _, _, _ -> null }),
+            ProblemBuilder(
+                criteria,
+                buckets,
+                routes,
+                GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) },
+            ),
             criteria,
             lots,
             lots,
@@ -327,8 +333,18 @@ class AllocationServiceIT {
         coverage.totalDemandMwh shouldBe 1_300
         coverage.totalShortfallMwh shouldBe 0
 
+        val whatIf = allocation.whatIf(ProposeAllocation(entityId, scope, idempotencyKey = "what-if"))
         val proposed = allocation.propose(ProposeAllocation(entityId, scope, idempotencyKey = "plan-1"))
         proposed.status shouldBe PlanStatus.PROPOSED
+        // Hydro is worth 2.00 (NORDIC_HYDRO), wind 0.50 (EU_RENEWABLE); the disclosure is marked as ANY_GOO at 0.30.
+        listOf(whatIf.value, proposed.value, allocation.plan(proposed.id)?.value).forEach { value ->
+            value.shouldNotBeNull()
+            value.currency shouldBe "EUR"
+            value.deliveredValueEur shouldBe BigDecimal("1550.00")
+            value.giveAwayEur shouldBe BigDecimal("140.00")
+            value.unpricedMwh shouldBe 0
+            value.byObligation.first().obligationId shouldBe disclosure.id
+        }
         proposed.allocatedMwh shouldBe 1_300
         val hydroLine = proposed.lines.single { it.obligationId == hydroSale.id }
         hydroLine.lotId shouldBe hydro.id
@@ -423,5 +439,9 @@ class AllocationServiceIT {
         lots.lots(LotFilter(holderEntityId = entityId, statuses = setOf(LotStatus.HELD))).filter {
             it.rootLotId == lot.id
         }.sumOf { it.quantityMwh } shouldBe 300
+    }
+
+    private companion object {
+        val MARKS = mapOf("ANY_GOO" to "0.30", "EU_RENEWABLE" to "0.50", "NORDIC_HYDRO" to "2.00")
     }
 }

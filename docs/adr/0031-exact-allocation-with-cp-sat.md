@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-11
+- Amended by: ADR 0035 (coverage per priority tier; cost in EUR instead of a score)
 
 ## Context
 The greedy solver (ADR 0007) works through obligations, most constrained first, and gives each the cheapest
@@ -17,9 +18,10 @@ native library: OR-Tools ships glibc binaries for Linux x86-64 and aarch64, macO
   - `MaxSharePerDevice`, per device and obligation;
   - `MinShare`, as a quota with a shortfall variable.
 - **Objectives:** three, solved in order. Each optimum becomes a constraint for the next phase:
-  1. allocate as many MWh as possible;
+  1. allocate as many MWh as possible (since ADR 0035, one priority tier at a time, highest first);
   2. miss as little of the minimum shares as possible;
-  3. lowest total score, the same per-MWh score that greedy sorts by, scaled to 1/10 000.
+  3. lowest total score, the same per-MWh score that greedy sorts by, scaled to 1/10 000 (since ADR 0035 the
+     cost in EUR/MWh).
 - **Never worse than greedy:**
   - The greedy solution is the hint for the first phase.
   - Greedy's result is returned, with the reason in the plan's objective (`fallbackReason`), when:

@@ -25,6 +25,7 @@ import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
 import com.pianonurmi.etrm.allocation.domain.CpSatSolver
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
+import com.pianonurmi.etrm.allocation.domain.PlanValuation
 import com.pianonurmi.etrm.allocation.domain.Solver
 import com.pianonurmi.etrm.inventory.api.LotCommand
 import com.pianonurmi.etrm.inventory.api.LotQuery
@@ -117,6 +118,7 @@ class AllocationService(
             plan.objective,
             requireNotNull(plan.coverage) { "computed plans carry coverage" },
             plan.lines,
+            plan.value,
         )
     }
 
@@ -160,10 +162,12 @@ class AllocationService(
                 "lotClasses" to problem.classes.size,
                 "allocatedMwh" to lines.sumOf { it.quantityMwh },
                 "totalScore" to lines.sumOf { it.score * java.math.BigDecimal(it.quantityMwh) },
+                "scoreUnit" to com.pianonurmi.etrm.allocation.api.ScoreBreakdown.EUR_PER_MWH,
             ) + solved.details,
             coverage = coverage,
             lines = lines,
             version = 1,
+            value = PlanValuation.of(lines, open),
         )
     }
 

@@ -2,6 +2,7 @@ package com.pianonurmi.etrm
 
 import com.pianonurmi.etrm.demo.DemoDataSeeder
 import io.kotest.matchers.collections.shouldContainAll
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.restassured.RestAssured
@@ -141,8 +142,12 @@ class DemoDataSeederIT {
         val backoffice = { asUser("backoffice", "BACK_OFFICE") }
         backoffice().get("/api/v1/allocation/plans?holderEntityId=$finland&activeOnly=false").then().statusCode(200)
             .body("findAll { it.status == 'CONFIRMED' }.size()", equalTo(2))
-        backoffice().get("/api/v1/allocation/plans?holderEntityId=$sweden").then().statusCode(200)
+        val pending = backoffice().get("/api/v1/allocation/plans?holderEntityId=$sweden").then().statusCode(200)
             .body("findAll { it.status == 'PROPOSED' }.size()", equalTo(1))
+            .extract().jsonPath()
+        // The generic EU renewable sale is delivered with Nordic hydro, which is worth more than the generic mark.
+        pending.getString("find { it.status == 'PROPOSED' }.value.giveAwayEur").toBigDecimal() shouldBeGreaterThan java.math.BigDecimal.ZERO
+        pending.getString("find { it.status == 'PROPOSED' }.value.currency") shouldBe "EUR"
         val instructions = backoffice().get("/api/v1/registry/instructions/search?holderEntityId=$finland&limit=200").then().statusCode(200)
             .extract().jsonPath()
         instructions.getList<String>("items.status") shouldContainAll listOf("CONFIRMED", "FAILED", "PENDING_APPROVAL")

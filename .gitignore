@@ -29,3 +29,6 @@ Thumbs.db
 
 # Generated
 **/generated-src/
+
+# Kotlin compiler daemon sessions
+.kotlin/

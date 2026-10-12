@@ -8,7 +8,8 @@ import java.time.YearMonth
 import kotlin.random.Random
 
 /**
- * Market data with history: instruments, two EUA December futures, GoO vintages for four buckets, a GoO price index,
+ * Market data with history: instruments, two EUA December futures, GoO vintages for four buckets (and two generic
+ * ones, [genericCurves]), a GoO price index,
  * and seven months of daily prices and FX rates, loaded the way a desk would, as file imports. Prices are random
  * walks from a fixed seed, so every seed run produces the same history relative to its date.
  */
@@ -140,7 +141,46 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
         api.post(DemoUser.RISK, "/api/v1/market-data/curves/snapshots/$pending/submit")
     }
 
-    fun curveCodes(): List<String> = listOf(EUA_CURVE) + BUCKETS.map { it.curve }
+    /**
+     * Generic products priced below their children (ADR 0035): EU_RENEWABLE and ANY_GOO. A generic sale delivered with a
+     * Nordic hydro certificate then gives away the difference, which allocation reports. Their history comes from a
+     * separate random stream, so the specific buckets' prices are the same as before they existed.
+     */
+    fun genericCurves() {
+        GENERIC.forEach { bucket ->
+            vintages().forEach { vintage ->
+                ensureInstrument(
+                    vintageCode(bucket.code, vintage),
+                    """{"code":"${vintageCode(bucket.code, vintage)}","kind":"GOO_VINTAGE","description":"${bucket.label} $vintage",
+                       "bucketCode":"${bucket.code}","productionYear":$vintage,"currency":"EUR"}""",
+                )
+            }
+        }
+        val curves = api.getList(DemoUser.RISK, "/api/v1/market-data/curves").map { it["code"] }
+        GENERIC.filter { it.curve !in curves }.forEach { bucket ->
+            api.post(
+                DemoUser.RISK,
+                "/api/v1/market-data/curves",
+                """{"code":"${bucket.curve}","kind":"GOO_VINTAGE","description":"${bucket.label} vintages","bucketCode":"${bucket.code}","currency":"EUR"}""",
+            )
+        }
+        val random = Random(SEED + 1)
+        val price = GENERIC.associate { it.code to it.start }.toMutableMap()
+        val broker = StringBuilder("Date,Product,Mid\n")
+        businessDays(calendar.historyStart, calendar.lastClose).forEach { day ->
+            GENERIC.forEach { bucket ->
+                val mid = walk(price.getValue(bucket.code), random, BigDecimal("0.008"), 3).max(BigDecimal("0.05"))
+                price[bucket.code] = mid
+                vintages().forEach { vintage ->
+                    val printed = mid - VINTAGE_DISCOUNT.multiply(BigDecimal(year - vintage))
+                    broker.append("$day,${vintageCode(bucket.code, vintage)},$printed\n")
+                }
+            }
+        }
+        import("GENERIC_BROKER_GOO_CSV", "broker-goo-generic-mids.csv", broker.toString())
+    }
+
+    fun curveCodes(): List<String> = listOf(EUA_CURVE) + (BUCKETS + GENERIC).map { it.curve }
 
     private fun vintages() = listOf(year - 1, year)
 
@@ -176,6 +216,12 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
             Bucket("NORDIC_WIND", "Nordic wind", BigDecimal("0.360")),
             Bucket("EU_WIND", "European wind", BigDecimal("0.450")),
             Bucket("EU_SOLAR", "European solar", BigDecimal("0.410")),
+        )
+
+        /** Generic buckets, below the cheapest specific one so a generic sale never pays more than its children. */
+        val GENERIC = listOf(
+            Bucket("EU_RENEWABLE", "European renewable", BigDecimal("0.240")),
+            Bucket("ANY_GOO", "Any guarantee of origin", BigDecimal("0.180")),
         )
 
         fun vintageCode(bucket: String, year: Int) = "GOO_${bucket}_$year"

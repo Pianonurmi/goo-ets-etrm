@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.allocation.application
 
 import com.pianonurmi.etrm.allocation.domain.ExactSolverSettings
+import com.pianonurmi.etrm.allocation.domain.ValuePolicy
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
 
@@ -19,4 +20,15 @@ data class AllocationSolverSettings(
     val workers: Int = 4,
 ) {
     fun toDomain() = ExactSolverSettings(timeLimit, maxPairs, workers)
+}
+
+/**
+ * ```yaml
+ * etrm.allocation.value:
+ *   liquidity-horizon-days: 60   # lots expiring within this many days of delivery are worth proportionally less
+ * ```
+ */
+@ConfigurationProperties(prefix = "etrm.allocation.value")
+data class AllocationValueSettings(val liquidityHorizonDays: Long = 60) {
+    fun toDomain() = ValuePolicy(liquidityHorizonDays)
 }

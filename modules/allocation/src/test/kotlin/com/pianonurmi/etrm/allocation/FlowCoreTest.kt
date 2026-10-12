@@ -205,14 +205,15 @@ class FlowCoreTest {
     }
 
     @Test
-    fun `the exact solver's floor compares coverage, then shortfall, then cost`() {
-        val base = CpSatSolver.Objectives(covered = 100, shortfall = 10, cost = 500)
-        CpSatSolver.Objectives(99, 0, 0).worseThan(base) shouldBe "coverage"
-        CpSatSolver.Objectives(101, 50, 900).worseThan(base) shouldBe null
-        CpSatSolver.Objectives(100, 11, 0).worseThan(base) shouldBe "minimum-share shortfall"
-        CpSatSolver.Objectives(100, 9, 900).worseThan(base) shouldBe null
-        CpSatSolver.Objectives(100, 10, 501).worseThan(base) shouldBe "cost"
-        CpSatSolver.Objectives(100, 10, 500).worseThan(base) shouldBe null
+    fun `the exact solver's floor compares coverage per priority tier, then shortfall, then cost`() {
+        val base = CpSatSolver.Objectives(coveredByTier = listOf(100, 50), shortfall = 10, cost = 500)
+        CpSatSolver.Objectives(listOf(99, 200), 0, 0).worseThan(base) shouldBe "coverage of priority tier 1"
+        CpSatSolver.Objectives(listOf(101, 0), 50, 900).worseThan(base) shouldBe null
+        CpSatSolver.Objectives(listOf(100, 49), 0, 0).worseThan(base) shouldBe "coverage of priority tier 2"
+        CpSatSolver.Objectives(listOf(100, 50), 11, 0).worseThan(base) shouldBe "minimum-share shortfall"
+        CpSatSolver.Objectives(listOf(100, 50), 9, 900).worseThan(base) shouldBe null
+        CpSatSolver.Objectives(listOf(100, 50), 10, 501).worseThan(base) shouldBe "cost"
+        CpSatSolver.Objectives(listOf(100, 50), 10, 500).worseThan(base) shouldBe null
     }
 
     /** The uncompressed reference: one node per class and per obligation, augmented tier by tier. */

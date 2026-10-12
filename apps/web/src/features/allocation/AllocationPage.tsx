@@ -18,7 +18,7 @@ import {
 } from '@mantine/core';
 import { IconFlask, IconPlus, IconSend } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
@@ -36,8 +36,9 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { newKey } from '@/shared/ids';
-import { coverageRows, groupLines, type Line } from './model/plan';
+import { coverageRows, groupLines, obligationName, type Line } from './model/plan';
 import { ObligationDrawer, OpenObligationModal } from './ObligationPanels';
+import { PlanValuePanel } from './PlanValuePanel';
 
 type Obligation = Schema<'ObligationView'>;
 type Plan = Schema<'AllocationPlanView'>;
@@ -126,6 +127,8 @@ function PlanList({ plans, onOpen }: { plans: Plan[]; onOpen: (plan: Plan) => vo
 /** Lines of a computed or proposed plan, one table per obligation. */
 export function LinesByObligation({ lines, obligations }: { lines: Line[]; obligations: Map<string, Obligation> }) {
   const { t } = useTranslation();
+  // New plans carry a cost in EUR per MWh; plans made before value-based allocation keep the dimensionless score.
+  const inEur = lines.length > 0 && lines.every((line) => line.breakdown.unit === 'EUR_PER_MWH');
   return (
     <Stack gap="sm">
       {groupLines(lines).map((group) => {
@@ -153,7 +156,8 @@ export function LinesByObligation({ lines, obligations }: { lines: Line[]; oblig
                   <Table.Th>{t('allocation.lot')}</Table.Th>
                   <Table.Th>{t('allocation.class')}</Table.Th>
                   <Table.Th ta="right">MWh</Table.Th>
-                  <Table.Th ta="right">{t('allocation.score')}</Table.Th>
+                  <Table.Th ta="right">{t(inEur ? 'allocation.costPerMwh' : 'allocation.score')}</Table.Th>
+                  {inEur && <Table.Th ta="right">{t('allocation.giveAwayPerMwh')}</Table.Th>}
                   <Table.Th>{t('allocation.bucket')}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -172,7 +176,27 @@ export function LinesByObligation({ lines, obligations }: { lines: Line[]; oblig
                     </Table.Td>
                     <Table.Td ta="right">{formatDecimal(line.quantityMwh)}</Table.Td>
                     <Table.Td ta="right">{formatDecimal(line.score, 2, 4)}</Table.Td>
-                    <Table.Td>{line.breakdown.bucketCode ?? '—'}</Table.Td>
+                    {inEur && (
+                      <Table.Td ta="right" data-testid="line-give-away">
+                        {line.breakdown.priced === false
+                          ? '—'
+                          : formatDecimal(line.breakdown.giveAwayPerMwh, 2, 2) || '—'}
+                      </Table.Td>
+                    )}
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        {line.breakdown.bucketCode ?? '—'}
+                        {line.breakdown.priced === false && (
+                          <span title={t('allocation.unpricedBadgeHint')}>
+                            <StatusBadge
+                              status="MISSING_PRICE"
+                              label={t('allocation.unpricedBadge')}
+                              data-testid="line-unpriced"
+                            />
+                          </span>
+                        )}
+                      </Group>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -194,6 +218,7 @@ function WhatIfResult({
   obligations: Map<string, Obligation>;
 }) {
   const { t } = useTranslation();
+  const obligationLabel = useCallback((id: string) => obligationName(obligations.get(id)), [obligations]);
   const allocated = Number(result.objective.allocatedMwh ?? 0);
   const { solver, fallbackReason } = result.objective;
   const solvedBy = typeof solver === 'string' ? solver : result.solver;
@@ -230,6 +255,16 @@ function WhatIfResult({
         <Alert color="orange" mb="sm">
           {t('allocation.shortfall', { mwh: formatDecimal(result.coverage.totalShortfallMwh) })}
         </Alert>
+      )}
+      {result.value && (
+        <Stack gap="sm" mb="md">
+          <PlanValuePanel
+            value={result.value}
+            obligationLabel={obligationLabel}
+            kpiTestId="what-if-value-kpis"
+            gridTestId="what-if-give-away"
+          />
+        </Stack>
       )}
       <LinesByObligation lines={result.lines} obligations={obligations} />
     </Paper>

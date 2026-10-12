@@ -32,4 +32,29 @@ its lines by obligation, with a **Lifecycle** timeline beside them: proposed, ap
 executed. **Approval task** opens its inbox task, and **Cancel plan** (with a reason) releases the reservation of a
 plan that is still proposed or approved.
 
-> **Try it in the demo:** the demo has two executed plans and one waiting for approval. Approve it as *Max Middle*.
+## Value and give-away
+
+The solver works in euros. Every certificate has a value, the best mark among all the products it qualifies for,
+and every plan states what it does with that value. **What if** shows the figures under the result title; an opened
+plan shows them on its **Value** tab, next to **Lines**. Plans made before value-based allocation have no Value tab.
+
+- **Total cost** is what the solver minimised: the value of the certificates used, less the expiry haircut, plus
+  transfer fees.
+- **Delivered value** is what the delivered certificates are worth.
+- **Give-away** is the premium handed over when a certificate worth more than the sale's own product delivers it.
+  A Nordic hydro certificate that serves a generic EU renewable sale is the usual case: the buyer pays for the
+  generic product and receives a more valuable certificate, and the difference is given away.
+- **Expiry haircut** is value lost anyway because a lot lapses soon after delivery. Using such a lot costs less, so
+  the solver prefers it.
+- **Transfer fees** are the registry fees of moving the certificates.
+
+**Give-away by obligation** lists the sales with their product, the sale mark, the MWh, the average mark of what was
+delivered, the delivered value and the give-away, largest give-away first. On the lines, the cost column is in
+EUR per MWh, with the give-away per MWh beside it. A plan made before this change shows a plain **Score** instead.
+
+A line marked **Unpriced** delivers a certificate none of whose products has an official price. It is valued at
+zero, so a warning above the table gives the unpriced MWh, and the cost and give-away figures understate them. Price
+the product in market data and run **What if** again.
+
+> **Try it in the demo:** the demo has two executed plans and one waiting for approval. Its **Value** tab shows a
+> generic EU renewable sale delivered with Nordic hydro, and what that gives away. Approve it as *Max Middle*.
