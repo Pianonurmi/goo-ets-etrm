@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-10
+- Amended by: ADR 0037 (the same proof orders the buckets into a hierarchy)
 
 ## Context
 Positions, marks and (from increment 3) valuation curves are keyed by product bucket. Lots find their bucket by

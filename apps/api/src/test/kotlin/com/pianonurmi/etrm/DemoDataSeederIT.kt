@@ -174,6 +174,17 @@ class DemoDataSeederIT {
         check.getBoolean("demands.find { it.ref == 'huge' }.fits") shouldBe false
         check.getList<String>("demands.find { it.ref == 'huge' }.binding.bucketCode").size shouldBeGreaterThanOrEqual 1
         check.getBoolean("fits") shouldBe false
+
+        val hierarchy = trader().get("/api/v1/products/buckets/hierarchy").then().statusCode(200).extract().jsonPath()
+        hierarchy.getList<String>("nodes.find { it.code == 'NORDIC_HYDRO' }.parents") shouldContainAll listOf("EU_HYDRO", "NORDIC_RENEWABLE")
+        val portfolio = trader().get("/api/v1/allocation/portfolio?holderEntityId=$finland").then().statusCode(200).extract().jsonPath()
+        portfolio.getString("nodes[0].bucketCode") shouldBe "ANY_GOO"
+        // The root holds everything its children hold.
+        (
+            portfolio.getLong(
+                "nodes.find { it.bucketCode == 'ANY_GOO' }.longMwh",
+            ) >= portfolio.getLong("nodes.find { it.bucketCode == 'NORDIC_HYDRO' }.longMwh")
+        ) shouldBe true
     }
 
     private fun operations(finland: String, sweden: String) {

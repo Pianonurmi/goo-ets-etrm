@@ -34,6 +34,7 @@ Terms used on the screens and in this manual.
 | Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
 | MtM | Mark-to-market: remaining quantity × (market price − contract price), signed by side |
 | MtM | Mark to market: the value of a trade at today's market prices against its contract price |
+| Naive net | Held certificates of a bucket minus its obligations, ignoring which certificates can serve which obligation; can look long while the bucket is short |
 | Netting statement | Offsets receivables and payables with one counterparty in one currency so that only the net amount is paid |
 | NEWT / MODI / TERM / EROR / VALU | EMIR action types: new, modification, termination, error, valuation |
 | NRV | Net realisable value: what inventory would sell for less cost to sell; inventory is carried at the lower of cost and NRV |
@@ -50,6 +51,7 @@ Terms used on the screens and in this manual.
 | Self-billing | The buyer issues the invoice on the seller's behalf under an agreement |
 | Settlement item | What is owed for one recorded delivery: price, net amount and VAT treatment; invoiced later |
 | Shadow price | A dual value of the pricing linear program solved after a plan; marginal costs and scarcity rents, never booked |
+| Short after netting | Obligations of a product bucket that its own certificates cannot cover (ADR 0037): what has to be bought or issued |
 | Shortage group | Set of obligations jointly short, with the exhausted supply they compete for |
 | Soft / hard reservation | Claim by a proposal (expires) / by an approved plan (lot status RESERVED) |
 | Statement | Registry export of holdings used for reconciliation |

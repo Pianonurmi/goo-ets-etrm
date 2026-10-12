@@ -145,6 +145,36 @@
       }
     }
   },
+  "portfolio": {
+    "title": "Products and netting",
+    "summary": "See what is held and owed in each product, and where the portfolio is short once certificates are matched by what they qualify for.",
+    "steps": {
+      "positions": {
+        "title": "Positions",
+        "body": "The guarantees-of-origin position of the selected entity: coverage, expiry and the table by bucket and vintage."
+      },
+      "views": {
+        "title": "Three views",
+        "body": "Position is what is held. Available to sell is what a new sale could still receive. Choose Products to see the portfolio as a tree of product buckets."
+      },
+      "products": {
+        "title": "The product tree",
+        "body": "In Products, each row is a bucket, indented under the larger buckets it sits inside. Open a row with its arrow. Long is what is held in the bucket, short is what only the bucket's certificates can serve, and free is what no obligation uses."
+      },
+      "netting": {
+        "title": "Naive net or netted",
+        "body": "Naive net is long minus short and ignores what certificates qualify for. Wind held cannot serve a hydro sale, so a bucket can look long and still be short. Short after netting, in amber, is what must be bought or issued."
+      },
+      "alsoUnder": {
+        "title": "In several places",
+        "body": "A product can sit inside more than one larger product, for example Nordic hydro inside European hydro and Nordic renewable. It is listed under each, marked also under, with the same figures. Mark, cheapest to deliver and give-away are in EUR per MWh; give-away is a management figure and is never booked."
+      },
+      "containedIn": {
+        "title": "Contained in",
+        "body": "On the products screen in administration, the Contained in column shows the same hierarchy for each bucket, and buckets proven to hold exactly the same certificates as same as."
+      }
+    }
+  },
   "valuation": {
     "title": "Curves, valuation and P&L",
     "summary": "From market quotes to official curves, valuations and P&L explain.",

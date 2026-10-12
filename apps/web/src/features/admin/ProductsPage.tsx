@@ -29,6 +29,7 @@ import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
 import type { Criterion } from '@/features/criteria/model/tree';
+import { containment, containmentText } from './model/containment';
 import { useInvalidateReference } from './PartyDetails';
 
 type Bucket = Schema<'ProductBucketView'>;
@@ -157,6 +158,8 @@ function BucketsTab() {
   const [all, setAll] = useState(false);
   const [editing, setEditing] = useState<{ bucket?: Bucket } | null>(null);
   const buckets = $api.useQuery('get', '/api/v1/products/buckets', { params: { query: { activeOnly: !all } } });
+  const hierarchy = $api.useQuery('get', '/api/v1/products/buckets/hierarchy');
+  const hierarchyNodes = hierarchy.data?.nodes;
   const columns = useMemo<ColDef<Bucket>[]>(
     () => [
       { field: 'sortOrder', headerName: '#', width: 80, sort: 'asc' },
@@ -170,6 +173,19 @@ function BucketsTab() {
         type: 'rightAligned',
         valueFormatter: (p) => formatDecimal(p.value as number, 0, 3),
       },
+      {
+        colId: 'containedIn',
+        headerName: t('admin.containedIn'),
+        width: 260,
+        valueGetter: (p) =>
+          p.data && hierarchyNodes
+            ? containmentText(containment(p.data.code, hierarchyNodes), {
+                topLevel: t('admin.containedInRoot'),
+                sameAs: (codes) => t('admin.sameAs', { name: codes }),
+              })
+            : '',
+        tooltipValueGetter: (p) => String(p.value ?? ''),
+      },
       { field: 'markCurveRef', headerName: t('admin.markCurve'), width: 170 },
       {
         field: 'active',
@@ -178,7 +194,7 @@ function BucketsTab() {
         cellRenderer: (p: ICellRendererParams<Bucket>) => p.data && <Active active={p.data.active} />,
       },
     ],
-    [t],
+    [t, hierarchyNodes],
   );
   return (
     <Stack>

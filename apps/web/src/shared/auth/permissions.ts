@@ -51,6 +51,7 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   allocation_cancel: ['TRADER', 'MIDDLE_OFFICE', 'BACK_OFFICE'],
   allocation_headroomCheck: ['TRADER', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'],
   allocation_headroomTable: ['TRADER', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'],
+  allocation_portfolio: ['TRADER', 'MIDDLE_OFFICE', 'BACK_OFFICE', 'RISK'],
   marketData_recordQuote: ['MIDDLE_OFFICE', 'RISK'],
   marketData_acknowledge: ['MIDDLE_OFFICE', 'RISK'],
   marketData_recordFxRate: ['MIDDLE_OFFICE', 'RISK'],

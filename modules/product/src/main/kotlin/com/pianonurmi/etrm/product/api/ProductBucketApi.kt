@@ -58,6 +58,40 @@ interface ProductBucketQuery {
      * active bucket whose criteria provably contain it, bound for [context]. Null when no bucket contains it.
      */
     fun bucketFor(criteriaId: UUID?, criterion: Criterion, context: BindContext): BucketMatch?
+
+    /** The active buckets ordered by proven containment, bound for [context] (ADR 0037). */
+    fun hierarchy(context: BindContext): BucketHierarchy
+}
+
+/**
+ * A bucket in the product hierarchy (ADR 0037). [parents] are the smallest buckets that provably contain it (the
+ * Hasse diagram of containment), so a bucket can have more than one: Nordic wind is under Nordic renewable and under
+ * European wind. [aliases]: buckets proven equivalent to it, shown as one node. [depth]: the longest way up to a root.
+ */
+data class BucketNode(
+    val code: String,
+    val name: String,
+    val aliases: List<String>,
+    val parents: List<String>,
+    val depth: Int,
+    val sortOrder: Int,
+)
+
+/** Every active bucket once, parents before children. Containment is proven, not guessed: unproven means unrelated. */
+data class BucketHierarchy(val nodes: List<BucketNode>) {
+    val roots: List<String> get() = nodes.filter { it.parents.isEmpty() }.map { it.code }
+
+    fun children(code: String): List<String> = nodes.filter { code in it.parents }.map { it.code }
+
+    /** [code] and everything under it. */
+    fun descendants(code: String): Set<String> {
+        val seen = linkedSetOf(code)
+        var frontier = listOf(code)
+        while (frontier.isNotEmpty()) {
+            frontier = frontier.flatMap { children(it) }.filter { seen.add(it) }
+        }
+        return seen
+    }
 }
 
 data class CreateProductBucket(

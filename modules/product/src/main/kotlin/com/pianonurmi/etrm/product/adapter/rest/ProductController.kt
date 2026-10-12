@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.product.adapter.rest
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.AllowanceProductView
+import com.pianonurmi.etrm.product.api.BucketHierarchy
 import com.pianonurmi.etrm.product.api.CreateFuturesContract
 import com.pianonurmi.etrm.product.api.CreateProductBucket
 import com.pianonurmi.etrm.product.api.FuturesContractCommand
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.math.BigDecimal
+import java.time.LocalDate
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -49,6 +51,12 @@ class ProductController(
     fun buckets(
         @RequestParam(defaultValue = "true") activeOnly: Boolean,
     ): List<ProductBucketView> = buckets.buckets(activeOnly)
+
+    /** The active buckets ordered by proven containment (ADR 0037), bound for [asOf] (default today). */
+    @GetMapping("/buckets/hierarchy")
+    fun bucketHierarchy(
+        @RequestParam(required = false) asOf: LocalDate?,
+    ): BucketHierarchy = buckets.hierarchy(criteria.contextFor(asOf ?: LocalDate.now()))
 
     @GetMapping("/buckets/{code}")
     fun bucket(

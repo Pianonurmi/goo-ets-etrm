@@ -5,8 +5,10 @@ import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.StaleVersionException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.product.api.BoundBuckets
+import com.pianonurmi.etrm.product.api.BucketHierarchy
 import com.pianonurmi.etrm.product.api.BucketMatch
 import com.pianonurmi.etrm.product.api.BucketMatchKind
+import com.pianonurmi.etrm.product.api.BucketNode
 import com.pianonurmi.etrm.product.api.CreateProductBucket
 import com.pianonurmi.etrm.product.api.ProductBucketCommand
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
@@ -49,6 +51,36 @@ class ProductBucketService(
             .sortedWith(compareByDescending<ProductBucketView> { it.specificity }.thenBy { it.sortOrder }.thenBy { it.code })
             .firstOrNull()
             ?.let { BucketMatch(it, BucketMatchKind.IMPLIED) }
+    }
+
+    override fun hierarchy(context: BindContext): BucketHierarchy {
+        val buckets = repository.all(true).map { it.toView() }.sortedWith(compareBy<ProductBucketView> { it.sortOrder }.thenBy { it.code })
+        val bound = buckets.map { criteria.bind(it.criterion, context) }
+        val n = buckets.size
+        val contains = Array(n) { i -> BooleanArray(n) { j -> i == j || CriteriaImplication.implies(bound[j], bound[i]) } }
+        // Proven equivalent buckets are one node, named after the first in catalogue order.
+        val representative = IntArray(n) { i -> (0..i).first { contains[it][i] && contains[i][it] } }
+        val nodes = (0 until n).filter { representative[it] == it }
+        val strictlyContains = { a: Int, b: Int -> a != b && contains[a][b] && !contains[b][a] }
+        // Transitive reduction: a parent is a container with nothing in between.
+        val parents = nodes.associateWith { child ->
+            nodes.filter { p -> strictlyContains(p, child) && nodes.none { m -> strictlyContains(p, m) && strictlyContains(m, child) } }
+        }
+        val depth = HashMap<Int, Int>()
+
+        fun depthOf(i: Int): Int = depth.getOrPut(i) { parents.getValue(i).maxOfOrNull { depthOf(it) + 1 } ?: 0 }
+        return BucketHierarchy(
+            nodes.sortedWith(compareBy<Int> { depthOf(it) }.thenBy { buckets[it].sortOrder }.thenBy { buckets[it].code }).map { i ->
+                BucketNode(
+                    code = buckets[i].code,
+                    name = buckets[i].name,
+                    aliases = (0 until n).filter { it != i && representative[it] == i }.map { buckets[it].code },
+                    parents = parents.getValue(i).map { buckets[it].code },
+                    depth = depthOf(i),
+                    sortOrder = buckets[i].sortOrder,
+                )
+            },
+        )
     }
 
     @Transactional

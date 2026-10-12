@@ -976,6 +976,57 @@
         "required" : [ "note" ],
         "type" : "object"
       },
+      "BucketHierarchy" : {
+        "properties" : {
+          "nodes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BucketNode"
+            },
+            "type" : "array"
+          },
+          "roots" : {
+            "items" : {
+              "type" : "string"
+            },
+            "readOnly" : true,
+            "type" : "array"
+          }
+        },
+        "required" : [ "nodes", "roots" ],
+        "type" : "object"
+      },
+      "BucketNode" : {
+        "properties" : {
+          "aliases" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "depth" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parents" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "sortOrder" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "aliases", "code", "depth", "name", "parents", "sortOrder" ],
+        "type" : "object"
+      },
       "BucketPosition" : {
         "properties" : {
           "bucketCode" : {
@@ -6713,6 +6764,97 @@
         "required" : [ "change", "id", "kind", "requestedAt", "requestedBy", "status" ],
         "type" : "object"
       },
+      "PortfolioNode" : {
+        "properties" : {
+          "aliases" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "availableToSellMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "bucketCode" : {
+            "type" : "string"
+          },
+          "cheapestToDeliverEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "coveredWithinMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "depth" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "freeMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "giveAwayPerMwhEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "longMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "markEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "naiveNetMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parents" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "shortAfterNettingMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shortMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "aliases", "availableToSellMwh", "bucketCode", "coveredWithinMwh", "depth", "freeMwh", "longMwh", "naiveNetMwh", "name", "parents", "shortAfterNettingMwh", "shortMwh" ],
+        "type" : "object"
+      },
+      "PortfolioView" : {
+        "properties" : {
+          "computedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "holderEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "nodes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PortfolioNode"
+            },
+            "type" : "array"
+          },
+          "stamp" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "computedAt", "currency", "holderEntityId", "nodes", "stamp" ],
+        "type" : "object"
+      },
       "PositionSnapshotView" : {
         "properties" : {
           "asOfDate" : {
@@ -11194,6 +11336,43 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AllocationPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Allocation" ]
+      }
+    },
+    "/api/v1/allocation/portfolio" : {
+      "get" : {
+        "operationId" : "allocation_portfolio",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "holderEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortfolioView"
                 }
               }
             },
@@ -16291,6 +16470,43 @@
               }
             },
             "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Products" ]
+      }
+    },
+    "/api/v1/products/buckets/hierarchy" : {
+      "get" : {
+        "operationId" : "product_bucketHierarchy",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "asOf",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BucketHierarchy"
+                }
+              }
+            },
+            "description" : "OK"
           },
           "default" : {
             "content" : {

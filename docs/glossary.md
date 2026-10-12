@@ -13,10 +13,12 @@
 | Lot | Contiguous certificate number range with identical attributes in one registry account |
 | Lot class | Lots interchangeable for every criterion and for scoring |
 | Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
+| Naive net | Held certificates of a bucket minus its obligations, ignoring which certificates can serve which obligation; can look long while the bucket is short |
 | Obligation | Quantity of certificates to deliver (sale, intercompany) or cancel (disclosure, own consumption) by a date under criteria |
 | Plan | Proposed assignment of lots to obligations; approved plans reserve lots and instruct registries |
 | Scarcity rent | Shadow price of supply: how much a plan's cost would fall with one more MWh of that bucket and year (indicative) |
 | Shadow price | A dual value of the pricing linear program solved after a plan; marginal costs and scarcity rents, never booked |
+| Short after netting | Obligations of a product bucket that its own certificates cannot cover (ADR 0037): what has to be bought or issued |
 | Shortage group | Set of obligations jointly short, with the exhausted supply they compete for |
 | Soft / hard reservation | Claim by a proposal (expires) / by an approved plan (lot status RESERVED) |
 | Statement | Registry export of holdings used for reconciliation |

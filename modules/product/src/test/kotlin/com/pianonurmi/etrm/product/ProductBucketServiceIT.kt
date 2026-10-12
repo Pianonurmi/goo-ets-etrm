@@ -5,6 +5,8 @@ import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
 import com.pianonurmi.etrm.product.api.BucketMatchKind
+import com.pianonurmi.etrm.product.api.CreateProductBucket
+import com.pianonurmi.etrm.product.api.UpdateProductBucket
 import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import com.pianonurmi.etrm.product.api.criteria.CriteriaSubject
 import com.pianonurmi.etrm.product.api.criteria.Criterion
@@ -17,6 +19,8 @@ import com.pianonurmi.etrm.product.application.TaxonomySnapshots
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import io.kotest.matchers.collections.shouldContainAll
+import io.kotest.matchers.collections.shouldNotBeIn
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -89,6 +93,46 @@ class ProductBucketServiceIT {
         criteria.implies(BoundCriterion.All(listOf(nordic, hydro)), hydro) shouldBe true
         criteria.implies(hydro, BoundCriterion.All(listOf(nordic, hydro))) shouldBe false
         criteria.implies(nordic, BoundCriterion.MatchAll) shouldBe true
+    }
+
+    @Test
+    fun `the hierarchy puts each bucket under its smallest proven containers`() {
+        val hierarchy = buckets.hierarchy(criteria.contextFor(LocalDate.of(2026, 12, 1)))
+        val parents = hierarchy.nodes.associate { it.code to it.parents.toSet() }
+        hierarchy.roots shouldBe listOf("ANY_GOO")
+        parents["EU_RENEWABLE"] shouldBe setOf("ANY_GOO")
+        parents["NORDIC_RENEWABLE"] shouldBe setOf("EU_RENEWABLE")
+        // Two ways up: Nordic hydro is European hydro and Nordic renewable; neither contains the other.
+        parents["NORDIC_HYDRO"] shouldBe setOf("EU_HYDRO", "NORDIC_RENEWABLE")
+        parents["FI_HYDRO"] shouldBe setOf("NORDIC_HYDRO", "FI_RENEWABLE")
+        // Transitive reduction: Finnish hydro is also European renewable, but through its parents only.
+        "EU_RENEWABLE" shouldNotBeIn parents.getValue("FI_HYDRO")
+        // A label proves nothing about region, so labelled buckets sit right under the root.
+        parents["EKOENERGY"] shouldBe setOf("ANY_GOO")
+        hierarchy.nodes.single { it.code == "FI_HYDRO" }.depth shouldBe 4
+        hierarchy.descendants(
+            "NORDIC_RENEWABLE",
+        ) shouldBe setOf("NORDIC_RENEWABLE", "NORDIC_HYDRO", "NORDIC_SOLAR", "NORDIC_WIND", "FI_RENEWABLE", "FI_HYDRO", "FI_WIND")
+        hierarchy.nodes.indexOfFirst { it.code == "NORDIC_HYDRO" } shouldBeGreaterThan hierarchy.nodes.indexOfFirst { it.code == "EU_HYDRO" }
+    }
+
+    @Test
+    fun `buckets proven equivalent are one node with aliases`() {
+        val twin = buckets.create(
+            CreateProductBucket(
+                "NORDIC_HYDRO_TWIN",
+                "Nordic hydro (twin)",
+                criterion = Criterion.all(Criterion.energySource("HYDRO"), Criterion.region("NORDIC")),
+                sortOrder = 990,
+            ),
+        )
+        try {
+            val hierarchy = buckets.hierarchy(criteria.contextFor(LocalDate.of(2026, 12, 1)))
+            hierarchy.nodes.single { it.code == "NORDIC_HYDRO" }.aliases shouldBe listOf("NORDIC_HYDRO_TWIN")
+            hierarchy.nodes.none { it.code == "NORDIC_HYDRO_TWIN" } shouldBe true
+        } finally {
+            buckets.update(twin.code, UpdateProductBucket(active = false, expectedVersion = twin.version))
+        }
     }
 
     private fun subject(country: String, source: String, labels: Set<String>) = object : CriteriaSubject {

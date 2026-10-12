@@ -16,7 +16,10 @@ accounts and books. Middle office maintains them; back office and registry opera
 
 The **Taxonomy** screen holds the code sets behind the criteria: energy sources, technologies, labels, regions and
 support schemes. **Products** has three tabs: **Buckets** (the standard buckets), **Allowance products** and
-**Futures contracts**.
+**Futures contracts**. The **Buckets** table has a **Contained in** column that shows which larger buckets contain
+each bucket, for example **Nordic hydro** in **European hydro** and **Nordic renewable**; **Top level** means no larger
+bucket contains it, and **same as** names a bucket that holds exactly the same certificates. The same hierarchy is the
+tree behind the **Products** view of [Positions](positions.md#products-and-netting).
 
 ## Audit trail
 

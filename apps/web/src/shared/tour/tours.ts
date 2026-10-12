@@ -90,6 +90,19 @@ export const TOURS: TourDefinition[] = [
     ],
   },
   {
+    id: 'portfolio',
+    minutes: 3,
+    personas: ['trader', 'middle'],
+    steps: [
+      { id: 'positions', path: '/positions', target: TITLE, persona: 'trader' },
+      { id: 'views', path: '/positions', target: id('goo-view'), persona: 'trader' },
+      { id: 'products', path: '/positions', persona: 'trader' },
+      { id: 'netting', path: '/positions', persona: 'trader' },
+      { id: 'alsoUnder', path: '/positions', persona: 'trader' },
+      { id: 'containedIn', path: '/admin/products', target: TITLE, persona: 'middle' },
+    ],
+  },
+  {
     id: 'valuation',
     minutes: 3,
     personas: ['risk', 'risk2'],

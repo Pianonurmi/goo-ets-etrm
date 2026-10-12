@@ -14,6 +14,8 @@ import com.pianonurmi.etrm.allocation.api.ObligationCommand
 import com.pianonurmi.etrm.allocation.api.ObligationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.api.OpenObligation
+import com.pianonurmi.etrm.allocation.api.PortfolioQuery
+import com.pianonurmi.etrm.allocation.api.PortfolioView
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
@@ -43,7 +45,14 @@ class AllocationController(
     private val obligationQuery: ObligationQuery,
     private val actorProvider: ActorProvider,
     private val headroom: HeadroomQuery,
+    private val portfolioQuery: PortfolioQuery,
 ) {
+    /** The GoO book by product bucket, netted through the eligibility flow (ADR 0037). */
+    @GetMapping("/portfolio")
+    fun portfolio(
+        @RequestParam holderEntityId: UUID,
+    ): PortfolioView = portfolioQuery.portfolio(holderEntityId)
+
     /** Available to sell (ADR 0036): how much of each demand the entity could still sell from held certificates. */
     @PostMapping("/headroom/check")
     fun headroomCheck(

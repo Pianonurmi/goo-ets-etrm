@@ -16,6 +16,8 @@ import com.pianonurmi.etrm.allocation.application.AllocationHeadroomSettings
 import com.pianonurmi.etrm.allocation.application.AllocationService
 import com.pianonurmi.etrm.allocation.application.HeadroomService
 import com.pianonurmi.etrm.allocation.application.ObligationService
+import com.pianonurmi.etrm.allocation.application.PortfolioFlowCache
+import com.pianonurmi.etrm.allocation.application.PortfolioService
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
@@ -106,6 +108,7 @@ class AllocationServiceIT {
     private lateinit var obligations: ObligationService
     private lateinit var lots: LotService
     private lateinit var headroom: HeadroomService
+    private lateinit var portfolio: PortfolioService
     private lateinit var referenceData: ReferenceDataService
     private lateinit var entityId: UUID
     private lateinit var simAccount: UUID
@@ -165,17 +168,17 @@ class AllocationServiceIT {
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus)
         val problemBuilder = ProblemBuilder(criteria, buckets, routes, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) })
-        headroom = HeadroomService(
+        val flows = PortfolioFlowCache(
             JooqObligationRepository(dsl),
             planRepository,
             problemBuilder,
             buckets,
-            criteria,
             lots,
-            actor,
             clock,
             settings = AllocationHeadroomSettings(warmOnMiss = false),
         )
+        headroom = HeadroomService(flows, problemBuilder, buckets, criteria, actor, clock)
+        portfolio = PortfolioService(flows, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
         allocation = AllocationService(
             planRepository,
             JooqObligationRepository(dsl),
@@ -306,6 +309,64 @@ class AllocationServiceIT {
             it.headroomMwh.toSet() shouldBe setOf(1_700L)
         }
         table.rows.filter { it.bucketCode == "NORDIC_HYDRO" }.single().headroomMwh.toSet() shouldBe setOf(700L)
+    }
+
+    @Test
+    fun `the portfolio nets long and short only where certificates qualify`() {
+        val holder = referenceData.createLegalEntity(CreateLegalEntity("PORTFOLIO-CO", "Portfolio Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        val account = referenceData.createRegistryAccount(
+            CreateRegistryAccount("SIMULATOR", "SIM-PORT", "Portfolio account", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, holder),
+        ).id
+        receive("643000000000000023", "PF-W-1", 1_000, holder = holder, account = account)
+        obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                holder,
+                criterion = Criterion.all(Criterion.region("NORDIC"), Criterion.energySource("HYDRO")),
+                quantityMwh = 600,
+                deliveryWindow = LocalDateRange.ofQuarter(2026, 4),
+                deliveryDate = LocalDate.of(2026, 12, 15),
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-PF",
+            ),
+        )
+
+        val view = portfolio.portfolio(holder)
+        val nodes = view.nodes.associateBy { it.bucketCode }
+        // Nordic renewable looks 400 long, but its certificates are wind and its obligation wants hydro.
+        nodes.getValue("NORDIC_RENEWABLE").let {
+            it.longMwh shouldBe 1_000
+            it.shortMwh shouldBe 600
+            it.naiveNetMwh shouldBe 400
+            it.coveredWithinMwh shouldBe 0
+            it.shortAfterNettingMwh shouldBe 600
+            it.freeMwh shouldBe 1_000
+        }
+        nodes.getValue("NORDIC_HYDRO").let {
+            it.longMwh shouldBe 0
+            it.shortAfterNettingMwh shouldBe 600
+            it.availableToSellMwh shouldBe 0
+        }
+        nodes.getValue("FI_WIND").let {
+            it.shortMwh shouldBe 0
+            it.availableToSellMwh shouldBe 1_000
+            it.parents.toSet() shouldBe setOf("NORDIC_WIND", "FI_RENEWABLE")
+        }
+        // Wind is worth its best price: EU renewable at 0.50 (no wind curve). Sold as EU renewable, nothing is given away.
+        nodes.getValue("EU_RENEWABLE").let {
+            it.markEur shouldBe BigDecimal("0.5000")
+            it.cheapestToDeliverEur shouldBe BigDecimal("0.5000")
+            it.giveAwayPerMwhEur shouldBe BigDecimal("0.0000")
+        }
+        nodes.getValue("ANY_GOO").giveAwayPerMwhEur shouldBe BigDecimal("0.2000")
+        view.nodes.first().bucketCode shouldBe "ANY_GOO"
+
+        // Hydro arrives: now the bucket covers part of its own obligation.
+        receive("643000000000000016", "PF-H-1", 300, holder = holder, account = account)
+        portfolio.portfolio(holder).nodes.single { it.bucketCode == "NORDIC_HYDRO" }.let {
+            it.coveredWithinMwh shouldBe 300
+            it.shortAfterNettingMwh shouldBe 300
+        }
     }
 
     @Test
