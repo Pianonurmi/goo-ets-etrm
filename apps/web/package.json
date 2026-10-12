@@ -1,6 +1,7 @@
 {
   "name": "etrm-web",
   "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "version": "0.1.0",
   "type": "module",
   "description": "Web UI for the GoO and EU ETS ETRM (ADR 0025)",

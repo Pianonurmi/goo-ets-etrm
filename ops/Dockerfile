@@ -1,6 +1,8 @@
 # Runtime image for the assembled application. Build the jar first: ./gradlew :apps:api:bootJar
 # Ubuntu rather than Alpine: the exact allocation solver's native library (OR-Tools) needs glibc (ADR 0031).
 FROM eclipse-temurin:25-jre-noble AS runtime
+LABEL org.opencontainers.image.source="https://github.com/Pianonurmi/goo-ets-etrm" \
+      org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 # Numeric ids so Kubernetes can verify runAsNonRoot (the Helm chart runs as 10001).
 RUN groupadd --system --gid 10001 etrm && useradd --system --uid 10001 --gid etrm --no-create-home --shell /usr/sbin/nologin etrm
 WORKDIR /app

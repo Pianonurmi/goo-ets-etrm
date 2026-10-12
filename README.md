@@ -220,3 +220,9 @@ external penetration test is in [docs/security/penetration-test.md](docs/securit
 - [Documentation index](docs/README.md): architecture, domain notes, integration, glossary.
 - Presentation: [the slides](https://claude.ai/artifact/NHG4trUF1EkTnB6dXmAxyv) (PowerPoint or PDF from its Share
   menu) and their [outline with speaker notes](docs/presentation/outline.md).
+
+## Licence
+
+Provena is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE): you may read, run, change
+and share it for any noncommercial purpose. Commercial use needs a separate licence; ask the maintainer through
+GitHub. Third-party libraries, fonts and images keep their own licences, listed in the SBOMs each CI run publishes.
