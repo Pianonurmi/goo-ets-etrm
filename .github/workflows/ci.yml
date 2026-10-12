@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: azure/setup-helm@v4
         with:
           version: v3.16.2
@@ -75,7 +75,7 @@ jobs:
             echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
             echo "ETRM_TEST_DB_URL=jdbc:postgresql://localhost:$port/etrm_test"
           } >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
       - uses: actions/setup-java@v4
         with:
