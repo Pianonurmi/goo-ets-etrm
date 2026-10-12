@@ -4,6 +4,7 @@
 |---|---|
 | AIB / EECS | Association of Issuing Bodies; European Energy Certificate System, the standard behind GoO registries and the hub |
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
+| Cheapest to deliver | For a GoO sale, the average value per MWh of the certificates that deliver it on the valuation-grade allocation; a management view next to the bucket mark (ADR 0039) |
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Criteria | Typed predicate tree describing which certificates satisfy a delivery |
 | EUA / EUAA | EU Allowance (general) / EU Aviation Allowance |
@@ -18,6 +19,7 @@
 | Naive net | Held certificates of a bucket minus its obligations, ignoring which certificates can serve which obligation; can look long while the bucket is short |
 | Obligation | Quantity of certificates to deliver (sale, intercompany) or cancel (disclosure, own consumption) by a date under criteria |
 | Plan | Proposed assignment of lots to obligations; approved plans reserve lots and instruct registries |
+| Portfolio value | Held certificates at the best price each qualifies for, plus the GoO trades' MtM, less give-away, transfer fees and expiry haircut on the valuation-grade allocation; never booked (ADR 0039) |
 | Scarcity rent | Shadow price of supply: how much a plan's cost would fall with one more MWh of that bucket and year (indicative) |
 | Shadow price | A dual value of the pricing linear program solved after a plan; marginal costs and scarcity rents, never booked |
 | Short after netting | Obligations of a product bucket that its own certificates cannot cover (ADR 0037): what has to be bought or issued |

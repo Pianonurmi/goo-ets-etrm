@@ -200,6 +200,31 @@ test.describe('allocation, market data, curves, valuation and positions operatio
     await expect(page.getByTestId('run-status')).toHaveText(/^official$/i);
   });
 
+  test('shows the portfolio value bridge of an official valuation run', async ({ page }) => {
+    await actAs(page, 'risk');
+    await page.goto('/valuation?tab=official');
+    await page.getByTestId('official-date').fill(today());
+    await page.getByTestId('official-run-open').click();
+    await expect(page).toHaveURL(/\/valuation\/runs\/[0-9a-f-]{36}$/);
+    await expect(page.getByTestId('results-tab')).toBeVisible();
+    await page.getByTestId('portfolio-tab').click();
+    await expect(page).toHaveURL(/[?&]tab=portfolio$/);
+    await expect(page.getByTestId('portfolio-management-note')).toBeVisible();
+    await expect(page.getByTestId('portfolio-bridge')).toBeVisible();
+    await expect(page.getByTestId('portfolio-bridge-table')).toContainText('Portfolio value');
+    await expect(page.getByTestId('portfolio-run-explain')).toBeVisible();
+    await expect(page.getByTestId('portfolio-obligations')).toBeVisible();
+  });
+
+  test('explains the portfolio value between official runs', async ({ page }) => {
+    await actAs(page, 'risk');
+    await page.goto('/valuation?tab=explain');
+    await expect(page.getByTestId('portfolio-explain')).toBeVisible();
+    await expect(
+      page.getByTestId('portfolio-explain-totals').or(page.getByTestId('portfolio-explain-none')),
+    ).toBeVisible();
+  });
+
   test('lists position snapshots and takes new ones', async ({ page }) => {
     await actAs(page, 'middle');
     await page.goto('/positions?tab=snapshots');

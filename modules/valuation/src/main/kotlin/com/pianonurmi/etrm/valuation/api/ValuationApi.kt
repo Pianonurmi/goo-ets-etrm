@@ -61,6 +61,12 @@ data class ValuationResultView(
     val mtmBase: BigDecimal?,
     val status: ResultStatus,
     val note: String?,
+    /**
+     * Cheapest to deliver (ADR 0039, shown only): for a GoO sale, the average value per MWh in EUR of the certificates
+     * that deliver it on the valuation-grade allocation, and its MtM against that instead of the bucket curve.
+     */
+    val ctdPriceEur: BigDecimal? = null,
+    val ctdMtmBase: BigDecimal? = null,
 )
 
 data class ValuationRunView(
@@ -99,6 +105,79 @@ data class PnlExplainView(
     val rows: List<ExplainRow>,
 )
 
+/** What moved a run's portfolio value from the prior official run's (ADR 0039). */
+enum class PortfolioCause { TRADE_MTM, INVENTORY_PRICE, INVENTORY_IN_OUT, GIVE_AWAY, REALLOCATION, EXPIRY, UNEXPLAINED }
+
+/** Held certificates by bucket and production year at the run's prices (EUR). */
+data class PortfolioBucketRow(val bucketCode: String?, val productionYear: Int, val heldMwh: Long, val valueEur: BigDecimal, val allocatedMwh: Long)
+
+/** One obligation on the valuation-grade allocation: the certificates' value against its own mark. */
+data class PortfolioObligationRow(
+    val obligationId: UUID,
+    val scheduleId: UUID?,
+    val tradeRef: String?,
+    val bucketCode: String?,
+    val vintageYear: Int?,
+    val demandMwh: Long,
+    val allocatedMwh: Long,
+    val cheapestToDeliverEur: BigDecimal?,
+    val saleMarkEur: BigDecimal?,
+    val giveAwayEur: BigDecimal?,
+    val transferFeesEur: BigDecimal,
+)
+
+/**
+ * A run's portfolio value in EUR (ADR 0039, management view; never booked):
+ * [portfolioValue] = [inventoryValue] + [tradeMtm] − [giveAway] − [transferFees] − [expiryHaircut]. [tradeMtm] is
+ * the run's official MtM of its GoO trades. Holdings are those when the run was made, at the run date's prices.
+ * [explain] is against the prior official run, once this one is official.
+ */
+data class PortfolioBridgeView(
+    val runId: UUID,
+    val legalEntityId: UUID,
+    val valuationDate: LocalDate,
+    val currency: String,
+    val heldMwh: Long,
+    val inventoryValue: BigDecimal,
+    val tradeMtm: BigDecimal,
+    val giveAway: BigDecimal,
+    val transferFees: BigDecimal,
+    val expiryHaircut: BigDecimal,
+    val portfolioValue: BigDecimal,
+    val allocatedMwh: Long,
+    val shortfallMwh: Long,
+    val unpricedMwh: Long,
+    val stamp: String,
+    val computedAt: Instant,
+    val buckets: List<PortfolioBucketRow>,
+    val obligations: List<PortfolioObligationRow>,
+    val priorRunId: UUID?,
+    val explain: Map<PortfolioCause, BigDecimal>,
+)
+
+/** One official run's move from the run before it. */
+data class PortfolioExplainStep(
+    val runId: UUID,
+    val priorRunId: UUID,
+    val valuationDate: LocalDate,
+    val portfolioValue: BigDecimal,
+    val causes: Map<PortfolioCause, BigDecimal>,
+)
+
+/**
+ * The portfolio value explained over official runs dated after [from] up to [to] (EUR). [realisedGiveAway] is what
+ * plans approved in the period handed over; null when allocation is not available.
+ */
+data class PortfolioExplainView(
+    val legalEntityId: UUID,
+    val from: LocalDate,
+    val to: LocalDate,
+    val currency: String,
+    val steps: List<PortfolioExplainStep>,
+    val totals: Map<PortfolioCause, BigDecimal>,
+    val realisedGiveAway: BigDecimal?,
+)
+
 interface ValuationQuery {
     fun run(id: UUID): ValuationRunView?
 
@@ -114,6 +193,11 @@ interface ValuationQuery {
 
     /** MtM of one trade on [date] without storing anything (what-if). */
     fun tradeMtm(tradeId: UUID, date: LocalDate): List<ValuationResultView>
+
+    /** The run's portfolio value; null when it has none (allocation not available, or no rate to EUR). */
+    fun portfolio(runId: UUID): PortfolioBridgeView?
+
+    fun portfolioExplain(legalEntityId: UUID, from: LocalDate, to: LocalDate): PortfolioExplainView
 }
 
 interface ValuationCommand {

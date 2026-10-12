@@ -5,8 +5,9 @@ const ORDER = ['NEW', 'AMENDED', 'CANCELLED', 'DELIVERED', 'PRICE', 'FX', 'UNEXP
 export function explainBars(
   components: Record<string, number>,
   label: (component: string) => string,
+  order: string[] = ORDER,
 ): { component: string; amount: number }[] {
-  const rank = (component: string) => (ORDER.includes(component) ? ORDER.indexOf(component) : ORDER.length);
+  const rank = (component: string) => (order.includes(component) ? order.indexOf(component) : order.length);
   return Object.entries(components)
     .filter(([, amount]) => amount !== 0)
     .sort(([a], [b]) => rank(a) - rank(b))

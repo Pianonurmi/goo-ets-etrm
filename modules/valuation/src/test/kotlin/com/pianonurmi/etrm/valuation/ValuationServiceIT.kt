@@ -1,5 +1,9 @@
 package com.pianonurmi.etrm.valuation
 
+import com.pianonurmi.etrm.allocation.api.InventoryBucketValue
+import com.pianonurmi.etrm.allocation.api.PortfolioValue
+import com.pianonurmi.etrm.allocation.api.PortfolioValueQuery
+import com.pianonurmi.etrm.allocation.api.RealisedGiveAway
 import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.FxRateView
@@ -23,6 +27,7 @@ import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.valuation.adapter.jooq.JooqValuationRepository
 import com.pianonurmi.etrm.valuation.api.ExplainComponent
+import com.pianonurmi.etrm.valuation.api.PortfolioCause
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.RunStatus
@@ -35,6 +40,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
 import java.time.Clock
@@ -48,6 +54,10 @@ import java.util.UUID
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ValuationServiceIT {
     private var user = "risk1"
+    private lateinit var referenceData: ReferenceDataQuery
+    private lateinit var trades: TradeQuery
+    private lateinit var curves: CurveQuery
+    private lateinit var fx: FxRates
     private val published = mutableListOf<Any>()
     private val entity = UUID.randomUUID()
     private val book = UUID.randomUUID()
@@ -203,6 +213,10 @@ class ValuationServiceIT {
             every { requireLegalEntity(entity) } returns mockk { every { baseCurrency } returns Currency.getInstance("EUR") }
             every { requireBook(book) } returns mockk { every { bookType } returns BookType.TRADING }
         }
+        this.referenceData = referenceData
+        this.trades = trades
+        this.curves = curves
+        this.fx = fx
         valuations = ValuationService(
             JooqValuationRepository(TestDatabase.dsl),
             trades,
@@ -262,5 +276,83 @@ class ValuationServiceIT {
         valuations.signOff(rerun.id, "risk2", "rerun")
         valuations.run(run1.id)!!.status shouldBe RunStatus.SUPERSEDED
         valuations.official(entity, d1)!!.id shouldBe rerun.id
+    }
+
+    @Test
+    fun `a run keeps its portfolio value, and sign-off explains its move by cause`() {
+        user = "risk1"
+        val first = LocalDate.of(2026, 10, 6)
+        val second = LocalDate.of(2026, 10, 7)
+        forward[first] = BigDecimal("70.00")
+        forward[second] = BigDecimal("71.00")
+
+        fun value(date: LocalDate, perMwh: String, held: Long, giveAway: String) = PortfolioValue(
+            holderEntityId = entity,
+            asOf = date,
+            computedAt = Instant.parse("2026-10-09T18:00:00Z"),
+            stamp = "s-$date",
+            currency = "EUR",
+            heldMwh = held,
+            inventoryValueEur = (BigDecimal(perMwh) * BigDecimal(held)).setScale(2),
+            allocatedMwh = 100,
+            shortfallMwh = 0,
+            deliveredValueEur = BigDecimal("200.00"),
+            giveAwayEur = BigDecimal(giveAway),
+            transferFeesEur = BigDecimal("1.00"),
+            expiryHaircutEur = BigDecimal.ZERO.setScale(2),
+            netEur = (BigDecimal(perMwh) * BigDecimal(held)).setScale(2) - BigDecimal(giveAway) - BigDecimal("1.00"),
+            unpricedMwh = 0,
+            byBucket = listOf(InventoryBucketValue("NORDIC_HYDRO", 2026, held, (BigDecimal(perMwh) * BigDecimal(held)).setScale(2), 100)),
+            byObligation = emptyList(),
+        )
+        val allocation = mockk<PortfolioValueQuery> {
+            every { value(entity, first) } returns value(first, "2.00", 500, "30.00")
+            every { value(entity, second) } returns value(second, "2.20", 600, "45.00")
+            every { realisedGiveAway(entity, any(), any()) } answers {
+                RealisedGiveAway(entity, secondArg(), thirdArg(), BigDecimal("12.50"), emptyList())
+            }
+        }
+        val withPortfolio = ValuationService(
+            JooqValuationRepository(TestDatabase.dsl),
+            trades,
+            curves,
+            fx,
+            { _, _ -> null },
+            mockk(),
+            referenceData,
+            ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
+            ApplicationEventPublisher { },
+            Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+            mockk<ObjectProvider<PortfolioValueQuery>> { every { ifAvailable } returns allocation },
+        )
+        val run0 = withPortfolio.submit(withPortfolio.run(entity, first, RunKind.EOD).id)
+        user = "risk2"
+        withPortfolio.signOff(run0.id, "risk2", "checked")
+        user = "risk1"
+        val run1 = withPortfolio.submit(withPortfolio.run(entity, second, RunKind.EOD).id)
+        user = "risk2"
+        withPortfolio.signOff(run1.id, "risk2", "checked")
+
+        val bridge = withPortfolio.portfolio(run1.id)!!
+        bridge.inventoryValue shouldBe BigDecimal("1320.00")
+        // GoO trades without a bucket have no MtM: the value is the book's own.
+        bridge.portfolioValue shouldBe bridge.inventoryValue + bridge.tradeMtm - bridge.giveAway - bridge.transferFees - bridge.expiryHaircut
+        bridge.priorRunId shouldBe run0.id
+        val before = withPortfolio.portfolio(run0.id)!!
+        // 500 MWh held in both runs gained 0.20 each; 100 MWh came in at 2.20; 15 EUR more given away.
+        bridge.explain[PortfolioCause.INVENTORY_PRICE] shouldBe BigDecimal("100.00")
+        bridge.explain[PortfolioCause.INVENTORY_IN_OUT] shouldBe BigDecimal("220.00")
+        bridge.explain[PortfolioCause.GIVE_AWAY] shouldBe BigDecimal("-15.00")
+        bridge.explain.values.fold(BigDecimal.ZERO, BigDecimal::add) shouldBe bridge.portfolioValue - before.portfolioValue
+        bridge.explain[PortfolioCause.UNEXPLAINED] shouldBe BigDecimal("0.00")
+
+        val period = withPortfolio.portfolioExplain(entity, first, second)
+        period.steps.map { it.runId } shouldBe listOf(run1.id)
+        period.totals[PortfolioCause.INVENTORY_PRICE] shouldBe BigDecimal("100.00")
+        period.realisedGiveAway shouldBe BigDecimal("12.50")
+        // Kept with the run: the stored rows cannot be changed.
+        shouldThrow<Exception> {
+            TestDatabase.dsl.execute("UPDATE etrm_valuation.portfolio_value SET give_away = 0 WHERE run_id = '${run1.id}'")
+        }
     }
 }

@@ -2,6 +2,8 @@ package com.pianonurmi.etrm.valuation.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.valuation.api.PnlExplainView
+import com.pianonurmi.etrm.valuation.api.PortfolioBridgeView
+import com.pianonurmi.etrm.valuation.api.PortfolioExplainView
 import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.ValuationCommand
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
@@ -66,6 +68,20 @@ class ValuationController(private val query: ValuationQuery, private val command
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate,
     ): PnlExplainView = query.explain(legalEntityId, from, to) ?: throw NotFoundException("Official valuations", "$legalEntityId $from..$to")
+
+    /** The run's portfolio value bridge (ADR 0039, management view); 404 when the run has none. */
+    @GetMapping("/runs/{id}/portfolio")
+    fun portfolio(
+        @PathVariable id: UUID,
+    ): PortfolioBridgeView = query.portfolio(id) ?: throw NotFoundException("Portfolio value", id)
+
+    /** The portfolio value explained by cause over the official runs of a period. */
+    @GetMapping("/portfolio-explain")
+    fun portfolioExplain(
+        @RequestParam legalEntityId: UUID,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate,
+    ): PortfolioExplainView = query.portfolioExplain(legalEntityId, from, to)
 
     @GetMapping("/trades/{id}/mtm")
     fun tradeMtm(

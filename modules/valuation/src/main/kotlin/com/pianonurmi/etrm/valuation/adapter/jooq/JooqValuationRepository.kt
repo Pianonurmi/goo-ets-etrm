@@ -4,11 +4,19 @@ import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.PnlExplain.PNL_EXPLAIN
+import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.PortfolioExplain.PORTFOLIO_EXPLAIN
+import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.PortfolioValue.PORTFOLIO_VALUE
 import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.ValuationResult.VALUATION_RESULT
 import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.ValuationRun.VALUATION_RUN
+import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.records.PortfolioExplainRecord
 import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.records.ValuationResultRecord
 import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.records.ValuationRunRecord
 import com.pianonurmi.etrm.valuation.api.ExplainRow
+import com.pianonurmi.etrm.valuation.api.PortfolioBridgeView
+import com.pianonurmi.etrm.valuation.api.PortfolioBucketRow
+import com.pianonurmi.etrm.valuation.api.PortfolioCause
+import com.pianonurmi.etrm.valuation.api.PortfolioExplainStep
+import com.pianonurmi.etrm.valuation.api.PortfolioObligationRow
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.RunStatus
@@ -20,6 +28,7 @@ import org.jooq.JSONB
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import tools.jackson.core.type.TypeReference
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -27,6 +36,8 @@ import java.util.UUID
 @Repository
 class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository {
     private val mapType = object : TypeReference<Map<String, String>>() {}
+    private val bucketsType = object : TypeReference<List<PortfolioBucketRow>>() {}
+    private val obligationsType = object : TypeReference<List<PortfolioObligationRow>>() {}
 
     override fun insert(run: ValuationRunView, results: List<ValuationResultView>) {
         dsl.insertInto(VALUATION_RUN)
@@ -75,6 +86,8 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
                     .set(VALUATION_RESULT.MTM_BASE, r.mtmBase)
                     .set(VALUATION_RESULT.STATUS, r.status.name)
                     .set(VALUATION_RESULT.NOTE, r.note)
+                    .set(VALUATION_RESULT.CTD_PRICE_EUR, r.ctdPriceEur)
+                    .set(VALUATION_RESULT.CTD_MTM_BASE, r.ctdMtmBase)
             },
         ).execute()
     }
@@ -143,6 +156,89 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
         ).execute()
     }
 
+    override fun insertPortfolio(portfolio: PortfolioBridgeView) {
+        dsl.insertInto(PORTFOLIO_VALUE)
+            .set(PORTFOLIO_VALUE.RUN_ID, portfolio.runId)
+            .set(PORTFOLIO_VALUE.LEGAL_ENTITY_ID, portfolio.legalEntityId)
+            .set(PORTFOLIO_VALUE.VALUATION_DATE, portfolio.valuationDate)
+            .set(PORTFOLIO_VALUE.CURRENCY, portfolio.currency)
+            .set(PORTFOLIO_VALUE.HELD_MWH, portfolio.heldMwh)
+            .set(PORTFOLIO_VALUE.INVENTORY_VALUE, portfolio.inventoryValue)
+            .set(PORTFOLIO_VALUE.TRADE_MTM, portfolio.tradeMtm)
+            .set(PORTFOLIO_VALUE.GIVE_AWAY, portfolio.giveAway)
+            .set(PORTFOLIO_VALUE.TRANSFER_FEES, portfolio.transferFees)
+            .set(PORTFOLIO_VALUE.EXPIRY_HAIRCUT, portfolio.expiryHaircut)
+            .set(PORTFOLIO_VALUE.PORTFOLIO_VALUE_, portfolio.portfolioValue)
+            .set(PORTFOLIO_VALUE.ALLOCATED_MWH, portfolio.allocatedMwh)
+            .set(PORTFOLIO_VALUE.SHORTFALL_MWH, portfolio.shortfallMwh)
+            .set(PORTFOLIO_VALUE.UNPRICED_MWH, portfolio.unpricedMwh)
+            .set(PORTFOLIO_VALUE.STAMP, portfolio.stamp)
+            .set(PORTFOLIO_VALUE.BUCKETS, JSONB.jsonb(Json.mapper.writeValueAsString(portfolio.buckets)))
+            .set(PORTFOLIO_VALUE.OBLIGATIONS, JSONB.jsonb(Json.mapper.writeValueAsString(portfolio.obligations)))
+            .set(PORTFOLIO_VALUE.COMPUTED_AT, portfolio.computedAt)
+            .execute()
+    }
+
+    override fun portfolio(runId: UUID): PortfolioBridgeView? {
+        val r = dsl.selectFrom(PORTFOLIO_VALUE).where(PORTFOLIO_VALUE.RUN_ID.eq(runId)).fetchOne() ?: return null
+        val explain = dsl.selectFrom(PORTFOLIO_EXPLAIN).where(PORTFOLIO_EXPLAIN.RUN_ID.eq(runId)).fetch()
+        return PortfolioBridgeView(
+            runId = r.runId,
+            legalEntityId = r.legalEntityId,
+            valuationDate = r.valuationDate,
+            currency = r.currency,
+            heldMwh = r.heldMwh,
+            inventoryValue = r.inventoryValue,
+            tradeMtm = r.tradeMtm,
+            giveAway = r.giveAway,
+            transferFees = r.transferFees,
+            expiryHaircut = r.expiryHaircut,
+            portfolioValue = r.portfolioValue,
+            allocatedMwh = r.allocatedMwh,
+            shortfallMwh = r.shortfallMwh,
+            unpricedMwh = r.unpricedMwh,
+            stamp = r.stamp,
+            computedAt = r.computedAt,
+            buckets = Json.mapper.readValue(r.buckets.data(), bucketsType),
+            obligations = Json.mapper.readValue(r.obligations.data(), obligationsType),
+            priorRunId = explain.firstOrNull()?.priorRunId,
+            explain = causes(explain),
+        )
+    }
+
+    override fun insertPortfolioExplain(runId: UUID, priorRunId: UUID, causes: Map<PortfolioCause, BigDecimal>) {
+        dsl.batch(
+            causes.map { (cause, amount) ->
+                dsl.insertInto(PORTFOLIO_EXPLAIN)
+                    .set(PORTFOLIO_EXPLAIN.RUN_ID, runId)
+                    .set(PORTFOLIO_EXPLAIN.PRIOR_RUN_ID, priorRunId)
+                    .set(PORTFOLIO_EXPLAIN.CAUSE, cause.name)
+                    .set(PORTFOLIO_EXPLAIN.AMOUNT, amount)
+            },
+        ).execute()
+    }
+
+    override fun portfolioExplains(legalEntityId: UUID, from: LocalDate, to: LocalDate): List<PortfolioExplainStep> = dsl
+        .select(PORTFOLIO_VALUE.RUN_ID, PORTFOLIO_VALUE.VALUATION_DATE, PORTFOLIO_VALUE.PORTFOLIO_VALUE_)
+        .from(PORTFOLIO_VALUE)
+        .join(VALUATION_RUN).on(VALUATION_RUN.ID.eq(PORTFOLIO_VALUE.RUN_ID))
+        .where(
+            PORTFOLIO_VALUE.LEGAL_ENTITY_ID.eq(legalEntityId),
+            PORTFOLIO_VALUE.VALUATION_DATE.gt(from),
+            PORTFOLIO_VALUE.VALUATION_DATE.le(to),
+            VALUATION_RUN.STATUS.eq(RunStatus.OFFICIAL.name),
+        )
+        .orderBy(PORTFOLIO_VALUE.VALUATION_DATE)
+        .fetch()
+        .mapNotNull { row ->
+            val explain = dsl.selectFrom(PORTFOLIO_EXPLAIN).where(PORTFOLIO_EXPLAIN.RUN_ID.eq(row.value1())).fetch()
+            val prior = explain.firstOrNull()?.priorRunId ?: return@mapNotNull null
+            PortfolioExplainStep(row.value1(), prior, row.value2(), row.value3(), causes(explain))
+        }
+
+    private fun causes(rows: List<PortfolioExplainRecord>): Map<PortfolioCause, BigDecimal> =
+        rows.map { PortfolioCause.valueOf(it.cause) to it.amount }.sortedBy { it.first.ordinal }.toMap()
+
     private fun toRun(r: ValuationRunRecord) = ValuationRunView(
         r.id,
         r.legalEntityId,
@@ -191,5 +287,7 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
         r.mtmBase,
         ResultStatus.valueOf(r.status),
         r.note,
+        r.ctdPriceEur,
+        r.ctdMtmBase,
     )
 }

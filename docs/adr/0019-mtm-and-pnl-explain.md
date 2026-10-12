@@ -45,3 +45,8 @@ must not depend on accounting choices (those live in the ledger, M6).
   only official runs.
 - Valuation depends on curves being signed off. A missing curve makes exceptions visible instead of silently
   valuing at zero.
+
+## Amendment (ADR 0039)
+Runs also keep a portfolio value and, at sign-off, a portfolio explain: a management view in separate immutable
+tables. The run total, the results' official MtM and the P&L explain above are unchanged; GoO sale results also
+carry their cheapest-to-deliver price and MtM, shown only.

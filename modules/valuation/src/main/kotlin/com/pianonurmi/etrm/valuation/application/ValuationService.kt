@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.valuation.application
 
+import com.pianonurmi.etrm.allocation.api.PortfolioValueQuery
 import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
@@ -10,6 +11,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.VintageYears
@@ -24,6 +26,11 @@ import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.valuation.api.ExplainComponent
 import com.pianonurmi.etrm.valuation.api.PnlExplainView
+import com.pianonurmi.etrm.valuation.api.PortfolioBridgeView
+import com.pianonurmi.etrm.valuation.api.PortfolioBucketRow
+import com.pianonurmi.etrm.valuation.api.PortfolioCause
+import com.pianonurmi.etrm.valuation.api.PortfolioExplainView
+import com.pianonurmi.etrm.valuation.api.PortfolioObligationRow
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.RunStatus
@@ -36,7 +43,10 @@ import com.pianonurmi.etrm.valuation.api.ValuationRunSubmitted
 import com.pianonurmi.etrm.valuation.api.ValuationRunView
 import com.pianonurmi.etrm.valuation.domain.Mtm
 import com.pianonurmi.etrm.valuation.domain.PnlExplainer
+import com.pianonurmi.etrm.valuation.domain.PortfolioExplainer
 import com.pianonurmi.etrm.valuation.domain.ValuationRepository
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -65,7 +75,11 @@ class ValuationService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    private val portfolioValues: ObjectProvider<PortfolioValueQuery>? = null,
+    private val savepoints: Savepoints = Savepoints.NONE,
 ) : ValuationQuery, ValuationCommand {
+    private val log = LoggerFactory.getLogger(ValuationService::class.java)
+
     override fun run(legalEntityId: UUID, date: LocalDate, kind: RunKind, note: String?): ValuationRunView {
         val actor = actorProvider.current()
         actor.requireRole(Role.RISK, Role.MIDDLE_OFFICE, Role.SYSTEM)
@@ -74,9 +88,11 @@ class ValuationService(
         val open = trades.trades(TradeFilter(legalEntityId = legalEntityId, statuses = VALUED, limit = MAX_TRADES))
         val runId = Ids.newId()
         val books = mutableMapOf<UUID, BookType>()
-        val results = open.flatMap { trade ->
+        val valued = open.flatMap { trade ->
             value(runId, trade, date, entity.baseCurrency.currencyCode) { books.getOrPut(it) { referenceData.requireBook(it).bookType } }
         }
+        val portfolio = portfolioOf(runId, legalEntityId, date, entity.baseCurrency.currencyCode, valued)
+        val results = portfolio?.let { withCheapestToDeliver(valued, it, date) } ?: valued
         val run = ValuationRunView(
             id = runId,
             legalEntityId = legalEntityId,
@@ -96,7 +112,81 @@ class ValuationService(
             supersededAt = null,
         )
         repository.insert(run, results)
+        portfolio?.let(repository::insertPortfolio)
         return run
+    }
+
+    /**
+     * The run's portfolio value (ADR 0039, management view): allocation's value of the held book at the run date's
+     * prices, plus the GoO trades' MtM in EUR. None when allocation is not available or cannot value the book (never
+     * failing the run), or when the base currency has no rate to EUR.
+     */
+    private fun portfolioOf(runId: UUID, legalEntityId: UUID, date: LocalDate, base: String, results: List<ValuationResultView>): PortfolioBridgeView? {
+        val query = portfolioValues?.ifAvailable ?: return null
+        val value = try {
+            savepoints.attempt { query.value(legalEntityId, date) }
+        } catch (e: RuntimeException) {
+            log.warn("Portfolio value of {} on {} could not be computed", legalEntityId, date, e)
+            null
+        } ?: return null
+        val toEur = if (base == EUR) BigDecimal.ONE else fx.rate(date, base, EUR)?.rate ?: return null
+        val tradeMtm = (
+            results.filter { it.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN }
+                .mapNotNull { it.mtmBase }.fold(BigDecimal.ZERO, BigDecimal::add) * toEur
+        ).setScale(2, RoundingMode.HALF_UP)
+        return PortfolioBridgeView(
+            runId = runId,
+            legalEntityId = legalEntityId,
+            valuationDate = date,
+            currency = value.currency,
+            heldMwh = value.heldMwh,
+            inventoryValue = value.inventoryValueEur,
+            tradeMtm = tradeMtm,
+            giveAway = value.giveAwayEur,
+            transferFees = value.transferFeesEur,
+            expiryHaircut = value.expiryHaircutEur,
+            portfolioValue = value.netEur + tradeMtm,
+            allocatedMwh = value.allocatedMwh,
+            shortfallMwh = value.shortfallMwh,
+            unpricedMwh = value.unpricedMwh,
+            stamp = value.stamp,
+            computedAt = value.computedAt,
+            buckets = value.byBucket.map { PortfolioBucketRow(it.bucketCode, it.productionYear, it.heldMwh, it.valueEur, it.allocatedMwh) },
+            obligations = value.byObligation.map {
+                PortfolioObligationRow(
+                    obligationId = it.obligationId,
+                    scheduleId = it.sourceRef,
+                    tradeRef = it.tradeRef,
+                    bucketCode = it.bucketCode,
+                    vintageYear = it.vintageYear,
+                    demandMwh = it.demandMwh,
+                    allocatedMwh = it.allocatedMwh,
+                    cheapestToDeliverEur = it.cheapestToDeliverEur,
+                    saleMarkEur = it.saleMarkEur,
+                    giveAwayEur = it.giveAwayEur,
+                    transferFeesEur = it.transferFeesEur,
+                )
+            },
+            priorRunId = null,
+            explain = emptyMap(),
+        )
+    }
+
+    /**
+     * A GoO sale valued against the certificates that deliver it instead of its bucket curve: the cheapest-to-deliver
+     * price (EUR per MWh) in the contract currency, and the MtM on it. Shown only; the official MtM is unchanged.
+     */
+    private fun withCheapestToDeliver(results: List<ValuationResultView>, portfolio: PortfolioBridgeView, date: LocalDate): List<ValuationResultView> {
+        val ctd = portfolio.obligations.filter {
+            it.scheduleId != null && it.cheapestToDeliverEur != null
+        }.associate { it.scheduleId!! to it.cheapestToDeliverEur!! }
+        return results.map { result ->
+            val price = ctd[result.scheduleId]
+            if (price == null || result.contractPrice == null || result.fxToBase == null) return@map result
+            val inContract = if (result.contractCurrency == EUR) BigDecimal.ONE else fx.rate(date, EUR, result.contractCurrency)?.rate ?: return@map result
+            val mtm = result.quantity * (price * inContract - result.contractPrice)
+            result.copy(ctdPriceEur = price, ctdMtmBase = (mtm * result.fxToBase).setScale(2, RoundingMode.HALF_UP))
+        }
     }
 
     override fun submit(runId: UUID): ValuationRunView {
@@ -122,6 +212,9 @@ class ValuationService(
         val prior = repository.official(run.legalEntityId, run.valuationDate, orEarlier = true, before = true)
         if (prior != null) {
             repository.insertExplain(runId, prior.id, PnlExplainer.explain(repository.results(prior.id, null), repository.results(runId, null), ::cancelled))
+            val before = repository.portfolio(prior.id)
+            val now = repository.portfolio(runId)
+            if (before != null && now != null) repository.insertPortfolioExplain(runId, prior.id, PortfolioExplainer.explain(before, now))
         }
         val official = repository.run(runId)!!
         events.publishEvent(ValuationRunSignedOff(official, previous?.id))
@@ -269,6 +362,24 @@ class ValuationService(
     }
 
     @Transactional(readOnly = true)
+    override fun portfolio(runId: UUID): PortfolioBridgeView? {
+        val run = repository.run(runId) ?: throw NotFoundException("ValuationRun", runId)
+        readable(run.legalEntityId)
+        return repository.portfolio(runId)
+    }
+
+    override fun portfolioExplain(legalEntityId: UUID, from: LocalDate, to: LocalDate): PortfolioExplainView {
+        readable(legalEntityId)
+        if (to.isBefore(from)) throw ValidationException("The period ends before it starts")
+        val steps = repository.portfolioExplains(legalEntityId, from, to)
+        val totals = PortfolioCause.entries.associateWith { cause -> steps.mapNotNull { it.causes[cause] }.fold(BigDecimal.ZERO, BigDecimal::add) }
+        val realised = portfolioValues?.ifAvailable?.let { query ->
+            // Plans approved after the first day up to and including the last, like the runs.
+            runCatching { savepoints.attempt { query.realisedGiveAway(legalEntityId, from.plusDays(1), to.plusDays(1)).totalEur } }.getOrNull()
+        }
+        return PortfolioExplainView(legalEntityId, from, to, EUR, steps, totals, realised)
+    }
+
     override fun explain(legalEntityId: UUID, from: LocalDate, to: LocalDate): PnlExplainView? {
         readable(legalEntityId)
         val r0 = repository.official(legalEntityId, from, orEarlier = true) ?: return null
@@ -300,6 +411,7 @@ class ValuationService(
     }
 
     private companion object {
+        const val EUR = "EUR"
         val VALUED = setOf(TradeStatus.APPROVED, TradeStatus.CONFIRMED, TradeStatus.PARTIALLY_DELIVERED)
         const val MAX_TRADES = 100_000
     }

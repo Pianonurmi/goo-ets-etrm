@@ -28,6 +28,7 @@ import { useBooks } from '@/features/trades/hooks';
 import { signOffSteps } from '@/features/marketdata/model/lifecycle';
 import { explainBars } from './model/explain';
 import { OfficialRun } from './OfficialRun';
+import { PortfolioExplain, PortfolioTab } from './PortfolioTab';
 
 type Run = Schema<'ValuationRunView'>;
 type Result = Schema<'ValuationResultView'>;
@@ -293,6 +294,7 @@ function ExplainFor({ entityId, initial }: { entityId: string; initial: [string,
           </Paper>
         </Stack>
       )}
+      <PortfolioExplain entityId={entityId} from={from} to={to} />
     </Stack>
   );
 }
@@ -346,6 +348,8 @@ export function ValuationPage() {
 export function RunDetailPage() {
   const { t } = useTranslation();
   const { runId = '' } = useParams();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'portfolio' ? 'portfolio' : 'results';
   const queryClient = useQueryClient();
   const run = $api.useQuery('get', '/api/v1/valuation/runs/{id}', { params: { path: { id: runId } } });
   const books = useBooks(run.data?.legalEntityId);
@@ -404,6 +408,28 @@ export function RunDetailPage() {
         type: 'rightAligned',
         cellRenderer: (p: ICellRendererParams<Result>) =>
           p.data && <MtmCell value={p.data.mtmBase} currency={currency} />,
+      },
+      {
+        field: 'ctdPriceEur',
+        headerName: t('valuation.ctdPrice'),
+        headerTooltip: t('valuation.ctdHint'),
+        width: 150,
+        type: 'rightAligned',
+        valueFormatter: (p) =>
+          p.value === null || p.value === undefined ? '—' : formatDecimal(p.value as number, 2, 6),
+      },
+      {
+        field: 'ctdMtmBase',
+        headerName: t('valuation.ctdMtm'),
+        headerTooltip: t('valuation.ctdHint'),
+        width: 160,
+        type: 'rightAligned',
+        cellRenderer: (p: ICellRendererParams<Result>) =>
+          p.data?.ctdMtmBase === null || p.data?.ctdMtmBase === undefined ? (
+            '—'
+          ) : (
+            <MtmCell value={p.data.ctdMtmBase} currency={currency} />
+          ),
       },
       {
         field: 'status',
@@ -499,35 +525,53 @@ export function RunDetailPage() {
           </Paper>
         )}
       </DetailLayout>
-      <Stack gap="sm">
-        <Group justify="space-between" align="flex-end">
-          <Title order={3} size="h5">
-            {t('valuation.results')}
-          </Title>
-          <Select
-            aria-label={t('trades.columns.book')}
-            data={books.list.map((book) => ({ value: book.id, label: `${book.code} · ${book.name}` }))}
-            value={bookId}
-            onChange={setBookId}
-            clearable
-            placeholder={t('valuation.allBooks')}
-            w={280}
-          />
-        </Group>
-        <QueryState isPending={false} error={results.error}>
-          {results.isPending ? (
-            <TableSkeleton />
-          ) : (
-            <DataGrid<Result>
-              rowData={results.data ?? []}
-              columnDefs={columns}
-              rowId={(r) => r.scheduleId}
-              height={460}
-              overlayNoRowsTemplate={t('common.empty')}
-            />
-          )}
-        </QueryState>
-      </Stack>
+      <Tabs
+        value={tab}
+        onChange={(value) => setParams(value && value !== 'results' ? { tab: value } : {}, { replace: true })}
+      >
+        <Tabs.List>
+          <Tabs.Tab value="results" data-testid="results-tab">
+            {t('valuation.resultsTab')}
+          </Tabs.Tab>
+          <Tabs.Tab value="portfolio" data-testid="portfolio-tab">
+            {t('valuation.portfolio.tab')}
+          </Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="results" pt="md">
+          <Stack gap="sm">
+            <Group justify="space-between" align="flex-end">
+              <Title order={3} size="h5">
+                {t('valuation.results')}
+              </Title>
+              <Select
+                aria-label={t('trades.columns.book')}
+                data={books.list.map((book) => ({ value: book.id, label: `${book.code} · ${book.name}` }))}
+                value={bookId}
+                onChange={setBookId}
+                clearable
+                placeholder={t('valuation.allBooks')}
+                w={280}
+              />
+            </Group>
+            <QueryState isPending={false} error={results.error}>
+              {results.isPending ? (
+                <TableSkeleton />
+              ) : (
+                <DataGrid<Result>
+                  rowData={results.data ?? []}
+                  columnDefs={columns}
+                  rowId={(r) => r.scheduleId}
+                  height={460}
+                  overlayNoRowsTemplate={t('common.empty')}
+                />
+              )}
+            </QueryState>
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="portfolio" pt="md">
+          <PortfolioTab runId={runId} />
+        </Tabs.Panel>
+      </Tabs>
     </Stack>
   );
 }

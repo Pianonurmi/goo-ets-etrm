@@ -154,6 +154,17 @@ class MonthEndIT {
         val explain = json(s.asUser("analyst", ANALYST).get("/api/v1/valuation/pnl-explain?legalEntityId=${s.entityId}&from=2026-09-29&to=2026-09-30"))
         explain.getMap<String, Any>("components").values.sumOf { BigDecimal(it.toString()) }.compareTo(BigDecimal("1990")) shouldBe 0
         BigDecimal(explain.getString("mtmTo")).subtract(BigDecimal(explain.getString("mtmFrom"))).compareTo(BigDecimal("1990")) shouldBe 0
+        // Portfolio value (ADR 0039), next to the run and never in it: the GoO sale's MtM of -1000 x (0.31 - 1.95) is in
+        // the bridge, the official total above is unchanged, and the parts add up.
+        val bridge = json(s.asUser("analyst", ANALYST).get("/api/v1/valuation/runs/$september30/portfolio"))
+        BigDecimal(bridge.getString("tradeMtm")).compareTo(BigDecimal("1640")) shouldBe 0
+        val parts = BigDecimal(bridge.getString("inventoryValue")) + BigDecimal(bridge.getString("tradeMtm")) -
+            BigDecimal(bridge.getString("giveAway")) - BigDecimal(bridge.getString("transferFees")) - BigDecimal(bridge.getString("expiryHaircut"))
+        parts.compareTo(BigDecimal(bridge.getString("portfolioValue"))) shouldBe 0
+        val portfolioExplain = json(
+            s.asUser("analyst", ANALYST).get("/api/v1/valuation/portfolio-explain?legalEntityId=${s.entityId}&from=2026-09-29&to=2026-09-30"),
+        )
+        portfolioExplain.getList<Any>("steps").size shouldBe 1
 
         // 4. EMIR: the forward's confirmation and its valuations; the GoO trade is not reportable.
         s.asUser("middle", "MIDDLE_OFFICE").get("/api/v1/reports/emir/events?legalEntityId=${s.entityId}&from=2026-01-01&to=2030-12-31").then().statusCode(200)

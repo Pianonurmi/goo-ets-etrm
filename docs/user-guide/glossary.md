@@ -10,6 +10,7 @@ Terms used on the screens and in this manual.
 | Break fingerprint | Identity of a reconciliation discrepancy across statements (account, type, issuance and range, or product and difference) |
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
 | Change request | A four-eyes change to sensitive master data, applied when a second person approves it in the inbox |
+| Cheapest to deliver | For a GoO sale, the average value per MWh of the certificates that would deliver it; shown next to the official mark, never booked |
 | Confirmation break | A counterparty confirmation that differs from ours; overridden or disputed by a second person |
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Credit support | Collateral or guarantees that reduce (received) or add to (posted) credit exposure |
@@ -47,6 +48,7 @@ Terms used on the screens and in this manual.
 | Persona | In the demo, a person with a role that you act as |
 | PFE | Potential future exposure: an add-on for how much a trade's value could move before delivery |
 | Plan | Proposed assignment of lots to obligations; approved plans reserve lots and instruct registries |
+| Portfolio value | What the GoO book is worth as a whole: certificates held at the best price each qualifies for, plus the trades' MtM, less what delivering the sales gives away and costs |
 | Pre-trade check | Findings a module (risk) reports on a trade before approval; some require risk's approval |
 | Reverse charge | VAT accounted for by the buyer instead of the seller: domestically for allowances (Art. 199a) or German GoOs, and for cross-border B2B supplies |
 | Scarcity rent | Shadow price of supply: how much a plan's cost would fall with one more MWh of that bucket and year (indicative) |

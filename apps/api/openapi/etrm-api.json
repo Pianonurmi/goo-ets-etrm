@@ -6995,6 +6995,177 @@
         "required" : [ "change", "id", "kind", "requestedAt", "requestedBy", "status" ],
         "type" : "object"
       },
+      "PortfolioBridgeView" : {
+        "properties" : {
+          "allocatedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "buckets" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PortfolioBucketRow"
+            },
+            "type" : "array"
+          },
+          "computedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "expiryHaircut" : {
+            "type" : "number"
+          },
+          "explain" : {
+            "additionalProperties" : {
+              "type" : "number"
+            },
+            "type" : "object"
+          },
+          "giveAway" : {
+            "type" : "number"
+          },
+          "heldMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "inventoryValue" : {
+            "type" : "number"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "obligations" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PortfolioObligationRow"
+            },
+            "type" : "array"
+          },
+          "portfolioValue" : {
+            "type" : "number"
+          },
+          "priorRunId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "runId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "shortfallMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "stamp" : {
+            "type" : "string"
+          },
+          "tradeMtm" : {
+            "type" : "number"
+          },
+          "transferFees" : {
+            "type" : "number"
+          },
+          "unpricedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "valuationDate" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "allocatedMwh", "buckets", "computedAt", "currency", "expiryHaircut", "explain", "giveAway", "heldMwh", "inventoryValue", "legalEntityId", "obligations", "portfolioValue", "runId", "shortfallMwh", "stamp", "tradeMtm", "transferFees", "unpricedMwh", "valuationDate" ],
+        "type" : "object"
+      },
+      "PortfolioBucketRow" : {
+        "properties" : {
+          "allocatedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "heldMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "productionYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "valueEur" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "allocatedMwh", "heldMwh", "productionYear", "valueEur" ],
+        "type" : "object"
+      },
+      "PortfolioExplainStep" : {
+        "properties" : {
+          "causes" : {
+            "additionalProperties" : {
+              "type" : "number"
+            },
+            "type" : "object"
+          },
+          "portfolioValue" : {
+            "type" : "number"
+          },
+          "priorRunId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "runId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "valuationDate" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "causes", "portfolioValue", "priorRunId", "runId", "valuationDate" ],
+        "type" : "object"
+      },
+      "PortfolioExplainView" : {
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "from" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "realisedGiveAway" : {
+            "type" : [ "number", "null" ]
+          },
+          "steps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PortfolioExplainStep"
+            },
+            "type" : "array"
+          },
+          "to" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "totals" : {
+            "additionalProperties" : {
+              "type" : "number"
+            },
+            "type" : "object"
+          }
+        },
+        "required" : [ "currency", "from", "legalEntityId", "steps", "to", "totals" ],
+        "type" : "object"
+      },
       "PortfolioNode" : {
         "properties" : {
           "aliases" : {
@@ -7062,6 +7233,50 @@
           }
         },
         "required" : [ "aliases", "availableToSellMwh", "bucketCode", "coveredWithinMwh", "depth", "freeMwh", "futureMwh", "longMwh", "naiveNetMwh", "name", "parents", "shortAfterNettingMwh", "shortMwh" ],
+        "type" : "object"
+      },
+      "PortfolioObligationRow" : {
+        "properties" : {
+          "allocatedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "cheapestToDeliverEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "demandMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "giveAwayEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "obligationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "saleMarkEur" : {
+            "type" : [ "number", "null" ]
+          },
+          "scheduleId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "tradeRef" : {
+            "type" : [ "string", "null" ]
+          },
+          "transferFeesEur" : {
+            "type" : "number"
+          },
+          "vintageYear" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
+          }
+        },
+        "required" : [ "allocatedMwh", "demandMwh", "obligationId", "transferFeesEur" ],
         "type" : "object"
       },
       "PortfolioView" : {
@@ -10674,6 +10889,12 @@
           "counterpartyId" : {
             "format" : "uuid",
             "type" : "string"
+          },
+          "ctdMtmBase" : {
+            "type" : [ "number", "null" ]
+          },
+          "ctdPriceEur" : {
+            "type" : [ "number", "null" ]
           },
           "curveCode" : {
             "type" : [ "string", "null" ]
@@ -23580,6 +23801,59 @@
         "tags" : [ "Valuation" ]
       }
     },
+    "/api/v1/valuation/portfolio-explain" : {
+      "get" : {
+        "operationId" : "valuation_portfolioExplain",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortfolioExplainView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Valuation" ]
+      }
+    },
     "/api/v1/valuation/runs" : {
       "get" : {
         "operationId" : "valuation_runs",
@@ -23690,6 +23964,43 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ValuationRunView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Valuation" ]
+      }
+    },
+    "/api/v1/valuation/runs/{id}/portfolio" : {
+      "get" : {
+        "operationId" : "valuation_portfolio",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortfolioBridgeView"
                 }
               }
             },

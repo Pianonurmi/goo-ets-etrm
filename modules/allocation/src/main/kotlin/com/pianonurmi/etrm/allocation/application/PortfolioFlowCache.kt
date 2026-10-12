@@ -111,6 +111,17 @@ class PortfolioFlowCache(
         }
     }
 
+    /**
+     * The held tier built afresh with the prices of [asOf], for valuation (ADR 0039); not cached. Holdings and open
+     * obligations are the current ones.
+     */
+    fun buildAt(holderEntityId: UUID, asOf: LocalDate): Pair<ProblemBuilder.Built, String> = transactions.execute {
+        val key = Key(holderEntityId, emptySet(), SupplyTier.HELD)
+        val stamp = stamp(key).stamp
+        val open = withoutInFlight(holderEntityId, obligations.open(holderEntityId))
+        problemBuilder.build(lotQuery.snapshot(holderEntityId), open, emptyMap(), asOf) to stamp
+    }
+
     @PreDestroy
     fun close() {
         background.shutdownNow()

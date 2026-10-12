@@ -47,6 +47,25 @@ schedule:
 The components add up exactly to the change in MtM. Signing off a run also stores its explain against the previous
 official run.
 
+## Portfolio value (management view, ADR 0039)
+Each run also keeps a portfolio value in EUR, from allocation's valuation-grade allocation of the entity's held
+certificates against its open obligations (a min-cost max-flow: most coverage, priority first, least cost):
+
+| Line | Meaning |
+|---|---|
+| Inventory value | held certificates, each at the best price it qualifies for on the run date |
+| Trade MtM | the run's official MtM of its GoO trades, in EUR |
+| Give-away | premium handed over where a certificate worth more than the sale's product delivers it |
+| Transfer fees | registry fees to the obligations' target registries |
+| Expiry haircut | value lost on certificates delivered close to expiry |
+| Portfolio value | inventory value + trade MtM − give-away − transfer fees − expiry haircut |
+
+A GoO sale's result also shows its cheapest to deliver (the average value per MWh of the certificates that deliver
+it) and its MtM at that price. Neither changes the official MtM, the run total, the ledger, EMIR or credit. Sign-off
+stores a portfolio explain against the previous official run: trade MtM, inventory price, inventory in and out,
+give-away, reallocation (transfer fees), expiry and unexplained (rounding). The portfolio value is left out, never
+failing the run, when allocation cannot value the book or the base currency has no rate to EUR.
+
 ## API
 `/api/v1/valuation`:
 - `POST runs`
@@ -55,5 +74,6 @@ official run.
 - `GET official?legalEntityId&date`
 - `GET pnl-explain`
 - `GET trades/{id}/mtm?date` (what-if, not stored)
+- `GET runs/{id}/portfolio` (404 when the run has no portfolio value), `GET portfolio-explain?legalEntityId&from&to`
 
 Reading needs RISK, MIDDLE_OFFICE, ACCOUNTANT, AUDITOR or TRADER, plus access to the entity.
