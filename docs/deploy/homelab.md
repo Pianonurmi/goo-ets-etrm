@@ -4,6 +4,9 @@ The showcase runs on a headless Linux VM on your own network: the same stack as 
 PostgreSQL, the application in the `showcase` profile, Caddy in front), opened from a browser on another machine.
 For a public server with a domain and HTTPS, follow [the VPS guide](vps.md) instead.
 
+The CI runner ([ci-runner.md](../operations/ci-runner.md)) belongs on its own VM, not on this one: a build uses every
+core for minutes and runs code from every pushed branch.
+
 ## What the VM needs
 
 - 2 vCPUs, 4 GB RAM, a few GB of disk. The application takes up to 2.5 GB, PostgreSQL 768 MB.

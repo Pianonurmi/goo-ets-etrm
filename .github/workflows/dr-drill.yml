@@ -8,7 +8,7 @@ on:
 
 jobs:
   drill:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
     timeout-minutes: 45
     services:
       postgres:
@@ -17,17 +17,25 @@ jobs:
           POSTGRES_USER: etrm
           POSTGRES_PASSWORD: etrm
           POSTGRES_DB: etrm_codegen
-        ports: ["5432:5432"]
+        # A free host port: the runner may host other jobs and databases.
+        ports: ["5432"]
         options: >-
           --health-cmd "pg_isready -U etrm -d etrm_codegen"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     env:
-      ETRM_CODEGEN_DB_URL: jdbc:postgresql://localhost:5432/etrm_codegen
       ETRM_DB_USER: etrm
       ETRM_DB_PASSWORD: etrm
     steps:
+      - name: Database on the service's port
+        run: |
+          port=${{ job.services.postgres.ports['5432'] }}
+          {
+            echo "DB_PORT=$port"
+            echo "PGPORT=$port"
+            echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
+          } >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -43,27 +51,35 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: true
+      # A hosted runner installs the client; the self-hosted one has it from ops/runner/provision.sh.
       - name: PostgreSQL 17 client
         run: |
-          sudo apt-get install -y -q postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y -q postgresql-client-17
+          if [ "${{ runner.environment }}" = "github-hosted" ]; then
+            sudo apt-get update -q
+            sudo apt-get install -y -q postgresql-common
+            sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+            sudo apt-get install -y -q postgresql-client-17
+          fi
+          if [ ! -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+            echo "::error::pg_dump 17 is missing on this runner: run ops/runner/provision.sh"
+            exit 1
+          fi
           echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - name: Boot jar
         run: ./gradlew :apps:api:bootJar
       - name: Seed a source database with the demo data
         run: |
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_source"
-          ETRM_DB_URL=jdbc:postgresql://localhost:5432/etrm_source nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar \
+          ETRM_DB_URL=jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_source nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar \
             --spring.profiles.active=dev,demo --logging.level.com.pianonurmi.etrm=INFO > seed.log 2>&1 &
           echo $! > seed.pid
-          for i in $(seq 1 120); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
+          for _ in $(seq 1 120); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
           curl -fs http://localhost:8080/actuator/health/readiness
           kill "$(cat seed.pid)"
       - name: Drill
         env:
-          SOURCE_DB_URL: postgresql://etrm:etrm@localhost:5432/etrm_source
-          TARGET_DB_URL: postgresql://etrm:etrm@localhost:5432/etrm_dr
+          SOURCE_DB_URL: postgresql://etrm:etrm@localhost:${{ env.DB_PORT }}/etrm_source
+          TARGET_DB_URL: postgresql://etrm:etrm@localhost:${{ env.DB_PORT }}/etrm_dr
           JAVA: ${{ env.JAVA_HOME_25_X64 }}/bin/java
         run: |
           ops/dr/drill.sh

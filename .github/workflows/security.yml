@@ -9,11 +9,10 @@ on:
 
 jobs:
   dependency-check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
     timeout-minutes: 60
     env:
       NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-      ETRM_CODEGEN_DB_URL: jdbc:postgresql://localhost:5432/etrm_codegen
       ETRM_DB_USER: etrm
       ETRM_DB_PASSWORD: etrm
     services:
@@ -23,13 +22,22 @@ jobs:
           POSTGRES_USER: etrm
           POSTGRES_PASSWORD: etrm
           POSTGRES_DB: etrm_codegen
-        ports: ["5432:5432"]
+        # A free host port: the runner may host other jobs and databases.
+        ports: ["5432"]
         options: >-
           --health-cmd "pg_isready -U etrm"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     steps:
+      - name: Database on the service's port
+        run: |
+          port=${{ job.services.postgres.ports['5432'] }}
+          {
+            echo "DB_PORT=$port"
+            echo "PGPORT=$port"
+            echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
+          } >> "$GITHUB_ENV"
       - name: NVD key present
         id: key
         run: |

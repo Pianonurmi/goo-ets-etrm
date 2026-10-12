@@ -13,7 +13,7 @@ on:
 
 jobs:
   load:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
     timeout-minutes: 45
     services:
       postgres:
@@ -22,17 +22,25 @@ jobs:
           POSTGRES_USER: etrm
           POSTGRES_PASSWORD: etrm
           POSTGRES_DB: etrm_codegen
-        ports: ["5432:5432"]
+        # A free host port: the runner may host other jobs and databases.
+        ports: ["5432"]
         options: >-
           --health-cmd "pg_isready -U etrm"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     env:
-      ETRM_CODEGEN_DB_URL: jdbc:postgresql://localhost:5432/etrm_codegen
       ETRM_DB_USER: etrm
       ETRM_DB_PASSWORD: etrm
     steps:
+      - name: Database on the service's port
+        run: |
+          port=${{ job.services.postgres.ports['5432'] }}
+          {
+            echo "DB_PORT=$port"
+            echo "PGPORT=$port"
+            echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
+          } >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -53,9 +61,9 @@ jobs:
       - name: Start the application with the demo data
         run: |
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_load"
-          ETRM_DB_URL=jdbc:postgresql://localhost:5432/etrm_load nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar \
+          ETRM_DB_URL=jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_load nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar \
             --spring.profiles.active=dev,demo --logging.level.com.pianonurmi.etrm=INFO --logging.level.org.jooq=INFO > app.log 2>&1 &
-          for i in $(seq 1 90); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
+          for _ in $(seq 1 90); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
           curl -fs http://localhost:8080/actuator/health/readiness
       - uses: grafana/setup-k6-action@v1
         with:

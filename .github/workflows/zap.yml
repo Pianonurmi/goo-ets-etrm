@@ -9,7 +9,7 @@ on:
 
 jobs:
   zap:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
     timeout-minutes: 30
     services:
       postgres:
@@ -18,17 +18,25 @@ jobs:
           POSTGRES_USER: etrm
           POSTGRES_PASSWORD: etrm
           POSTGRES_DB: etrm_codegen
-        ports: ["5432:5432"]
+        # A free host port: the runner may host other jobs and databases.
+        ports: ["5432"]
         options: >-
           --health-cmd "pg_isready -U etrm -d etrm_codegen"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     env:
-      ETRM_CODEGEN_DB_URL: jdbc:postgresql://localhost:5432/etrm_codegen
       ETRM_DB_USER: etrm
       ETRM_DB_PASSWORD: etrm
     steps:
+      - name: Database on the service's port
+        run: |
+          port=${{ job.services.postgres.ports['5432'] }}
+          {
+            echo "DB_PORT=$port"
+            echo "PGPORT=$port"
+            echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
+          } >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -49,9 +57,9 @@ jobs:
       - name: Start the application (secured chain, no identity provider reachable)
         run: |
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_zap"
-          ETRM_DB_URL=jdbc:postgresql://localhost:5432/etrm_zap ETRM_OIDC_ISSUER=http://localhost:8081/realms/etrm \
+          ETRM_DB_URL=jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_zap ETRM_OIDC_ISSUER=http://localhost:8081/realms/etrm \
             nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar > app.log 2>&1 &
-          for i in $(seq 1 90); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
+          for _ in $(seq 1 90); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
           curl -fs http://localhost:8080/actuator/health/readiness
       - name: ZAP baseline
         run: |
