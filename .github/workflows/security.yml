@@ -9,7 +9,7 @@ on:
 
 jobs:
   dependency-check:
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 60
     env:
       NVD_API_KEY: ${{ secrets.NVD_API_KEY }}

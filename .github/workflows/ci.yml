@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   chart:
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
             default.yaml full.yaml ops/k8s/postgres-cluster.yaml
 
   build:
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 45
     permissions:
       contents: read

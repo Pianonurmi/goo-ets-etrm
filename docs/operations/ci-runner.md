@@ -1,23 +1,25 @@
-# CI on a self-hosted runner
+# CI runners: hosted, or a self-hosted runner
 
-The workflows in `.github/workflows/` run on a GitHub Actions runner in the homelab (ADR 0041). GitHub still
-starts the runs, shows the checks and hosts the image registry (GHCR), artifacts and Dependabot. The jobs execute on
-a Linux VM with Docker. Self-hosted runners use no Actions minutes, even for a private repository.
+The repository is public, so the workflows in `.github/workflows/` run on GitHub's hosted runners, which are free
+for public repositories (ADR 0041). This page also describes a self-hosted runner in the homelab, for when the
+repository is private again: self-hosted runners use no Actions minutes, even for a private repository.
 
 ## Choosing the runner
 Every job has:
 ```yaml
-runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64","etrm"]') }}
+runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
 ```
-- **Default:** a runner with the label `etrm`.
-- **Hosted runners:** set the repository variable `CI_RUNNER` to `"ubuntu-latest"` (with the quotes: it is JSON).
-  The workflows then use GitHub's hosted runners again, without a code change, while minutes last. The steps work
-  on both: those that need root (Playwright's system libraries, the PostgreSQL 17 client in the DR drill) run only
-  on hosted runners, where the self-hosted runner has them from provisioning.
-- **Unset the variable** to go back to the homelab.
+- **Default:** GitHub's hosted `ubuntu-latest`.
+- **Self-hosted, private repository only:** set the repository variable `CI_RUNNER` to
+  `["self-hosted","linux","x64","etrm"]` to run on the homelab runner below. The steps work on both: those that
+  need root (Playwright's system libraries, the PostgreSQL 17 client in the DR drill) run only on hosted runners,
+  and the self-hosted runner has them from provisioning.
+- **Unset the variable** to go back to hosted runners. Do this before the repository is made public (see Security).
 
 ## The machine
-- **Hardware:** Ubuntu 24.04 with Docker Engine, x86-64. At least 4 vCPU, 12 GB RAM and 80 GB disk.
+- **Hardware:** Ubuntu 24.04 with Docker Engine, x86-64. At least 2 vCPU and 8 GB RAM (plus a few GB of swap),
+  like GitHub's hosted runner for a private repository, and 40 GB disk: more than a hosted runner's, because a
+  persistent runner keeps its caches and images. 4 vCPU roughly halves the build time.
   - **Memory:** Gradle runs with 3 GB and the Kotlin daemon with 2 GB. Tests start PostgreSQL (the service
     container), Kafka (Testcontainers), the application and Chromium.
   - **Disk:** images, the Gradle and npm caches, and Playwright's browsers accumulate.

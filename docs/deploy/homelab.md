@@ -4,7 +4,7 @@ The showcase runs on a headless Linux VM on your own network: the same stack as 
 PostgreSQL, the application in the `showcase` profile, Caddy in front), opened from a browser on another machine.
 For a public server with a domain and HTTPS, follow [the VPS guide](vps.md) instead.
 
-The CI runner ([ci-runner.md](../operations/ci-runner.md)) belongs on its own VM, not on this one: a build uses every
+A self-hosted CI runner ([ci-runner.md](../operations/ci-runner.md), only for a private repository) belongs on its own VM, not on this one: a build uses every
 core for minutes and runs code from every pushed branch.
 
 ## What the VM needs

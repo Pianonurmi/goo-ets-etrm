@@ -37,5 +37,5 @@ transaction, so an event is never lost.
 - Delivery is at least once: consumers must be idempotent on `etrm-event-id`.
 - An event's JSON is a public contract. Renaming a field of a view used in an externalised event breaks consumers,
   so treat these views like the OpenAPI document (ADR 0027).
-- `KafkaExternalizationIT` runs a broker in Testcontainers, so CI needs Docker; the self-hosted runner has it
-  (ADR 0041), as GitHub's hosted runners do.
+- `KafkaExternalizationIT` runs a broker in Testcontainers, so CI needs Docker; GitHub's hosted runners have it,
+  and so does the self-hosted fallback (ADR 0041).

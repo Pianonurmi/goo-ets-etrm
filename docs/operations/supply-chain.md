@@ -8,9 +8,9 @@
 | Web bundle (production dependencies) | `@cyclonedx/cyclonedx-npm`, `npm run sbom` in `apps/web` | `apps/web/build/sbom/etrm-web.cdx.json` |
 | Container image | Trivy, CycloneDX output | CI artifact `sbom` (`etrm-image.cdx.json`) |
 
-CI publishes all three as the `sbom` artifact (kept 90 days) for every build. The workflows run on the self-hosted
-runner (ADR 0041, [ci-runner.md](ci-runner.md)); the tools a job downloads (kubeconform, the runner itself) are
-checked against published checksums.
+CI publishes all three as the `sbom` artifact (kept 90 days) for every build. The workflows run on GitHub's hosted
+runners, with a self-hosted runner as the fallback for a private repository (ADR 0041, [ci-runner.md](ci-runner.md));
+the tools a job downloads (kubeconform, the runner itself) are checked against published checksums.
 
 ## Vulnerability gates
 
