@@ -27,4 +27,17 @@ the tools a job downloads (kubeconform, the runner itself) are checked against p
 ## Updates
 
 Dependabot raises weekly updates for Gradle (Spring and Kotlin grouped), npm (React, Mantine and development tooling
-grouped), the runtime image (`ops/Dockerfile`) and GitHub Actions.
+grouped), the runtime image (`ops/Dockerfile`) and GitHub Actions (all actions in one group). Each ecosystem may keep
+ten PRs open, so a backlog does not hide updates.
+
+An update lands as a commit of its own on the development branch, checked by the full build and the end-to-end tests,
+and reaches `main` once CI is green; Dependabot then closes its PR. A major version that the tooling cannot take yet is
+held back with an `ignore` rule in `.github/dependabot.yml`, and the rule says why:
+
+| Held back | Why | Lift when |
+|---|---|---|
+| TypeScript majors (6, 7) | typescript-eslint 8 supports TypeScript below 6.1, openapi-typescript 7 only 5.x | Both declare support |
+| `@types/node` majors above 22 | The runtime and CI are Node 22; newer types describe APIs it does not have | The build moves to a newer Node line |
+
+`eslint-plugin-jsx-a11y` 6.10 still declares ESLint 9 as its peer; an npm override lets it run under ESLint 10, which it
+does correctly. Remove the override when the plugin declares ESLint 10.

@@ -1,90 +1,240 @@
 # Provena
 
-An ETRM for guarantees of origin and EU ETS allowances.
+**Energy-attribute trading, from trade to ledger.** Provena is an energy trading and risk management system (ETRM)
+for guarantees of origin (GoO) and EU emission allowances (EUA). It follows a certificate or an allowance from the
+trade to the registry, the invoice and the general ledger, for a European company group with several legal entities.
 
-![The trader's home page in Provena: tasks, trades pending approval, coverage and mark to market](docs/images/home-trader.png)
+[![CI](https://github.com/Pianonurmi/goo-ets-etrm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Pianonurmi/goo-ets-etrm/actions/workflows/ci.yml)
+[![Licence: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/licence-PolyForm%20Noncommercial%201.0.0-informational)](LICENSE)
 
-Provena follows a certificate or an allowance from the trade to the registry, the invoice and the general ledger. A
-sale names criteria, not lots, and the system finds the certificates that satisfy them. Every step that moves value
-needs a second person. It is built for a European company group with several legal entities.
+![The trader's home page: tasks, trades pending approval, GoO coverage, EUA position and mark to market](docs/images/home-trader.png)
 
-## Try the demo
+## Why Provena
 
-<!-- demo URL -->
-The public demo sits behind a login. Ask the maintainer for a demo account.
+Spreadsheets and generic trading systems break exactly where energy-attribute certificates are hard:
 
-- You act as a **persona**: trader, middle office, back office, risk, accountant, auditor, administrator and others.
-  Switch persona from the menu at the top right.
-- Four-eyes approvals need two personas. Each approving role has two, so you can play both sides.
-- The data is shared by all visitors and is reset every night. Every company, counterparty and price is fictitious.
-- Start with the demo guide at `/guide`: it lists scenarios and guided tours. The `?` button in the app opens the
-  manual page for the screen you are on.
-
-You can also run the demo yourself, see [Quick start A](#quick-start-a-run-the-showcase-locally).
+- **A sale names criteria, not lots.** "Nordic hydro, 2026 production, unsupported" can be delivered by many
+  certificates. Provena finds the ones that qualify and chooses among them by value.
+- **Certificates live in registries.** The Union Registry, national GoO registries and the AIB hub are reached through
+  APIs, files and manual steps. Provena keeps its own books, reconciles them with the registry's statements, and works
+  every difference through to a resolution.
+- **Value moves under four eyes.** Trades, transfers, curve sign-offs, valuation runs, limits and accounting changes
+  each need a second person. The rule is checked in the service and again in the database.
+- **Finance must close the month.** Postings follow rules held as data, the journal is immutable, and exports to the
+  general ledger are exactly-once and reconciled.
 
 ## What it does
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/trades-new.png" alt="Trade capture form with criteria and pricing" width="400"><br>
-      <sub>Trade capture with criteria and pricing</sub>
+      <img src="docs/images/trades-new.png" alt="Trade capture form with product, criteria and pricing" width="400"><br>
+      <sub><b>Trading.</b> Forwards, spots and futures, fixed or index priced; pre-trade checks and approval</sub>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/inventory-lots.png" alt="Certificate inventory with lots, vintages and states" width="400"><br>
-      <sub>Certificate inventory</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/images/allocation-workbench.png" alt="Allocation workbench with plan and coverage" width="400"><br>
-      <sub>Allocation with the CP-SAT solver</sub>
-    </td>
-    <td width="50%" valign="top">
-      <img src="docs/images/valuation-runs.png" alt="Valuation runs with mark to market and P&amp;L explain" width="400"><br>
-      <sub>Valuation and P&amp;L explain</sub>
+      <img src="docs/images/positions-products.png" alt="Product tree with long, short, covered within and short after netting per bucket" width="400"><br>
+      <sub><b>Portfolio.</b> Product hierarchy netted through eligibility; available to sell; future supply</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/monthend-close.png" alt="Month end with the close checklist and GL exports" width="400"><br>
-      <sub>Month end and the GL interface</sub>
+      <img src="docs/images/allocation-workbench.png" alt="Allocation workbench with a plan, its value and coverage" width="400"><br>
+      <sub><b>Allocation.</b> Value-based matching with greedy and exact (CP-SAT) solvers and shadow prices</sub>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/inbox-middle.png" alt="Approval inbox of a middle office user" width="400"><br>
-      <sub>The four-eyes inbox</sub>
+      <img src="docs/images/valuation-portfolio.png" alt="A valuation run's portfolio value as a waterfall from inventory to portfolio value" width="400"><br>
+      <sub><b>Valuation.</b> Official MtM on signed-off curves, P&amp;L explain and the portfolio value bridge</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/inbox-middle.png" alt="The approval inbox of a middle office user with four-eyes checks and due badges" width="400"><br>
+      <sub><b>Control.</b> One approval inbox for every role, with segregation of duties</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/monthend-close.png" alt="Month end with the close checklist, period-end runs and GL exports" width="400"><br>
+      <sub><b>Finance.</b> Period end, gated hard close and exactly-once GL exports</sub>
     </td>
   </tr>
 </table>
 
-- **Trading.** GoO and EUA forwards, spots and futures; fixed or index prices; brokers, master agreements,
-  intercompany mirror trades. Deal versions, approval by a second person, pre-trade limit checks.
-- **Confirmations.** Our JSON and PDF confirmation, the counterparty's matched field by field, override and dispute.
-- **Inventory and registries.** Certificate lots as ranges with a hash-chained journal and bitemporal history;
-  allowance holdings; registry instructions through an outbox with simulator, manual, file and API gateways.
-- **Allocation.** GoO criteria language compiled to SQL; matching with a greedy or exact (CP-SAT) solver, share
-  constraints, max-flow coverage and plans with soft and hard reservations.
-- **Positions.** GoO coverage by bucket and vintage, expiry ladder, EU ETS compliance ladder, snapshots.
-- **Reconciliation.** Registry statements against our holdings, with a break lifecycle and resolutions.
-- **Settlement and invoicing.** Settlement items per delivery, VAT rules as data, gap-free invoices with PDF,
-  payments, credit notes, netting, ageing and VAT reports.
-- **Market data and curves.** Instruments, prices and FX rates (bitemporal, plausibility checks), file imports,
-  ECB reference rates, official curve snapshots signed off by a second person, index fixings.
-- **Valuation.** Mark to market per delivery schedule against official curves, end-of-day runs signed off by risk,
-  P&L explain.
-- **Risk.** Limits under four eyes, credit exposure and credit support, utilisation and breaches, pre-trade checks.
-- **EU ETS compliance.** Installations and aircraft operators, verified emissions, free allocation, surrender
-  attribution and requests, deadline reminders.
-- **Ledger and month end.** Posting rules as data, immutable journal, FIFO and weighted-average costing, period end
-  (MtM by book type, NRV, emission provision, grant release, FX revaluation), exactly-once GL exports and a gated
-  hard close.
-- **Reports and EMIR.** Report catalogue with logged, hashed exports; EMIR trade events and completeness; MiFID II
-  ancillary activity.
-- **Audit.** Append-only, hash-chained audit trail; segregation of duties enforced in services and the database.
+| Area | Capabilities |
+|---|---|
+| Trading and confirmations | GoO and EUA forwards, spots and futures; fixed or index prices; brokers, master agreements, intercompany mirror trades; deal versions; pre-trade limit checks; confirmations matched field by field |
+| Inventory and registries | Certificate lots as number ranges with a hash-chained journal and bitemporal history; allowance holdings; registry instructions through an outbox to simulator, manual, file and API gateways; statement reconciliation with a break workflow |
+| Allocation and portfolio | GoO criteria language; value-based allocation in EUR with the give-away reported; greedy and exact (CP-SAT) solvers; shadow prices; available to sell; flow-netted product hierarchy; purchases and expected issuance as future supply |
+| Positions | GoO coverage by bucket and vintage, expiry ladder, EU ETS compliance ladder, snapshots |
+| Market data and valuation | Prices and FX (bitemporal, plausibility checks), file imports, ECB reference rates; official curve snapshots under sign-off; mark to market per delivery, P&L explain, portfolio value and cheapest to deliver |
+| Risk | Credit, position, tenor, stop-loss, compliance and GoO limits (concentration, expiry, basis); credit exposure with PFE and collateral; breaches; pre-trade checks |
+| EU ETS compliance | Installations and aircraft operators, verified emissions, free allocation, surrender attribution, legal deadlines |
+| Settlement | Settlement items, VAT rules as data, gap-free invoices with PDF, payments, credit notes, netting, ageing and VAT reports |
+| Ledger and reporting | Posting rules as data, immutable journal, FIFO and weighted-average costing, period end (MtM by book type, NRV, provision, grant release, FX revaluation); report catalogue with hashed exports; EMIR events and MiFID II ancillary activity |
 
-## Quick start A: run the showcase locally
+## Built for regulated, audited operations
 
-This runs the published image with the demo data, as the public demo does. You need Docker with the compose plugin.
+Provena is designed to the standards an energy trading company's risk, audit and IT functions apply to a system of
+record.
+
+### Reliability
+
+- **Design targets** ([architecture plan](docs/architecture-plan.md#3-non-functional-requirements-design-targets)):
+  - 99.9 % availability in business hours;
+  - RPO 15 minutes and RTO 4 hours;
+  - API p95 under 300 ms for reads and under 1 s for commands.
+- **Stateless application on PostgreSQL 17.** It scales horizontally. On Kubernetes the database is a three-instance
+  CloudNativePG cluster with a synchronous replica, a WAL archive and nightly backups
+  ([Kubernetes](docs/operations/kubernetes.md)).
+- **Disaster recovery is rehearsed, not assumed.** A monthly drill backs up, restores, compares row counts and
+  verifies the hash chains of the lot journal and the ledger
+  ([disaster recovery](docs/operations/disaster-recovery.md)).
+- **Measured under load** with k6 ([load testing](docs/operations/load-testing.md)). The stress profile ran 104
+  virtual users at 556 requests/s with no errors. In the baseline profile, reads have p95 15 ms and writes 60 ms.
+- **Observability:**
+  - Prometheus metrics, OpenTelemetry traces and ECS JSON logs;
+  - an `X-Trace-Id` header on every response;
+  - in the Kubernetes profile, health probes on a separate management port
+    ([observability](docs/operations/observability.md)).
+
+### Security
+
+- **Identity and access:**
+  - OIDC resource server: roles come from token claims, and each user is scoped to the legal entities they may see;
+  - every command checks role and entity in the service, and segregation of duties is enforced again by database
+    constraints.
+- **Hardened web tier:**
+  - strict Content Security Policy;
+  - CSRF protection on session sign-in;
+  - formula-safe CSV exports.
+  - The axe and CSP checks run in CI ([UI testing](docs/ui/testing.md)), and an OWASP ZAP baseline scan runs
+    weekly.
+- **Supply chain:**
+  - CycloneDX SBOMs for the backend, the web bundle and the image;
+  - a Trivy gate that fails the build on critical fixable vulnerabilities;
+  - Dependabot with a documented hold-back policy;
+  - a weekly OWASP dependency check once an NVD API key is configured
+    ([supply chain](docs/operations/supply-chain.md)).
+- **Assurance:**
+  - a threat model for the public demo ([showcase security](docs/security/showcase.md));
+  - a prepared external penetration test: scope, accounts, rules of engagement
+    ([penetration test](docs/security/penetration-test.md)).
+
+### Robustness and data integrity
+
+- **Append-only records.** Lot events, the journal and the audit trail are protected by triggers and hash-chained.
+  Mistakes are corrected by reversal, never by update.
+- **Exactly-once effects:**
+  - registry calls go through a transactional outbox and never run inside a database transaction;
+  - deliveries and GL exports are idempotent;
+  - a timeout is treated as unknown and reconciled, never resent blindly.
+- **Bitemporal history.** Lots, prices and reference data can be read as of any past date, so a report can be
+  reproduced.
+- **Fault isolation.** Listeners that react to deliveries or receipts park a problem for attention instead of failing
+  the transaction that caused it.
+- **Domain rules in code:**
+  - no floating point in the domain: money and quantities are exact decimals;
+  - periods are closed-open, and instants are UTC.
+
+### Maintainability
+
+- **A modular monolith.** It is one deployable, and the build verifies its module boundaries: 18 bounded contexts,
+  each with its own schema and migrations, talk only through published APIs and domain events. An illegal
+  dependency fails the build (`ModularityTests`).
+- **Contracts are checked:**
+  - the OpenAPI document is a committed contract;
+  - the web client's types are generated from it;
+  - a check fails when an API operation has no screen and no recorded reason.
+- **Decisions are written down:** 41 architecture decision records, arc42 documentation, and a user manual inside
+  the application.
+- **Tests at every level:**
+  - unit and integration tests against PostgreSQL;
+  - end-to-end business scenarios (`GoldenPathIT`, `MonthEndIT`);
+  - Vitest component tests;
+  - Playwright journeys with accessibility checks;
+  - a coverage rule.
+- **Strict tooling:** Kotlin warnings are errors, with detekt and ktlint; TypeScript is strict, with ESLint and
+  Prettier. Every change reaches `main` only after the full CI run is green.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  user([Users<br>trading, operations, finance, risk, audit]) --> web[Web UI<br>React · TypeScript]
+  web --> api
+  subgraph app[Provena application · Kotlin · Spring Boot 4 · Spring Modulith]
+    api[REST API · OpenAPI contract<br>OIDC · roles · entity scope]
+    api --> core[Trading · inventory · allocation · positions]
+    api --> ops[Registry · reconciliation · settlement]
+    api --> fin[Market data · valuation · risk · ETS · ledger · reporting]
+    core & ops & fin --> plat[Workflow · audit · documents · shared kernel]
+  end
+  core & ops & fin & plat --> db[(PostgreSQL 17<br>one schema per module)]
+  ops -- outbox --> reg[Union Registry · GoO registries · AIB hub]
+  fin -- exactly-once exports --> gl[General ledger]
+  app -- events after commit --> kafka[[Kafka · optional]]
+  idp[Identity provider · OIDC] -.-> api
+```
+
+| Layer | Technology |
+|---|---|
+| Application | Kotlin on Java 25 with virtual threads, Spring Boot 4, Spring Modulith, jOOQ, Flyway |
+| Optimisation | Google OR-Tools: CP-SAT for exact allocation, min-cost flow for portfolio valuation, GLOP for shadow prices |
+| Data | PostgreSQL 17; monthly partitions for append-only tables; CloudNativePG for high availability |
+| Web | React, TypeScript (strict), Vite, Mantine, AG Grid, TanStack Query; bundled into the application jar |
+| Integration | Transactional outbox to registries; file, API and manual gateways; events to Kafka after commit; GL file exports |
+| Operations | Docker image, Helm chart, Prometheus, OpenTelemetry, k6 load tests, scripted DR drill |
+
+Each module under `modules/` is a bounded context with `api`, `domain`, `application` and adapter packages. A
+module may use another only through its `api` package, which Spring Modulith verifies.
+
+| Module | Responsibility |
+|---|---|
+| `referencedata`, `taxonomy`, `product` | Legal entities, books, counterparties, registries, devices; code hierarchies; products and the criteria language |
+| `trade` | Deal capture, versions, four-eyes approval, confirmation matching, deliveries |
+| `inventory`, `registry` | Certificate lots and allowance holdings; instruction outbox, gateways, statement formats, reconciliation |
+| `allocation`, `position` | Matching engine, flow core, portfolio views; coverage and compliance ladders |
+| `marketdata`, `valuation`, `risk` | Prices, FX and curves; MtM and P&L explain; limits, exposure and breaches |
+| `etscompliance`, `settlement` | Installations, emissions and surrender; invoices, VAT, payments and netting |
+| `ledger`, `reporting` | Posting rules, journal, period end, GL interface; report catalogue, EMIR, MiFID II |
+| `workflow`, `audit`, `document` | Approval inbox; append-only audit trail; issued PDFs |
+
+More detail: the [architecture plan](docs/architecture-plan.md), [arc42](docs/arc42/) and the
+[decision records](docs/adr/).
+
+## Roadmap
+
+| Increment | Delivered |
+|---|---|
+| 1 | Core domain and ledger: reference data, products and criteria, trades, inventory, allocation, positions, journal, audit |
+| 2 | Registry integration, reconciliation, settlement and invoicing, confirmations, approval inbox |
+| 3 | Market data, curves, valuation, risk and credit, ETS compliance, period-end accounting, reporting, GL interface |
+| 4–5 | Web UI for every area, including the operations screens |
+| 6 | Scale and operations: observability, supply chain, Java 25, Kafka, Kubernetes, partitioning, CP-SAT, load tests, DR |
+| 7 | Public showcase: design system, demo data, in-app manual and guided tours |
+| 8 | GoO portfolio management: value-based allocation, available to sell, product hierarchy, future supply, portfolio value, GoO limits |
+| 9 | Housekeeping: current CI actions and dependency majors, this documentation (in progress) |
+
+**On the path to production, waiting on outside input:**
+- the external penetration test;
+- a DR drill against a production backup;
+- registry API specifications (G-REX, NECS) and AIB code lists;
+- sign-off of accounting policies, VAT rules and PFE add-ons;
+- the receiving GL's file specification;
+- market data vendors;
+- the EMIR field layout and trade repository delegation.
+
+Each increment and milestone is listed in the [roadmap](docs/roadmap.md).
+
+## Try it
+
+The public demo sits behind a sign-in; ask the maintainer for an account. In the demo:
+- You act as a **persona**: trader, middle office, back office, risk, accountant, auditor or administrator. Each
+  approving role has two personas, so you can play both sides of four eyes.
+- Every company, counterparty and price is fictitious, and the data resets every night.
+- Start with the demo guide at `/guide`. The `?` button opens the manual for the screen you are on.
+
+### Run the showcase yourself
+
+You need Docker with the compose plugin.
 
 ```bash
 git clone https://github.com/Pianonurmi/goo-ets-etrm.git
@@ -95,9 +245,8 @@ docker compose pull && docker compose up -d
 docker compose logs -f app      # "Demo data created in ... s" when the example portfolio is ready
 ```
 
-The first start migrates the database and creates about six months of business through the API, which takes around
-a minute. Until then Caddy shows a maintenance page. Open `http://127.0.0.1/` and sign in as `demo` with your
-password. `ETRM_DEMO_USERS` (`alice:secret-one,bob:secret-two`) sets several sign-ins instead.
+The first start migrates the database and creates about six months of business through the API, in about a minute.
+Then open `http://127.0.0.1/` and sign in as `demo`.
 
 | Variable in `.env` | Purpose |
 |---|---|
@@ -105,121 +254,38 @@ password. `ETRM_DEMO_USERS` (`alice:secret-one,bob:secret-two`) sets several sig
 | `ETRM_DEMO_PASSWORD` / `ETRM_DEMO_USERS` | Demo sign-in: user `demo`, or a list of `user:password` pairs |
 | `ETRM_SITE_ADDRESS` | `:80` for plain HTTP; a domain name turns on HTTPS from Let's Encrypt |
 | `ETRM_IMAGE` | `ghcr.io/pianonurmi/goo-ets-etrm:main`, or a commit tag to pin a version |
-| `ETRM_HTTP_PORT` / `ETRM_HTTPS_PORT` | Host ports for Caddy (80 and 443); change them when those are taken |
+| `ETRM_HTTP_PORT` / `ETRM_HTTPS_PORT` | Host ports for Caddy; change them when 80 or 443 are taken |
 
-The demo wipes its database on every start and resets nightly at 04:15 Helsinki time. To put it on a server, with a
-firewall, a domain, backups and a security checklist, follow the [deployment guide](docs/deploy/vps.md). For a
-headless VM on your own network (homelab), see [running the demo in a homelab](docs/deploy/homelab.md).
+For a server with a domain, backups and a security checklist, see the [deployment guide](docs/deploy/vps.md). For a VM
+on your own network, see the [homelab guide](docs/deploy/homelab.md).
 
-## Quick start B: developer build
+### Developer build
 
 You need JDK 25 (Gradle itself runs on JDK 21 or later), Node.js 22 with npm, and Docker.
 
 ```bash
-# PostgreSQL 17; creates etrm, etrm_codegen, etrm_test and etrm_e2e (user etrm/etrm)
-docker compose -f ops/docker-compose.yml up -d postgres
+docker compose -f ops/docker-compose.yml up -d postgres   # PostgreSQL 17 with the build databases
 
 export ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:5432/etrm_codegen
 export ETRM_TEST_DB_URL=jdbc:postgresql://localhost:5432/etrm_test
 export ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
 
-./gradlew build          # lint, jOOQ code generation, all tests, coverage rule
-
-# Run with the dev profile (no sign-in, persona headers) and demo data on first start
-SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun
+./gradlew build                                            # lint, jOOQ code generation, all tests, coverage rule
+SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun   # web UI and Swagger UI on http://127.0.0.1:8080
 ```
 
-Open `http://127.0.0.1:8080/` for the web UI (pick a persona in the header) and `http://127.0.0.1:8080/swagger-ui`
-for the API. The dev profile binds the loopback address only.
-
-For the web UI with hot reload, keep the API running and start Vite, which proxies `/api` to port 8080:
-
-```bash
-cd apps/web && npm run dev      # http://localhost:5173
-```
-
-- The build needs PostgreSQL even before the tests, because jOOQ sources are generated from a Flyway-migrated
-  database. Without `ETRM_TEST_DB_URL`, integration tests start a Testcontainers PostgreSQL.
-- `./gradlew build -Petrm.skipWeb` builds the backend without the web UI. `./gradlew :apps:web:check` runs lint,
-  format, typecheck and Vitest for the UI.
-- `./gradlew :apps:api:test --tests '*GoldenPathIT*'` runs the end-to-end REST scenario, `*MonthEndIT*` the path
-  from market data to hard close.
-- Full-size allocation benchmark:
-  `./gradlew :modules:allocation:test --tests '*AllocationBenchmarkTest*' -Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000`
-- `ops/docker-compose.yml` also defines a Keycloak service for token sign-in outside the dev profile.
-- `CLAUDE.md` lists the commands and conventions for working on the code.
-
-## Architecture
-
-Provena is a modular monolith: one deployable with strict module boundaries that the build verifies. It is written in
-Kotlin on Spring Boot 4 with Spring Modulith. Each module is a bounded context with its own PostgreSQL schema and
-Flyway migrations. Data access is jOOQ, not JPA. The web UI (React, TypeScript, Vite) is bundled into the API jar.
-Modules talk through their `api` packages and through domain events published in the command transaction. Selected
-events go to Kafka after commit when enabled.
-
-| Module | What it does |
-|---|---|
-| `referencedata`, `taxonomy` | Legal entities, books, counterparties, registries and accounts, devices; EECS-style code hierarchies |
-| `product` | Product catalogue and the GoO criteria language |
-| `trade` | Deal capture, versions, four-eyes approval, confirmation matching, deliveries, intercompany mirroring |
-| `inventory` | Certificate lots as ranges, allowance holdings, hash-chained journal, registry reconciliation |
-| `registry` | Transfer routes, instruction outbox, simulator, manual, file and API gateways, statement formats |
-| `settlement` | Settlement items, VAT rules, invoices with PDF, payments, credit notes, netting |
-| `marketdata` | Instruments, prices, FX, import formats, index fixings, ECB reference rates |
-| `valuation` | Mark to market against official curves, end-of-day runs, P&L explain |
-| `reporting` | Report catalogue, logged exports, EMIR events, MiFID II ancillary activity |
-| `risk` | Limits, credit exposure and support, breaches, pre-trade checks |
-| `etscompliance` | Installations, verified emissions, free allocation, surrender, deadlines |
-| `allocation` | Matching engine: lot classes, scoring, greedy and CP-SAT solvers, max-flow coverage, plans |
-| `position` | GoO coverage, expiry ladder, EU ETS compliance ladder, snapshots |
-| `ledger` | Posting rules, immutable journal, costing, periods, period end, GL interface, hard close |
-| `workflow`, `audit` | Approval inbox with segregation of duties; append-only audit trail |
-| `document` | Rendered, stored and hashed PDFs |
-
-```
-build-logic/     Gradle convention plugins (Kotlin, module with jOOQ codegen, application)
-platform/        shared kernel (value types, events, errors, security context, test fixtures)
-modules/<name>/  bounded contexts: api / domain / application / adapter, own schema and migrations
-apps/api/        Spring Boot application: migrations runner, security, demo data, end-to-end tests
-apps/web/        web UI (React, TypeScript, Vite), bundled into the API jar
-docs/            arc42, ADRs, domain and integration notes, roadmap, glossary
-ops/             docker-compose, Dockerfile, demo stack, Helm chart, CloudNativePG cluster, k6 load test, DR drill
-config/detekt/   static analysis configuration
-```
-
-Read more in the [architecture plan](docs/architecture-plan.md), the [arc42 documentation](docs/arc42/) and the
-[decision records](docs/adr/) (ADR 0001 to 0034).
-
-## Quality and operations
-
-**Tests.** Unit tests per module, integration tests against PostgreSQL, end-to-end REST scenarios
-(`GoldenPathIT`, `MonthEndIT`), a modularity test that fails the build on illegal dependencies, and a coverage rule.
-The web UI has Vitest tests and Playwright specs that include axe accessibility and CSP checks. Load tests use k6
-([load testing](docs/operations/load-testing.md)). See [UI testing](docs/ui/testing.md).
-
-**Security.** The public demo has a documented threat model and accepted risks
-([showcase security](docs/security/showcase.md)). Builds publish CycloneDX SBOMs, scan the image with Trivy and
-fail on critical fixable vulnerabilities ([supply chain](docs/operations/supply-chain.md)). Preparation for an
-external penetration test is in [docs/security/penetration-test.md](docs/security/penetration-test.md).
-
-**Operations.** Prometheus metrics, OpenTelemetry traces and ECS JSON logs
-([observability](docs/operations/observability.md)). A Helm chart and a CloudNativePG cluster for Kubernetes
-([Kubernetes](docs/operations/kubernetes.md)). Events to Kafka through Spring Modulith when `ETRM_KAFKA_ENABLED`
-([ADR 0029](docs/adr/0029-event-externalisation-to-kafka.md)). Monthly partitions for append-only tables
-([database](docs/operations/database.md)). A disaster recovery runbook with a drill script
-([disaster recovery](docs/operations/disaster-recovery.md)).
+- **Why PostgreSQL first:** the build needs it before the tests, because the jOOQ sources are generated from a
+  migrated database.
+- **Web UI with hot reload:** `cd apps/web && npm run dev`. Vite proxies `/api` to port 8080.
+- **Conventions:** `CLAUDE.md` lists the commands and conventions for working on the code.
 
 ## Documentation
 
-- [Getting started](docs/user-guide/getting-started.md): the user guide, one page per area (also served in the app
-  under `/help/`).
-- [Deployment guide](docs/deploy/vps.md): the public demo on one server.
-- [Homelab guide](docs/deploy/homelab.md): the demo on a VM in your own network, without a domain.
-- [Web UI](docs/ui/README.md) and the [design system](docs/ui/design-system.md).
-- [Roadmap](docs/roadmap.md): what each increment delivered.
-- [Documentation index](docs/README.md): architecture, domain notes, integration, glossary.
-- Presentation: [the slides](https://claude.ai/artifact/NHG4trUF1EkTnB6dXmAxyv) (PowerPoint or PDF from its Share
-  menu) and their [outline with speaker notes](docs/presentation/outline.md).
+- [User guide](docs/user-guide/getting-started.md): one page per area, also served in the application under `/help/`.
+- [Documentation index](docs/README.md): architecture, domain notes, integration, operations and the glossary.
+- [Web UI](docs/ui/README.md) and its [design system](docs/ui/design-system.md).
+- Presentation: [the slides](https://claude.ai/artifact/NHG4trUF1EkTnB6dXmAxyv), downloadable as PowerPoint or PDF,
+  and their [outline with speaker notes](docs/presentation/outline.md).
 
 ## Licence
 

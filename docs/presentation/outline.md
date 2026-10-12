@@ -1,6 +1,7 @@
 # Provena: presentation outline
 
-Eleven slides for an introduction of about 15 minutes. The deck uses the Provena brand (`docs/ui/design-system.md`). Its
+Eighteen slides, about 25 minutes: the product on its real screens (1–10), then how it is built for an enterprise that
+values reliability, security, robustness and maintainability, and the roadmap (11–18). The deck uses the Provena brand (`docs/ui/design-system.md`). Its
 pictures come from `docs/images` (`npm run docs:screenshots`). Speaker notes follow each slide.
 
 The slides are published as a deck on claude.ai, built from this outline and the screenshots; download it as
@@ -9,7 +10,8 @@ change, retake the screenshots and replace the pictures in the deck.
 
 ## 1. Provena: certificates and allowances, from trade to ledger
 
-- A trading and risk system for guarantees of origin and EU emission allowances.
+- A trading and risk system for guarantees of origin and EU emission allowances, built for audited, regulated
+  operations.
 - Picture: `home-dark.png`.
 
 *Notes:* One system that follows a certificate from the trade to the registry, the invoice and the general ledger.
@@ -100,15 +102,70 @@ ledger and credit stay on one price per product curve.
 - Audit trail of every change: who, when and why.
 - Pictures: `monthend-close.png`, `audit-trail.png`.
 
-## 11. Engineering, and try it
+## 11. Architecture: one application, eighteen bounded contexts
 
-- Kotlin and Spring Modulith (one module per bounded context), PostgreSQL, React. More than 600 automated tests
-  (about 320 backend unit and integration tests, 234 UI unit tests, 77 Playwright journeys, October 2026),
-  accessibility checks and load tests.
-- Security: four eyes in the services and the database, entity scope, CSP, signed-in showcase, vulnerability gate
-  in CI.
-- Runs on Kubernetes (Helm) or one server with Docker (`ops/demo`); events to Kafka.
-- Try it: the demo, with a guided tour and a manual in the app.
+- A modular monolith: one deployable and one database, with module boundaries the build verifies.
+- Four groups of modules (trading; operations; finance and risk; platform), each module with its own schema.
+- REST API with a committed OpenAPI contract, authorised by role and legal entity; web UI in the same jar.
+- Outbox to the registries, exactly-once GL exports, events to Kafka after commit, OIDC identities, metrics and traces.
+- Picture: an architecture diagram drawn on the slide.
+
+*Notes:* Side effects across modules travel as domain events inside the command transaction; registry calls never
+run inside a database transaction.
+
+## 12. Reliability: designed to targets, measured, rehearsed
+
+- Targets: 99.9 % availability in business hours, RPO 15 minutes, RTO 4 hours, read p95 under 300 ms.
+- Measured with k6: 556 requests/s with 104 users and no errors; read p95 15 ms at baseline load.
+- Stateless and horizontally scalable; PostgreSQL as a three-instance CloudNativePG cluster; a monthly DR drill that
+  verifies the hash chains; metrics, traces and structured logs.
+
+*Notes:* The rehearsal still open is a drill against a production backup.
+
+## 13. Security: least privilege, two people, a checked supply chain
+
+- OIDC sign-in; every read and command checks role and legal entity.
+- Four eyes on everything that moves value, in the services and again in the database.
+- Strict CSP, CSRF, formula-safe exports; ZAP and accessibility checks.
+- SBOMs for every build; a critical fixable vulnerability stops the image.
+
+*Notes:* The external penetration test is prepared (scope, accounts, rules of engagement) and is the next step.
+
+## 14. Robustness and data integrity
+
+- Append-only, hash-chained lot journal, ledger and audit trail; corrections by reversal.
+- Registry calls through an outbox; idempotent deliveries and GL exports; a timeout is reconciled, never resent.
+- Bitemporal lots, prices and reference data; every report run logged with its content hash.
+- Downstream problems are parked for attention; exact decimals only.
+
+## 15. Maintainability: boundaries and contracts the build enforces
+
+- Each module owns its schema and exposes one API package; any other dependency fails the build.
+- The OpenAPI document is committed and the web types are generated from it.
+- 41 architecture decision records, arc42 and a manual inside the application.
+- Warnings are errors, static analysis, a coverage rule; `main` moves only on a green pipeline. Current stack: Java 25,
+  Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript.
+
+## 16. Roadmap: nine increments, each one shippable
+
+- 1 core domain; 2 registries, settlement, inbox; 3 market data, valuation, risk, ETS, period end; 4–5 the web UI;
+  6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping and this documentation.
+
+## 17. Path to production
+
+- Assurance: the external penetration test, a DR drill on a production backup, ETS deadline rules checked.
+- Specifications: registry APIs (G-REX, NECS) and AIB code lists, the GL file layout, the EMIR layout and trade
+  repository, market data vendors.
+- Sign-offs: accounting policies, VAT rules, PFE add-ons.
+- Next to build: faster portfolio refresh, device caps in the flow, GoO limits per vintage, discounting and hedge
+  accounting, EUA futures margining.
+
+*Notes:* Layouts not checked against their specification are marked unverified.
+
+## 18. In numbers, and try it
+
+- Automated tests at every level (counts on the slide), API operations with a screen, decision records.
+- Try it: the demo with guided tours and a manual in the app, or `ops/demo` with Docker on your own server.
 - Picture: `guide.png`.
 
 *Notes:* Close with the demo URL and the repository.
