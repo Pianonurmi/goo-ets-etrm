@@ -206,7 +206,7 @@ export function ConditionEditor({
   const title = field?.label ?? t(`criteria.types.${node.type}`);
   const operator = t(`criteria.operators.${node.type}`);
 
-  let inputs: React.ReactNode = null;
+  let inputs: React.ReactNode;
   switch (node.type) {
     case 'equals':
       inputs = <SingleValue field={field} value={node.value} onChange={(value) => onChange({ ...node, value })} />;

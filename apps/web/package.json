@@ -6,7 +6,7 @@
   "type": "module",
   "description": "Web UI for the GoO and EU ETS ETRM (ADR 0025)",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.22.0"
   },
   "scripts": {
     "dev": "vite",
@@ -50,13 +50,13 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-i18next": "17.0.16",
-    "react-router": "7.18.4",
+    "react-router": "8.4.0",
     "recharts": "3.10.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@cyclonedx/cyclonedx-npm": "6.0.1",
-    "@eslint/js": "9.39.5",
+    "@eslint/js": "10.0.1",
     "@playwright/test": "1.64.0",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",
@@ -67,7 +67,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "@vitest/coverage-v8": "5.0.3",
-    "eslint": "9.39.5",
+    "eslint": "10.12.0",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.13.0",
@@ -77,8 +77,13 @@
     "openapi-typescript-helpers": "0.1.0",
     "prettier": "3.9.10",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.71.1",
+    "typescript-eslint": "8.71.2",
     "vite": "8.3.4",
     "vitest": "5.0.3"
+  },
+  "overrides": {
+    "eslint-plugin-jsx-a11y": {
+      "eslint": "$eslint"
+    }
   }
 }

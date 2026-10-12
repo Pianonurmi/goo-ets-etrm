@@ -39,7 +39,7 @@ export function isProblem(value: unknown): value is Problem {
 
 /** Builds the error for a non-2xx response; a body that is not a problem becomes a generic one. */
 export async function problemFromResponse(response: Response): Promise<ProblemError> {
-  let body: unknown = undefined;
+  let body: unknown;
   try {
     body = await response.clone().json();
   } catch {

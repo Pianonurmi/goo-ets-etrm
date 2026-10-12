@@ -31,6 +31,15 @@ updates:
         patterns: ["@mantine/*"]
       tooling:
         dependency-type: development
+    ignore:
+      # Stay on the Node 22 line: engines and CI are Node 22, so @types/node majors above 22 would
+      # type APIs the runtime does not have. Minor and patch updates still come.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # typescript-eslint 8.x supports TypeScript <6.1.0 and openapi-typescript 7.x only ^5.x, so
+      # TypeScript 6 and 7 break lint and gen:api. Lift this when both declare support.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: "/ops"
     schedule:
