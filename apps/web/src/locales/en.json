@@ -1074,7 +1074,7 @@
     },
     "portfolio": {
       "lead": "Every product bucket with the buckets it sits inside: what the entity holds, what it owes that only this bucket's certificates can serve, and what is left once the two are matched by eligibility. A bucket that belongs to several larger ones is listed under each.",
-      "note": "Figures are in MWh for the current vintage. Naive net is long minus short without looking at which certificates qualify; the netted columns do.",
+      "note": "Figures are in MWh, all vintages together; marks and cheapest to deliver are for the current vintage. Naive net is long minus short without looking at which certificates qualify; the netted columns do.",
       "product": "Product",
       "long": "Long",
       "longHint": "Certificates held inside this bucket.",

@@ -54,6 +54,31 @@ from the plan or are still open:
 | EMIR / MiFID reporting | EMIR lifecycle events captured, completeness checked, exported; MiFID ancillary activity figures | No trade repository connection and no ISO 20022 XML; the Refit field layout is unverified; the ancillary test needs market-size data |
 | GL interface hardening | Exactly-once exports, layouts as data (generic, SAP-style unverified), acknowledgement, reconciliation with imported GL balances, hard-close gates | The receiving GL's specification is needed to verify the SAP layout |
 
+## Status after increment 8
+
+Increment 8 is delivered in milestones M0–M7 (see the [roadmap](roadmap.md), the [plan](plans/increment-8-goo-portfolio.md)
+and ADRs 0035–0040). The GoO book is now managed as a portfolio:
+
+- Allocation is value-based, in EUR: a certificate is worth the best price it qualifies for, and the give-away of
+  delivering a generic sale with a more valuable certificate is reported (ADR 0035).
+- Coverage, available to sell, the product hierarchy and the portfolio view share one compressed flow core
+  (ADR 0036, 0037). At 100 000 lots and 5 000 obligations a warm available-to-sell check takes under a millisecond.
+- Future supply (open purchases, expected own issuance) counts as supply in tiers; plans count on it with virtual
+  lines that are never reserved or instructed (ADR 0038).
+- Valuation keeps a portfolio value and its bridge next to the official figures, which stay on bucket curves
+  (ADR 0039).
+- Risk has GoO limits on concentration, expiry and basis (ADR 0040).
+
+These points differ from the plan or are still open:
+
+| Plan | Built | Why |
+|---|---|---|
+| Flow cache keyed by the inventory journal sequence, patched in place on events | Prepared per entity and tier, checked against a stamp of aggregates on every read; preparing is a full problem build (about 22 s at design size), and patching in place is not built | A stamp is safe across pods without events and needs no per-holder lateral query. Until patching exists, a busy book can read "not checked" before capture |
+| Unpriced supply takes the nearest priced ancestor's mark | Unpriced supply is valued at zero and flagged; the plan reports it as `unpricedMwh` | A borrowed price would hide the gap in the curves |
+| A `GiveAwayQuery` and a `ReportCatalogue` entry | Realised give-away is part of `PortfolioValueQuery`; no report entry | One query serves the explain and the run detail; the figures are a management view |
+| Limits with a production year scope, pre-trade checks for sales | Concentration covers all vintages together; the pre-trade check projects purchases only | A sale adds nothing to concentration; a vintage scope can be added later |
+| Side constraints (device caps, minimum shares) in the flow | Outside the flow, so available to sell and coverage are upper bounds | Same reasoning as ADR 0007 |
+
 ---
 ## Context
 
@@ -241,6 +266,14 @@ Pipeline:
 5. **Plan state machine**: `DRAFT → PROPOSED → APPROVED → RESERVED → INSTRUCTED → CONFIRMED | PARTIALLY_FAILED → CLOSED`, side exits `REJECTED | EXPIRED | STALE | CANCELLED`; lines carry their own states. Four-eyes enforced by role check and a DB `CHECK (approved_by IS DISTINCT FROM proposed_by)`. **Soft reservation** at PROPOSED (48 h default expiry, excluded from other plans' snapshots), **hard reservation** at APPROVED (lot status `RESERVED`) until the registry confirms. Registry instruction (transfer or cancellation) → confirmation from statement → lots transition, ledger events fire.
 6. **Coverage analysis** (never commits): bipartite flow source → class (capacity qty) → obligation (edge if eligible) → sink (capacity demand), Dinic max-flow with priority-ordered augmentation (external sale > intercompany > internal disclosure, overridable) giving per-obligation shortfall; min-cut identifies jointly short obligations as a **shortage group**; residual class capacity per bucket is surplus. This is the GoO *net position* consumed by `position`: a Nordic hydro lot can serve a "Nordic" or a "Hydro" obligation, so naive netting double-counts while flow does not. Share constraints are outside the flow, so coverage is an upper bound and the solver plan a lower bound; both are reported.
 
+**Increment 8 (ADR 0035–0038).** The pipeline above is extended in five ways:
+
+- **Value-based allocation (ADR 0035).** Scoring is in EUR and nothing else. A lot is worth the best price it qualifies for (the highest mark over every bucket it satisfies), less an expiry haircut within 60 days of delivery. Cost per MWh is that value plus the transfer fee. The **give-away** (value of the lot − the mark of the sale's own bucket) is reported per line, obligation and plan (`PlanValue`) and does not change the cost. Scarcity is only a tie-break. CP-SAT solves one priority tier at a time. After each plan a GLOP linear program gives indicative shadow prices (marginal cost per obligation, scarcity rent per bucket and year), never booked.
+- **Flow core and available to sell (ADR 0036).** Coverage, headroom and the portfolio view run on one compressed flow graph (`allocation.domain.flow`): obligations with identical eligible supply merge into demand groups and supply with identical demand into atoms, which is exact. **Available to sell** (headroom) is the most a new sale of a product could still receive without taking anything from existing obligations; existing flow may be rerouted. It is prepared per entity and checked against a stamp on every read.
+- **Product hierarchy and netting (ADR 0037).** Buckets are ordered by proven containment (a DAG with aliases merged). A position that adds and subtracts per bucket misleads, because a specific certificate can serve a generic sale and not the reverse. The portfolio view therefore nets through the flow and shows long, short, covered within, short after netting, free and available to sell for each node.
+- **Future supply (ADR 0038).** Supply comes in tiers, counted cumulatively: held, contracted (open GoO purchases) and expected (own devices' forecasts, less what is issued). Plans count on it at P90 and keep virtual lines for it; views use P50. A plan counting on a source that changes goes stale.
+- **Valuation-grade allocation (ADR 0039).** `PortfolioValuer` allocates the held book to open obligations as a min-cost max-flow in integer cents, with no time limit and no side constraints, so the same book always gives the same figures. Valuation and risk use it through `allocation.api`.
+
 Idempotency: plan requests carry an idempotency key and record the inventory `snapshot_seq`; instructions carry a unique key passed to the registry as client reference; confirmations dedupe on external reference. Concurrency: solvers read without locks; the approve → reserve commit runs under a per-holder advisory lock with optimistic `version` checks per lot, any miss marks the plan `STALE` and triggers an incremental rerun of the affected obligations only. The class/bitmap projection stays in memory, updated by inventory and obligation events, with coverage recomputed per connected component and a full rebuild on startup or sequence gap.
 
 ### 2.8 Registry integration (`registry`)
@@ -265,6 +298,8 @@ A true double-entry **sub-ledger** per legal entity feeding the external GL.
 
 Market data ingestion (EEX/ICE EUA settlements, GoO broker/platform quotes per bucket, ECB FX), curve construction per product bucket and delivery period, MtM and P&L explain (price, volume, new trades, FX, time), realised vs unrealised.
 
+**Portfolio value (increment 8, ADR 0039).** Next to the official MtM, every GoO valuation run keeps a *management* view: the held certificates at the best price each qualifies for, plus the GoO trades' MtM, less give-away, transfer fees and expiry haircut, with a sign-off explain by cause. The official MtM, the ledger, EMIR valuation and credit exposure stay on bucket curves and are unchanged.
+
 ### 2.12 Settlement (`settlement`, increment 2)
 
 Invoice generation from delivered quantities and prices, self-billing, credit notes, payment schedules, netting agreements, VAT rules (reverse charge for emission allowances in most member states; GoO rules per country), cash forecast, bank file export later.
@@ -276,6 +311,8 @@ Installations and aircraft operators, monitoring plan refs, emissions forecasts 
 ### 2.14 Risk (`risk`, increment 3)
 
 Position limits per book/bucket, counterparty credit exposure (MtM + delivered-not-paid), concentration, expiry risk, limit breaches as workflow tasks.
+
+**GoO limits (increment 8, ADR 0040).** `GOO_CONCENTRATION` (held certificates of a bucket that nothing uses after netting through the flow), `GOO_EXPIRY` (unused certificates expiring within a horizon) and `GOO_BASIS` (give-away handed over by sales delivered with more valuable certificates). They apply to a legal entity as a whole, not to a book, and are measured through `allocation.api`.
 
 ### 2.15 Cross-cutting: workflow, audit, security
 

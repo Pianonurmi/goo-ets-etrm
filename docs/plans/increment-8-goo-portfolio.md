@@ -1,5 +1,7 @@
 # Increment 8: GoO portfolio management
 
+**Status: delivered** (M0–M7). What differs from this plan is listed under [Delivered](#delivered); the decisions are in ADRs 0035–0040.
+
 Increment 7 (the public showcase) is delivered and green on `main` (`a89d101`). Its plan is in
 `docs/plans/increment-7-showcase-demo.md`.
 
@@ -273,6 +275,27 @@ Sub-agents are used per CLAUDE.md: `sonnet` for well-specified UI and docs work,
 - Roadmap increment 8 table; `docs/plans/increment-8-goo-portfolio.md`.
 - k6 baseline if it moves.
 - Deck: one portfolio slide.
+
+## Delivered
+
+M0–M7 are built, with ADRs 0035–0040 (see the [roadmap](../roadmap.md)). M8 (this close) is the documentation. What
+differs from the plan above:
+
+- **M0:** the cache stamp is made of aggregates (holdings, open obligations, active buckets, date) instead of the per-holder journal sequence, which needed a lateral query per lot.
+- **M1:** unpriced supply is valued at zero and flagged (`unpricedMwh`) instead of taking the nearest priced ancestor's mark (D2).
+- **M3:**
+  - Preparing the per-entity flow is a full problem build (about 22 s at design size). Patching it in place on each change is not built, so a busy book at design size often reads "not checked" before capture.
+  - The REST paths are `/api/v1/allocation/headroom` and `/api/v1/allocation/headroom/check`, not under `/positions/goo`. The portfolio view is `GET /api/v1/allocation/portfolio`.
+- **M5:**
+  - The tiers are HELD, CONTRACTED and EXPECTED (`SupplyTier`), counted cumulatively.
+  - A future-supply view endpoint was added, `GET /api/v1/allocation/future-supply`, with coverage per delivery month and tier.
+- **M6:**
+  - The realised give-away is part of `PortfolioValueQuery` (`realisedGiveAway`); there is no separate `GiveAwayQuery`.
+  - There is no `ReportCatalogue` entry.
+- **M7:**
+  - There is no `productionYear` scope. Concentration covers all vintages together.
+  - The pre-trade check only projects purchases (a sale adds nothing to concentration). GoO trades are also told about limits already in breach (`LIMIT_IN_BREACH`).
+  - A bug fix: a limit is now measured when it takes effect. `RiskService.evaluate` took the date as a default argument, which, called through the transactional proxy, read the proxy's unset clock, so measuring on activation had always failed. It is now an overload.
 
 ## Critical files
 - `modules/allocation/src/main/kotlin/.../allocation/domain/Scoring.kt`, `CpSatSolver.kt`, `GreedySolver.kt`, `CoverageAnalyser.kt`

@@ -25,6 +25,8 @@ Open a run and choose the **Portfolio** tab to see what the whole book is worth,
 **management view**: the official mark to market, the ledger, EMIR reporting and credit exposure stay on the bucket
 curves and do not change. Runs without a portfolio value show a short note instead.
 
+![A run's portfolio value](../images/valuation-portfolio.png)
+
 The **bridge** is a waterfall from the certificates you hold to the portfolio value, all in EUR:
 
 - **Inventory value**: the certificates held, each at the best price it qualifies for.

@@ -17,6 +17,8 @@ one column for each delivery month-end, holding the most a new sale for that dat
 certificates held without taking anything from sales already agreed. Existing sales may be moved onto other
 certificates that serve them too.
 
+![Available to sell by bucket and vintage](../images/positions-headroom.png)
+
 The cells are upper bounds on the same supply, so they **do not add up**: a certificate counted in one row can serve
 a sale from another row's criteria. They also leave out device caps and the minimum shares of existing sales. The
 first time an entity is opened the figures take a moment to prepare; the time they were worked out is shown under the
@@ -37,6 +39,8 @@ that fits inside a larger one is indented under it: **Nordic hydro** sits inside
 the view opens. A bucket with more than one larger bucket is listed under each of them, with the same figures, and
 the later listings carry an **also under** label that names the bucket where it was listed first. Point at a product
 to see the buckets that are the same as it.
+
+![Products as a tree, netted through the flow](../images/positions-products.png)
 
 The columns, in MWh unless stated:
 
@@ -69,6 +73,8 @@ shown in [Taxonomy and products](administration.md#taxonomy-and-products).
 
 On the **Guarantees of origin** tab, choose **Future supply** to see what the entity will have beyond its holdings,
 by delivery month. Two kinds of supply are not held yet:
+
+![Future supply by delivery month](../images/positions-future.png)
 
 - **Purchase**: certificates bought and agreed but not yet delivered.
 - **Expected issuance**: certificates expected from the entity's production devices, from their

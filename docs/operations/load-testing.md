@@ -71,5 +71,12 @@ check (`kind:check`) has p95 7 ms. The what-if has p95 121 ms, up from 24 ms. Th
 plan also values its lines in EUR and solves the shadow-price LP. Run `baseline` and `stress` again on the reference
 machine before relying on the what-if figure.
 
+At the close of increment 8 (same container, `smoke`): 6 200 requests, no errors. Read p95 15 ms, write p95 36 ms,
+available-to-sell check p95 9 ms. The what-if has p95 343 ms. Since ADR 0038 a what-if also counts future supply:
+the entity's GoO purchases (criteria loaded per schedule) and its own devices' expected issuance (forecasts, and
+issued lots per device, for each month of the horizon) become extra lot classes. Measured apart on the demo data,
+25 what-ifs each: median 250 ms with future supply, 112 ms with `futureSupply: false`. Still well inside the 3 s
+target; the provider reads per device, so an entity with many devices is the case to watch.
+
 The demo data is small: the what-if solves one obligation over 12 lot classes. Solver scale is measured separately
 by `AllocationBenchmarkTest` (`-Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000`).

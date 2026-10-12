@@ -3,6 +3,7 @@
 | Term | Meaning |
 |---|---|
 | AIB / EECS | Association of Issuing Bodies; European Energy Certificate System, the standard behind GoO registries and the hub |
+| Available to sell | The most a new sale of a product could still receive from the supply counted without taking anything from existing obligations; also called headroom (ADR 0036) |
 | Basis (GoO) | Give-away handed over by sales delivered with certificates worth more than their own product; limited by GOO_BASIS (ADR 0040) |
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
 | Cheapest to deliver | For a GoO sale, the average value per MWh of the certificates that deliver it on the valuation-grade allocation; a management view next to the bucket mark (ADR 0039) |

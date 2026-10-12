@@ -24,6 +24,26 @@
 - **Unverified external layouts**: EMIR field rules, the SAP GL layout, registry API mappings and PFE add-ons carry `verified = false` until checked against their specification.
 - **Exports are evidence**: GL exports and reports are numbered and stored with their content and SHA-256, and each publishes an audited event.
 
+- **Money in the allocation** (ADR 0035, 0039): values, fees and give-away are in EUR.
+  - Marks come from the latest official vintage curves; transfer fees are taken as EUR, and any other currency fails.
+  - The solvers work on integers: CP-SAT in 1/10 000 EUR per MWh, the valuation-grade min-cost flow in cents.
+  - Floating point appears only in the GLOP shadow prices. They are converted to decimals at the boundary, labelled *indicative* and never booked.
+  - A certificate with no priced bucket is valued at zero and flagged, so a zero cost is never mistaken for a real one.
+- **Management view and official figures** (ADR 0039, 0040):
+  - Portfolio value, cheapest to deliver, the give-away and the GoO limit measures are management views of the book.
+  - Official MtM, the run total, the ledger and period end, EMIR valuation and credit exposure stay on one price per bucket curve, whichever certificate a desk holds.
+  - The portfolio bridge is kept with each valuation run, immutable, and never summed into the run.
+- **Prepared flows with stamps** (ADR 0036, 0038):
+  - Coverage, available to sell and the portfolio view read a flow prepared per entity and tier (`PortfolioFlowCache`).
+  - Each prepared flow carries a stamp of the data it was built from: holdings, open obligations, active buckets, the date and, beyond the held tier, a digest of future supply.
+  - Every read compares the stamp with the database. A change made through any pod is seen on the next read, without events, so several pods are safe.
+  - Trials on one flow run one at a time. The lock covers in-memory work only; eligibility lookups, which may reach transfer routes, are settled before it, so no lock is held across I/O.
+  - A miss prepares the flow in the background; the pre-trade check then reports "not checked" and never holds up capture.
+- **Savepoints when one module measures through another** (ADR 0039, 0040):
+  - Valuation computes the portfolio value, and risk the GoO measures, through `allocation.api` in `Savepoints.attempt`.
+  - When allocation is not available or cannot value the book, the portfolio value is left out or the limit reads zero with a note. The valuation run and the other limits go ahead unchanged.
+  - The listener that marks plans stale when future supply changes works the same way and never fails the transaction that published the event.
+
 - **Web UI contract**: the UI is typed from the committed OpenAPI snapshot; an API change without a regenerated snapshot fails `OpenApiSnapshotIT`, and a renamed operation fails the web typecheck (ADR 0027).
 - **Role-aware UI**: actions and screens are offered by role through a table keyed by operation id; entity scope, four eyes and state rules stay on the server and come back as problems (ADR 0028).
 - **No arithmetic on money in the browser**: amounts are computed by the server, formatted in the UI and sent back as decimal strings.

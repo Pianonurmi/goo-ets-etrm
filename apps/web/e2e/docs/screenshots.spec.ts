@@ -47,6 +47,33 @@ const SHOTS: Shot[] = [
   },
   { name: 'allocation-workbench', persona: 'trader', path: '/allocation' },
   { name: 'positions-goo', persona: 'trader', path: '/positions' },
+  {
+    name: 'positions-headroom',
+    persona: 'trader',
+    path: '/positions',
+    then: async (page) => {
+      await page.getByTestId('goo-view').getByText('Available to sell').click();
+      await expect(page.getByTestId('headroom-table')).toBeVisible({ timeout: 60_000 });
+    },
+  },
+  {
+    name: 'positions-products',
+    persona: 'trader',
+    path: '/positions',
+    then: async (page) => {
+      await page.getByTestId('goo-view').getByText('Products').click();
+      await expect(page.getByTestId('goo-hierarchy')).toBeVisible({ timeout: 60_000 });
+    },
+  },
+  {
+    name: 'positions-future',
+    persona: 'trader',
+    path: '/positions',
+    then: async (page) => {
+      await page.getByTestId('goo-view').getByText('Future supply').click();
+      await expect(page.getByTestId('future-supply-kpis')).toBeVisible({ timeout: 60_000 });
+    },
+  },
   { name: 'registry-instructions', persona: 'backoffice', path: '/registry' },
   {
     name: 'registry-instruction',
@@ -58,6 +85,16 @@ const SHOTS: Shot[] = [
   { name: 'marketdata-quotes', persona: 'risk', path: '/market-data' },
   { name: 'marketdata-curves', persona: 'risk', path: '/market-data/curves' },
   { name: 'valuation-runs', persona: 'risk', path: '/valuation' },
+  {
+    name: 'valuation-portfolio',
+    persona: 'risk',
+    path: '/valuation',
+    open: { url: /\/valuation\/runs\/[0-9a-f-]{36}/ },
+    then: async (page) => {
+      await page.getByTestId('portfolio-tab').click();
+      await expect(page.getByTestId('portfolio-bridge')).toBeVisible({ timeout: 60_000 });
+    },
+  },
   { name: 'risk-limits', persona: 'risk', path: '/risk' },
   { name: 'ets-overview', persona: 'middle', path: '/ets' },
   { name: 'settlement-items', persona: 'accountant', path: '/settlement' },

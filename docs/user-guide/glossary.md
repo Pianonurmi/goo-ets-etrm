@@ -6,6 +6,7 @@ Terms used on the screens and in this manual.
 |---|---|
 | AIB / EECS | Association of Issuing Bodies; European Energy Certificate System, the standard behind GoO registries and the hub |
 | Ancillary activity | MiFID II test of whether trading allowances is ancillary to the main business |
+| Available to sell | The most a new sale of a product could still receive from the certificates counted, without taking anything from sales already agreed; also called headroom |
 | Book | A portfolio of trades within a legal entity, e.g. trading or own consumption |
 | Break fingerprint | Identity of a reconciliation discrepancy across statements (account, type, issuance and range, or product and difference) |
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
