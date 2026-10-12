@@ -26,7 +26,7 @@ fun Exec.npmScript(vararg args: String) {
     commandLine(npm, *args)
 }
 
-val npmCi by tasks.registering(Exec::class) {
+val npmCi = tasks.register<Exec>("npmCi") {
     description = "Installs the web dependencies from package-lock.json"
     group = "web"
     inputs.files("package.json", "package-lock.json")
@@ -34,7 +34,7 @@ val npmCi by tasks.registering(Exec::class) {
     npmScript("ci", "--no-audit", "--no-fund")
 }
 
-val genApi by tasks.registering(Exec::class) {
+val genApi = tasks.register<Exec>("genApi") {
     description = "Generates the TypeScript API types from the committed OpenAPI snapshot (ADR 0027)"
     group = "web"
     dependsOn(npmCi)
@@ -67,7 +67,7 @@ apiCoverage.configure {
     inputs.file("api-only.json")
 }
 
-val viteBuild by tasks.registering(Exec::class) {
+val viteBuild = tasks.register<Exec>("viteBuild") {
     description = "Builds the production bundle into build/dist"
     group = "build"
     dependsOn(genApi)
@@ -76,7 +76,7 @@ val viteBuild by tasks.registering(Exec::class) {
     npmScript("run", "build")
 }
 
-val bundleBudget by tasks.registering(Exec::class) {
+val bundleBudget = tasks.register<Exec>("bundleBudget") {
     description = "Fails when the gzip size of the first page, any chunk or the whole bundle exceeds its budget"
     group = "verification"
     dependsOn(viteBuild)
@@ -92,7 +92,7 @@ tasks.named("check") { dependsOn(lintWeb, formatWeb, typecheckWeb, testWeb, apiC
 tasks.named("assemble") { dependsOn(viteBuild) }
 
 /** The bundle, consumed by :apps:api. */
-val webDist by configurations.creating {
+val webDist = configurations.create("webDist") {
     isCanBeConsumed = true
     isCanBeResolved = false
 }

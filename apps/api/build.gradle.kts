@@ -7,7 +7,7 @@ plugins {
 val skipWeb = providers.gradleProperty("etrm.skipWeb").isPresent
 
 /** The web UI bundle from :apps:web, served from `static/` (ADR 0025). */
-val web by configurations.creating {
+val web = configurations.create("web") {
     isCanBeConsumed = false
     isCanBeResolved = true
 }
