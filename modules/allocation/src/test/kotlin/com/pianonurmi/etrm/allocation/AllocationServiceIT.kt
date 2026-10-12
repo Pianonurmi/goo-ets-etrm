@@ -36,6 +36,8 @@ import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
+import com.pianonurmi.etrm.product.api.BucketMatchKind
+import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.VintageRule
 import com.pianonurmi.etrm.product.application.CriteriaServiceImpl
@@ -62,6 +64,11 @@ import com.pianonurmi.etrm.registry.application.TransferRouteService
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import com.pianonurmi.etrm.trade.adapter.jooq.JooqTradeRepository
+import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
+import com.pianonurmi.etrm.trade.api.DeliveryObligationView
+import com.pianonurmi.etrm.trade.api.DeliveryStatus
+import com.pianonurmi.etrm.trade.api.PriceType
+import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -75,6 +82,7 @@ import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
+import java.util.Currency
 import java.util.UUID
 
 /**
@@ -145,7 +153,7 @@ class AllocationServiceIT {
                 mockk(relaxed = true),
             )
         val planRepository = JooqAllocationPlanRepository(dsl)
-        obligations = ObligationService(JooqObligationRepository(dsl), criteria, referenceData, bus)
+        obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus)
         allocation = AllocationService(
             planRepository,
             JooqObligationRepository(dsl),
@@ -229,6 +237,60 @@ class AllocationServiceIT {
         )
         obligations.requireObligation(opened.id).constraints shouldBe constraints
         obligations.open(holderEntityId = entityId).single { it.id == opened.id }.constraints shouldBe constraints
+    }
+
+    @Test
+    fun `obligations carry the bucket of their trade leg, or the bucket of their criterion`() {
+        val window = LocalDateRange.ofQuarter(2026, 4)
+        val scheduleId = UUID.randomUUID()
+        val criterion = Criterion.all(Criterion.region("NORDIC"), Criterion.energySource("HYDRO"))
+        val fromTrade = DeliveryObligationView(
+            scheduleId = scheduleId,
+            tradeId = UUID.randomUUID(),
+            tradeNumber = "T-BUCKET-1",
+            legId = UUID.randomUUID(),
+            legalEntityId = entityId,
+            bookId = UUID.randomUUID(),
+            counterpartyId = UUID.randomUUID(),
+            side = Side.SELL,
+            productFamily = ProductFamily.GUARANTEE_OF_ORIGIN,
+            energyCarrier = null,
+            allowanceProductCode = null,
+            criteriaId = null,
+            criterion = criterion,
+            quantity = BigDecimal(100),
+            deliveredQuantity = BigDecimal.ZERO,
+            deliveryWindow = window,
+            deliveryDate = LocalDate.of(2026, 12, 15),
+            deliveryAccountId = null,
+            counterpartyAccountRef = "SIMULATOR:SIM-CP-9",
+            price = BigDecimal("2.00"),
+            priceCurrency = Currency.getInstance("EUR"),
+            priceType = PriceType.FIXED,
+            status = DeliveryStatus.PENDING,
+            bucketCode = "NORDIC_HYDRO",
+            bucketMatch = BucketMatchKind.EXACT,
+        )
+        obligations.on(DeliveryObligationOpened(fromTrade))
+        val synced = obligations.bySource(scheduleId)!!
+        synced.bucketCode shouldBe "NORDIC_HYDRO"
+        synced.bucketMatch shouldBe BucketMatchKind.EXACT
+        synced.vintageYear shouldBe 2026
+
+        val manual = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                entityId,
+                criterion = criterion,
+                quantityMwh = 10,
+                deliveryWindow = window,
+                deliveryDate = LocalDate.of(2026, 12, 15),
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-9",
+            ),
+        )
+        manual.bucketCode shouldBe "NORDIC_HYDRO"
+        obligations.requireObligation(manual.id).bucketCode shouldBe "NORDIC_HYDRO"
     }
 
     @Test

@@ -120,6 +120,9 @@ interface LotQuery {
 
     fun journalSeq(): Long
 
+    /** The highest journal sequence of events of lots held by [holderEntityId]; 0 when there are none. */
+    fun journalSeq(holderEntityId: UUID): Long
+
     /** Verifies the per-lot hash chains; returns the lot ids whose chain is broken. */
     fun verifyJournal(): List<UUID>
 

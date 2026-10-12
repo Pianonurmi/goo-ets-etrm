@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.inventory.adapter.jooq
 
+import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.CertificateLot.CERTIFICATE_LOT
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.LotEvent.LOT_EVENT
 import com.pianonurmi.etrm.inventory.api.LotEventView
 import com.pianonurmi.etrm.inventory.domain.LotEventJournal
@@ -57,6 +58,20 @@ class JooqLotEventJournal(private val dsl: DSLContext) : LotEventJournal {
     }
 
     override fun lastSeq(): Long = dsl.select(DSL.coalesce(DSL.max(LOT_EVENT.SEQ), DSL.inline(0L))).from(LOT_EVENT).fetchOne(0, Long::class.java) ?: 0L
+
+    /** One probe of the lot/seq index per lot of the holder; queries the partitioned parent table (ADR 0030). */
+    override fun lastSeq(holderEntityId: UUID): Long {
+        val lastOfLot = dsl.select(DSL.max(LOT_EVENT.SEQ).`as`("last_seq"))
+            .from(LOT_EVENT)
+            .where(LOT_EVENT.LOT_ID.eq(CERTIFICATE_LOT.ID))
+            .asTable("e")
+        val lastSeq = lastOfLot.field("last_seq", Long::class.java)!!
+        return dsl.select(DSL.coalesce(DSL.max(lastSeq), DSL.inline(0L)))
+            .from(CERTIFICATE_LOT)
+            .join(DSL.lateral(lastOfLot)).on(DSL.trueCondition())
+            .where(CERTIFICATE_LOT.HOLDER_ENTITY_ID.eq(holderEntityId))
+            .fetchOne(0, Long::class.java) ?: 0L
+    }
 
     override fun brokenChains(): List<UUID> {
         val broken = mutableListOf<UUID>()

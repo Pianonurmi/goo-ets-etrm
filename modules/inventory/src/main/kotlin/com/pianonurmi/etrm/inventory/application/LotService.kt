@@ -299,6 +299,9 @@ class LotService(
     override fun journalSeq(): Long = journal.lastSeq()
 
     @Transactional(readOnly = true)
+    override fun journalSeq(holderEntityId: UUID): Long = journal.lastSeq(holderEntityId)
+
+    @Transactional(readOnly = true)
     override fun verifyJournal(): List<UUID> = journal.brokenChains()
 
     @Transactional(readOnly = true)

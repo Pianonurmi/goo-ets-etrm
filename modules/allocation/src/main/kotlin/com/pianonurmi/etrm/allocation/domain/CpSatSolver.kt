@@ -31,9 +31,10 @@ data class ExactSolverSettings(
  * 2. miss as little of the `MinShare` quotas as possible;
  * 3. deliver at the lowest total score (cost per MWh times quantity, the score greedy sorts by).
  *
- * The greedy solution is the starting hint, and the result is never worse than greedy on the first two objectives:
- * when the solver finds nothing better in time, or the problem is too large or the native library cannot load, the
- * greedy result is returned and the reason is reported.
+ * The greedy solution is the starting hint, and the result is never worse than greedy: the two are compared on the
+ * three objectives in order (coverage, then shortfall, then cost), and when the exact result is worse, or the solver
+ * finds nothing in time, or the problem is too large, or the native library cannot load, the greedy result is
+ * returned and the reason is reported.
  */
 class CpSatSolver(
     private val evaluate: (BoundCriterion, CriteriaSubject) -> Boolean,
@@ -60,6 +61,20 @@ class CpSatSolver(
         }
     }
 
+    /** The score as the integer the model minimises (four decimals). */
+    private fun costOf(score: ScoreBreakdown): Long = score.total.movePointRight(SCORE_DECIMALS).setScale(0, RoundingMode.HALF_UP).longValueExact()
+
+    /** The three objectives of a solution, in the order they are optimised. */
+    internal data class Objectives(val covered: Long, val shortfall: Long, val cost: Long) {
+        /** The first objective on which this solution is worse than [other], or null when it is at least as good. */
+        fun worseThan(other: Objectives): String? = when {
+            covered != other.covered -> if (covered < other.covered) "coverage" else null
+            shortfall != other.shortfall -> if (shortfall > other.shortfall) "minimum-share shortfall" else null
+            cost > other.cost -> "cost"
+            else -> null
+        }
+    }
+
     private fun fallback(baseline: List<Assignment>, reason: String): SolveResult {
         log.info("Exact allocation falls back to greedy: {}", reason)
         return SolveResult(baseline, greedy.name, mapOf("fallbackReason" to reason))
@@ -80,7 +95,7 @@ class CpSatSolver(
                     val score = problem.score(cls, obl)
                     val x = model.newIntVar(0, minOf(cls.quantity, obl.demand), "x_${cls.index}_${obl.index}")
                     byClass.getOrPut(cls.index) { mutableListOf() } += x
-                    Pair(cls, obl, x, score, score.total.movePointRight(SCORE_DECIMALS).setScale(0, RoundingMode.HALF_UP).longValueExact())
+                    Pair(cls, obl, x, score, costOf(score))
                         .also { vars += it }
                 }
                 if (mine.isEmpty()) return@forEach
@@ -134,13 +149,22 @@ class CpSatSolver(
             hint(best.first)
             phase()?.let { best = it }
 
-            if (covered < baseline.sumOf { it.quantityMwh }) return give("exact result covered less than greedy")
+            // The floor: the result must be at least as good as greedy on all three objectives, compared in order.
+            objectivesOf(best.first).worseThan(objectivesOf(baseline))?.let { objective ->
+                return give("exact result is worse than greedy on $objective")
+            }
             return SolveResult(
                 best.first,
                 name,
                 mapOf("status" to best.second, "pairs" to vars.size, "wallTimeMs" to settings.timeLimit.toMillis() - remainingMs()),
             )
         }
+
+        private fun objectivesOf(assignments: List<Assignment>) = Objectives(
+            covered = assignments.sumOf { it.quantityMwh },
+            shortfall = shortfallOf(assignments),
+            cost = assignments.sumOf { it.quantityMwh * costOf(it.score) },
+        )
 
         private fun shortfallOf(assignments: List<Assignment>): Long = shortfalls.size.let {
             // Shortfall of a solution: recomputed from the assignments, the same way the model defines it.

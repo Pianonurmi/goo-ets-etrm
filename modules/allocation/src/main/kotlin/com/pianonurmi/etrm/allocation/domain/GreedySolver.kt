@@ -17,23 +17,25 @@ class GreedySolver(private val evaluate: (BoundCriterion, CriteriaSubject) -> Bo
     override fun solve(problem: AllocationProblem): List<Assignment> {
         val remaining = LongArray(problem.classes.size) { problem.classes[it].quantity }
         val assignments = mutableListOf<Assignment>()
+        val rankings = HashMap<Any, IntArray>()
 
-        val order = problem.obligations
-            .filter { it.demand > 0 }
-            .sortedWith(
-                compareBy<ObligationModel> { obl ->
-                    val supply = problem.eligibleSupply(obl)
-                    if (obl.demand == 0L) BigDecimal.ZERO else BigDecimal(supply).divide(BigDecimal(obl.demand), 6, RoundingMode.HALF_UP)
-                }.thenBy { it.priority }.thenBy { it.obligation.deliveryDate }.thenByDescending { it.specificity }.thenBy { it.id },
-            )
+        // Eligible supply per obligation, computed once (not inside the comparator); obligations sharing an
+        // eligibility row share the sum.
+        val supplyOfRow = java.util.IdentityHashMap<java.util.BitSet, Long>()
+        val pressure = problem.obligations.filter { it.demand > 0 }.associateWith { obl ->
+            val supply = supplyOfRow.getOrPut(problem.eligible[obl.index]) { problem.eligibleSupply(obl) }
+            BigDecimal(supply).divide(BigDecimal(obl.demand), 6, RoundingMode.HALF_UP)
+        }
+        val order = pressure.keys.sortedWith(
+            compareBy<ObligationModel> { pressure.getValue(it) }
+                .thenBy { it.priority }.thenBy { it.obligation.deliveryDate }.thenByDescending { it.specificity }.thenBy { it.id },
+        )
 
         order.forEach { obl ->
             var need = obl.demand
             val perDevice = HashMap<String, Long>()
             val deviceCap: Long? = obl.maxSharePerDevice?.let { pct -> obl.demand * pct / 100 }
-            // Score each eligible class once for this obligation; the list is released before the next obligation.
-            val scored = problem.eligibleClasses(obl).map { ScoredClass(it, problem.score(it, obl)) }
-                .sortedWith(compareBy<ScoredClass> { it.score.total }.thenBy { it.cls.index })
+            val scored = ranked(problem, obl, rankings)
 
             fun take(scoredClass: ScoredClass, maxQty: Long): Long {
                 val cls = scoredClass.cls
@@ -64,6 +66,26 @@ class GreedySolver(private val evaluate: (BoundCriterion, CriteriaSubject) -> Bo
             }
         }
         return merge(assignments)
+    }
+
+    /**
+     * The eligible classes of [obl], cheapest first (score, then class index). When the problem declares score keys,
+     * all classes are ranked once per key and each obligation walks that ranking, skipping ineligible classes and
+     * scoring only the classes it looks at; otherwise the obligation's eligible classes are scored and sorted.
+     */
+    private fun ranked(problem: AllocationProblem, obl: ObligationModel, rankings: HashMap<Any, IntArray>): Sequence<ScoredClass> {
+        val keyOf = problem.scoreKey
+            ?: return problem.eligibleClasses(obl).map { ScoredClass(it, problem.score(it, obl)) }
+                .sortedWith(compareBy<ScoredClass> { it.score.total }.thenBy { it.cls.index })
+                .asSequence()
+        val order = rankings.getOrPut(keyOf(obl)) {
+            problem.classes.map { ScoredClass(it, problem.score(it, obl)) }
+                .sortedWith(compareBy<ScoredClass> { it.score.total }.thenBy { it.cls.index })
+                .map { it.cls.index }
+                .toIntArray()
+        }
+        val eligible = problem.eligible[obl.index]
+        return order.asSequence().filter { eligible.get(it) }.map { ScoredClass(problem.classes[it], problem.score(problem.classes[it], obl)) }
     }
 
     /** Merges repeated (class, obligation) pairs produced by quota and fill passes. */

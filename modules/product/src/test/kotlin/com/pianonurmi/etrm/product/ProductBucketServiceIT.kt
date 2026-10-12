@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
 import com.pianonurmi.etrm.product.api.BucketMatchKind
+import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import com.pianonurmi.etrm.product.api.criteria.CriteriaSubject
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.LotAttribute
@@ -79,6 +80,15 @@ class ProductBucketServiceIT {
         buckets.bucketFor(null, Criterion.all(Criterion.country("FI", "DE"), Criterion.energySource("WIND")), ctx)!!.bucket.code shouldBe "EU_WIND"
         // "Not nuclear" proves nothing about the source.
         buckets.bucketFor(null, Criterion.Not(Criterion.energySource("NUCLEAR")), ctx)!!.bucket.code shouldBe "ANY_GOO"
+    }
+
+    @Test
+    fun `implication is exposed through the service`() {
+        val nordic = criteria.bind(Criterion.region("NORDIC"), criteria.contextFor(LocalDate.of(2026, 12, 1)))
+        val hydro = criteria.bind(Criterion.energySource("HYDRO"), criteria.contextFor(LocalDate.of(2026, 12, 1)))
+        criteria.implies(BoundCriterion.All(listOf(nordic, hydro)), hydro) shouldBe true
+        criteria.implies(hydro, BoundCriterion.All(listOf(nordic, hydro))) shouldBe false
+        criteria.implies(nordic, BoundCriterion.MatchAll) shouldBe true
     }
 
     private fun subject(country: String, source: String, labels: Set<String>) = object : CriteriaSubject {

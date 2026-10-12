@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
+import com.pianonurmi.etrm.product.api.criteria.VintageYears
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.trade.api.PriceType
@@ -36,7 +37,6 @@ import com.pianonurmi.etrm.valuation.api.ValuationRunView
 import com.pianonurmi.etrm.valuation.domain.Mtm
 import com.pianonurmi.etrm.valuation.domain.PnlExplainer
 import com.pianonurmi.etrm.valuation.domain.ValuationRepository
-import com.pianonurmi.etrm.valuation.domain.VintageYears
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional

@@ -157,10 +157,14 @@ object EngineFixtures {
                 BigDecimal.ONE,
             )
         }
+        // One row per (criterion, delivery date), as ProblemBuilder does: obligations sharing both share eligibility.
+        val rows = HashMap<Pair<Criterion, LocalDate>, BitSet>()
         val eligible = models.map { m ->
-            BitSet().also { bits ->
-                classes.forEach { cls ->
-                    if (cls.expiryDate > m.obligation.deliveryDate && CriteriaEvaluator.matches(m.bound, cls.representative)) bits.set(cls.index)
+            rows.getOrPut(m.obligation.criterion to m.obligation.deliveryDate) {
+                BitSet().also { bits ->
+                    classes.forEach { cls ->
+                        if (cls.expiryDate > m.obligation.deliveryDate && CriteriaEvaluator.matches(m.bound, cls.representative)) bits.set(cls.index)
+                    }
                 }
             }
         }
@@ -173,11 +177,18 @@ object EngineFixtures {
                 }
             }
         }
-        return AllocationProblem(classes, models, eligible) { cls: LotClass, _: ObligationModel ->
-            val value = values(cls.representative)
-            val scarcity = competition[cls.index] ?: BigDecimal.ZERO
-            ScoreBreakdown(value, BigDecimal.ZERO, scarcity, BigDecimal.ZERO, (value + scarcity).setScale(6), null)
-        }
+        return AllocationProblem(
+            classes,
+            models,
+            eligible,
+            scoring = { cls: LotClass, _: ObligationModel ->
+                val value = values(cls.representative)
+                val scarcity = competition[cls.index] ?: BigDecimal.ZERO
+                ScoreBreakdown(value, BigDecimal.ZERO, scarcity, BigDecimal.ZERO, (value + scarcity).setScale(6), null)
+            },
+            // These scores ignore the obligation entirely.
+            scoreKey = { Unit },
+        )
     }
 
     fun evaluate(bound: BoundCriterion, subject: com.pianonurmi.etrm.product.api.criteria.CriteriaSubject): Boolean = CriteriaEvaluator.matches(bound, subject)

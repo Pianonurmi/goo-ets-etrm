@@ -26,7 +26,8 @@ native library: OR-Tools ships glibc binaries for Linux x86-64 and aarch64, macO
     - the problem is larger than `etrm.allocation.exact.max-pairs` (200 000 pairs);
     - the native library does not load;
     - no solution is found in time;
-    - the result covers less than greedy.
+    - the result covers less than greedy. Since ADR 0036 the comparison runs on all three objectives in order:
+      greedy is returned when the exact result is worse on the first objective that differs.
 - **Time limit:** `etrm.allocation.exact.time-limit` (10 s) covers all three phases. `workers` (4) sets the
   search threads. The plan records the solver that actually ran, the solver status (`OPTIMAL` or `FEASIBLE`)
   and the wall time.

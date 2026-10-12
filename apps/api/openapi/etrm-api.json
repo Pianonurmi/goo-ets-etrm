@@ -2717,6 +2717,13 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "bucketMatch" : {
+            "enum" : [ "EXACT", "IMPLIED" ],
+            "type" : [ "string", "null" ]
+          },
           "counterpartyAccountId" : {
             "format" : "uuid",
             "type" : [ "string", "null" ]
@@ -5799,6 +5806,13 @@
             "format" : "uuid",
             "type" : [ "string", "null" ]
           },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "bucketMatch" : {
+            "enum" : [ "EXACT", "IMPLIED" ],
+            "type" : [ "string", "null" ]
+          },
           "cancellation" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/CancellationDetails"
@@ -5910,6 +5924,10 @@
           "version" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "vintageYear" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
           }
         },
         "required" : [ "constraints", "criteriaSummary", "criterion", "deliveryDate", "deliveryWindow", "fulfilledMwh", "holderEntityId", "id", "kind", "priorityClass", "quantityMwh", "remainingMwh", "status", "version" ],
@@ -5934,6 +5952,13 @@
         "properties" : {
           "bookId" : {
             "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "bucketMatch" : {
+            "enum" : [ "EXACT", "IMPLIED" ],
             "type" : [ "string", "null" ]
           },
           "cancellation" : {

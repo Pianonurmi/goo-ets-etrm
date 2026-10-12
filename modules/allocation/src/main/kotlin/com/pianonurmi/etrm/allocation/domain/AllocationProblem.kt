@@ -45,13 +45,19 @@ class AllocationProblem(
     /** Per obligation: bit `c` set when class `c` is eligible. */
     val eligible: List<BitSet>,
     private val scoring: (LotClass, ObligationModel) -> ScoreBreakdown,
+    /**
+     * Obligations with equal score keys give every class the same score (the score depends on the class and on the
+     * key only). Solvers can then rank all classes once per key instead of once per obligation. Null when unknown:
+     * every obligation is scored on its own.
+     */
+    val scoreKey: ((ObligationModel) -> Any)? = null,
 ) {
     /** Scores are not cached here: classes x obligations can reach tens of millions of pairs. Callers score per obligation. */
     fun score(cls: LotClass, obl: ObligationModel): ScoreBreakdown = scoring(cls, obl)
 
     fun eligibleClasses(obl: ObligationModel): List<LotClass> = eligible[obl.index].stream().mapToObj { classes[it] }.toList()
 
-    fun eligibleSupply(obl: ObligationModel): Long = eligibleClasses(obl).sumOf { it.quantity }
+    fun eligibleSupply(obl: ObligationModel): Long = eligible[obl.index].stream().mapToLong { classes[it].quantity }.sum()
 
     fun isEligible(cls: LotClass, obl: ObligationModel): Boolean = eligible[obl.index].get(cls.index)
 

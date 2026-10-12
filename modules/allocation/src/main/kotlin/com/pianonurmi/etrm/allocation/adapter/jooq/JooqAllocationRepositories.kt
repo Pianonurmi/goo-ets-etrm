@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.BucketMatchKind
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import org.jooq.DSLContext
 import org.jooq.JSONB
@@ -87,6 +88,9 @@ class JooqObligationRepository(private val dsl: DSLContext) : ObligationReposito
         priorityClass = o.priorityClass
         constraints = JSONB.jsonb(Json.mapper.writerFor(constraintsType).writeValueAsString(o.constraints))
         status = o.status.name
+        bucketCode = o.bucketCode
+        bucketMatch = o.bucketMatch?.name
+        vintageYear = o.vintageYear
     }
 
     private fun toView(r: ObligationRecord): ObligationView {
@@ -112,6 +116,9 @@ class JooqObligationRepository(private val dsl: DSLContext) : ObligationReposito
             constraints = Json.mapper.readValue(r.constraints.data(), constraintsType),
             status = ObligationStatus.valueOf(r.status),
             version = r.version,
+            bucketCode = r.bucketCode,
+            bucketMatch = r.bucketMatch?.let { BucketMatchKind.valueOf(it) },
+            vintageYear = r.vintageYear,
         )
     }
 }

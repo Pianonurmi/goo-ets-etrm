@@ -15,8 +15,11 @@ import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.product.api.BucketMatchKind
+import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
+import com.pianonurmi.etrm.product.api.criteria.VintageYears
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.trade.api.DeliveryObligationChanged
@@ -39,6 +42,7 @@ import java.util.UUID
 class ObligationService(
     private val repository: ObligationRepository,
     private val criteria: CriteriaService,
+    private val buckets: ProductBucketQuery,
     private val referenceData: ReferenceDataQuery,
     private val events: ApplicationEventPublisher,
 ) : ObligationCommand, ObligationQuery {
@@ -57,6 +61,8 @@ class ObligationService(
             throw ValidationException("${command.kind} obligations require a target account")
         }
         val existing = command.sourceRef?.let(repository::bySource)
+        val bound = criteria.bind(command.criterion, criteria.contextFor(command.deliveryDate))
+        val (bucketCode, bucketMatch) = bucketOf(command)
         val view = ObligationView(
             id = existing?.id ?: Ids.newId(),
             kind = command.kind,
@@ -78,6 +84,9 @@ class ObligationService(
             constraints = command.constraints,
             status = if ((existing?.fulfilledMwh ?: 0) >= command.quantityMwh) ObligationStatus.FULFILLED else ObligationStatus.OPEN,
             version = (existing?.version ?: 0) + 1,
+            bucketCode = bucketCode,
+            bucketMatch = bucketMatch,
+            vintageYear = VintageYears.of(bound, command.deliveryDate),
         )
         if (existing == null) {
             repository.insert(view)
@@ -96,6 +105,13 @@ class ObligationService(
             events.publishEvent(ObligationChanged(view))
         }
         return view
+    }
+
+    /** The bucket the trade recorded, else the bucket the criterion belongs to (exact, or one that provably contains it). */
+    private fun bucketOf(command: OpenObligation): Pair<String?, BucketMatchKind?> {
+        if (command.bucketCode != null) return command.bucketCode to command.bucketMatch
+        val match = buckets.bucketFor(null, command.criterion, criteria.contextFor(command.deliveryDate)) ?: return null to null
+        return match.bucket.code to match.kind
     }
 
     override fun close(obligationId: UUID, reason: String): ObligationView {
@@ -178,6 +194,8 @@ class ObligationService(
                 deliveryDate = delivery.deliveryDate,
                 targetRegistryCode = registry,
                 targetAccountRef = account,
+                bucketCode = delivery.bucketCode,
+                bucketMatch = delivery.bucketMatch,
             ),
             reopen = true,
         )

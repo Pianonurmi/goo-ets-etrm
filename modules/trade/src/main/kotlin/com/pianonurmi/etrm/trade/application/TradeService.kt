@@ -558,6 +558,8 @@ class TradeService(
                 priceType = leg.priceType,
                 status = d.status,
                 priceIndex = leg.priceIndex,
+                bucketCode = leg.bucketCode,
+                bucketMatch = leg.bucketMatch,
             )
         }
     }

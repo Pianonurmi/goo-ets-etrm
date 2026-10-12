@@ -1,15 +1,11 @@
 package com.pianonurmi.etrm.valuation.domain
 
-import com.pianonurmi.etrm.platform.time.LocalDateRange
-import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import com.pianonurmi.etrm.valuation.api.ExplainComponent
 import com.pianonurmi.etrm.valuation.api.ExplainRow
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.ValuationResultView
 import java.math.BigDecimal
 import java.math.RoundingMode
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /** MtM of a remaining quantity: q × (market − contract), in contract currency and in base currency. */
@@ -17,33 +13,6 @@ object Mtm {
     fun value(quantity: BigDecimal, market: BigDecimal, contract: BigDecimal): BigDecimal = quantity * (market - contract)
 
     fun money(value: BigDecimal): BigDecimal = value.setScale(2, RoundingMode.HALF_EVEN)
-}
-
-/**
- * The production year a GoO delivery is marked at: the calendar year overlapping the criterion's vintage window most
- * (the later year on a tie), or the delivery year when the criterion has no vintage.
- */
-object VintageYears {
-    fun of(bound: BoundCriterion, deliveryDate: LocalDate): Int {
-        val windows = windows(bound)
-        if (windows.isEmpty()) return deliveryDate.year
-        val window = windows.reduce { a, b -> a.intersect(b) ?: a }
-        return (window.start.year..window.endExclusive.minusDays(1).year)
-            .maxWith(compareBy<Int> { overlap(window, it) }.thenBy { it })
-    }
-
-    private fun windows(bound: BoundCriterion): List<LocalDateRange> = when (bound) {
-        is BoundCriterion.ProductionPeriodWithin -> listOf(bound.window)
-        is BoundCriterion.All -> bound.of.flatMap(::windows)
-        else -> emptyList()
-    }
-
-    private fun overlap(window: LocalDateRange, year: Int): Long {
-        val y = LocalDateRange.ofYear(year)
-        val start = maxOf(window.start, y.start)
-        val end = minOf(window.endExclusive, y.endExclusive)
-        return if (end.isAfter(start)) ChronoUnit.DAYS.between(start, end) else 0
-    }
 }
 
 /**

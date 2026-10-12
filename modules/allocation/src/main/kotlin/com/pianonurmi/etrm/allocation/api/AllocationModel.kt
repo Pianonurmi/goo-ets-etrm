@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.EventMetadata
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.BucketMatchKind
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import java.math.BigDecimal
 import java.time.Instant
@@ -64,6 +65,11 @@ data class ObligationView(
     val constraints: List<AllocationConstraint>,
     val status: ObligationStatus,
     val version: Int,
+    /** The product bucket of the criterion and how it was found; null when no bucket contains it (or before it was recorded). */
+    val bucketCode: String? = null,
+    val bucketMatch: BucketMatchKind? = null,
+    /** The production year the delivery is marked at (see `VintageYears`); null on obligations from before it was recorded. */
+    val vintageYear: Int? = null,
 ) {
     val remainingMwh: Long get() = quantityMwh - fulfilledMwh
 }
@@ -85,6 +91,9 @@ data class OpenObligation(
     val cancellation: CancellationDetails? = null,
     val priorityClass: Int? = null,
     val constraints: List<AllocationConstraint> = emptyList(),
+    /** The product bucket when the caller knows it (obligations from trades); otherwise it is looked up from the criterion. */
+    val bucketCode: String? = null,
+    val bucketMatch: BucketMatchKind? = null,
 )
 
 interface ObligationCommand {

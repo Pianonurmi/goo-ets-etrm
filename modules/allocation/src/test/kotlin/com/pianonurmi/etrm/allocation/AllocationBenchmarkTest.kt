@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.allocation.EngineFixtures.obligation
 import com.pianonurmi.etrm.allocation.EngineFixtures.problem
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
+import com.pianonurmi.etrm.allocation.domain.flow.FlowState
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -12,7 +13,9 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.util.BitSet
 import kotlin.random.Random
+import kotlin.system.measureNanoTime
 import kotlin.system.measureTimeMillis
 
 /**
@@ -62,11 +65,27 @@ class AllocationBenchmarkTest {
         var assignments = 0
         val solveMs = measureTimeMillis { assignments = GreedySolver(EngineFixtures::evaluate).solve(problem).size }
         var covered = 0L
+        val analyser = CoverageAnalyser { it.representative.energySourceCode }
         val coverageMs = measureTimeMillis {
-            covered = CoverageAnalyser { it.representative.energySourceCode }.analyse(problem, EngineFixtures.entity, 1, Instant.now()).totalCoveredMwh
+            covered = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now()).totalCoveredMwh
         }
+        val pairs = problem.eligible.sumOf { it.cardinality().toLong() }
+        lateinit var state: FlowState
+        val flowMs = measureTimeMillis { state = analyser.solve(problem) }
+        val graph = state.graph
+        // Headroom for a new "Nordic hydro" sale: every class of a Nordic country and a hydro source.
+        val nordic = setOf("FI", "SE", "NO", "DK")
+        val eligible = BitSet().apply {
+            problem.classes.forEach { if (it.representative.deviceCountry in nordic && it.representative.energySourceCode.startsWith("HYDRO")) set(it.index) }
+        }
+        var headroom = 0L
+        val headroomNs = measureNanoTime { repeat(20) { headroom = state.headroom(eligible) } } / 20
         println("benchmark lots=$lotCount classes=${problem.classes.size} obligations=$obligationCount build=${buildMs}ms")
         println("benchmark greedy=${solveMs}ms ($assignments assignments) coverage=${coverageMs}ms covered=$covered")
+        println(
+            "benchmark flow: pairs=$pairs compressed groups=${graph.groups.size} atoms=${graph.atoms.size} edges=${graph.edgeCount} " +
+                "solve=${flowMs}ms headroom=${headroomNs / 1_000}us (nordic hydro: $headroom MWh)",
+        )
         (solveMs < 60_000) shouldBe true
         (coverageMs < 30_000) shouldBe true
     }

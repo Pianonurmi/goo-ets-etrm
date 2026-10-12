@@ -16,6 +16,7 @@ import com.pianonurmi.etrm.product.domain.CriteriaCatalogueBuilder
 import com.pianonurmi.etrm.product.domain.CriteriaCodec
 import com.pianonurmi.etrm.product.domain.CriteriaDescriber
 import com.pianonurmi.etrm.product.domain.CriteriaEvaluator
+import com.pianonurmi.etrm.product.domain.CriteriaImplication
 import com.pianonurmi.etrm.product.domain.CriteriaRepository
 import com.pianonurmi.etrm.product.domain.JooqCriteriaCompiler
 import com.pianonurmi.etrm.product.domain.Specificity
@@ -55,6 +56,8 @@ class CriteriaServiceImpl(
     override fun evaluate(bound: BoundCriterion, subject: CriteriaSubject): Boolean = CriteriaEvaluator.matches(bound, subject)
 
     override fun compile(bound: BoundCriterion, columns: CriteriaColumns): Condition = JooqCriteriaCompiler.compile(bound, columns)
+
+    override fun implies(narrow: BoundCriterion, broad: BoundCriterion): Boolean = CriteriaImplication.implies(narrow, broad)
 
     override fun specificity(criterion: Criterion): BigDecimal = specificity.score(criterion)
 

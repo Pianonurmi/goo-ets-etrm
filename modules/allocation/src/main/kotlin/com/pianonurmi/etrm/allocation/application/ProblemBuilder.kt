@@ -30,6 +30,8 @@ class ProblemBuilder(
 ) {
     data class Built(val problem: AllocationProblem, val scoring: Scoring)
 
+    private data class EligibilityKey(val criterion: String, val deliveryDate: LocalDate, val targetRegistryCode: String?)
+
     fun build(
         snapshot: LotSnapshot,
         obligations: List<ObligationView>,
@@ -53,18 +55,24 @@ class ProblemBuilder(
         val routeCache = HashMap<Pair<String, String>, TransferRoute>()
         val routeOf: (String, String) -> TransferRoute = { from, to -> routeCache.getOrPut(from to to) { routes.route(from, to) } }
 
+        // Eligibility depends only on the criterion, the delivery date and the target registry: obligations that share
+        // all three share one row (the criteria evaluation over every class is the dominant cost at scale).
+        val rows = HashMap<EligibilityKey, BitSet>()
         val eligible = models.map { obl ->
-            val bits = BitSet(classes.size)
-            classes.forEach { cls ->
-                val target = obl.obligation.targetRegistryCode ?: cls.registryCode
-                if (cls.expiryDate > obl.obligation.deliveryDate &&
-                    routeOf(cls.registryCode, target).feasible &&
-                    criteria.evaluate(obl.bound, cls.representative)
-                ) {
-                    bits.set(cls.index)
+            val key = EligibilityKey(criteria.toJson(obl.obligation.criterion), obl.obligation.deliveryDate, obl.obligation.targetRegistryCode)
+            rows.getOrPut(key) {
+                val bits = BitSet(classes.size)
+                classes.forEach { cls ->
+                    val target = obl.obligation.targetRegistryCode ?: cls.registryCode
+                    if (cls.expiryDate > obl.obligation.deliveryDate &&
+                        routeOf(cls.registryCode, target).feasible &&
+                        criteria.evaluate(obl.bound, cls.representative)
+                    ) {
+                        bits.set(cls.index)
+                    }
                 }
+                bits
             }
-            bits
         }
 
         val known = mutableMapOf<Pair<String, Int>, BigDecimal?>()
@@ -82,7 +90,14 @@ class ProblemBuilder(
             override fun eligibleClassIndexes(obl: ObligationModel): List<Int> = eligible[obl.index].stream().toArray().toList()
         }
         val scarcity = scoring.scarcityIndex(shape)
-        val problem = AllocationProblem(classes, models, eligible) { cls: LotClass, obl: ObligationModel -> scoring.score(cls, obl, scarcity) }
+        val problem = AllocationProblem(
+            classes,
+            models,
+            eligible,
+            scoring = { cls: LotClass, obl: ObligationModel -> scoring.score(cls, obl, scarcity) },
+            // A score depends on the class, the delivery date (urgency) and the target registry (transfer fee) only.
+            scoreKey = { obl -> obl.obligation.deliveryDate to obl.obligation.targetRegistryCode },
+        )
         return Built(problem, scoring)
     }
 }

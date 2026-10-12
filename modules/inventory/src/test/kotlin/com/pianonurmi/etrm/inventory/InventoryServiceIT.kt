@@ -50,6 +50,8 @@ import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.jooq.exception.DataAccessException
@@ -193,6 +195,17 @@ class InventoryServiceIT {
             listOf("LotReceived", "LotReserved", "LotReleased", "LotTransferStarted", "LotTransferFailed", "LotTransferStarted", "LotTransferred")
         lots.verifyJournal().shouldBeEmpty()
         lots.history(reserved.id).zipWithNext().forEach { (a, b) -> b.prevHash shouldBe a.hash }
+    }
+
+    @Test
+    fun `the journal position of one holder follows the events of its lots only`() {
+        val lot = receive("FI-2026-0099", 90_000, 90_099)
+        val lastEvent = lots.history(lot.id).maxOf { it.seq }
+        lots.journalSeq(entityId) shouldBe lastEvent
+        lots.journalSeq() shouldBeGreaterThanOrEqualTo lots.journalSeq(entityId)
+        lots.journalSeq(UUID.randomUUID()) shouldBe 0L
+        lots.reserve(lot.id, 10, UUID.randomUUID())
+        lots.journalSeq(entityId) shouldBeGreaterThan lastEvent
     }
 
     @Test

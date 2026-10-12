@@ -21,6 +21,12 @@ interface CriteriaService {
 
     fun compile(bound: BoundCriterion, columns: CriteriaColumns): org.jooq.Condition
 
+    /**
+     * A sound but incomplete proof that every subject satisfying [narrow] satisfies [broad] (ADR 0016). False means
+     * "not proven", not "does not imply".
+     */
+    fun implies(narrow: BoundCriterion, broad: BoundCriterion): Boolean
+
     /** Static specificity score: higher means more constrained. */
     fun specificity(criterion: Criterion): BigDecimal
 

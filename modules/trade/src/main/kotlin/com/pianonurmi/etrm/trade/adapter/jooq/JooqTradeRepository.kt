@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.trade.adapter.jooq
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.BucketMatchKind
 import com.pianonurmi.etrm.product.api.InstrumentType
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
@@ -385,6 +386,8 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             priceType = com.pianonurmi.etrm.trade.api.PriceType.valueOf(l.priceType),
             status = DeliveryStatus.valueOf(s.status),
             priceIndex = l.priceIndex,
+            bucketCode = l.bucketCode,
+            bucketMatch = l.bucketMatch?.let { BucketMatchKind.valueOf(it) },
         )
     }
 

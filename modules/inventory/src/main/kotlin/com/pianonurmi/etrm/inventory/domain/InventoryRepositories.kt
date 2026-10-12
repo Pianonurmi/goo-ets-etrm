@@ -65,6 +65,9 @@ interface LotEventJournal {
 
     fun lastSeq(): Long
 
+    /** Highest sequence among events of lots held by the entity (0 if none). */
+    fun lastSeq(holderEntityId: UUID): Long
+
     fun brokenChains(): List<UUID>
 }
 
