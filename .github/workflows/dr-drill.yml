@@ -48,7 +48,7 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: true
       # A hosted runner installs the client; the self-hosted one has it from ops/runner/provision.sh.
