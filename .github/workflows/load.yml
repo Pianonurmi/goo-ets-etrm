@@ -72,7 +72,7 @@ jobs:
         run: k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=${{ inputs.profile }} --summary-export=k6-summary.json ops/load/etrm.js
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: load-${{ inputs.profile }}
           path: |
