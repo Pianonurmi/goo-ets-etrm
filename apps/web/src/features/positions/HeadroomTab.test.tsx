@@ -33,11 +33,12 @@ vi.mock('@/shared/grid/DataGrid', () => ({
 const table: HeadroomTable = {
   holderEntityId: '00000000-0000-7000-8000-000000000001',
   stamp: 's1',
+  tier: 'HELD',
   computedAt: '2026-10-12T08:00:00Z',
   deliveryDates: ['2026-10-31', '2026-11-30', '2026-12-31'],
   rows: [
-    { bucketCode: 'FI_HYDRO', vintageYear: 2025, heldMwh: 12500, headroomMwh: [12500, 11000, 9000] },
-    { bucketCode: 'SE_WIND', vintageYear: 2026, heldMwh: 800, headroomMwh: [800, 800, 0] },
+    { bucketCode: 'FI_HYDRO', vintageYear: 2025, heldMwh: 12500, futureMwh: 0, headroomMwh: [12500, 11000, 9000] },
+    { bucketCode: 'SE_WIND', vintageYear: 2026, heldMwh: 800, futureMwh: 0, headroomMwh: [800, 800, 0] },
   ],
 };
 

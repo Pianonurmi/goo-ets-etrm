@@ -1,6 +1,7 @@
 import { Alert, Stack, Text } from '@mantine/core';
 import type { ColDef } from 'ag-grid-community';
-import { useMemo } from 'react';
+import { keepPreviousData } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { $api } from '@/shared/api/client';
 import { EmptyState } from '@/shared/components/EmptyState';
@@ -8,6 +9,8 @@ import { QueryState } from '@/shared/components/QueryState';
 import { TableSkeleton } from '@/shared/components/Skeletons';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { TierSwitch } from './TierSwitch';
+import type { HeadroomTier } from './model/futureSupply';
 import { dateField, headroomRows, type HeadroomGridRow, type HeadroomTable } from './model/headroom';
 
 const mwh = (p: { value: unknown }) => formatDecimal(p.value as number);
@@ -27,6 +30,18 @@ export function HeadroomGrid({ table }: { table: HeadroomTable }) {
         type: 'rightAligned',
         valueFormatter: mwh,
       },
+      ...(table.tier === 'HELD'
+        ? []
+        : [
+            {
+              field: 'futureMwh',
+              headerName: t('positions.headroom.future'),
+              headerTooltip: t(`positions.headroom.futureHint.${table.tier}`),
+              width: 130,
+              type: 'rightAligned',
+              valueFormatter: mwh,
+            } satisfies ColDef<HeadroomGridRow>,
+          ]),
       ...table.deliveryDates.map((date, index): ColDef<HeadroomGridRow> => ({
         field: dateField(index),
         headerName: formatDate(date),
@@ -35,7 +50,7 @@ export function HeadroomGrid({ table }: { table: HeadroomTable }) {
         valueFormatter: mwh,
       })),
     ],
-    [t, table.deliveryDates],
+    [t, table.deliveryDates, table.tier],
   );
   return (
     <div data-testid="headroom-table">
@@ -53,12 +68,13 @@ export function HeadroomGrid({ table }: { table: HeadroomTable }) {
 /** What the entity can still sell, by bucket and vintage, for each delivery month-end (upper bounds that share supply). */
 export function HeadroomTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
+  const [tier, setTier] = useState<HeadroomTier>('HELD');
   // The first call for an entity prepares the figures, so it can take a moment.
   const table = $api.useQuery(
     'get',
     '/api/v1/allocation/headroom',
-    { params: { query: { holderEntityId: entityId } } },
-    { retry: false },
+    { params: { query: { holderEntityId: entityId, tier } } },
+    { retry: false, placeholderData: keepPreviousData },
   );
   const data = table.data;
   return (
@@ -66,6 +82,7 @@ export function HeadroomTab({ entityId }: { entityId: string }) {
       <Text size="sm" c="dimmed">
         {t('positions.headroom.lead')}
       </Text>
+      <TierSwitch value={tier} onChange={setTier} />
       <Alert color="gray" variant="light" data-testid="headroom-note">
         {t('positions.headroom.note')}
       </Alert>

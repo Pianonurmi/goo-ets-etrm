@@ -12,6 +12,7 @@ import {
   SegmentedControl,
   SimpleGrid,
   Stack,
+  Switch,
   Table,
   Text,
   Title,
@@ -37,10 +38,11 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { newKey } from '@/shared/ids';
-import { coverageRows, groupLines, obligationName, type Line } from './model/plan';
+import { coverageRows, groupLines, hasFutureCoverage, obligationName, type Line } from './model/plan';
 import { ObligationDrawer, OpenObligationModal } from './ObligationPanels';
 import { PlanValuePanel } from './PlanValuePanel';
 import { ShadowPricesPanel } from './ShadowPricesPanel';
+import { VirtualLinesPanel } from './VirtualLinesPanel';
 
 type Obligation = Schema<'ObligationView'>;
 type Plan = Schema<'AllocationPlanView'>;
@@ -225,6 +227,7 @@ function WhatIfResult({
   const { solver, fallbackReason } = result.objective;
   const solvedBy = typeof solver === 'string' ? solver : result.solver;
   const fallback = typeof fallbackReason === 'string' ? fallbackReason : undefined;
+  const virtualLines = result.virtualLines ?? [];
   return (
     <Paper withBorder radius="lg" p="lg" data-testid="what-if-result">
       <Group justify="space-between" mb="sm">
@@ -286,6 +289,19 @@ function WhatIfResult({
         </Accordion>
       )}
       <LinesByObligation lines={result.lines} obligations={obligations} />
+      {(virtualLines.length > 0 || hasFutureCoverage(result.coverage)) && (
+        <Stack gap="xs" mt="md">
+          <Title order={4} size="h6">
+            {t('allocation.virtual.title')}
+          </Title>
+          <VirtualLinesPanel
+            lines={virtualLines}
+            coverage={result.coverage}
+            obligations={obligations}
+            testId="what-if-virtual-lines"
+          />
+        </Stack>
+      )}
     </Paper>
   );
 }
@@ -315,6 +331,7 @@ export function AllocationPage() {
     enabled,
   );
   const [solver, setSolver] = useState<Solver>('GREEDY');
+  const [futureSupply, setFutureSupply] = useState(true);
   const [params, setParams] = useSearchParams();
   const [opening, setOpening] = useState(false);
   const selectedObligation = params.get('obligation');
@@ -370,7 +387,7 @@ export function AllocationPage() {
     ],
     [t],
   );
-  const body = { holderEntityId: entityId, idempotencyKey: newKey('ui'), solver };
+  const body = { holderEntityId: entityId, idempotencyKey: newKey('ui'), solver, futureSupply };
   return (
     <Stack gap="lg">
       <PageHeader
@@ -390,6 +407,12 @@ export function AllocationPage() {
               </Button>
             </Can>
             <Can op="allocation_propose">
+              <Switch
+                label={t('allocation.virtual.useFuture')}
+                checked={futureSupply}
+                onChange={(e) => setFutureSupply(e.currentTarget.checked)}
+                data-testid="future-supply-switch"
+              />
               <SegmentedControl
                 value={solver}
                 onChange={setSolver}

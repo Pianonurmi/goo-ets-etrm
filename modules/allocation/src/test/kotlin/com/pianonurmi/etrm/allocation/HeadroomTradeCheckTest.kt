@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.allocation.api.DemandHeadroom
 import com.pianonurmi.etrm.allocation.api.HeadroomCheck
 import com.pianonurmi.etrm.allocation.api.HeadroomQuery
 import com.pianonurmi.etrm.allocation.api.HeadroomResult
+import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.allocation.application.HeadroomTradeCheck
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
@@ -58,6 +59,7 @@ class HeadroomTradeCheckTest {
 
     private fun result(vararg demands: DemandHeadroom, joint: Long?) = HeadroomResult(
         holderEntityId = entity,
+        tier = SupplyTier.HELD,
         stamp = "s",
         computedAt = Instant.now(),
         demands = demands.toList(),

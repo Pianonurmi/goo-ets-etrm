@@ -19,6 +19,7 @@ Terms used on the screens and in this manual.
 | Delta export | A GL export carrying only entries posted after the period's earlier exports |
 | Emission provision | Liability for emissions incurred but not yet surrendered (IAS 37 net liability approach) |
 | EUA / EUAA | EU Allowance (general) / EU Aviation Allowance |
+| Expected issuance | Certificates an own device is expected to have issued for a production month: its forecast, or capacity × load factor, less what is already issued. Views use the central figure (P50), plans the cautious one (P90) |
 | Expiry haircut | Part of a certificate's value lost because it expires within 60 days of delivery; using such a lot costs less (ADR 0035) |
 | Four eyes | A step that needs a second person: the requester can never approve their own request |
 | Gap-free numbering | Invoice numbers taken in the issuing transaction so that a rollback leaves no hole |
@@ -29,6 +30,7 @@ Terms used on the screens and in this manual.
 | Installation | An installation or aircraft operator under the EU ETS, with its operator holding account |
 | Intercompany trade | A trade between two of our own legal entities; the mirror trade is booked in the other entity |
 | Legal entity | One of our companies; data is scoped to the entities a user may access |
+| Load factor | Typical share of a technology's capacity produced in a calendar month; used when a device has no forecast. The values shipped are illustrative |
 | Lot | Contiguous certificate number range with identical attributes in one registry account |
 | Lot class | Lots interchangeable for every criterion and for scoring |
 | Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
@@ -55,6 +57,7 @@ Terms used on the screens and in this manual.
 | Shortage group | Set of obligations jointly short, with the exhausted supply they compete for |
 | Soft / hard reservation | Claim by a proposal (expires) / by an approved plan (lot status RESERVED) |
 | Statement | Registry export of holdings used for reconciliation |
+| Supply tier | How firm supply is: held, + purchases (contracted) or + expected issuance. Figures add up cumulatively by tier |
 | Surrender | Delivery of allowances to the Union Registry against verified emissions |
 | Surrender attribution | The compliance year a surrender counts for: as stated, else the earliest year still owed |
 | Transfer route | Feasibility, fee and expected days of moving certificates between registries |
@@ -66,3 +69,4 @@ Terms used on the screens and in this manual.
 | Valuation run | MtM of an entity's open trades on a date; official once signed off by risk |
 | Value (allocation) | What a certificate is worth to allocation: the best official mark over every bucket it qualifies for |
 | Vintage | Production period window of certificates |
+| Virtual line | A plan line served by a purchase or by expected issuance: shown and valued, but not reserved or instructed until the certificates are held |

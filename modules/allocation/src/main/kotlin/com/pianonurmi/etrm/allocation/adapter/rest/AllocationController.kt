@@ -6,6 +6,8 @@ import com.pianonurmi.etrm.allocation.api.AllocationPlanView
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.AllocationWhatIf
 import com.pianonurmi.etrm.allocation.api.CoverageReport
+import com.pianonurmi.etrm.allocation.api.FutureSupplyQuery
+import com.pianonurmi.etrm.allocation.api.FutureSupplyView
 import com.pianonurmi.etrm.allocation.api.HeadroomCheck
 import com.pianonurmi.etrm.allocation.api.HeadroomQuery
 import com.pianonurmi.etrm.allocation.api.HeadroomResult
@@ -17,6 +19,7 @@ import com.pianonurmi.etrm.allocation.api.OpenObligation
 import com.pianonurmi.etrm.allocation.api.PortfolioQuery
 import com.pianonurmi.etrm.allocation.api.PortfolioView
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
+import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -46,14 +49,22 @@ class AllocationController(
     private val actorProvider: ActorProvider,
     private val headroom: HeadroomQuery,
     private val portfolioQuery: PortfolioQuery,
+    private val futureSupplyQuery: FutureSupplyQuery,
 ) {
     /** The GoO book by product bucket, netted through the eligibility flow (ADR 0037). */
     @GetMapping("/portfolio")
     fun portfolio(
         @RequestParam holderEntityId: UUID,
-    ): PortfolioView = portfolioQuery.portfolio(holderEntityId)
+        @RequestParam(defaultValue = "HELD") tier: SupplyTier,
+    ): PortfolioView = portfolioQuery.portfolio(holderEntityId, tier)
 
-    /** Available to sell (ADR 0036): how much of each demand the entity could still sell from held certificates. */
+    /** Purchases and expected issuance still to come, and what they add to coverage by delivery month (ADR 0038). */
+    @GetMapping("/future-supply")
+    fun futureSupply(
+        @RequestParam holderEntityId: UUID,
+    ): FutureSupplyView = futureSupplyQuery.futureSupply(holderEntityId)
+
+    /** Available to sell (ADR 0036): how much of each demand the entity could still sell, by default from held certificates. */
     @PostMapping("/headroom/check")
     fun headroomCheck(
         @RequestBody body: HeadroomCheck,
@@ -63,7 +74,8 @@ class AllocationController(
     @GetMapping("/headroom")
     fun headroomTable(
         @RequestParam holderEntityId: UUID,
-    ): HeadroomTable = headroom.table(holderEntityId)
+        @RequestParam(defaultValue = "HELD") tier: SupplyTier,
+    ): HeadroomTable = headroom.table(holderEntityId, tier)
 
     @GetMapping("/obligations")
     fun obligations(

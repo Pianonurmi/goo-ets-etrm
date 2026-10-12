@@ -10,9 +10,11 @@ import com.pianonurmi.etrm.allocation.api.HeadroomRow
 import com.pianonurmi.etrm.allocation.api.HeadroomTable
 import com.pianonurmi.etrm.allocation.api.LineStatus
 import com.pianonurmi.etrm.allocation.api.ObligationView
+import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.AllocationProblem
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
+import com.pianonurmi.etrm.allocation.domain.LotClass
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.allocation.domain.flow.FlowState
 import com.pianonurmi.etrm.inventory.api.LotQuery
@@ -56,16 +58,16 @@ class HeadroomService(
 ) : HeadroomQuery {
     override fun check(command: HeadroomCheck): HeadroomResult {
         authorise(command.holderEntityId)
-        return evaluate(flows.prepare(command.holderEntityId, command.excludeSourceRefs), command)
+        return evaluate(flows.prepare(command.holderEntityId, command.excludeSourceRefs, command.tier), command)
     }
 
     // No role check: pre-trade checks call it inside a capture the caller may already make.
     override fun checkIfReady(command: HeadroomCheck): HeadroomResult? =
-        flows.ifReady(command.holderEntityId, command.excludeSourceRefs)?.let { evaluate(it, command) }
+        flows.ifReady(command.holderEntityId, command.excludeSourceRefs, command.tier)?.let { evaluate(it, command) }
 
-    override fun table(holderEntityId: UUID): HeadroomTable {
+    override fun table(holderEntityId: UUID, tier: SupplyTier): HeadroomTable {
         authorise(holderEntityId)
-        val prepared = flows.prepare(holderEntityId)
+        val prepared = flows.prepare(holderEntityId, tier = tier)
         return prepared.table ?: tableOf(holderEntityId, prepared).also { prepared.table = it }
     }
 
@@ -95,6 +97,7 @@ class HeadroomService(
             val joint = prepared.state.jointHeadroom(demands.map { (demand, eligible) -> eligible to demand.quantityMwh })
             HeadroomResult(
                 holderEntityId = command.holderEntityId,
+                tier = prepared.tier,
                 stamp = prepared.stamp,
                 computedAt = clock.instant(),
                 demands = each,
@@ -127,16 +130,19 @@ class HeadroomService(
     }
 
     /**
-     * One row per bucket and vintage the entity holds, one figure per month-end. Bucket membership is evaluated once
-     * per class; each cell is then the members of the vintage that outlive the date, and one trial.
+     * One row per bucket and vintage the entity holds or expects, one figure per month-end. Bucket membership is
+     * evaluated once per class (a purchase by containment); each cell is then the members of the vintage available by
+     * the date and outliving it, and one trial.
      */
     private fun tableOf(holderEntityId: UUID, prepared: PreparedFlow): HeadroomTable {
         val today = LocalDate.now(clock)
         val dates = (0 until settings.months).map { YearMonth.from(today).plusMonths(it.toLong()).atEndOfMonth() }
         val classes = prepared.problem.classes
-        val bound = buckets.bind(criteria.contextFor(today))
-        val members = bound.buckets.associate { (view, _) -> view.code to BitSet(classes.size) }
-        classes.forEach { cls -> bound.matching(cls.representative).forEach { members.getValue(it.code).set(cls.index) } }
+        val context = criteria.contextFor(today)
+        val bound = buckets.bind(context)
+        val members = bound.buckets.associate { (view, criterion) ->
+            view.code to BitSet(classes.size).apply { classes.forEach { if (problemBuilder.inBucket(it, criterion) { context }) set(it.index) } }
+        }
         val years = classes.map { it.productionYear }.distinct().sorted()
         val sortOrder = bound.buckets.associate { (view, _) -> view.code to view.sortOrder }
         val rows = prepared.lock.withLock {
@@ -147,15 +153,18 @@ class HeadroomService(
                     HeadroomRow(
                         bucketCode = code,
                         vintageYear = year,
-                        heldMwh = ofYear.stream().mapToLong { classes[it].quantity }.sum(),
+                        heldMwh = ofYear.stream().filter { classes[it].future == null }.mapToLong { classes[it].quantity }.sum(),
+                        futureMwh = ofYear.stream().filter { classes[it].future != null }.mapToLong { classes[it].quantity }.sum(),
                         headroomMwh = dates.map { date ->
-                            val live = BitSet(classes.size).apply { ofYear.stream().filter { classes[it].expiryDate > date }.forEach { set(it) } }
+                            val live = BitSet(classes.size).apply { ofYear.stream().filter { usableOn(classes[it], date) }.forEach { set(it) } }
                             if (live.isEmpty) 0 else prepared.state.headroom(live)
                         },
                     )
                 }
             }
         }.sortedWith(compareBy<HeadroomRow> { sortOrder[it.bucketCode] ?: Int.MAX_VALUE }.thenBy { it.bucketCode }.thenBy { it.vintageYear })
-        return HeadroomTable(holderEntityId, prepared.stamp, clock.instant(), dates, rows)
+        return HeadroomTable(holderEntityId, prepared.tier, prepared.stamp, clock.instant(), dates, rows)
     }
+
+    private fun usableOn(cls: LotClass, date: LocalDate): Boolean = cls.expiryDate > date && (cls.future?.availableFrom ?: date) <= date
 }

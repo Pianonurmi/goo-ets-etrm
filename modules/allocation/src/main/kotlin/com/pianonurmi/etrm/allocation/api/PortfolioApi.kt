@@ -13,9 +13,11 @@ import java.util.UUID
  *   contained in it);
  * - [coveredWithinMwh]: of those, what the bucket's own certificates can cover (a max-flow inside the bucket);
  * - [shortAfterNettingMwh] = short − covered within: has to be bought or issued;
- * - [naiveNetMwh] = long − short: what a position that ignores eligibility shows. It can look flat or long while
+ * - [naiveNetMwh] = long + future − short: what a position that ignores eligibility shows. It can look flat or long while
  *   the bucket is short, when its certificates are the wrong ones for its obligations;
- * - [freeMwh]: certificates inside the bucket that no obligation uses in the entity-wide flow;
+ * - [futureMwh]: purchases and expected issuance (P50) inside the bucket, at the view's tier; they join long in the
+ *   netting, covered within and free figures;
+ * - [freeMwh]: supply inside the bucket that no obligation uses in the entity-wide flow;
  * - [availableToSellMwh]: what a new sale of exactly this bucket, delivered today, could still receive;
  * - [markEur]: the bucket's mark for the current vintage; [cheapestToDeliverEur]: the lowest value among its free
  *   certificates (what such a sale would take); [giveAwayPerMwhEur] = cheapest to deliver − mark: the premium handed
@@ -32,6 +34,7 @@ data class PortfolioNode(
     val coveredWithinMwh: Long,
     val shortAfterNettingMwh: Long,
     val naiveNetMwh: Long,
+    val futureMwh: Long,
     val freeMwh: Long,
     val availableToSellMwh: Long,
     val markEur: BigDecimal?,
@@ -39,9 +42,10 @@ data class PortfolioNode(
     val giveAwayPerMwhEur: BigDecimal?,
 )
 
-/** The bucket hierarchy with the entity's figures, parents before children (held certificates only until M5). */
+/** The bucket hierarchy with the entity's figures, parents before children, counting supply up to [tier]. */
 data class PortfolioView(
     val holderEntityId: UUID,
+    val tier: SupplyTier,
     val stamp: String,
     val computedAt: Instant,
     val currency: String,
@@ -49,5 +53,5 @@ data class PortfolioView(
 )
 
 interface PortfolioQuery {
-    fun portfolio(holderEntityId: UUID): PortfolioView
+    fun portfolio(holderEntityId: UUID, tier: SupplyTier = SupplyTier.HELD): PortfolioView
 }

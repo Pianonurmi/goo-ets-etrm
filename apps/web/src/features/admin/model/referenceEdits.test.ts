@@ -166,6 +166,8 @@ describe('reference data edits', () => {
       externalCodes: { AIB: 'W1' },
     });
     expect(newDeviceBody({ ...draft, ownerType: 'THIRD_PARTY' }).ownerId).toBeUndefined();
+    expect(newDeviceBody(draft).issuanceLagDays).toBe(30);
+    expect(deviceProblems({ ...draft, issuanceLagDays: '-1' })).toEqual(['issuanceLagDays']);
   });
 
   it('patches the editable fields of a device', () => {
@@ -174,6 +176,7 @@ describe('reference data edits', () => {
     expect(deviceEditProblems(draft)).toEqual([]);
     const patch = devicePatch(device, { ...draft, capacityKw: '5200', labelCodes: [], externalCodes: '' });
     expect(patch).toMatchObject({ expectedVersion: 4, capacityKw: '5200', labelCodes: [], externalCodes: {} });
+    expect(devicePatch(device, { ...draft, issuanceLagDays: '45' }).issuanceLagDays).toBe(45);
     expect(deviceEditProblems({ ...draft, capacityKw: '0', externalCodes: '{' })).toEqual([
       'capacityKw',
       'externalCodes',

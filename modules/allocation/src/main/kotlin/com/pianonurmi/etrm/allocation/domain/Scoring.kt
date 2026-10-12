@@ -53,6 +53,8 @@ class Scoring(
 
     /** The best-priced bucket the class qualifies for and its mark; the mark is null when no bucket of it is priced. */
     fun value(cls: LotClass): Pair<String?, BigDecimal?> = valueCache.getOrPut(cls.index) {
+        // A purchase is only known by its criteria: it is worth its own bucket's mark for the year it arrives.
+        (cls.future as? FutureSupply.Contracted)?.let { return@getOrPut it.bucketCode to it.bucketCode?.let { code -> marks(code, it.availableFrom.year) } }
         buckets.matching(cls.representative)
             .mapNotNull { bucket -> marks(bucket.code, cls.productionYear)?.let { bucket.code to it } }
             .maxWithOrNull(compareBy<Pair<String, BigDecimal>> { it.second }.thenByDescending { it.first })
@@ -68,8 +70,8 @@ class Scoring(
     fun score(cls: LotClass, obl: ObligationModel, scarcity: Map<Int, BigDecimal>): ScoreBreakdown {
         val (bucketCode, mark) = value(cls)
         val worth = mark ?: BigDecimal.ZERO
-        val targetRegistry = obl.obligation.targetRegistryCode ?: cls.registryCode
-        val transfer = routes(cls.registryCode, targetRegistry).feePerMwh
+        val source = cls.sourceRegistry(obl.obligation.targetRegistryCode)
+        val transfer = routes(source, obl.obligation.targetRegistryCode ?: source).feePerMwh
         val daysToExpiry = ChronoUnit.DAYS.between(obl.obligation.deliveryDate, cls.expiryDate).coerceAtLeast(0)
         val retained = if (daysToExpiry >= policy.liquidityHorizonDays) {
             worth
@@ -77,25 +79,43 @@ class Scoring(
             worth * BigDecimal(daysToExpiry).divide(BigDecimal(policy.liquidityHorizonDays), 6, RoundingMode.HALF_UP)
         }
         val haircut = worth - retained
+        val premium = futurePremium(cls, worth)
         val saleMark = saleMark(obl)
         return ScoreBreakdown(
             opportunityCost = worth.setScale(SCALE, RoundingMode.HALF_UP),
             transferCost = transfer.setScale(SCALE, RoundingMode.HALF_UP),
             scarcity = (scarcity[cls.index] ?: BigDecimal.ZERO).setScale(SCALE, RoundingMode.HALF_UP),
             urgencyBonus = haircut.setScale(SCALE, RoundingMode.HALF_UP),
-            total = (retained + transfer).setScale(SCALE, RoundingMode.HALF_UP),
+            total = (retained + transfer + (premium ?: BigDecimal.ZERO)).setScale(SCALE, RoundingMode.HALF_UP),
             bucketCode = bucketCode,
             saleMarkEur = saleMark?.setScale(SCALE, RoundingMode.HALF_UP),
             giveAwayPerMwh = if (mark != null && saleMark != null) (mark - saleMark).setScale(SCALE, RoundingMode.HALF_UP) else null,
             unit = ScoreBreakdown.EUR_PER_MWH,
             priced = mark != null,
+            reliabilityPremium = premium?.setScale(SCALE, RoundingMode.HALF_UP),
         )
     }
 
-    fun bestBucketCode(cls: LotClass): String? = buckets.best(cls.representative)?.code
+    /**
+     * Supply still to come costs a little more than held lots of the same value, so held lots win ties; expected
+     * issuance counted at P90 also carries the share of value between its P50 and P90 (ADR 0038). Null for held lots.
+     */
+    private fun futurePremium(cls: LotClass, worth: BigDecimal): BigDecimal? = when (val future = cls.future) {
+        null -> null
+        is FutureSupply.Contracted -> FUTURE_TIE_BREAK
+        is FutureSupply.Expected -> FUTURE_TIE_BREAK + if (future.p50Mwh > 0) {
+            worth * BigDecimal(future.p50Mwh - future.p90Mwh).divide(BigDecimal(future.p50Mwh), SCALE, RoundingMode.HALF_UP)
+        } else {
+            BigDecimal.ZERO
+        }
+    }
+
+    fun bestBucketCode(cls: LotClass): String? =
+        (cls.future as? FutureSupply.Contracted)?.bucketCode ?: buckets.best(cls.representative)?.code
 
     private companion object {
         const val SCALE = 6
+        val FUTURE_TIE_BREAK = BigDecimal("0.0001")
     }
 }
 

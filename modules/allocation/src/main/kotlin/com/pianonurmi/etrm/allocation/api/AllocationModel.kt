@@ -159,6 +159,8 @@ data class ScoreBreakdown(
     val unit: String = SCORE,
     /** False when no bucket the lot qualifies for has a price: its value counts as zero. */
     val priced: Boolean = true,
+    /** Supply still to come (ADR 0038): a tie-break against held lots, plus the P50 to P90 gap for expected issuance. */
+    val reliabilityPremium: BigDecimal? = null,
 ) {
     companion object {
         const val SCORE = "SCORE"
@@ -182,12 +184,18 @@ data class AllocationLineView(
     val failureReason: String?,
 )
 
+/**
+ * [coveredMwh] from held certificates; with future supply (ADR 0038) cumulatively: [coveredWithContractedMwh] adds
+ * forward purchases, [coveredWithExpectedMwh] also expected issuance (null when no future supply was considered).
+ */
 data class ObligationCoverage(
     val obligationId: UUID,
     val demandMwh: Long,
     val coveredMwh: Long,
     val eligibleSupplyMwh: Long,
     val eligibleClassCount: Int,
+    val coveredWithContractedMwh: Long? = null,
+    val coveredWithExpectedMwh: Long? = null,
 ) {
     val shortfallMwh: Long get() = demandMwh - coveredMwh
 }
@@ -231,6 +239,8 @@ data class AllocationPlanView(
     /** The plan in EUR (ADR 0035); null for plans from before it. */
     val value: PlanValue? = null,
     val pricing: PlanPricing? = null,
+    /** Deliveries counted on supply still to come (ADR 0038): never reserved or instructed. */
+    val virtualLines: List<VirtualLineView> = emptyList(),
 ) {
     val allocatedMwh: Long get() = lines.filter { it.status != LineStatus.CANCELLED && it.status != LineStatus.FAILED }.sumOf { it.quantityMwh }
 }
@@ -244,6 +254,8 @@ data class ProposeAllocation(
     val softReservationHours: Int = 48,
     /** Delivery date used to bind criteria for coverage; defaults to each obligation's own date. */
     val asOf: LocalDate? = null,
+    /** Counts on forward purchases and expected issuance (P90) for obligations they arrive in time for (ADR 0038). */
+    val futureSupply: Boolean = true,
 )
 
 interface AllocationCommand {
@@ -274,6 +286,7 @@ data class AllocationWhatIf(
     val lines: List<AllocationLineView>,
     val value: PlanValue? = null,
     val pricing: PlanPricing? = null,
+    val virtualLines: List<VirtualLineView> = emptyList(),
 )
 
 /**
@@ -306,6 +319,34 @@ data class ObligationValue(
     val deliveredValueEur: BigDecimal,
     val averageDeliveredMarkEur: BigDecimal?,
     val giveAwayEur: BigDecimal?,
+)
+
+enum class FutureSupplyKind { CONTRACTED, EXPECTED }
+
+enum class VirtualLineStatus {
+    PLANNED,
+
+    /** The purchase or forecast it counts on has changed since the plan was made. */
+    CHANGED,
+}
+
+/**
+ * A delivery a plan counts on from supply still to come (ADR 0038): a forward purchase ([ref] `purchase:<schedule>`)
+ * or a device's expected issuance (`issuance:<gsrn>:<month>`), available from [availableFrom]. Kept with the plan so
+ * the plan reads honestly; nothing is reserved or instructed for it.
+ */
+data class VirtualLineView(
+    val id: UUID,
+    val lineNo: Int,
+    val obligationId: UUID,
+    val kind: FutureSupplyKind,
+    val ref: String,
+    val description: String,
+    val quantityMwh: Long,
+    val availableFrom: LocalDate,
+    val score: BigDecimal,
+    val breakdown: ScoreBreakdown,
+    val status: VirtualLineStatus,
 )
 
 enum class PricingStatus {

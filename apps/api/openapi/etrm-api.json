@@ -363,6 +363,12 @@
           "version" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "virtualLines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/VirtualLineView"
+            },
+            "type" : "array"
           }
         },
         "required" : [ "allocatedMwh", "holderEntityId", "id", "idempotencyKey", "lines", "objective", "proposedAt", "proposedBy", "reservationExpiresAt", "snapshotSeq", "solver", "status", "version" ],
@@ -452,6 +458,12 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "virtualLines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/VirtualLineView"
+            },
+            "type" : "array"
           }
         },
         "required" : [ "computedAt", "coverage", "holderEntityId", "lines", "objective", "snapshotSeq", "solver" ],
@@ -2276,6 +2288,10 @@
           "gsrn" : {
             "type" : "string"
           },
+          "issuanceLagDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "labelCodes" : {
             "items" : {
               "type" : "string"
@@ -3429,6 +3445,34 @@
         "required" : [ "reason" ],
         "type" : "object"
       },
+      "ExpectedProduction" : {
+        "properties" : {
+          "deviceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "expectedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "gsrn" : {
+            "type" : "string"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "p90Mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "source" : {
+            "enum" : [ "ENTERED", "IMPORTED", "LOAD_FACTOR" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "deviceId", "expectedMwh", "gsrn", "month", "p90Mwh", "source" ],
+        "type" : "object"
+      },
       "ExplainRow" : {
         "properties" : {
           "amountBase" : {
@@ -3533,6 +3577,40 @@
         "required" : [ "currency", "fixingDate", "indexCode", "quoteIds", "value" ],
         "type" : "object"
       },
+      "ForecastImportResult" : {
+        "properties" : {
+          "errors" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "imported" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rejected" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "errors", "imported", "rejected" ],
+        "type" : "object"
+      },
+      "ForecastRequest" : {
+        "properties" : {
+          "expectedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "p90Mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "expectedMwh", "p90Mwh" ],
+        "type" : "object"
+      },
       "FreeAllocationView" : {
         "properties" : {
           "adjusted" : {
@@ -3574,6 +3652,116 @@
           }
         },
         "required" : [ "allocated", "entitlement", "installationId", "outstanding", "received", "status", "year" ],
+        "type" : "object"
+      },
+      "FutureCoverageMonth" : {
+        "properties" : {
+          "coveredHeldMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "coveredWithContractedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "coveredWithExpectedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "demandMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "month" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "coveredHeldMwh", "coveredWithContractedMwh", "coveredWithExpectedMwh", "demandMwh", "month" ],
+        "type" : "object"
+      },
+      "FutureSupplyItem" : {
+        "properties" : {
+          "availableFrom" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "deviceGsrn" : {
+            "type" : [ "string", "null" ]
+          },
+          "kind" : {
+            "enum" : [ "CONTRACTED", "EXPECTED" ],
+            "type" : "string"
+          },
+          "p90Mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "productionMonth" : {
+            "type" : [ "string", "null" ]
+          },
+          "quantityMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "ref" : {
+            "type" : "string"
+          },
+          "tradeNumber" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "availableFrom", "description", "kind", "p90Mwh", "quantityMwh", "ref" ],
+        "type" : "object"
+      },
+      "FutureSupplyView" : {
+        "properties" : {
+          "computedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "coveredHeldMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "coveredWithContractedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "coveredWithExpectedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "holderEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FutureSupplyItem"
+            },
+            "type" : "array"
+          },
+          "months" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FutureCoverageMonth"
+            },
+            "type" : "array"
+          },
+          "stamp" : {
+            "type" : "string"
+          },
+          "totalDemandMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "computedAt", "coveredHeldMwh", "coveredWithContractedMwh", "coveredWithExpectedMwh", "holderEntityId", "items", "months", "stamp", "totalDemandMwh" ],
         "type" : "object"
       },
       "FuturesContractView" : {
@@ -3819,6 +4007,10 @@
           "holderEntityId" : {
             "format" : "uuid",
             "type" : "string"
+          },
+          "tier" : {
+            "enum" : [ "HELD", "CONTRACTED", "EXPECTED" ],
+            "type" : "string"
           }
         },
         "required" : [ "demands", "holderEntityId" ],
@@ -3904,15 +4096,23 @@
           },
           "stamp" : {
             "type" : "string"
+          },
+          "tier" : {
+            "enum" : [ "HELD", "CONTRACTED", "EXPECTED" ],
+            "type" : "string"
           }
         },
-        "required" : [ "computedAt", "demands", "fits", "holderEntityId", "requestedMwh", "stamp" ],
+        "required" : [ "computedAt", "demands", "fits", "holderEntityId", "requestedMwh", "stamp", "tier" ],
         "type" : "object"
       },
       "HeadroomRow" : {
         "properties" : {
           "bucketCode" : {
             "type" : "string"
+          },
+          "futureMwh" : {
+            "format" : "int64",
+            "type" : "integer"
           },
           "headroomMwh" : {
             "items" : {
@@ -3930,7 +4130,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "bucketCode", "headroomMwh", "heldMwh", "vintageYear" ],
+        "required" : [ "bucketCode", "futureMwh", "headroomMwh", "heldMwh", "vintageYear" ],
         "type" : "object"
       },
       "HeadroomTable" : {
@@ -3958,9 +4158,13 @@
           },
           "stamp" : {
             "type" : "string"
+          },
+          "tier" : {
+            "enum" : [ "HELD", "CONTRACTED", "EXPECTED" ],
+            "type" : "string"
           }
         },
-        "required" : [ "computedAt", "deliveryDates", "holderEntityId", "rows", "stamp" ],
+        "required" : [ "computedAt", "deliveryDates", "holderEntityId", "rows", "stamp", "tier" ],
         "type" : "object"
       },
       "HistoryEntryMapStringObject" : {
@@ -5311,6 +5515,25 @@
         "required" : [ "limitId", "measuredAt", "status", "utilisation", "value" ],
         "type" : "object"
       },
+      "LoadFactorView" : {
+        "properties" : {
+          "factor" : {
+            "type" : "number"
+          },
+          "monthOfYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "p90Factor" : {
+            "type" : "number"
+          },
+          "technologyCode" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "factor", "monthOfYear", "p90Factor", "technologyCode" ],
+        "type" : "object"
+      },
       "LocalDateRange" : {
         "properties" : {
           "endExclusive" : {
@@ -6064,6 +6287,14 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "coveredWithContractedMwh" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "coveredWithExpectedMwh" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
           "demandMwh" : {
             "format" : "int64",
             "type" : "integer"
@@ -6794,6 +7025,10 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "futureMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "giveAwayPerMwhEur" : {
             "type" : [ "number", "null" ]
           },
@@ -6826,7 +7061,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "aliases", "availableToSellMwh", "bucketCode", "coveredWithinMwh", "depth", "freeMwh", "longMwh", "naiveNetMwh", "name", "parents", "shortAfterNettingMwh", "shortMwh" ],
+        "required" : [ "aliases", "availableToSellMwh", "bucketCode", "coveredWithinMwh", "depth", "freeMwh", "futureMwh", "longMwh", "naiveNetMwh", "name", "parents", "shortAfterNettingMwh", "shortMwh" ],
         "type" : "object"
       },
       "PortfolioView" : {
@@ -6850,9 +7085,13 @@
           },
           "stamp" : {
             "type" : "string"
+          },
+          "tier" : {
+            "enum" : [ "HELD", "CONTRACTED", "EXPECTED" ],
+            "type" : "string"
           }
         },
-        "required" : [ "computedAt", "currency", "holderEntityId", "nodes", "stamp" ],
+        "required" : [ "computedAt", "currency", "holderEntityId", "nodes", "stamp", "tier" ],
         "type" : "object"
       },
       "PositionSnapshotView" : {
@@ -7206,6 +7445,10 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "issuanceLagDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "labelCodes" : {
             "items" : {
               "type" : "string"
@@ -7258,6 +7501,42 @@
         "required" : [ "active", "capacityKw", "commissioningDate", "country", "energySourceCode", "externalCodes", "gsrn", "id", "labelCodes", "name", "ownDevice", "ownerType", "supportSchemeCodes", "technologyCode", "version" ],
         "type" : "object"
       },
+      "ProductionForecastView" : {
+        "properties" : {
+          "deviceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "expectedMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "p90Mwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "recordedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "recordedBy" : {
+            "type" : "string"
+          },
+          "source" : {
+            "enum" : [ "ENTERED", "IMPORTED", "LOAD_FACTOR" ],
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "deviceId", "expectedMwh", "month", "p90Mwh", "recordedAt", "recordedBy", "source", "version" ],
+        "type" : "object"
+      },
       "ProductionYear" : {
         "properties" : {
           "type" : {
@@ -7277,6 +7556,9 @@
           "asOf" : {
             "format" : "date",
             "type" : [ "string", "null" ]
+          },
+          "futureSupply" : {
+            "type" : "boolean"
           },
           "holderEntityId" : {
             "format" : "uuid",
@@ -8729,6 +9011,9 @@
           "priced" : {
             "type" : "boolean"
           },
+          "reliabilityPremium" : {
+            "type" : [ "number", "null" ]
+          },
           "saleMarkEur" : {
             "type" : [ "number", "null" ]
           },
@@ -10051,6 +10336,18 @@
         "required" : [ "expectedVersion" ],
         "type" : "object"
       },
+      "UpdateLoadFactor" : {
+        "properties" : {
+          "factor" : {
+            "type" : "number"
+          },
+          "p90Factor" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "factor", "p90Factor" ],
+        "type" : "object"
+      },
       "UpdateNodeRequest" : {
         "properties" : {
           "description" : {
@@ -10121,6 +10418,10 @@
               "type" : "string"
             },
             "type" : [ "object", "null" ]
+          },
+          "issuanceLagDays" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
           },
           "labelCodes" : {
             "items" : {
@@ -10710,6 +11011,52 @@
         },
         "required" : [ "field", "message" ],
         "type" : "object"
+      },
+      "VirtualLineView" : {
+        "properties" : {
+          "availableFrom" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "breakdown" : {
+            "$ref" : "#/components/schemas/ScoreBreakdown"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "CONTRACTED", "EXPECTED" ],
+            "type" : "string"
+          },
+          "lineNo" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "obligationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "quantityMwh" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "ref" : {
+            "type" : "string"
+          },
+          "score" : {
+            "type" : "number"
+          },
+          "status" : {
+            "enum" : [ "PLANNED", "CHANGED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "availableFrom", "breakdown", "description", "id", "kind", "lineNo", "obligationId", "quantityMwh", "ref", "score", "status" ],
+        "type" : "object"
       }
     },
     "securitySchemes" : {
@@ -10776,6 +11123,43 @@
         "tags" : [ "Allocation" ]
       }
     },
+    "/api/v1/allocation/future-supply" : {
+      "get" : {
+        "operationId" : "allocation_futureSupply",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "holderEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FutureSupplyView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Allocation" ]
+      }
+    },
     "/api/v1/allocation/headroom" : {
       "get" : {
         "operationId" : "allocation_headroomTable",
@@ -10785,6 +11169,15 @@
           "required" : true,
           "schema" : {
             "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "tier",
+          "required" : false,
+          "schema" : {
+            "default" : "HELD",
+            "enum" : [ "HELD", "CONTRACTED", "EXPECTED" ],
             "type" : "string"
           }
         } ],
@@ -11364,6 +11757,15 @@
           "required" : true,
           "schema" : {
             "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "tier",
+          "required" : false,
+          "schema" : {
+            "default" : "HELD",
+            "enum" : [ "HELD", "CONTRACTED", "EXPECTED" ],
             "type" : "string"
           }
         } ],
@@ -17218,6 +17620,197 @@
         "tags" : [ "Reference data" ]
       }
     },
+    "/api/v1/reference/devices/{id}/expected" : {
+      "get" : {
+        "operationId" : "productionForecast_expected",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ExpectedProduction"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Production forecasts" ]
+      }
+    },
+    "/api/v1/reference/devices/{id}/forecasts" : {
+      "get" : {
+        "operationId" : "productionForecast_forecasts",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ProductionForecastView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Production forecasts" ]
+      }
+    },
+    "/api/v1/reference/devices/{id}/forecasts/{month}" : {
+      "put" : {
+        "operationId" : "productionForecast_recordForecast",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "month",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ForecastRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductionForecastView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Production forecasts" ]
+      }
+    },
+    "/api/v1/reference/forecasts/import" : {
+      "post" : {
+        "operationId" : "productionForecast_importForecasts",
+        "requestBody" : {
+          "content" : {
+            "text/csv" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "text/plain" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ForecastImportResult"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Production forecasts" ]
+      }
+    },
     "/api/v1/reference/history/{table}/{id}" : {
       "get" : {
         "operationId" : "referenceData_history",
@@ -17505,6 +18098,91 @@
           }
         },
         "tags" : [ "Reference data" ]
+      }
+    },
+    "/api/v1/reference/load-factors" : {
+      "get" : {
+        "operationId" : "productionForecast_loadFactors",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/LoadFactorView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Production forecasts" ]
+      }
+    },
+    "/api/v1/reference/load-factors/{technologyCode}/{monthOfYear}" : {
+      "put" : {
+        "operationId" : "productionForecast_updateLoadFactor",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "technologyCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "monthOfYear",
+          "required" : true,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateLoadFactor"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LoadFactorView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Production forecasts" ]
       }
     },
     "/api/v1/reference/parties/{partyType}/{partyId}/addresses" : {
@@ -23828,6 +24506,9 @@
   "tags" : [ {
     "description" : "GoO coverage positions, expiry ladder, EU ETS compliance ladder and snapshots",
     "name" : "Positions"
+  }, {
+    "description" : "Expected production per device and month, entered, imported or from technology load factors",
+    "name" : "Production forecasts"
   }, {
     "description" : "Product buckets, allowance products and the GoO criteria language",
     "name" : "Products"

@@ -451,6 +451,16 @@ export function NewDeviceModal({ onClose, onCreated }: { onClose: () => void; on
             onChange={(e) => set({ decommissioningDate: e.currentTarget.value })}
             data-testid="device-decommissioned"
           />
+          <TextInput
+            label={t('admin.issuanceLagDays')}
+            description={t('admin.issuanceLagHint')}
+            value={draft.issuanceLagDays}
+            inputMode="numeric"
+            maxLength={4}
+            error={fields.errors.issuanceLagDays}
+            onChange={(e) => set({ issuanceLagDays: e.currentTarget.value.replace(/\D/g, '') })}
+            data-testid="device-issuance-lag"
+          />
         </Group>
         <Group grow align="flex-start">
           <Select
@@ -584,6 +594,16 @@ export function EditDeviceModal({ device, onClose }: { device: Device; onClose: 
             error={fields.errors.decommissioningDate}
             onChange={(e) => set({ decommissioningDate: e.currentTarget.value })}
             data-testid="device-decommissioned"
+          />
+          <TextInput
+            label={t('admin.issuanceLagDays')}
+            description={t('admin.issuanceLagHint')}
+            value={draft.issuanceLagDays}
+            inputMode="numeric"
+            maxLength={4}
+            error={fields.errors.issuanceLagDays}
+            onChange={(e) => set({ issuanceLagDays: e.currentTarget.value.replace(/\D/g, '') })}
+            data-testid="device-issuance-lag"
           />
           <Switch
             label={t('marketData.active')}

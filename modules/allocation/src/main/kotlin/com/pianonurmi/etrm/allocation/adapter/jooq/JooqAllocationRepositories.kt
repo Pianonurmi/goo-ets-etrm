@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.allocation.adapter.jooq
 
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.AllocationLine.ALLOCATION_LINE
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.AllocationPlan.ALLOCATION_PLAN
+import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.AllocationVirtualLine.ALLOCATION_VIRTUAL_LINE
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.Obligation.OBLIGATION
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.SoftReservation.SOFT_RESERVATION
 import com.pianonurmi.etrm.allocation.adapter.jooq.generated.tables.records.AllocationLineRecord
@@ -11,6 +12,7 @@ import com.pianonurmi.etrm.allocation.api.AllocationConstraint
 import com.pianonurmi.etrm.allocation.api.AllocationLineView
 import com.pianonurmi.etrm.allocation.api.AllocationPlanView
 import com.pianonurmi.etrm.allocation.api.CoverageReport
+import com.pianonurmi.etrm.allocation.api.FutureSupplyKind
 import com.pianonurmi.etrm.allocation.api.LineStatus
 import com.pianonurmi.etrm.allocation.api.ObligationKind
 import com.pianonurmi.etrm.allocation.api.ObligationStatus
@@ -20,6 +22,8 @@ import com.pianonurmi.etrm.allocation.api.PlanStatus
 import com.pianonurmi.etrm.allocation.api.PlanValue
 import com.pianonurmi.etrm.allocation.api.ScoreBreakdown
 import com.pianonurmi.etrm.allocation.api.SolverKind
+import com.pianonurmi.etrm.allocation.api.VirtualLineStatus
+import com.pianonurmi.etrm.allocation.api.VirtualLineView
 import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
@@ -199,6 +203,25 @@ class JooqAllocationPlanRepository(private val dsl: DSLContext) : AllocationPlan
     }
 
     private fun writeLines(plan: AllocationPlanView) {
+        plan.virtualLines.forEach { v ->
+            dsl.insertInto(ALLOCATION_VIRTUAL_LINE)
+                .set(ALLOCATION_VIRTUAL_LINE.ID, v.id)
+                .set(ALLOCATION_VIRTUAL_LINE.PLAN_ID, plan.id)
+                .set(ALLOCATION_VIRTUAL_LINE.LINE_NO, v.lineNo)
+                .set(ALLOCATION_VIRTUAL_LINE.OBLIGATION_ID, v.obligationId)
+                .set(ALLOCATION_VIRTUAL_LINE.KIND, v.kind.name)
+                .set(ALLOCATION_VIRTUAL_LINE.SOURCE_REF, v.ref)
+                .set(ALLOCATION_VIRTUAL_LINE.DESCRIPTION, v.description)
+                .set(ALLOCATION_VIRTUAL_LINE.QUANTITY_MWH, v.quantityMwh)
+                .set(ALLOCATION_VIRTUAL_LINE.AVAILABLE_FROM, v.availableFrom)
+                .set(ALLOCATION_VIRTUAL_LINE.SCORE, v.score)
+                .set(ALLOCATION_VIRTUAL_LINE.SCORE_BREAKDOWN, JSONB.jsonb(Json.mapper.writeValueAsString(v.breakdown)))
+                .set(ALLOCATION_VIRTUAL_LINE.STATUS, v.status.name)
+                .onConflict(ALLOCATION_VIRTUAL_LINE.ID)
+                .doUpdate()
+                .set(ALLOCATION_VIRTUAL_LINE.STATUS, v.status.name)
+                .execute()
+        }
         plan.lines.forEach { l ->
             dsl.insertInto(ALLOCATION_LINE)
                 .set(ALLOCATION_LINE.ID, l.id)
@@ -261,6 +284,12 @@ class JooqAllocationPlanRepository(private val dsl: DSLContext) : AllocationPlan
         dsl.deleteFrom(SOFT_RESERVATION).where(SOFT_RESERVATION.PLAN_ID.eq(planId)).execute()
     }
 
+    override fun countingOn(sourceRef: String): List<UUID> = dsl.selectDistinct(ALLOCATION_VIRTUAL_LINE.PLAN_ID)
+        .from(ALLOCATION_VIRTUAL_LINE)
+        .join(ALLOCATION_PLAN).on(ALLOCATION_PLAN.ID.eq(ALLOCATION_VIRTUAL_LINE.PLAN_ID))
+        .where(ALLOCATION_VIRTUAL_LINE.SOURCE_REF.eq(sourceRef), ALLOCATION_PLAN.STATUS.`in`(PlanStatus.entries.filter { it.active }.map { it.name }))
+        .fetch(ALLOCATION_VIRTUAL_LINE.PLAN_ID)
+
     override fun lockEntity(holderEntityId: UUID) {
         dsl.execute("SELECT pg_advisory_xact_lock(hashtext({0}))", DSL.`val`(holderEntityId.toString()))
     }
@@ -283,7 +312,24 @@ class JooqAllocationPlanRepository(private val dsl: DSLContext) : AllocationPlan
                 failureReason = l.failureReason,
             )
         }
+        val virtualLines = dsl.selectFrom(ALLOCATION_VIRTUAL_LINE).where(ALLOCATION_VIRTUAL_LINE.PLAN_ID.eq(r.id))
+            .orderBy(ALLOCATION_VIRTUAL_LINE.LINE_NO).fetch { v ->
+                VirtualLineView(
+                    id = v.id,
+                    lineNo = v.lineNo,
+                    obligationId = v.obligationId,
+                    kind = FutureSupplyKind.valueOf(v.kind),
+                    ref = v.sourceRef,
+                    description = v.description,
+                    quantityMwh = v.quantityMwh,
+                    availableFrom = v.availableFrom,
+                    score = v.score,
+                    breakdown = Json.mapper.readValue(v.scoreBreakdown.data(), ScoreBreakdown::class.java),
+                    status = VirtualLineStatus.valueOf(v.status),
+                )
+            }
         return AllocationPlanView(
+            virtualLines = virtualLines,
             id = r.id,
             idempotencyKey = r.idempotencyKey,
             holderEntityId = r.holderEntityId,

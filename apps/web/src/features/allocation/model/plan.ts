@@ -115,3 +115,31 @@ export function coverageRows(
 export function obligationName(obligation: NamedObligation | undefined): string | undefined {
   return obligation && `${obligation.deliveryDate} · ${obligation.tradeRef ?? obligation.criteriaSummary}`;
 }
+
+export type VirtualLine = Schema<'VirtualLineView'>;
+
+export interface VirtualLineGroup {
+  obligationId: string;
+  lines: VirtualLine[];
+  /** Whole MWh, so the sum is exact. */
+  totalMwh: number;
+}
+
+/** Virtual lines grouped by obligation, in the order the plan lists them, each group in line-number order. */
+export function groupVirtualLines(lines: readonly VirtualLine[]): VirtualLineGroup[] {
+  const groups = new Map<string, VirtualLineGroup>();
+  for (const line of [...lines].sort((a, b) => a.lineNo - b.lineNo)) {
+    const group = groups.get(line.obligationId) ?? { obligationId: line.obligationId, lines: [], totalMwh: 0 };
+    group.lines.push(line);
+    group.totalMwh += line.quantityMwh;
+    groups.set(line.obligationId, group);
+  }
+  return [...groups.values()];
+}
+
+/** Whether the coverage report says anything about cover from purchases or expected issuance. */
+export function hasFutureCoverage(coverage: Coverage | null | undefined): boolean {
+  return (coverage?.obligations ?? []).some(
+    (row) => row.coveredWithContractedMwh != null || row.coveredWithExpectedMwh != null,
+  );
+}

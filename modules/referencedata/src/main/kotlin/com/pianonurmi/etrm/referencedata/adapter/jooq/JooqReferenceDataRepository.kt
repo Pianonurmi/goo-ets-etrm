@@ -367,6 +367,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         labelCodes = d.labelCodes.sorted().toTypedArray()
         externalCodes = JSONB.jsonb(Json.mapper.writeValueAsString(d.externalCodes))
         active = d.active
+        issuanceLagDays = d.issuanceLagDays
     }
 
     private fun toDevice(r: ProductionDeviceRecord) = ProductionDeviceView(
@@ -391,6 +392,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         externalCodes = Json.mapper.readValue(r.externalCodes.data(), object : TypeReference<Map<String, String>>() {}),
         active = r.active,
         version = r.version,
+        issuanceLagDays = r.issuanceLagDays,
     )
 
     // ----------------------------------------------------------------------------------------------------------

@@ -165,7 +165,13 @@ data class ProductionDeviceView(
     val externalCodes: Map<String, String>,
     val active: Boolean,
     val version: Int,
-)
+    /** Days from the end of a production month until its certificates are usually issued (ADR 0038). */
+    val issuanceLagDays: Int = DEFAULT_ISSUANCE_LAG_DAYS,
+) {
+    companion object {
+        const val DEFAULT_ISSUANCE_LAG_DAYS = 30
+    }
+}
 
 data class HistoryEntry<T>(val version: Int, val recordedFrom: java.time.Instant, val recordedTo: java.time.Instant?, val actor: String?, val data: T)
 
@@ -275,6 +281,7 @@ data class CreateProductionDevice(
     val ownerId: UUID? = null,
     val ownDevice: Boolean = false,
     val externalCodes: Map<String, String> = emptyMap(),
+    val issuanceLagDays: Int = ProductionDeviceView.DEFAULT_ISSUANCE_LAG_DAYS,
 )
 
 data class UpdateProductionDevice(
@@ -286,6 +293,7 @@ data class UpdateProductionDevice(
     val externalCodes: Map<String, String>? = null,
     val active: Boolean? = null,
     val expectedVersion: Int,
+    val issuanceLagDays: Int? = null,
 )
 
 // --------------------------------------------------------------------------------------------------------------

@@ -18,6 +18,8 @@ import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.api.PlanStatus
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
 import com.pianonurmi.etrm.allocation.api.SolverKind
+import com.pianonurmi.etrm.allocation.api.VirtualLineStatus
+import com.pianonurmi.etrm.allocation.api.VirtualLineView
 import com.pianonurmi.etrm.allocation.domain.AllocationPlan
 import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.Assignment
@@ -28,8 +30,10 @@ import com.pianonurmi.etrm.allocation.domain.GreedySolver
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.allocation.domain.PlanValuation
 import com.pianonurmi.etrm.allocation.domain.Solver
+import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.LotCommand
 import com.pianonurmi.etrm.inventory.api.LotQuery
+import com.pianonurmi.etrm.inventory.api.LotReceived
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.platform.errors.DomainException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
@@ -40,6 +44,8 @@ import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
+import com.pianonurmi.etrm.referencedata.api.ProductionForecastChanged
+import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
 import com.pianonurmi.etrm.registry.api.InstructionStatus
@@ -48,7 +54,10 @@ import com.pianonurmi.etrm.registry.api.RegistryInstructionQuery
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.registry.api.SubmitCancellation
 import com.pianonurmi.etrm.registry.api.SubmitTransfer
+import com.pianonurmi.etrm.trade.api.DeliveryObligationChanged
+import com.pianonurmi.etrm.trade.api.DeliveryObligationClosed
 import com.pianonurmi.etrm.trade.api.RecordDelivery
+import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeCommand
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import org.slf4j.LoggerFactory
@@ -61,6 +70,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.util.UUID
 
 /**
@@ -89,6 +99,9 @@ class AllocationService(
     private val savepoints: Savepoints,
     solverSettings: AllocationSolverSettings = AllocationSolverSettings(),
     pricingSettings: AllocationPricingSettings = AllocationPricingSettings(),
+    /** Purchases and expected issuance (ADR 0038); null in hand-wired tests that have none. */
+    private val futureSupply: FutureSupplyProvider? = null,
+    private val referenceData: ReferenceDataQuery? = null,
 ) : AllocationCommand, AllocationQuery {
     private val log = LoggerFactory.getLogger(AllocationService::class.java)
     private val greedy: Solver = GreedySolver(criteria::evaluate)
@@ -123,6 +136,7 @@ class AllocationService(
             plan.lines,
             plan.value,
             plan.pricing,
+            plan.virtualLines,
         )
     }
 
@@ -139,12 +153,15 @@ class AllocationService(
         if (open.isEmpty()) throw ValidationException("No open obligations to allocate for entity ${command.holderEntityId}")
         val snapshot = lotQuery.snapshot(command.holderEntityId)
         val softReserved = plans.activeSoftReservations(command.holderEntityId, now)
-        val built = problemBuilder.build(snapshot, open, softReserved, command.asOf ?: LocalDate.now(clock))
+        // Plans count on supply still to come at its cautious figure (P90), for obligations it arrives in time for.
+        val future = if (command.futureSupply) futureSupply?.supply(command.holderEntityId, Quantile.P90).orEmpty() else emptyList()
+        val built = problemBuilder.build(snapshot, open, softReserved, command.asOf ?: LocalDate.now(clock), future = future)
         val problem = built.problem
         val solved = solverFor(command.solver).solveDetailed(problem)
         val assignments = solved.assignments
         val coverage = CoverageAnalyser(built.scoring::bestBucketCode).analyse(problem, command.holderEntityId, snapshot.seq, now)
-        val lines = disaggregate(problem, assignments)
+        val lines = disaggregate(problem, assignments.filter { problem.classes[it.classIndex].future == null })
+        val virtualLines = virtualLines(problem, assignments.filter { problem.classes[it.classIndex].future != null })
         return AllocationPlanView(
             id = Ids.newId(),
             idempotencyKey = command.idempotencyKey,
@@ -165,16 +182,40 @@ class AllocationService(
                 "obligations" to problem.obligations.size,
                 "lotClasses" to problem.classes.size,
                 "allocatedMwh" to lines.sumOf { it.quantityMwh },
+                "futureSupplyMwh" to virtualLines.sumOf { it.quantityMwh },
                 "totalScore" to lines.sumOf { it.score * java.math.BigDecimal(it.quantityMwh) },
                 "scoreUnit" to com.pianonurmi.etrm.allocation.api.ScoreBreakdown.EUR_PER_MWH,
             ) + solved.details,
             coverage = coverage,
             lines = lines,
             version = 1,
-            value = PlanValuation.of(lines, open),
+            value = PlanValuation.of(lines, open, virtualLines),
             pricing = pricer.price(problem, assignments, built.scoring::bestBucketCode),
+            virtualLines = virtualLines,
         )
     }
+
+    /** Assignments to supply still to come: one virtual line each, never reserved or instructed (ADR 0038). */
+    private fun virtualLines(
+        problem: com.pianonurmi.etrm.allocation.domain.AllocationProblem,
+        assignments: List<Assignment>,
+    ): List<VirtualLineView> = assignments.sortedWith(compareBy({ it.obligationIndex }, { it.score.total }, { it.classIndex }))
+        .mapIndexed { i, a ->
+            val future = requireNotNull(problem.classes[a.classIndex].future)
+            VirtualLineView(
+                id = Ids.newId(),
+                lineNo = i + 1,
+                obligationId = problem.obligations[a.obligationIndex].id,
+                kind = future.kind,
+                ref = future.ref,
+                description = future.description,
+                quantityMwh = a.quantityMwh,
+                availableFrom = future.availableFrom,
+                score = a.score.total,
+                breakdown = a.score,
+                status = VirtualLineStatus.PLANNED,
+            )
+        }
 
     private fun solverFor(kind: SolverKind): Solver = when (kind) {
         SolverKind.GREEDY -> greedy
@@ -316,6 +357,70 @@ class AllocationService(
     // Registry confirmations and failures
     // ----------------------------------------------------------------------------------------------------------
 
+    // ----------------------------------------------------------------------------------------------------------
+    // Future supply (ADR 0038): plans counting on a purchase or on expected issuance hear when it changes
+    // ----------------------------------------------------------------------------------------------------------
+
+    @EventListener
+    fun on(event: DeliveryObligationChanged) {
+        if (event.obligation.side == Side.BUY) {
+            futureSupplyChanged(
+                "purchase:${event.obligation.scheduleId}",
+                "purchase ${event.obligation.tradeNumber} changed",
+            )
+        }
+    }
+
+    @EventListener
+    fun on(event: DeliveryObligationClosed) {
+        if (event.obligation.side == Side.BUY) {
+            futureSupplyChanged("purchase:${event.obligation.scheduleId}", "purchase ${event.obligation.tradeNumber} closed: ${event.reason}")
+        }
+    }
+
+    @EventListener
+    fun on(event: ProductionForecastChanged) {
+        val gsrn = referenceData?.productionDevice(event.deviceId)?.gsrn ?: return
+        event.months.forEach { futureSupplyChanged("issuance:$gsrn:$it", "forecast of $gsrn for $it changed") }
+    }
+
+    /** Issued certificates replace expected issuance: plans counting on it should be made again with the real lots. */
+    @EventListener
+    fun on(event: LotReceived) {
+        val lot = event.lot
+        if (lot.acquisitionSource != AcquisitionSource.ISSUANCE) return
+        val month = YearMonth.from(lot.productionPeriod.start)
+        futureSupplyChanged("issuance:${lot.deviceGsrn}:$month", "certificates of ${lot.deviceGsrn} for $month issued")
+    }
+
+    /**
+     * A proposed plan counting on the changed supply goes stale and frees its soft reservations, so it is proposed
+     * again rather than approved on figures that no longer hold; in a plan already approved, the virtual lines are
+     * marked CHANGED (nothing was reserved for them). Never fails the transaction that published the change.
+     */
+    private fun futureSupplyChanged(sourceRef: String, reason: String) {
+        plans.countingOn(sourceRef).forEach { planId ->
+            runCatching {
+                savepoints.attempt {
+                    val plan = plans.lock(planId) ?: return@attempt
+                    if (plan.status == PlanStatus.PROPOSED) {
+                        val stale = AllocationPlan(plan).stale(reason, SYSTEM)
+                        save(stale)
+                        plans.deleteSoftReservations(planId)
+                        events.publishEvent(AllocationStale(stale, reason))
+                    } else if (plan.virtualLines.any { it.ref == sourceRef && it.status == VirtualLineStatus.PLANNED }) {
+                        save(
+                            plan.copy(
+                                virtualLines = plan.virtualLines.map { if (it.ref == sourceRef) it.copy(status = VirtualLineStatus.CHANGED) else it },
+                                version = plan.version + 1,
+                            ),
+                        )
+                    }
+                }
+            }.onFailure { log.warn("Plan {} could not be updated after a change to {}: {}", planId, sourceRef, it.message) }
+        }
+    }
+
     @EventListener
     fun on(event: InstructionConfirmed) {
         val lineRef = event.instruction.lineRef ?: return
@@ -444,5 +549,9 @@ class AllocationService(
 
     private fun save(plan: AllocationPlanView) {
         if (!plans.update(plan)) throw StaleVersionException("AllocationPlan", plan.id, plan.version - 1, -1)
+    }
+
+    private companion object {
+        const val SYSTEM = "system"
     }
 }

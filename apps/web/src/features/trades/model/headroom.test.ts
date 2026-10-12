@@ -89,6 +89,7 @@ describe('ownScheduleIds', () => {
 const result = (overrides: Partial<HeadroomResult> = {}): HeadroomResult => ({
   holderEntityId: ENTITY,
   stamp: 's',
+  tier: 'HELD',
   computedAt: '2026-10-12T08:00:00Z',
   demands: [
     { ref: '0-0', requestedMwh: 100, headroomMwh: 150, freeMwh: 150, fits: true, binding: [] },

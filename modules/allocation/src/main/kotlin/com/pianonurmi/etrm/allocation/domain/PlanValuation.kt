@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.allocation.api.ObligationValue
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.api.PlanValue
 import com.pianonurmi.etrm.allocation.api.ScoreBreakdown
+import com.pianonurmi.etrm.allocation.api.VirtualLineView
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -14,7 +15,18 @@ object PlanValuation {
     private const val PRICE = 4
 
     /** Null when any line was scored before ADR 0035 (unit `SCORE`): those figures are not money. */
-    fun of(lines: List<AllocationLineView>, obligations: List<ObligationView>): PlanValue? {
+    fun of(lines: List<AllocationLineView>, obligations: List<ObligationView>, virtualLines: List<VirtualLineView> = emptyList()): PlanValue? =
+        of(
+            lines.map {
+                Valued(it.obligationId, it.quantityMwh, it.breakdown)
+            } + virtualLines.map { Valued(it.obligationId, it.quantityMwh, it.breakdown) },
+            obligations,
+        )
+
+    /** A line, real or virtual (ADR 0038), as far as its value goes. */
+    private data class Valued(val obligationId: java.util.UUID, val quantityMwh: Long, val breakdown: ScoreBreakdown)
+
+    private fun of(lines: List<Valued>, obligations: List<ObligationView>): PlanValue? {
         if (lines.any { it.breakdown.unit != ScoreBreakdown.EUR_PER_MWH }) return null
         val byId = obligations.associateBy { it.id }
         val perObligation = lines.groupBy { it.obligationId }.map { (obligationId, mine) ->

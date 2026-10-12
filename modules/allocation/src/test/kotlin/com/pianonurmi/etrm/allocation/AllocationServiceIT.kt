@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.allocation
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqAllocationPlanRepository
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqObligationRepository
 import com.pianonurmi.etrm.allocation.api.AllocationConstraint
+import com.pianonurmi.etrm.allocation.api.FutureSupplyKind
 import com.pianonurmi.etrm.allocation.api.HeadroomCheck
 import com.pianonurmi.etrm.allocation.api.HeadroomDemand
 import com.pianonurmi.etrm.allocation.api.LineStatus
@@ -12,8 +13,12 @@ import com.pianonurmi.etrm.allocation.api.OpenObligation
 import com.pianonurmi.etrm.allocation.api.PlanStatus
 import com.pianonurmi.etrm.allocation.api.PricingStatus
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
+import com.pianonurmi.etrm.allocation.api.SupplyTier
+import com.pianonurmi.etrm.allocation.api.VirtualLineStatus
 import com.pianonurmi.etrm.allocation.application.AllocationHeadroomSettings
 import com.pianonurmi.etrm.allocation.application.AllocationService
+import com.pianonurmi.etrm.allocation.application.FutureSupplyProvider
+import com.pianonurmi.etrm.allocation.application.FutureSupplyService
 import com.pianonurmi.etrm.allocation.application.HeadroomService
 import com.pianonurmi.etrm.allocation.application.ObligationService
 import com.pianonurmi.etrm.allocation.application.PortfolioFlowCache
@@ -52,13 +57,17 @@ import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
 import com.pianonurmi.etrm.product.application.TaxonomySnapshots
+import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqProductionForecastRepository
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
 import com.pianonurmi.etrm.referencedata.api.CreateProductionDevice
 import com.pianonurmi.etrm.referencedata.api.CreateRegistryAccount
 import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.OwnerType
+import com.pianonurmi.etrm.referencedata.api.ProductionForecastChanged
+import com.pianonurmi.etrm.referencedata.api.RecordForecast
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
+import com.pianonurmi.etrm.referencedata.application.ProductionForecastService
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
 import com.pianonurmi.etrm.registry.adapter.gateway.ManualRegistryGateway
 import com.pianonurmi.etrm.registry.adapter.gateway.SimulatorRegistryGateway
@@ -71,11 +80,13 @@ import com.pianonurmi.etrm.registry.application.TransferRouteService
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import com.pianonurmi.etrm.trade.adapter.jooq.JooqTradeRepository
+import com.pianonurmi.etrm.trade.api.DeliveryObligationChanged
 import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
 import com.pianonurmi.etrm.trade.api.DeliveryObligationView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -83,6 +94,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -108,6 +120,11 @@ class AllocationServiceIT {
     private lateinit var obligations: ObligationService
     private lateinit var lots: LotService
     private lateinit var headroom: HeadroomService
+    private lateinit var planning: AllocationService
+    private lateinit var criteria: CriteriaServiceImpl
+    private lateinit var futureView: FutureSupplyService
+    private lateinit var forecasts: ProductionForecastService
+    private val purchases = mutableListOf<DeliveryObligationView>()
     private lateinit var portfolio: PortfolioService
     private lateinit var referenceData: ReferenceDataService
     private lateinit var entityId: UUID
@@ -130,7 +147,7 @@ class AllocationServiceIT {
         val clock = Clock.systemUTC()
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
-        val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
+        criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
         val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
         ProductBucketSeeder(buckets, buckets).seed()
         val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
@@ -168,6 +185,11 @@ class AllocationServiceIT {
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus)
         val problemBuilder = ProblemBuilder(criteria, buckets, routes, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) })
+        forecasts = ProductionForecastService(JooqProductionForecastRepository(dsl), JooqReferenceDataRepository(dsl), taxonomy, bus, actor)
+        val purchaseQuery = mockk<TradeQuery> {
+            every { openObligations(any(), Side.BUY, ProductFamily.GUARANTEE_OF_ORIGIN) } answers { purchases.filter { it.legalEntityId == firstArg() } }
+        }
+        val futureSupply = FutureSupplyProvider(purchaseQuery, referenceData, forecasts, lots, criteria, clock)
         val flows = PortfolioFlowCache(
             JooqObligationRepository(dsl),
             planRepository,
@@ -176,9 +198,31 @@ class AllocationServiceIT {
             lots,
             clock,
             settings = AllocationHeadroomSettings(warmOnMiss = false),
+            futureSupply = futureSupply,
         )
         headroom = HeadroomService(flows, problemBuilder, buckets, criteria, actor, clock)
-        portfolio = PortfolioService(flows, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
+        futureView = FutureSupplyService(flows, actor, clock)
+        portfolio = PortfolioService(flows, problemBuilder, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
+        // The same service, counting on purchases and expected issuance (ADR 0038); `allocation` keeps to held lots.
+        planning = AllocationService(
+            planRepository,
+            JooqObligationRepository(dsl),
+            obligations,
+            problemBuilder,
+            criteria,
+            lots,
+            lots,
+            instructions,
+            instructions,
+            trades,
+            trades,
+            actor,
+            bus,
+            clock,
+            Savepoints.NONE,
+            futureSupply = futureSupply,
+            referenceData = referenceData,
+        )
         allocation = AllocationService(
             planRepository,
             JooqObligationRepository(dsl),
@@ -367,6 +411,149 @@ class AllocationServiceIT {
             it.coveredWithinMwh shouldBe 300
             it.shortAfterNettingMwh shouldBe 300
         }
+    }
+
+    @Test
+    fun `plans count on a purchase for the later sale and keep held hydro for the earlier one`() {
+        val holder = referenceData.createLegalEntity(CreateLegalEntity("FUTURE-CO", "Future Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        val account = referenceData.createRegistryAccount(
+            CreateRegistryAccount("SIMULATOR", "SIM-FUT", "Future account", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, holder),
+        ).id
+        receive("643000000000000016", "FU-H-1", 100, holder = holder, account = account)
+        val nordicHydro = Criterion.all(Criterion.region("NORDIC"), Criterion.energySource("HYDRO"))
+        val scheduleId = UUID.randomUUID()
+        val purchase = mockk<DeliveryObligationView> {
+            every { this@mockk.scheduleId } returns scheduleId
+            every { legalEntityId } returns holder
+            every { tradeNumber } returns "T-BUY-1"
+            every { side } returns Side.BUY
+            // As read in bulk: the criteria by id only.
+            every { criterion } returns null
+            every { criteriaId } returns criteria.store(nordicHydro).id
+            every { bucketCode } returns "NORDIC_HYDRO"
+            every { status } returns DeliveryStatus.PENDING
+            every { quantity } returns BigDecimal(100)
+            every { deliveredQuantity } returns BigDecimal.ZERO
+            every { deliveryDate } returns LocalDate.of(2026, 11, 15)
+            every { deliveryWindow } returns LocalDateRange.ofMonth(YearMonth.of(2026, 11))
+            every { deliveryAccountId } returns account
+        }
+        purchases += purchase
+        // Before any sale: the purchase adds to what can be sold from its delivery date, at the contracted tier.
+        val nordicSale = HeadroomDemand(nordicHydro, 300, LocalDate.of(2026, 12, 1))
+        headroom.check(HeadroomCheck(holder, listOf(nordicSale))).demands.single().headroomMwh shouldBe 100
+        headroom.check(HeadroomCheck(holder, listOf(nordicSale), tier = SupplyTier.CONTRACTED)).demands.single().headroomMwh shouldBe 200
+        headroom.check(HeadroomCheck(holder, listOf(nordicSale.copy(deliveryDate = LocalDate.of(2026, 11, 1))), tier = SupplyTier.CONTRACTED))
+            .demands.single().headroomMwh shouldBe 100
+        portfolio.portfolio(holder, SupplyTier.CONTRACTED).nodes.single { it.bucketCode == "NORDIC_HYDRO" }.let {
+            it.longMwh shouldBe 100
+            it.futureMwh shouldBe 100
+        }
+        // A Finnish hydro bucket cannot count a Nordic purchase: it may be Norwegian.
+        portfolio.portfolio(holder, SupplyTier.CONTRACTED).nodes.single { it.bucketCode == "FI_HYDRO" }.futureMwh shouldBe 0
+
+        fun sale(date: LocalDate, ref: String) = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                holder,
+                criterion = nordicHydro,
+                quantityMwh = 100,
+                deliveryWindow = LocalDateRange.inclusive(date.minusDays(10), date),
+                deliveryDate = date,
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-$ref",
+            ),
+        )
+        val early = sale(LocalDate.of(2026, 11, 1), "EARLY")
+        val late = sale(LocalDate.of(2026, 12, 15), "LATE")
+
+        val plan = planning.propose(ProposeAllocation(holder, setOf(early.id, late.id), idempotencyKey = "future-1"))
+        plan.lines.single().let {
+            it.obligationId shouldBe early.id
+            it.quantityMwh shouldBe 100
+        }
+        plan.virtualLines.single().let {
+            it.obligationId shouldBe late.id
+            it.kind shouldBe FutureSupplyKind.CONTRACTED
+            it.ref shouldBe "purchase:$scheduleId"
+            it.quantityMwh shouldBe 100
+            it.availableFrom shouldBe LocalDate.of(2026, 11, 15)
+        }
+        // Held lots cover one sale; the purchase the other.
+        val coverage = plan.coverage.shouldNotBeNull()
+        coverage.totalCoveredMwh shouldBe 100
+        coverage.obligations.sumOf { it.coveredWithContractedMwh.shouldNotBeNull() } shouldBe 200
+        plan.value.shouldNotBeNull().byObligation.sumOf { it.mwh } shouldBe 200
+        planning.plan(plan.id)!!.virtualLines.single().status shouldBe VirtualLineStatus.PLANNED
+        futureView.futureSupply(holder).let { view ->
+            view.items.single().let {
+                it.kind shouldBe FutureSupplyKind.CONTRACTED
+                it.tradeNumber shouldBe "T-BUY-1"
+                it.quantityMwh shouldBe 100
+            }
+            view.months.map { it.month } shouldBe listOf(YearMonth.of(2026, 11), YearMonth.of(2026, 12))
+            view.coveredHeldMwh shouldBe 100
+            view.coveredWithContractedMwh shouldBe 200
+        }
+
+        // The purchase changes: the proposal is no longer good and goes stale.
+        planning.on(DeliveryObligationChanged(purchase))
+        planning.plan(plan.id)!!.status shouldBe PlanStatus.STALE
+
+        // Without future supply the same request keeps to held lots: one sale stays short.
+        allocation.whatIf(ProposeAllocation(holder, setOf(early.id, late.id), idempotencyKey = "held-only")).lines.sumOf { it.quantityMwh } shouldBe 100
+        purchases.clear()
+    }
+
+    @Test
+    fun `an own device's expected issuance serves sales after it is issued, and a new forecast makes the proposal stale`() {
+        val holder = referenceData.createLegalEntity(CreateLegalEntity("ISSUE-CO", "Issue Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        referenceData.createRegistryAccount(
+            CreateRegistryAccount("SIMULATOR", "SIM-ISS", "Issue account", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, holder),
+        )
+        val device = referenceData.createProductionDevice(
+            CreateProductionDevice(
+                gsrn = "643000000000000047",
+                name = "Issue hydro",
+                country = "FI",
+                capacityKw = BigDecimal("1000"),
+                commissioningDate = LocalDate.of(2018, 1, 1),
+                energySourceCode = "HYDRO_RESERVOIR",
+                technologyCode = "HYDRO_TURBINE_STORAGE",
+                registryCode = "SIMULATOR",
+                ownerType = OwnerType.LEGAL_ENTITY,
+                ownerId = holder,
+                ownDevice = true,
+                issuanceLagDays = 20,
+            ),
+        )
+        val month = YearMonth.now().plusMonths(1)
+        forecasts.record(RecordForecast(device.id, month, expectedMwh = 500, p90Mwh = 400))
+        val delivery = month.atEndOfMonth().plusDays(40)
+        val sale = obligations.open(
+            OpenObligation(
+                ObligationKind.SALE,
+                holder,
+                criterion = Criterion.all(Criterion.country("FI"), Criterion.energySource("HYDRO")),
+                quantityMwh = 300,
+                deliveryWindow = LocalDateRange.inclusive(delivery.minusDays(5), delivery),
+                deliveryDate = delivery,
+                targetRegistryCode = "SIMULATOR",
+                targetAccountRef = "SIM-CP-ISS",
+            ),
+        )
+
+        val plan = planning.propose(ProposeAllocation(holder, setOf(sale.id), idempotencyKey = "issue-1"))
+        plan.lines.shouldBeEmpty()
+        val expected = plan.virtualLines.filter { it.ref == "issuance:643000000000000047:$month" }.single()
+        expected.kind shouldBe FutureSupplyKind.EXPECTED
+        expected.availableFrom shouldBe month.atEndOfMonth().plusDays(20)
+        // Plans take the cautious figure: at most the P90 of 400 from this month.
+        (expected.quantityMwh <= 300) shouldBe true
+        expected.breakdown.reliabilityPremium.shouldNotBeNull()
+
+        planning.on(ProductionForecastChanged(device.id, listOf(month)))
+        planning.plan(plan.id)!!.status shouldBe PlanStatus.STALE
     }
 
     @Test

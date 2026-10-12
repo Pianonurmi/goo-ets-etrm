@@ -24,6 +24,11 @@ table. The view is open to traders, middle office, back office and risk.
 
 The same figures check a sale while you capture it; see [Available to sell](trading.md#available-to-sell).
 
+Above the table, the **Supply counted** switch chooses what the figures count: **Held** (the default),
+**+ Purchases** or **+ Expected issuance**; see [Future supply](#future-supply). With purchases or expected issuance
+counted, an extra **Future** column shows how much of each row is not held yet, and the delivery-date cells include
+it.
+
 ## Products and netting
 
 On the **Guarantees of origin** tab, choose **Products** to see the portfolio as a tree of product buckets. A bucket
@@ -59,6 +64,39 @@ short after netting, and the application says so.
 The first time an entity is opened the figures take a moment to prepare; the time they were worked out is shown
 under the table. The view is open to traders, middle office, back office and risk. The product hierarchy itself is
 shown in [Taxonomy and products](administration.md#taxonomy-and-products).
+
+## Future supply
+
+On the **Guarantees of origin** tab, choose **Future supply** to see what the entity will have beyond its holdings,
+by delivery month. Two kinds of supply are not held yet:
+
+- **Purchase**: certificates bought and agreed but not yet delivered.
+- **Expected issuance**: certificates expected from the entity's production devices, from their
+  [production forecasts](administration.md#production-forecasts) or, where there is none, from the technology's load
+  factor. It is an estimate, and the device's issuance lag decides when the certificates would exist.
+
+Four cards open the page: **Demand**, **Covered by holdings**, **Covered with purchases** and **Covered with expected
+issuance**. Each covers more than the one before it, so the last card is the most that holdings, purchases and
+expected issuance could cover together. The chart splits each delivery month's demand into what holdings cover, what
+purchases add, what expected issuance adds and what is **Still short**. The table lists each purchase and each
+expected issuance with the date it is **Available from**, its expected quantity (**P50**) and the cautious
+quantity (**P90**) that production should reach in nine cases out of ten.
+
+None of this supply is held, so none of it is reserved or can be instructed. A plan that counts on it shows it as
+[virtual lines](allocation.md#virtual-lines). The page is open to traders, middle office, back office and risk.
+
+### The supply switch
+
+**Available to sell** and **Products** carry the same **Supply counted** switch as the page above:
+
+| Choice                 | Counts                                                      |
+| ---------------------- | ----------------------------------------------------------- |
+| **Held**               | Certificates held now                                       |
+| **+ Purchases**        | Held, plus purchases agreed but not yet delivered           |
+| **+ Expected issuance** | Held, purchases, and issuance expected from production devices |
+
+On **Products**, a **Future** column appears for the second and third choice, and **Naive net** becomes long plus
+future minus short.
 
 ## EU ETS position
 

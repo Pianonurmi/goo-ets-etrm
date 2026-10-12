@@ -8,6 +8,8 @@ export type HeadroomGridRow = {
   bucketCode: string;
   vintageYear: number;
   heldMwh: number;
+  /** Supply that is not held yet at the table's tier (purchases, expected issuance); 0 at the held tier. */
+  futureMwh: number;
 } & Record<`d${number}`, number>;
 
 /** The field of delivery date number [index] in a [HeadroomGridRow]. */
@@ -25,6 +27,7 @@ export function headroomRows(table: HeadroomTable): HeadroomGridRow[] {
       bucketCode: row.bucketCode,
       vintageYear: row.vintageYear,
       heldMwh: row.heldMwh,
+      futureMwh: row.futureMwh,
       ...cells,
     };
   });

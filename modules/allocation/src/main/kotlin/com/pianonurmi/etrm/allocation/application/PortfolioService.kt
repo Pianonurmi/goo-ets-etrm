@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.allocation.application
 import com.pianonurmi.etrm.allocation.api.PortfolioNode
 import com.pianonurmi.etrm.allocation.api.PortfolioQuery
 import com.pianonurmi.etrm.allocation.api.PortfolioView
+import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.allocation.domain.LotClass
 import com.pianonurmi.etrm.allocation.domain.ObligationModel
 import com.pianonurmi.etrm.allocation.domain.flow.CompressedFlowGraph
@@ -33,19 +34,20 @@ import kotlin.concurrent.withLock
 @Service
 class PortfolioService(
     private val flows: PortfolioFlowCache,
+    private val problemBuilder: ProblemBuilder,
     private val buckets: ProductBucketQuery,
     private val criteria: CriteriaService,
     private val marks: GooMarks,
     private val actorProvider: ActorProvider,
     private val clock: Clock,
 ) : PortfolioQuery {
-    override fun portfolio(holderEntityId: UUID): PortfolioView {
+    override fun portfolio(holderEntityId: UUID, tier: SupplyTier): PortfolioView {
         val actor = actorProvider.current()
         actor.requireRole(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
         actor.requireEntity(holderEntityId)
 
         val today = LocalDate.now(clock)
-        val prepared = flows.prepare(holderEntityId)
+        val prepared = flows.prepare(holderEntityId, tier = tier)
         val context = criteria.contextFor(today)
         val hierarchy = buckets.hierarchy(context)
         val bound = buckets.bind(context)
@@ -53,7 +55,7 @@ class PortfolioService(
         val classes = prepared.problem.classes
         val members = hierarchy.nodes.associate { node ->
             val criterion = boundByCode.getValue(node.code)
-            node.code to BitSet(classes.size).apply { classes.forEach { if (criteria.evaluate(criterion, it.representative)) set(it.index) } }
+            node.code to BitSet(classes.size).apply { classes.forEach { if (problemBuilder.inBucket(it, criterion) { context }) set(it.index) } }
         }
         val inside = insideObligations(prepared.problem.obligations, hierarchy.nodes.map { it.code }, boundByCode)
 
@@ -65,11 +67,15 @@ class PortfolioService(
         val nodes = hierarchy.nodes.map { node ->
             val bits = members.getValue(node.code)
             val mine = inside.getValue(node.code)
-            val long = bits.stream().mapToLong { classes[it].quantity }.sum()
+            val long = bits.stream().filter { classes[it].future == null }.mapToLong { classes[it].quantity }.sum()
+            val future = bits.stream().filter { classes[it].future != null }.mapToLong { classes[it].quantity }.sum()
             val short = mine.sumOf { it.demand }
             val covered = coveredWithin(prepared.problem.classes, prepared.problem.eligible, mine, bits, prepared.problem.obligations.size)
             val mark = marks.of(node.code, today.year)
-            val cheapest = bits.stream().filter { residual[it] > 0 }.mapToObj { marks.valueOf(classes[it]) }.toList().filterNotNull().minOrNull()
+            // Cheapest to deliver is about certificates held; future supply has no certificate attributes to price yet.
+            val cheapest = bits.stream().filter {
+                residual[it] > 0 && classes[it].future == null
+            }.mapToObj { marks.valueOf(classes[it]) }.toList().filterNotNull().minOrNull()
             PortfolioNode(
                 bucketCode = node.code,
                 name = node.name,
@@ -80,7 +86,8 @@ class PortfolioService(
                 shortMwh = short,
                 coveredWithinMwh = covered,
                 shortAfterNettingMwh = short - covered,
-                naiveNetMwh = long - short,
+                naiveNetMwh = long + future - short,
+                futureMwh = future,
                 freeMwh = bits.stream().mapToLong { residual[it] }.sum(),
                 availableToSellMwh = available.getValue(node.code),
                 markEur = mark?.setScale(PRICE, RoundingMode.HALF_UP),
@@ -88,7 +95,7 @@ class PortfolioService(
                 giveAwayPerMwhEur = if (mark != null && cheapest != null) (cheapest - mark).setScale(PRICE, RoundingMode.HALF_UP) else null,
             )
         }
-        return PortfolioView(holderEntityId, prepared.stamp, clock.instant(), "EUR", nodes)
+        return PortfolioView(holderEntityId, prepared.tier, prepared.stamp, clock.instant(), "EUR", nodes)
     }
 
     /** Obligations whose criteria are provably contained in each bucket; proved once per distinct criterion. */

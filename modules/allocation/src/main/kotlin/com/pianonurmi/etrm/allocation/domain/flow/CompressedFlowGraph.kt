@@ -1,9 +1,7 @@
 package com.pianonurmi.etrm.allocation.domain.flow
 
+import com.pianonurmi.etrm.allocation.api.SupplyTier
 import java.util.BitSet
-
-/** How firm a unit of supply is. Coverage and headroom are reported cumulatively per tier (ADR 0036). */
-enum class SupplyTier { HELD, CONTRACTED, EXPECTED }
 
 /** Something that can deliver certificates: a class of held lots now; purchases and expected issuance later. */
 sealed interface SupplyUnit {
@@ -14,6 +12,9 @@ sealed interface SupplyUnit {
     data class Held(val classIndex: Int, override val quantityMwh: Long) : SupplyUnit {
         override val tier: SupplyTier get() = SupplyTier.HELD
     }
+
+    /** Supply still to come (ADR 0038): a purchase or expected issuance, as the lot class standing in for it. */
+    data class Future(val classIndex: Int, override val quantityMwh: Long, override val tier: SupplyTier) : SupplyUnit
 }
 
 /** An obligation as the flow sees it: its index in the problem, its priority tier and the MWh it still needs. */

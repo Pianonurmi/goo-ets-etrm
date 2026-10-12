@@ -34,6 +34,7 @@ import { TableSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { DeviceForecast, LoadFactorsSection } from './DeviceForecast';
 import { HistoryDrawer } from './HistoryDrawer';
 import { Section } from './Section';
 import { defaultBookAssignable } from './model/referenceEdits';
@@ -970,6 +971,11 @@ function DeviceDrawer({ deviceId, onClose }: { deviceId: string; onClose: () => 
                   { label: t('admin.supportSchemes'), value: device.supportSchemeCodes.join(', ') || '–' },
                   { label: t('admin.labels'), value: device.labelCodes.join(', ') || '–' },
                   { label: t('admin.ownerType'), value: t(`admin.ownerTypes.${device.ownerType}`) },
+                  {
+                    label: t('admin.issuanceLagDays'),
+                    value: t('admin.days', { count: device.issuanceLagDays ?? 0 }),
+                    testId: 'device-fact-issuance-lag',
+                  },
                   { label: t('admin.registry'), value: registry?.code ?? '–' },
                   { label: t('admin.recordVersion'), value: device.version },
                   {
@@ -979,6 +985,7 @@ function DeviceDrawer({ deviceId, onClose }: { deviceId: string; onClose: () => 
                 ]}
               />
             </Paper>
+            <DeviceForecast deviceId={device.id} issuanceLagDays={device.issuanceLagDays} />
           </Stack>
         )}
       </QueryState>
@@ -1035,6 +1042,7 @@ function DevicesTab() {
           />
         )}
       </QueryState>
+      <LoadFactorsSection />
       {open && <DeviceDrawer deviceId={open} onClose={() => setOpen(null)} />}
       {creating && (
         <NewDeviceModal

@@ -47,6 +47,9 @@ interface AllocationPlanRepository {
 
     fun deleteSoftReservations(planId: UUID)
 
+    /** Active plans with a virtual line counting on [sourceRef] (ADR 0038). */
+    fun countingOn(sourceRef: String): List<UUID>
+
     /** Takes a transaction-scoped advisory lock serialising commits for one entity. */
     fun lockEntity(holderEntityId: UUID)
 }

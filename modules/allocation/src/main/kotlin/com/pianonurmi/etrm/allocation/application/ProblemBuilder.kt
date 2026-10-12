@@ -2,6 +2,8 @@ package com.pianonurmi.etrm.allocation.application
 
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.domain.AllocationProblem
+import com.pianonurmi.etrm.allocation.domain.AvailableLot
+import com.pianonurmi.etrm.allocation.domain.FutureSupply
 import com.pianonurmi.etrm.allocation.domain.LotClass
 import com.pianonurmi.etrm.allocation.domain.LotClassifier
 import com.pianonurmi.etrm.allocation.domain.ObligationModel
@@ -9,8 +11,10 @@ import com.pianonurmi.etrm.allocation.domain.ProblemShape
 import com.pianonurmi.etrm.allocation.domain.Scoring
 import com.pianonurmi.etrm.allocation.domain.ValuePolicy
 import com.pianonurmi.etrm.inventory.api.LotSnapshot
+import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
+import com.pianonurmi.etrm.product.api.criteria.BindContext
 import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.Criterion
@@ -34,6 +38,9 @@ class ProblemBuilder(
     private val valueSettings: AllocationValueSettings = AllocationValueSettings(),
 ) {
     data class Built(val problem: AllocationProblem, val scoring: Scoring)
+
+    /** Supply still to come (ADR 0038) with its stand-in lot and the quantity a plan may count on. */
+    data class FutureLot(val future: FutureSupply, val lot: LotView, val quantityMwh: Long)
 
     private data class EligibilityKey(val criterion: String, val deliveryDate: LocalDate, val targetRegistryCode: String?)
 
@@ -63,10 +70,11 @@ class ProblemBuilder(
         routeOf: (String, String) -> TransferRoute,
     ): BitSet {
         val bits = BitSet(classes.size)
+        val context by lazy { criteria.contextFor(deliveryDate) }
         classes.forEach { cls ->
             if (cls.expiryDate > deliveryDate &&
-                routeOf(cls.registryCode, targetRegistryCode ?: cls.registryCode).feasible &&
-                criteria.evaluate(bound, cls.representative)
+                cls.sourceRegistry(targetRegistryCode).let { routeOf(it, targetRegistryCode ?: it).feasible } &&
+                satisfies(cls, bound, deliveryDate) { context }
             ) {
                 bits.set(cls.index)
             }
@@ -74,14 +82,37 @@ class ProblemBuilder(
         return bits
     }
 
+    /**
+     * Whether a class can deliver against [bound] on [deliveryDate]. Held lots and expected issuance are evaluated on
+     * their (stand-in) lot; a purchase is only known by its criteria, so they must provably lie inside [bound] (ADR
+     * 0016). Future supply serves only deliveries from the day it is available.
+     */
+    fun satisfies(cls: LotClass, bound: BoundCriterion, deliveryDate: LocalDate, context: () -> BindContext): Boolean =
+        when (val future = cls.future) {
+            null -> criteria.evaluate(bound, cls.representative)
+            is FutureSupply.Expected -> future.availableFrom <= deliveryDate && criteria.evaluate(bound, cls.representative)
+            is FutureSupply.Contracted -> future.availableFrom <= deliveryDate && criteria.implies(criteria.bind(future.criterion, context()), bound)
+        }
+
+    /** Whether a class belongs in a bucket, whatever the date: [satisfies] without the availability of future supply. */
+    fun inBucket(cls: LotClass, bucket: BoundCriterion, context: () -> BindContext): Boolean =
+        when (val future = cls.future) {
+            is FutureSupply.Contracted -> criteria.implies(criteria.bind(future.criterion, context()), bucket)
+            else -> criteria.evaluate(bucket, cls.representative)
+        }
+
     fun build(
         snapshot: LotSnapshot,
         obligations: List<ObligationView>,
         softReserved: Map<UUID, Long>,
         asOf: LocalDate,
         policy: ValuePolicy = valueSettings.toDomain(),
+        future: List<FutureLot> = emptyList(),
     ): Built {
-        val classes = LotClassifier.classify(snapshot.lots, softReserved)
+        val held = LotClassifier.classify(snapshot.lots, softReserved)
+        val classes = held + future.filter { it.quantityMwh > 0 }.mapIndexed { i, f ->
+            LotClass(held.size + i, "future:${f.future.ref}", listOf(AvailableLot(f.lot, f.quantityMwh)), f.future)
+        }
         val models = obligations.filter { it.remainingMwh > 0 }.mapIndexed { index, obligation ->
             val ctx = criteria.contextFor(obligation.deliveryDate)
             val (minShares, maxShare) = AllocationProblem.constraintsOf(obligation)

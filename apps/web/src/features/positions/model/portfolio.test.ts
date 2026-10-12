@@ -13,6 +13,7 @@ const node = (bucketCode: string, parents: string[], extra: Partial<PortfolioNod
   naiveNetMwh: 0,
   freeMwh: 0,
   availableToSellMwh: 0,
+  futureMwh: 0,
   ...extra,
 });
 

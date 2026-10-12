@@ -1,5 +1,14 @@
 import type { Schema } from '@/shared/api/types';
-import { coverageRows, groupLines, type Line, obligationName, planSteps } from './plan';
+import {
+  coverageRows,
+  groupLines,
+  groupVirtualLines,
+  hasFutureCoverage,
+  type Line,
+  obligationName,
+  planSteps,
+  type VirtualLine,
+} from './plan';
 
 const line = (obligationId: string, lineNo: number, quantityMwh: number) =>
   ({ obligationId, lineNo, quantityMwh, lotId: `lot-${lineNo}` }) as Line;
@@ -84,5 +93,33 @@ describe('obligationName', () => {
     );
     expect(obligationName({ deliveryDate: '2026-12-15', criteriaSummary: 'hydro' })).toBe('2026-12-15 · hydro');
     expect(obligationName(undefined)).toBeUndefined();
+  });
+});
+
+describe('groupVirtualLines', () => {
+  const virtual = (obligationId: string, lineNo: number, quantityMwh: number) =>
+    ({ obligationId, lineNo, quantityMwh, kind: 'EXPECTED' }) as VirtualLine;
+
+  it('groups by obligation in line order and totals whole MWh', () => {
+    const groups = groupVirtualLines([virtual('b', 3, 50), virtual('a', 1, 100), virtual('a', 2, 25)]);
+    expect(groups.map((g) => [g.obligationId, g.totalMwh, g.lines.map((l) => l.lineNo)])).toEqual([
+      ['a', 125, [1, 2]],
+      ['b', 50, [3]],
+    ]);
+    expect(groupVirtualLines([])).toEqual([]);
+  });
+});
+
+describe('hasFutureCoverage', () => {
+  const coverage = (extra: object) =>
+    ({
+      obligations: [{ obligationId: 'a', demandMwh: 100, coveredMwh: 40, shortfallMwh: 60, ...extra }],
+    }) as unknown as Schema<'CoverageReport'>;
+
+  it('is true when any obligation reports cover from purchases or expected issuance', () => {
+    expect(hasFutureCoverage(coverage({ coveredWithContractedMwh: 70 }))).toBe(true);
+    expect(hasFutureCoverage(coverage({ coveredWithExpectedMwh: 90 }))).toBe(true);
+    expect(hasFutureCoverage(coverage({ coveredWithContractedMwh: null }))).toBe(false);
+    expect(hasFutureCoverage(undefined)).toBe(false);
   });
 });

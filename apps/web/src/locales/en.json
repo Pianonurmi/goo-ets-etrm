@@ -900,6 +900,7 @@
     "bucket": "Bucket",
     "back": "Back to allocation",
     "planTitle": "Plan for {{mwh}} MWh",
+    "planTitleFuture": "Plan for {{mwh}} MWh held and {{future}} MWh to come",
     "approvalTask": "Approval task",
     "cancel": "Cancel plan",
     "cancelled": "Plan cancelled",
@@ -998,6 +999,18 @@
       "rejected": "Rejected",
       "ended": "Cancelled or expired",
       "partlyFailed": "Partly failed"
+    },
+    "obligation": "Obligation",
+    "virtual": {
+      "title": "Virtual lines",
+      "useFuture": "Plan against future supply",
+      "note": "Virtual lines are not reserved or instructed. Each one says which purchase or expected issuance would serve an obligation, and from when. Planned means the plan still counts on what it was made with; changed means the purchase or forecast it counts on has changed since the plan was made, so the line may no longer hold.",
+      "withPurchases": "With purchases",
+      "withExpected": "With expected issuance",
+      "source": "To be served by",
+      "countedOn": "Counted on future supply",
+      "shortOfHoldings": "Short of holdings",
+      "reliabilityPremium": "Reliability premium"
     }
   },
   "positions": {
@@ -1056,7 +1069,8 @@
       "label": "View",
       "position": "Position",
       "headroom": "Available to sell",
-      "portfolio": "Products"
+      "portfolio": "Products",
+      "future": "Future supply"
     },
     "portfolio": {
       "lead": "Every product bucket with the buckets it sits inside: what the entity holds, what it owes that only this bucket's certificates can serve, and what is left once the two are matched by eligibility. A bucket that belongs to several larger ones is listed under each.",
@@ -1090,7 +1104,12 @@
       "empty": "No products to show",
       "emptyHint": "The portfolio is worked out from the product buckets and the certificates and obligations of the entity.",
       "computedAt": "Figures as of {{time}}",
-      "alsoUnderBadge": "also under"
+      "alsoUnderBadge": "also under",
+      "future": "Future",
+      "futureHint": {
+        "CONTRACTED": "Purchases agreed but not yet delivered, inside this bucket. Added to long in the naive net.",
+        "EXPECTED": "Purchases not yet delivered and issuance expected, inside this bucket. Added to long in the naive net."
+      }
     },
     "headroom": {
       "title": "Available to sell",
@@ -1099,6 +1118,55 @@
       "held": "Held",
       "empty": "No certificates held",
       "emptyHint": "Available to sell is worked out from the certificates the entity holds.",
+      "computedAt": "Figures as of {{time}}",
+      "future": "Future",
+      "futureHint": {
+        "CONTRACTED": "Purchases agreed but not yet delivered that count towards this bucket and vintage.",
+        "EXPECTED": "Purchases not yet delivered and issuance expected from devices that count towards this bucket and vintage."
+      }
+    },
+    "tier": {
+      "label": "Supply counted",
+      "HELD": "Held",
+      "CONTRACTED": "+ Purchases",
+      "EXPECTED": "+ Expected issuance",
+      "hint": {
+        "CONTRACTED": "Counts the certificates held plus purchases agreed but not yet delivered.",
+        "EXPECTED": "Counts the certificates held, purchases agreed but not yet delivered, and issuance expected from production devices. Expected issuance is an estimate."
+      }
+    },
+    "future": {
+      "lead": "What the entity will have beyond its holdings, by delivery month: purchases agreed but not yet delivered, and certificates expected from production devices, set against the obligations due.",
+      "note": "Neither is held yet, so none of it is reserved or can be instructed. Expected issuance is an estimate (P50); the P90 column is the cautious figure.",
+      "demand": "Demand",
+      "coveredHeld": "Covered by holdings",
+      "coveredHeldHint": "Certificates held now",
+      "coveredContracted": "Covered with purchases",
+      "coveredContractedHint": "Holdings plus purchases agreed",
+      "coveredExpected": "Covered with expected issuance",
+      "coveredExpectedHint": "Plus issuance expected (P50)",
+      "chartTitle": "Demand by delivery month (MWh)",
+      "series": {
+        "held": "Covered by holdings",
+        "purchases": "Added by purchases",
+        "expected": "Added by expected issuance",
+        "short": "Still short"
+      },
+      "kind": "Kind",
+      "kinds": {
+        "CONTRACTED": "Purchase",
+        "EXPECTED": "Expected issuance"
+      },
+      "description": "Description",
+      "availableFrom": "Available from",
+      "p50": "Expected (P50)",
+      "p50Hint": "The expected quantity in MWh.",
+      "p90": "Cautious (P90)",
+      "p90Hint": "The quantity in MWh that production should reach in nine cases out of ten.",
+      "noItems": "No future supply",
+      "noItemsHint": "There are no purchases awaiting delivery and no forecast production from the entity's devices.",
+      "empty": "Nothing to show",
+      "emptyHint": "Future supply appears when the entity has obligations to cover, purchases not yet delivered or devices with expected production.",
       "computedAt": "Figures as of {{time}}"
     }
   },
@@ -1969,7 +2037,70 @@
     "openEnded": "Open-ended",
     "noAddresses": "No address yet",
     "noVat": "No VAT registration yet",
-    "noBankAccounts": "No bank account yet"
+    "noBankAccounts": "No bank account yet",
+    "issuanceLagDays": "Issuance lag (days)",
+    "issuanceLagHint": "Days from the end of a production month until the registry issues its certificates.",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "forecast": {
+      "title": "Production forecast",
+      "lead": "Expected production of the next twelve months. A month without a forecast uses the technology's load factor times the capacity, which is only an estimate.",
+      "lag": "Certificates are issued {{days}} days after the month ends.",
+      "month": "Month",
+      "expected": "Expected (MWh)",
+      "expectedHint": "Whole MWh the device is expected to produce (P50).",
+      "p90": "P90 (MWh)",
+      "p90Hint": "Whole MWh the device should reach in nine cases out of ten; not above the expected figure.",
+      "source": "Source",
+      "sources": {
+        "ENTERED": "Entered",
+        "IMPORTED": "Imported",
+        "LOAD_FACTOR": "Load-factor estimate"
+      },
+      "recordedBy": "Recorded by {{by}}, {{at}} (version {{version}})",
+      "fallbackHint": "No forecast is recorded for this month. The figure is the capacity times the technology's load factor.",
+      "edit": "Edit forecast for {{month}}",
+      "editTitle": "Forecast for {{month}}",
+      "editFallbackHint": "Saving records a forecast for this month and replaces the load-factor estimate.",
+      "wholeMwh": "A whole number of MWh",
+      "p90Above": "A whole number, not above the expected figure",
+      "saved": "Forecast for {{month}} saved",
+      "empty": "No months to show",
+      "emptyHint": "The device is not in operation in the coming twelve months.",
+      "importTitle": "Import forecasts",
+      "importHint": "A CSV file with a header line and one line per device and month: gsrn,month,expected_mwh,p90_mwh, with the month like 2026-11. Lines that fail are skipped and listed.",
+      "csv": "Forecast file",
+      "import": "Import",
+      "imported": "{{count}} imported",
+      "rejected": "{{count}} rejected"
+    },
+    "loadFactors": {
+      "title": "Load factors",
+      "lead": "The share of capacity each technology produces in a month, used where no forecast is recorded. They are illustrative defaults, not measurements. Each cell shows the expected factor with the P90 factor beneath it.",
+      "empty": "No load factors",
+      "months": {
+        "01": "Jan",
+        "02": "Feb",
+        "03": "Mar",
+        "04": "Apr",
+        "05": "May",
+        "06": "Jun",
+        "07": "Jul",
+        "08": "Aug",
+        "09": "Sep",
+        "10": "Oct",
+        "11": "Nov",
+        "12": "Dec"
+      },
+      "edit": "Edit the load factor of {{technology}} in {{month}}",
+      "editTitle": "Load factor of {{technology}}, {{month}}",
+      "factor": "Factor",
+      "factorHint": "Between 0 and 1: the share of the capacity produced over the month.",
+      "p90Factor": "P90 factor",
+      "invalidFactor": "A number between 0 and 1",
+      "invalidP90": "A number between 0 and the factor",
+      "saved": "Load factor saved"
+    }
   },
   "audit": {
     "title": "Audit trail",

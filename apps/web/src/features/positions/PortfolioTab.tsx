@@ -1,6 +1,7 @@
 import { ActionIcon, Alert, Badge, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { token } from '@/app/tokens';
@@ -10,6 +11,8 @@ import { QueryState } from '@/shared/components/QueryState';
 import { TableSkeleton } from '@/shared/components/Skeletons';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { TierSwitch } from './TierSwitch';
+import type { HeadroomTier } from './model/futureSupply';
 import {
   flattenPortfolio,
   toggleExpanded,
@@ -109,6 +112,13 @@ export function PortfolioGrid({ view }: { view: PortfolioView }) {
       quantity('short', t('positions.portfolio.short'), (r) => r.node.shortMwh, {
         headerTooltip: t('positions.portfolio.shortHint'),
       }),
+      ...(view.tier === 'HELD'
+        ? []
+        : [
+            quantity('future', t('positions.portfolio.future'), (r) => r.node.futureMwh, {
+              headerTooltip: t(`positions.portfolio.futureHint.${view.tier}`),
+            }),
+          ]),
       quantity('coveredWithin', t('positions.portfolio.coveredWithin'), (r) => r.node.coveredWithinMwh, {
         headerTooltip: t('positions.portfolio.coveredWithinHint'),
         width: 150,
@@ -157,7 +167,7 @@ export function PortfolioGrid({ view }: { view: PortfolioView }) {
         { valueFormatter: euro, headerTooltip: t('positions.portfolio.giveAwayHint'), width: 140 },
       ),
     ];
-  }, [t, onToggle, view.currency]);
+  }, [t, onToggle, view.currency, view.tier]);
   return (
     <div data-testid="goo-hierarchy">
       <DataGrid<PortfolioRow>
@@ -176,12 +186,13 @@ export function PortfolioGrid({ view }: { view: PortfolioView }) {
 /** The GoO portfolio by product: what is held, owed and free in each bucket and in the buckets that contain it. */
 export function PortfolioTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
+  const [tier, setTier] = useState<HeadroomTier>('HELD');
   // The first call for an entity prepares the figures, so it can take a moment.
   const portfolio = $api.useQuery(
     'get',
     '/api/v1/allocation/portfolio',
-    { params: { query: { holderEntityId: entityId } } },
-    { retry: false },
+    { params: { query: { holderEntityId: entityId, tier } } },
+    { retry: false, placeholderData: keepPreviousData },
   );
   const data = portfolio.data;
   return (
@@ -189,6 +200,7 @@ export function PortfolioTab({ entityId }: { entityId: string }) {
       <Text size="sm" c="dimmed">
         {t('positions.portfolio.lead')}
       </Text>
+      <TierSwitch value={tier} onChange={setTier} />
       <Alert color="gray" variant="light" data-testid="portfolio-note">
         {t('positions.portfolio.note')}
       </Alert>

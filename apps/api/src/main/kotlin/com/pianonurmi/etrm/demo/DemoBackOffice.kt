@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.demo
 
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * The work of back office, finance, compliance and risk on top of the trading history, so every screen has
@@ -126,6 +127,60 @@ class DemoBackOffice(private val api: DemoClient, private val calendar: DemoCale
             """{"holderEntityId":"${entity.id}","obligationIds":${ids(obligationIds)},"solver":"GREEDY","idempotencyKey":"$key"}""",
         ).id()
         api.post(DemoUser.MIDDLE, "/api/v1/allocation/plans/$plan/approve", "{}")
+    }
+
+    /**
+     * Future supply (ADR 0038): forecasts for the Finnish hydro plant (one month entered, two loaded from a file; the
+     * rest falls back to the load factor), a forward purchase of next year's Nordic hydro, and a sale of that vintage
+     * that nothing held can serve. Its plan, left for approval, counts on the purchase and on expected issuance with
+     * virtual lines.
+     */
+    fun futureSupply(finland: DemoEntity, parties: DemoParties) {
+        val hydro = finland.deviceGsrns.first()
+        val device = api.getList(DemoUser.MIDDLE, "/api/v1/reference/production-devices").first { it["gsrn"] == hydro }.id()
+        val next = YearMonth.from(calendar.today).plusMonths(1)
+        api.put(DemoUser.MIDDLE, "/api/v1/reference/devices/$device/forecasts/$next", """{"expectedMwh":9200,"p90Mwh":7800}""")
+        api.postText(
+            DemoUser.MIDDLE,
+            "/api/v1/reference/forecasts/import",
+            "gsrn,month,expected_mwh,p90_mwh\n" +
+                "$hydro,${next.plusMonths(1)},8800,7400\n" +
+                "$hydro,${next.plusMonths(2)},8100,6600\n",
+        )
+
+        val vintage = calendar.today.year + 1
+        val nextYearHydro = """{"type":"all","of":[{"type":"countryInRegion","region":"NORDIC"},
+            {"type":"descendantOf","attribute":"ENERGY_SOURCE","code":"HYDRO"},{"type":"vintage","rule":{"type":"productionYear","year":$vintage}}]}"""
+        val arrives = LocalDate.of(vintage, 3, 31)
+        val seller = parties.getValue("CP-NORDVIND")
+        val purchase = api.post(
+            DemoUser.TRADER,
+            "/api/v1/trades",
+            """{"legalEntityId":"${finland.id}","bookId":"${finland.tradingBookId}","counterpartyId":"$seller","productFamily":"GUARANTEE_OF_ORIGIN",
+               "instrumentType":"FORWARD","tradeDate":"${calendar.lastClose}","legs":[{"side":"BUY","criterion":$nextYearHydro,
+               "quantity":1500,"unit":"MWH","price":0.62,"priceCurrency":"EUR","deliveryAccountId":"${finland.gooAccountId}",
+               "counterpartyAccountRef":"SIMULATOR:SIM-EXT-${seller.takeLast(6)}",
+               "deliveries":[{"deliveryWindow":{"start":"${arrives.minusDays(30)}","endExclusive":"${arrives.plusDays(1)}"},
+                 "deliveryDate":"$arrives","quantity":1500}]}]}""",
+        ).id()
+        api.approveTask(DemoUser.MIDDLE, "TRADE_APPROVAL", purchase)
+        api.post(DemoUser.BACKOFFICE, "/api/v1/trades/$purchase/confirm", """{"confirmationRef":"DEMO-CONF-${purchase.takeLast(8)}"}""")
+
+        val delivery = LocalDate.of(vintage, 6, 15)
+        val sale = api.post(
+            DemoUser.BACKOFFICE,
+            "/api/v1/allocation/obligations",
+            """{"kind":"SALE","holderEntityId":"${finland.id}","criterion":$nextYearHydro,"quantityMwh":4000,
+               "deliveryWindow":{"start":"${delivery.minusDays(14)}","endExclusive":"${delivery.plusDays(1)}"},"deliveryDate":"$delivery",
+               "sourceRef":"${java.util.UUID.nameUUIDFromBytes("demo-future-sale".toByteArray())}",
+               "targetRegistryCode":"SIMULATOR","targetAccountRef":"SIM-EXT-FUTURE"}""",
+        ).id()
+        api.post(
+            DemoUser.TRADER,
+            "/api/v1/allocation/plans",
+            """{"holderEntityId":"${finland.id}","obligationIds":${ids(listOf(sale))},"solver":"GREEDY","idempotencyKey":"demo-plan-fi-future",
+               "softReservationHours":720}""",
+        )
     }
 
     /** Union Registry: allowances bought into a trading account, one transfer to the operator account confirmed, one failed. */

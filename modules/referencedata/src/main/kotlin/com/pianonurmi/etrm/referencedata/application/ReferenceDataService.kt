@@ -333,6 +333,7 @@ class ReferenceDataService(
             if (!it.isAfter(command.commissioningDate)) throw ValidationException("decommissioningDate must follow commissioningDate")
         }
         val registryId = command.registryCode?.let { requireRegistry(it).id }
+        requireIssuanceLag(command.issuanceLagDays)
         val device = ProductionDeviceView(
             id = Ids.newId(),
             gsrn = gsrn,
@@ -355,6 +356,7 @@ class ReferenceDataService(
             externalCodes = command.externalCodes,
             active = true,
             version = 1,
+            issuanceLagDays = command.issuanceLagDays,
         )
         repository.insertProductionDevice(device)
         events.publishEvent(ProductionDeviceChanged(device.id, device.gsrn))
@@ -367,6 +369,7 @@ class ReferenceDataService(
         checkVersion("ProductionDevice", id, current.version, command.expectedVersion)
         command.labelCodes?.forEach { taxonomy.require(TaxonomyScheme.LABEL, it) }
         command.supportSchemeCodes?.forEach { taxonomy.require(TaxonomyScheme.SUPPORT_SCHEME, it) }
+        command.issuanceLagDays?.let(::requireIssuanceLag)
         val updated = current.copy(
             name = command.name?.trim() ?: current.name,
             capacityKw = command.capacityKw ?: current.capacityKw,
@@ -375,6 +378,7 @@ class ReferenceDataService(
             labelCodes = command.labelCodes ?: current.labelCodes,
             externalCodes = command.externalCodes ?: current.externalCodes,
             active = command.active ?: current.active,
+            issuanceLagDays = command.issuanceLagDays ?: current.issuanceLagDays,
             version = current.version + 1,
         )
         if (!repository.updateProductionDevice(updated, command.expectedVersion)) {
@@ -382,6 +386,10 @@ class ReferenceDataService(
         }
         events.publishEvent(ProductionDeviceChanged(id, updated.gsrn))
         return updated
+    }
+
+    private fun requireIssuanceLag(days: Int) {
+        if (days < 0) throw ValidationException("issuanceLagDays must be >= 0")
     }
 
     override fun registryAccountByRef(ref: String): RegistryAccountView? {

@@ -17,9 +17,10 @@ import { QueryState } from '@/shared/components/QueryState';
 import { CardSkeleton } from '@/shared/components/Skeletons';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { LinesByObligation, PlanStatusBadge } from './AllocationPage';
-import { obligationName, planSteps } from './model/plan';
+import { hasFutureCoverage, obligationName, planSteps } from './model/plan';
 import { PlanValuePanel } from './PlanValuePanel';
 import { ShadowPricesPanel } from './ShadowPricesPanel';
+import { VirtualLinesPanel } from './VirtualLinesPanel';
 
 type Plan = Schema<'AllocationPlanView'>;
 
@@ -51,7 +52,14 @@ function PlanBody({ plan }: { plan: Plan }) {
   const byId = useMemo(() => new Map((obligations.data ?? []).map((o) => [o.id, o])), [obligations.data]);
   const obligationLabel = useCallback((id: string) => obligationName(byId.get(id)), [byId]);
   const approvalTask = task.data?.items[0];
-  const title = t('allocation.planTitle', { mwh: formatDecimal(plan.allocatedMwh ?? 0) });
+  const futureMwh = (plan.virtualLines ?? []).reduce((sum, line) => sum + line.quantityMwh, 0);
+  const title =
+    futureMwh > 0
+      ? t('allocation.planTitleFuture', {
+          mwh: formatDecimal(plan.allocatedMwh ?? 0),
+          future: formatDecimal(futureMwh),
+        })
+      : t('allocation.planTitle', { mwh: formatDecimal(plan.allocatedMwh ?? 0) });
   const shortfall = plan.coverage?.totalShortfallMwh;
 
   const lines =
@@ -62,14 +70,21 @@ function PlanBody({ plan }: { plan: Plan }) {
     ) : (
       <LinesByObligation lines={plan.lines} obligations={byId} />
     );
+  const virtualLines = plan.virtualLines ?? [];
+  const hasVirtual = virtualLines.length > 0 || hasFutureCoverage(plan.coverage);
   // Plans made before value-based allocation carry neither value nor shadow prices; they show the lines alone.
   const body =
-    plan.value || plan.pricing ? (
+    plan.value || plan.pricing || hasVirtual ? (
       <Tabs defaultValue="lines" keepMounted={false}>
         <Tabs.List>
           <Tabs.Tab value="lines" data-testid="plan-lines-tab">
             {t('allocation.lines')}
           </Tabs.Tab>
+          {hasVirtual && (
+            <Tabs.Tab value="virtual" data-testid="plan-virtual-lines-tab">
+              {t('allocation.virtual.title')}
+            </Tabs.Tab>
+          )}
           {plan.value && (
             <Tabs.Tab value="value" data-testid="plan-value-tab">
               {t('allocation.value.title')}
@@ -84,6 +99,16 @@ function PlanBody({ plan }: { plan: Plan }) {
         <Tabs.Panel value="lines" pt="md">
           {lines}
         </Tabs.Panel>
+        {hasVirtual && (
+          <Tabs.Panel value="virtual" pt="md">
+            <VirtualLinesPanel
+              lines={virtualLines}
+              coverage={plan.coverage}
+              obligations={byId}
+              testId="plan-virtual-lines"
+            />
+          </Tabs.Panel>
+        )}
         {plan.value && (
           <Tabs.Panel value="value" pt="md">
             <PlanValuePanel
@@ -154,8 +179,16 @@ function PlanBody({ plan }: { plan: Plan }) {
             label: t('allocation.allocatedLabel'),
             value: <Quantity value={plan.allocatedMwh ?? 0} unit="MWh" fw={600} />,
           },
+          ...(futureMwh > 0
+            ? [
+                {
+                  label: t('allocation.virtual.countedOn'),
+                  value: <Quantity value={futureMwh} unit="MWh" fw={600} data-testid="plan-future-mwh" />,
+                },
+              ]
+            : []),
           {
-            label: t('allocation.shortfallLabel'),
+            label: t(futureMwh > 0 ? 'allocation.virtual.shortOfHoldings' : 'allocation.shortfallLabel'),
             value:
               shortfall != null ? <Quantity value={shortfall} unit="MWh" c={shortfall > 0 ? 'red' : undefined} /> : '—',
           },

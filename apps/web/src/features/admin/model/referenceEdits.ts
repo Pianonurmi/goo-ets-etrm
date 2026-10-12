@@ -17,6 +17,10 @@ export const EMIR_CLASSIFICATIONS: EmirClassification[] = [
 export const OWNER_TYPES: OwnerType[] = ['LEGAL_ENTITY', 'COUNTERPARTY', 'THIRD_PARTY'];
 
 const DECIMAL = /^\d+(\.\d+)?$/;
+const WHOLE_NUMBER = /^\d{1,4}$/;
+
+/** Days between the end of a production month and the issuance of its GoOs, until a device says otherwise. */
+export const DEFAULT_ISSUANCE_LAG_DAYS = 30;
 
 /**
  * The typed value when it differs from the stored one. The API patches with "absent means unchanged", so a field
@@ -29,6 +33,13 @@ function changed(current: string | null | undefined, next: string): string | und
 
 function changedFlag(current: boolean, next: boolean): boolean | undefined {
   return current === next ? undefined : next;
+}
+
+function lagChanged(current: number | undefined, next: string): number | undefined {
+  const value = next.trim();
+  return WHOLE_NUMBER.test(value) && Number(value) !== (current ?? DEFAULT_ISSUANCE_LAG_DAYS)
+    ? Number(value)
+    : undefined;
 }
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
@@ -179,6 +190,7 @@ export interface DeviceDraft {
   name: string;
   country: string;
   capacityKw: string;
+  issuanceLagDays: string;
   commissioningDate: string;
   decommissioningDate: string;
   energySourceCode: string | null;
@@ -199,6 +211,7 @@ export function emptyDevice(today: string): DeviceDraft {
     name: '',
     country: '',
     capacityKw: '',
+    issuanceLagDays: String(DEFAULT_ISSUANCE_LAG_DAYS),
     commissioningDate: today,
     decommissioningDate: '',
     energySourceCode: null,
@@ -220,6 +233,7 @@ export function deviceDraft(device: Device): DeviceDraft {
     name: device.name,
     country: device.country,
     capacityKw: String(device.capacityKw),
+    issuanceLagDays: String(device.issuanceLagDays ?? DEFAULT_ISSUANCE_LAG_DAYS),
     commissioningDate: device.commissioningDate,
     decommissioningDate: device.decommissioningDate ?? '',
     energySourceCode: device.energySourceCode,
@@ -242,6 +256,7 @@ export function deviceProblems(draft: DeviceDraft): string[] {
   if (!draft.name.trim()) problems.push('name');
   if (!/^[A-Z]{2}$/.test(draft.country.trim().toUpperCase())) problems.push('country');
   if (!DECIMAL.test(draft.capacityKw.trim()) || !/[1-9]/.test(draft.capacityKw)) problems.push('capacityKw');
+  if (!WHOLE_NUMBER.test(draft.issuanceLagDays.trim())) problems.push('issuanceLagDays');
   if (!draft.commissioningDate) problems.push('commissioningDate');
   if (draft.decommissioningDate && draft.decommissioningDate <= draft.commissioningDate) {
     problems.push('decommissioningDate');
@@ -259,6 +274,7 @@ export function newDeviceBody(draft: DeviceDraft): Body<'CreateProductionDevice'
     name: draft.name.trim(),
     country: draft.country.trim().toUpperCase(),
     capacityKw: decimal(draft.capacityKw),
+    issuanceLagDays: Number(draft.issuanceLagDays.trim()),
     commissioningDate: draft.commissioningDate,
     decommissioningDate: draft.decommissioningDate || undefined,
     energySourceCode: draft.energySourceCode ?? '',
@@ -281,6 +297,7 @@ export function devicePatch(device: Device, draft: DeviceDraft): Body<'UpdatePro
     expectedVersion: device.version,
     name: changed(device.name, draft.name),
     capacityKw: capacity && capacity !== String(device.capacityKw) ? decimal(capacity) : undefined,
+    issuanceLagDays: lagChanged(device.issuanceLagDays, draft.issuanceLagDays),
     decommissioningDate: changed(device.decommissioningDate, draft.decommissioningDate),
     supportSchemeCodes: sameSet(device.supportSchemeCodes, draft.supportSchemeCodes)
       ? undefined
@@ -296,6 +313,7 @@ export function deviceEditProblems(draft: DeviceDraft): string[] {
   const problems: string[] = [];
   if (!draft.name.trim()) problems.push('name');
   if (!DECIMAL.test(draft.capacityKw.trim()) || !/[1-9]/.test(draft.capacityKw)) problems.push('capacityKw');
+  if (!WHOLE_NUMBER.test(draft.issuanceLagDays.trim())) problems.push('issuanceLagDays');
   if (draft.decommissioningDate && draft.decommissioningDate <= draft.commissioningDate) {
     problems.push('decommissioningDate');
   }

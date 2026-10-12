@@ -27,6 +27,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { FutureSupplyTab } from './FutureSupplyTab';
 import { HeadroomTab } from './HeadroomTab';
 import { ladderSeries } from './model/ladder';
 import { PortfolioTab } from './PortfolioTab';
@@ -141,25 +142,29 @@ function GooPosition({ entityId }: { entityId: string }) {
   );
 }
 
-type GooViewKind = 'position' | 'headroom' | 'portfolio';
+type GooViewKind = 'position' | 'headroom' | 'portfolio' | 'future';
 
 /** The GoO position, and next to it what the entity can still sell and how its products net against each other. */
 function GooView({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
   const canSeeHeadroom = useCan('allocation_headroomTable');
   const canSeePortfolio = useCan('allocation_portfolio');
+  const canSeeFuture = useCan('allocation_futureSupply');
   const [view, setView] = useState<GooViewKind>('position');
-  if (!canSeeHeadroom && !canSeePortfolio) return <GooPosition entityId={entityId} />;
+  if (!canSeeHeadroom && !canSeePortfolio && !canSeeFuture) return <GooPosition entityId={entityId} />;
   const views = [
     { value: 'position', label: t('positions.view.position') },
     ...(canSeeHeadroom ? [{ value: 'headroom', label: t('positions.view.headroom') }] : []),
     ...(canSeePortfolio ? [{ value: 'portfolio', label: t('positions.view.portfolio') }] : []),
+    ...(canSeeFuture ? [{ value: 'future', label: t('positions.view.future') }] : []),
   ];
   return (
     <Stack>
       <SegmentedControl
         value={view}
-        onChange={(value) => setView(value === 'headroom' || value === 'portfolio' ? value : 'position')}
+        onChange={(value) =>
+          setView(value === 'headroom' || value === 'portfolio' || value === 'future' ? value : 'position')
+        }
         data={views}
         aria-label={t('positions.view.label')}
         w="fit-content"
@@ -168,6 +173,7 @@ function GooView({ entityId }: { entityId: string }) {
       {view === 'position' && <GooPosition entityId={entityId} />}
       {view === 'headroom' && <HeadroomTab entityId={entityId} />}
       {view === 'portfolio' && <PortfolioTab entityId={entityId} />}
+      {view === 'future' && <FutureSupplyTab entityId={entityId} />}
     </Stack>
   );
 }

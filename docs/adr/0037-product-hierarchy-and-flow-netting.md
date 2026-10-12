@@ -56,5 +56,5 @@ short there: none of its certificates can deliver that sale.
   - A node's figures include its children's, so they do not add up across siblings that overlap.
   - Short after netting is per node; an obligation counts in every node that contains it.
 - **Not yet built:**
-  - The figures are for held certificates; purchases and expected issuance join in M5.
+  - The figures were for held certificates only; purchases and expected issuance join them by tier (ADR 0038).
   - They cover all vintages together; the available-to-sell table (ADR 0036) splits by vintage.

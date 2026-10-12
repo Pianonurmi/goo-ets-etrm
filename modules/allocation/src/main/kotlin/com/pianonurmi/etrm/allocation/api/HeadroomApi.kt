@@ -17,11 +17,14 @@ data class HeadroomDemand(
 /**
  * How much of [demands] the entity can still sell from what it holds. [excludeSourceRefs]: obligations to leave out
  * of the existing demand, e.g. the delivery schedules of the trade being amended, which the new demands replace.
+ * [tier]: the supply counted (ADR 0038); beyond the held tier, purchases and expected issuance (P50) count from the
+ * day they are available.
  */
 data class HeadroomCheck(
     val holderEntityId: UUID,
     val demands: List<HeadroomDemand>,
     val excludeSourceRefs: Set<UUID> = emptySet(),
+    val tier: SupplyTier = SupplyTier.HELD,
 )
 
 /**
@@ -36,6 +39,7 @@ data class HeadroomCheck(
  */
 data class HeadroomResult(
     val holderEntityId: UUID,
+    val tier: SupplyTier,
     val stamp: String,
     val computedAt: Instant,
     val demands: List<DemandHeadroom>,
@@ -63,19 +67,23 @@ data class BindingSupply(val bucketCode: String, val productionYear: Int, val el
  */
 data class HeadroomTable(
     val holderEntityId: UUID,
+    val tier: SupplyTier,
     val stamp: String,
     val computedAt: Instant,
     val deliveryDates: List<LocalDate>,
     val rows: List<HeadroomRow>,
 )
 
-/** [heldMwh]: held certificates of the bucket and vintage; [headroomMwh]: one figure per delivery date. */
-data class HeadroomRow(val bucketCode: String, val vintageYear: Int, val heldMwh: Long, val headroomMwh: List<Long>)
+/**
+ * [heldMwh]: held certificates of the bucket and vintage; [futureMwh]: purchases and expected issuance (P50) of it
+ * counted at the table's tier; [headroomMwh]: one figure per delivery date.
+ */
+data class HeadroomRow(val bucketCode: String, val vintageYear: Int, val heldMwh: Long, val futureMwh: Long, val headroomMwh: List<Long>)
 
 interface HeadroomQuery {
     fun check(command: HeadroomCheck): HeadroomResult
 
-    fun table(holderEntityId: UUID): HeadroomTable
+    fun table(holderEntityId: UUID, tier: SupplyTier = SupplyTier.HELD): HeadroomTable
 
     /**
      * [check] from figures already prepared, without building them: null when they are missing or out of date (a

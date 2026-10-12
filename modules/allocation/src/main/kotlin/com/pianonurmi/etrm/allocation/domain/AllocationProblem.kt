@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.allocation.domain
 import com.pianonurmi.etrm.allocation.api.AllocationConstraint
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.api.ScoreBreakdown
+import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
 import java.math.BigDecimal
@@ -15,10 +16,18 @@ data class AvailableLot(val lot: LotView, val availableMwh: Long)
  * Lots that are interchangeable for every criterion and for scoring. Solvers work on classes (thousands) rather
  * than lots (hundreds of thousands) and disaggregate to concrete ranges only when a plan is written.
  */
-class LotClass(val index: Int, val key: String, val lots: List<AvailableLot>) {
+class LotClass(val index: Int, val key: String, val lots: List<AvailableLot>, val future: FutureSupply? = null) {
     val representative: LotView = lots.first().lot
+
+    /** Held lots, or supply still to come (ADR 0038): a purchase or a device's expected issuance. */
+    val tier: SupplyTier get() = future?.tier ?: SupplyTier.HELD
     val quantity: Long = lots.sumOf { it.availableMwh }
     val registryCode: String get() = representative.registryCode
+
+    /** The registry certificates leave from to reach [target]; future supply of unknown registry arrives where needed. */
+    fun sourceRegistry(target: String?): String =
+        if (future != null && registryCode == FutureSupply.UNKNOWN_REGISTRY) target ?: registryCode else registryCode
+
     val deviceGsrn: String get() = representative.deviceGsrn
     val expiryDate get() = representative.expiryDate
     val productionYear: Int get() = representative.productionPeriod.start.year

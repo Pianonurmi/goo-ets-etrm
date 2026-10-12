@@ -50,6 +50,7 @@ const node = (bucketCode: string, parents: string[], extra: Partial<PortfolioNod
   naiveNetMwh: 0,
   freeMwh: 0,
   availableToSellMwh: 0,
+  futureMwh: 0,
   ...extra,
 });
 
@@ -58,6 +59,7 @@ const view: PortfolioView = {
   stamp: 's1',
   computedAt: '2026-10-12T08:00:00Z',
   currency: 'EUR',
+  tier: 'HELD',
   nodes: [
     node('ANY_GOO', [], { longMwh: 12500, shortMwh: 1000, coveredWithinMwh: 1000, naiveNetMwh: 11500, freeMwh: 11500 }),
     node('EU_RENEWABLE', ['ANY_GOO'], {

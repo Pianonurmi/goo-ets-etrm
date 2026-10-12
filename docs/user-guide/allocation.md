@@ -32,6 +32,26 @@ its lines by obligation, with a **Lifecycle** timeline beside them: proposed, ap
 executed. **Approval task** opens its inbox task, and **Cancel plan** (with a reason) releases the reservation of a
 plan that is still proposed or approved.
 
+## Virtual lines
+
+A plan can count on supply that is not held yet: purchases agreed but not yet delivered, and certificates expected
+from production devices. The **Plan against future supply** switch next to the solver turns this on (it is on by
+default). Such supply appears as **virtual lines**, separate from the lines above: **What if** lists them under the
+lines, and an opened plan shows them on its **Virtual lines** tab.
+
+A virtual line is **not reserved and not instructed**. It says which purchase or which device's expected issuance, and
+for which month, would serve an obligation, and from when. Once the certificates exist, propose the plan again with
+the real lots.
+
+- **Planned** means the plan still counts on what it was made with.
+- **Changed** means the purchase or forecast the line counts on has changed since the plan was made, so the line may
+  no longer hold. A plan still waiting for approval goes stale instead and is proposed again.
+- The **Reliability premium** column is a small extra cost added to supply that is not held, so that held certificates
+  win ties. Expected issuance carries more, the further its cautious (P90) figure lies below its expected one.
+
+The tab also shows the coverage of each obligation, with **With purchases** and **With expected issuance** next to
+what held lots cover. Each includes the one before it.
+
 ## Value and give-away
 
 The solver works in euros. Every certificate has a value, the best mark among all the products it qualifies for,
