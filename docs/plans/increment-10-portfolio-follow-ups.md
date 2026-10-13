@@ -1,6 +1,6 @@
 # Increment 10: portfolio follow-ups
 
-**Status: in progress.** Release 0.10.0. Increment 9 (housekeeping) is released as 0.9.0.
+**Status: delivered** (M0–M5, release 0.10.0). What differs from the plan is under [Delivered](#delivered); the decisions are in ADR 0043 and the amendments to ADRs 0007, 0036 and 0040.
 
 ## Context
 

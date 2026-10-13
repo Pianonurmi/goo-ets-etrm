@@ -54,6 +54,22 @@ from the plan or are still open:
 | EMIR / MiFID reporting | EMIR lifecycle events captured, completeness checked, exported; MiFID ancillary activity figures | No trade repository connection and no ISO 20022 XML; the Refit field layout is unverified; the ancillary test needs market-size data |
 | GL interface hardening | Exactly-once exports, layouts as data (generic, SAP-style unverified), acknowledgement, reconciliation with imported GL balances, hard-close gates | The receiving GL's specification is needed to verify the SAP layout |
 
+## Status after increment 10
+
+Increment 10 makes the portfolio figures of increment 8 production-grade (see the [plan](plans/increment-10-portfolio-follow-ups.md) and
+ADR 0043):
+
+- **Fast preparation.** An entity's figures are prepared in about 3 s at 100 000 lots and 5 000 sales on a realistic
+  book (about 28 s before). After a change they are patched in about 0.3 s from a diff of live lot versions, and a
+  patched problem is the one a full build makes.
+- **Fast checks.** Nested eligibility is chained in the flow: an available-to-sell check takes about 30 ms and the
+  table about 4 s on a realistic book.
+- **GoO limits by vintage.** A GoO sale is checked against the basis limits before capture with the premium it would
+  hand over.
+- **Give-away report.** `GOO_GIVE_AWAY` lists the give-away of the plans approved in a period.
+- **Device caps stay outside the flow.** Measured exactly, they made building the flow 45 times slower, so available to
+  sell remains an upper bound.
+
 ## Status after increment 8
 
 Increment 8 is delivered in milestones M0–M7 (see the [roadmap](roadmap.md), the [plan](plans/increment-8-goo-portfolio.md)

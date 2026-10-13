@@ -11,7 +11,7 @@
 | 7 | Public showcase demo: design system and app shell, showcase login with role personas, six months of demo data in every area with a nightly reset, UI actions for the operations that are API-only today, in-app help manual and guided tours, screenshots, user guide, VPS deployment (Caddy), presentation deck ([plan](plans/increment-7-showcase-demo.md)) | delivered |
 | 8 | GoO portfolio management: value-based allocation in EUR with the give-away when specific certificates cover generic sales, shadow prices, available-to-sell, a flow-netted product hierarchy, portfolio value and cheapest-to-deliver (management view), future supply (purchases, expected issuance) that plans reserve against, GoO risk limits ([plan](plans/increment-8-goo-portfolio.md)) | done |
 | 9 | Housekeeping before the next feature increment: CI actions off the retired Node 20, backend and web dependency majors (Gradle 9, Kotlin 2.4, Flyway 13, react-router 8, ESLint 10) with the held-back ones recorded, versioned releases with tagged images, README and presentation for an enterprise audience | done (0.9.0) |
-| 10 | Portfolio follow-ups: the prepared GoO flow patched in place instead of rebuilt, GoO limits by vintage and a pre-trade basis check for sales, a give-away report, device caps and minimum shares in available to sell ([plan](plans/increment-10-portfolio-follow-ups.md)) | in progress (0.10.0) |
+| 10 | Portfolio follow-ups: the portfolio figures prepared in about 3 s and patched in about 0.3 s at 100 000 lots, available-to-sell checks fast on realistic books, GoO limits by vintage and a pre-trade basis check for sales, a give-away report; device caps measured and kept outside the flow ([plan](plans/increment-10-portfolio-follow-ups.md)) | done (0.10.0) |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -135,3 +135,15 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M3 | Web: react-router 8.4 (no source change), ESLint 10 with typescript-eslint 8.71.2 (two `no-useless-assignment` fixes), Node 22.22 minimum; TypeScript majors and `@types/node` above 22 held back with the reason in `dependabot.yml` ([supply chain](operations/supply-chain.md#updates)) | done |
 | M4 | README and the presentation for an enterprise audience: architecture, technical capabilities (reliability, security, robustness, maintainability) and the roadmap, with fresh screenshots | done |
 | M5 | Versioning (ADR 0042, [releases](operations/releases.md)): semantic versions from `gradle.properties`, checked against the web package, the Helm chart and `CHANGELOG.md`; a `vX.Y.Z` tag publishes the image as `X.Y.Z`, `X.Y` and `latest` with OCI labels and creates the GitHub release with the jar and SBOMs; increments 1–8 recorded in the changelog as 0.1.0–0.8.0; released as 0.9.0 with the **Release** workflow from the Actions tab | done |
+
+## Increment 10: portfolio follow-ups
+
+| Milestone | Content | Status |
+|---|---|---|
+| M0 | Measure first (`PortfolioPrepareBenchmarkTest` on a realistic book), then make the full build cheap: eligibility rows from shared parts, the scarcity index left to solvers, atoms by partition refinement, single-flight preparation. About 28 s → 3.5 s at design size | done |
+| M1 | Incremental prepare (ADR 0043): one `ProblemIndex` for full builds and patches, profiles, a diff of live lot versions; a patch in about 0.3 s; pre-trade checks patch instead of reading "not checked"; property test of patched against full | done |
+| M2 | GoO limits by vintage (`productionYear` scope), purchases counted by vintage, a GoO sale projected on the free certificates against the basis limits (`GOO_BASIS`); vintage on the limit form; demo limit (ADR 0040 amended) | done |
+| M3 | `GOO_GIVE_AWAY` report: the sales of plans approved in a period with delivered value, sale mark and give-away | done |
+| M4 | Device caps in the flow spiked and measured (32 s instead of 0.7 s with one sale in twenty capped), kept outside; nested eligibility chained instead: a check 148 ms → 30 ms, the table about 30 s → 4 s | done |
+| M5 | Close: documentation, deck, release 0.10.0 | done |
+

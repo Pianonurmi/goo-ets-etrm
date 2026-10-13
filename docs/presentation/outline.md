@@ -147,14 +147,15 @@ run inside a database transaction.
 
 - Each module owns its schema and exposes one API package; any other dependency fails the build.
 - The OpenAPI document is committed and the web types are generated from it.
-- 42 architecture decision records, arc42 and a manual inside the application.
+- 43 architecture decision records, arc42 and a manual inside the application.
 - Warnings are errors, static analysis, a coverage rule; `main` moves only on a green pipeline. Current stack: Java 25,
   Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript.
 
-## 16. Roadmap: nine increments, each one shippable
+## 16. Roadmap: ten increments, each one shippable
 
 - 1 core domain; 2 registries, settlement, inbox; 3 market data, valuation, risk, ETS, period end; 4–5 the web UI;
-  6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping, versioned releases (0.9.0) and this documentation.
+  6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping, versioned releases (0.9.0) and this documentation; 10 portfolio
+  follow-ups (0.10.0): figures patched in place, GoO limits by vintage, the give-away report.
 
 ## 17. Path to production
 
@@ -162,8 +163,8 @@ run inside a database transaction.
 - Specifications: registry APIs (G-REX, NECS) and AIB code lists, the GL file layout, the EMIR layout and trade
   repository, market data vendors.
 - Sign-offs: accounting policies, VAT rules, PFE add-ons.
-- Next to build: faster portfolio refresh, device caps in the flow, GoO limits per vintage, discounting and hedge
-  accounting, EUA futures margining.
+- Next to build: discounting and hedge accounting, EUA futures margining, minimum shares checked against available
+  to sell.
 
 *Notes:* Layouts not checked against their specification are marked unverified.
 

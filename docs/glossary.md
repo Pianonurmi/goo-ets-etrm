@@ -10,6 +10,7 @@
 | Concentration (GoO) | Held certificates of one product bucket that no obligation uses after netting through the flow: the book's open exposure to that product (ADR 0040) |
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Criteria | Typed predicate tree describing which certificates satisfy a delivery |
+| Eligibility chain | Sale groups whose eligible supply is nested (the same criterion and target, later delivery dates) linked in the flow so supply enters once and reaches every group it may serve (increment 10, ADR 0036) |
 | EUA / EUAA | EU Allowance (general) / EU Aviation Allowance |
 | Expected issuance | Certificates an own device is expected to have issued for a production month: its forecast, or capacity × load factor, less what is already issued; P50 for views, P90 for plans (ADR 0038) |
 | Expiry haircut | Part of a certificate's value lost because it expires within 60 days of delivery; using such a lot costs less (ADR 0035) |
@@ -21,8 +22,10 @@
 | Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
 | Naive net | Held certificates of a bucket minus its obligations, ignoring which certificates can serve which obligation; can look long while the bucket is short |
 | Obligation | Quantity of certificates to deliver (sale, intercompany) or cancel (disclosure, own consumption) by a date under criteria |
+| Patch (portfolio figures) | Bringing an entity's prepared figures up to date from the lots and obligations that changed instead of rebuilding them; the result is the one a full build makes (ADR 0043) |
 | Plan | Proposed assignment of lots to obligations; approved plans reserve lots and instruct registries |
 | Portfolio value | Held certificates at the best price each qualifies for, plus the GoO trades' MtM, less give-away, transfer fees and expiry haircut on the valuation-grade allocation; never booked (ADR 0039) |
+| Profile (lot class) | Held lot classes with the same criteria matches, registry and expiry rank: eligible for exactly the same obligations, so the flow compresses them as one (ADR 0043) |
 | Scarcity rent | Shadow price of supply: how much a plan's cost would fall with one more MWh of that bucket and year (indicative) |
 | Shadow price | A dual value of the pricing linear program solved after a plan; marginal costs and scarcity rents, never booked |
 | Short after netting | Obligations of a product bucket that its own certificates cannot cover (ADR 0037): what has to be bought or issued |
@@ -62,4 +65,5 @@
 | Ancillary activity | MiFID II test of whether trading allowances is ancillary to the main business |
 | Delta export | A GL export carrying only entries posted after the period's earlier exports |
 | Hard-close gate | A condition a period must meet before it is closed for good |
+| Vintage (limit scope) | A GoO limit narrowed to one production year: certificates produced in it, sales marked at it (ADR 0040, amended) |
 | Virtual line | A plan line served by future supply (a purchase or expected issuance): shown and valued, never reserved or instructed (ADR 0038) |

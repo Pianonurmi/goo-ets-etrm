@@ -143,7 +143,7 @@ record.
   - the OpenAPI document is a committed contract;
   - the web client's types are generated from it;
   - a check fails when an API operation has no screen and no recorded reason.
-- **Decisions are written down:** 42 architecture decision records, arc42 documentation, and a user manual inside
+- **Decisions are written down:** 43 architecture decision records, arc42 documentation, and a user manual inside
   the application.
 - **Tests at every level:**
   - unit and integration tests against PostgreSQL;
@@ -212,6 +212,7 @@ More detail: the [architecture plan](docs/architecture-plan.md), [arc42](docs/ar
 | 7 | Public showcase: design system, demo data, in-app manual and guided tours |
 | 8 | GoO portfolio management: value-based allocation, available to sell, product hierarchy, future supply, portfolio value, GoO limits |
 | 9 | Housekeeping: current CI actions and dependency majors, versioned releases, this documentation |
+| 10 | Portfolio follow-ups: figures patched in place in under a second at 100 000 lots, fast available-to-sell checks, GoO limits by vintage and pre-trade basis checks for sales, a give-away report |
 
 **On the path to production, waiting on outside input:**
 - the external penetration test;
