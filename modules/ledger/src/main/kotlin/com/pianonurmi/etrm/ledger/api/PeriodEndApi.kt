@@ -77,7 +77,7 @@ data class PolicyChangeView(
     val decidedAt: Instant?,
 )
 
-enum class PeriodEndComponentKind { MTM, NRV, EMISSION_PROVISION, GRANT_RELEASE, FX_REVALUATION }
+enum class PeriodEndComponentKind { MTM, HEDGE, NRV, EMISSION_PROVISION, GRANT_RELEASE, FX_REVALUATION }
 
 /**
  * One measured balance: what it should be at the period end ([required]), what was booked before the run

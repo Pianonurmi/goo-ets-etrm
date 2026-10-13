@@ -192,6 +192,25 @@ data class PortfolioExplainView(
     val realisedGiveAway: BigDecimal?,
 )
 
+/**
+ * A forward valued the way a trade schedule is (ADR 0045): the hypothetical derivative of a hedged forecast. [quantity]
+ * is signed (+ bought, − sold); [price] is per unit in [currency].
+ */
+data class ForwardTerms(
+    val productFamily: ProductFamily,
+    val allowanceProductCode: String?,
+    val bucketCode: String?,
+    val productionYear: Int?,
+    val deliveryDate: LocalDate,
+    val payDate: LocalDate,
+    val quantity: BigDecimal,
+    val price: BigDecimal,
+    val currency: String,
+)
+
+/** The forward's market price in its currency, the discount factor, and its value in its currency and in base. */
+data class ForwardValue(val marketPrice: BigDecimal, val discountFactor: BigDecimal, val value: BigDecimal, val valueBase: BigDecimal, val baseCurrency: String)
+
 interface ValuationQuery {
     fun run(id: UUID): ValuationRunView?
 
@@ -212,6 +231,9 @@ interface ValuationQuery {
     fun portfolio(runId: UUID): PortfolioBridgeView?
 
     fun portfolioExplain(legalEntityId: UUID, from: LocalDate, to: LocalDate): PortfolioExplainView
+
+    /** [terms] valued on [date] with the official curves, rates and discount factors a run would use; null when unpriced. */
+    fun forwardValue(legalEntityId: UUID, date: LocalDate, terms: ForwardTerms): ForwardValue?
 }
 
 interface ValuationCommand {

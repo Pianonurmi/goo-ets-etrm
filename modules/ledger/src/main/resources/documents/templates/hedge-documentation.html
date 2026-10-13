@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Hedge documentation</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Helvetica, sans-serif; font-size: 9.5pt; color: #111; }
+    h1 { font-size: 15pt; }
+    h2 { font-size: 11pt; margin-top: 6mm; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 1.2mm 2mm; text-align: left; border-bottom: 0.3pt solid #ccc; vertical-align: top; }
+    .num { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>Hedge documentation {{number}}</h1>
+  <p>Entity: {{entity}}<br/>Type: cash flow hedge (IFRS 9)<br/>Designated on {{designationDate}}, proposed by {{requestedBy}}, approved by {{approvedBy}}</p>
+
+  <h2>Risk management objective and strategy</h2>
+  <p>{{objective}}</p>
+
+  <h2>Hedged item</h2>
+  <table>
+    <tr><th>Forecast transaction</th><td>{{direction}}</td></tr>
+    <tr><th>Product</th><td>{{product}}{{#productionYear}}, production year {{productionYear}}{{/productionYear}}</td></tr>
+    <tr><th>Quantity</th><td>{{quantity}}</td></tr>
+    <tr><th>Expected date</th><td>{{expectedDate}}</td></tr>
+    <tr><th>Hedged risk</th><td>Variability of the purchase or sale price in {{currency}} from changes in the forward price</td></tr>
+  </table>
+
+  <h2>Hedging instruments</h2>
+  <table>
+    <tr><th>Trade</th><th class="num">Proportion designated</th><th class="num">Quantity designated</th></tr>
+    {{#instruments}}<tr><td>{{trade}}</td><td class="num">{{proportion}}</td><td class="num">{{quantity}}</td></tr>{{/instruments}}
+  </table>
+  <p>Hedge ratio: {{ratio}} %</p>
+
+  <h2>Economic relationship (prospective assessment)</h2>
+  <table>
+    <tr><th>Check</th><th>Result</th><th>Detail</th></tr>
+    {{#checks}}<tr><td>{{code}}</td><td>{{result}}</td><td>{{detail}}</td></tr>{{/checks}}
+  </table>
+
+  <h2>Effectiveness method</h2>
+  <p>Hypothetical derivative: a forward on the hedged item at {{designationPrice}} {{currency}} per unit, the official forward
+     price on the designation date, valued like the instruments (official curves, discounted to the expected date). On
+     every official valuation the hedging reserve takes the lower, in absolute terms, of the instruments' change in value
+     since designation ({{baseline}} {{baseCurrency}} then) and the hypothetical derivative's value; the rest is
+     ineffectiveness in profit or loss. Sources of ineffectiveness: differences in timing, quantity and product between
+     instruments and forecast, and counterparty credit risk.</p>
+</body>
+</html>

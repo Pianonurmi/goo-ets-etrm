@@ -106,6 +106,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
             DemoStep("Swedish reconciliation") { office.reconciliation(it.get(SWEDEN)) },
             DemoStep("EU ETS compliance") { office.ets(it.get(FINLAND), it.get(SWEDEN)) },
             DemoStep("Limits, breaches and pending sign-off") { office.risk(it.get(FINLAND), it.get(SWEDEN), it.parties()) },
+            DemoStep("Cash flow hedges") { DemoHedges(api, calendar, desk).seed(it.get(FINLAND), it.parties()) },
             DemoStep("Ledger adjustments and pending changes") { office.ledger(it.get(FINLAND)) },
             DemoStep("EMIR reporting") { office.reporting(it.get(FINLAND)) },
         )

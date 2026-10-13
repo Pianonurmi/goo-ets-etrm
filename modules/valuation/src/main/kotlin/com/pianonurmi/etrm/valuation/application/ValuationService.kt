@@ -27,6 +27,8 @@ import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.valuation.api.ExplainComponent
+import com.pianonurmi.etrm.valuation.api.ForwardTerms
+import com.pianonurmi.etrm.valuation.api.ForwardValue
 import com.pianonurmi.etrm.valuation.api.PnlExplainView
 import com.pianonurmi.etrm.valuation.api.PortfolioBridgeView
 import com.pianonurmi.etrm.valuation.api.PortfolioBucketRow
@@ -455,6 +457,22 @@ class ValuationService(
             components,
             rows,
         )
+    }
+
+    @Transactional(readOnly = true)
+    override fun forwardValue(legalEntityId: UUID, date: LocalDate, terms: ForwardTerms): ForwardValue? {
+        readable(legalEntityId)
+        val base = referenceData.requireLegalEntity(legalEntityId).baseCurrency.currencyCode
+        val market = when (terms.productFamily) {
+            ProductFamily.EMISSION_ALLOWANCE -> terms.allowanceProductCode?.let { curves.forwardPrice(it, terms.deliveryDate, date) }
+            ProductFamily.GUARANTEE_OF_ORIGIN -> terms.bucketCode?.let { curves.vintagePrice(it, terms.productionYear ?: terms.deliveryDate.year, date) }
+        } ?: return null
+        val toContract = fx.rate(date, market.currency, terms.currency)?.rate ?: return null
+        val toBase = fx.rate(date, terms.currency, base)?.rate ?: return null
+        val marketContract = (market.value * toContract).setScale(6, RoundingMode.HALF_EVEN)
+        val df = discounting.discountFactor(terms.currency, terms.payDate, date)
+        val value = Mtm.value(terms.quantity, marketContract, terms.price, df.value)
+        return ForwardValue(marketContract, df.value, Mtm.money(value), Mtm.money(value * toBase), base)
     }
 
     @Transactional(readOnly = true)

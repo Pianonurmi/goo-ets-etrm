@@ -95,6 +95,8 @@ class PeriodEndService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    /** Cash flow hedges (ADR 0045); none in tests that wire the service by hand. */
+    private val hedges: HedgeService? = null,
 ) : PeriodEndCommand, PeriodEndQuery {
     /** What one run is working with. */
     private class Context(val entity: LegalEntityView, val period: YearMonth, val runId: UUID) {
@@ -156,9 +158,16 @@ class PeriodEndService(
         val results = all.filter { it.status == ResultStatus.OK && it.mtmBase != null }
         val excluded = all.size - results.size
         if (excluded > 0) ctx.warnings += "$excluded delivery schedules of the valuation have no MtM (missing price, rate or bucket, or excluded)"
+        val hedged = hedges?.let { h -> valuations.run(valuationRunId)?.let { h.positions(ctx.entity.id, it, ctx.warnings) } }.orEmpty()
+        // The designated proportion of a hedging trade is accounted for by its hedge, the rest by its book type.
+        val designated = hedged.flatMap { p -> p.hedge.instruments.map { it.tradeId to it.proportion } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, p) -> p.fold(BigDecimal.ZERO, BigDecimal::add) }
         val policies = repository.mtmPolicies()
         BookType.entries.forEach { bookType ->
-            val values = results.filter { it.bookType == bookType }.map { it.mtmBase!! }
+            val values = results.filter { it.bookType == bookType }.map { r ->
+                if (designated.isEmpty()) r.mtmBase!! else r.mtmBase!! * (BigDecimal.ONE - (designated[r.tradeId] ?: BigDecimal.ZERO))
+            }
             val asset = values.filter { it.signum() > 0 }.fold(BigDecimal.ZERO, BigDecimal::add)
             val liability = values.filter { it.signum() < 0 }.fold(BigDecimal.ZERO, BigDecimal::add).negate()
             val policy = PeriodEndMath.treatment(policies, ctx.entity.id, bookType)
@@ -191,6 +200,38 @@ class PeriodEndService(
                 policy.treatment,
             )
         }
+        hedged.forEach { hedge(ctx, it) }
+    }
+
+    /**
+     * One cash flow hedge (ADR 0045): the instruments' designated value as derivative asset or liability, its effective
+     * portion in the hedging reserve (2950) and the rest in profit or loss, each the difference from what is booked
+     * and reversed on the first day of the next period, like the unrealised MtM of the books.
+     */
+    private fun hedge(ctx: Context, position: HedgeService.HedgePosition) {
+        val value = position.instrumentValue
+        val reserve = position.reserve
+        val ineffective = value - reserve
+        val dims = mapOf("hedge" to position.hedge.number)
+
+        fun booked(account: String) = journal.balance(ctx.entity.id, account, ctx.end, HEDGE_EVENT, dimensions = dims).baseNet
+        val moves = listOf(
+            "asset" to PeriodEndMath.movement(value.max(BigDecimal.ZERO), booked("1800")),
+            "liability" to PeriodEndMath.movement(value.negate().max(BigDecimal.ZERO), booked("2800").negate()),
+            "reserve" to PeriodEndMath.movement(reserve, booked("2950").negate()),
+            "gain" to PeriodEndMath.movement(ineffective.max(BigDecimal.ZERO), booked("3500").negate()),
+            "loss" to PeriodEndMath.movement(ineffective.negate().max(BigDecimal.ZERO), booked("4500")),
+        )
+        val bookedReserve = booked("2950").negate()
+        val bookedPl = booked("3500").negate() - booked("4500")
+        val amounts = moves.flatMap { (name, m) -> listOf("${name}Increase" to m.first, "${name}Decrease" to m.second) }.toMap()
+        val reversal = moves.flatMap { (name, m) -> listOf("${name}Increase" to m.second, "${name}Decrease" to m.first) }.toMap()
+        val number = position.hedge.number
+        post(ctx, HEDGE_EVENT, ctx.end, "Cash flow hedge $number: reserve and ineffectiveness", amounts, emptyMap(), dims)
+        post(ctx, HEDGE_EVENT, ctx.nextDay, "Reversal of cash flow hedge $number at ${ctx.end}", reversal, emptyMap(), dims)
+        val detail = mapOf("instrumentValue" to value.toPlainString(), "status" to position.hedge.status.name)
+        ctx.components += component(PeriodEndComponentKind.HEDGE, "$number:RESERVE", reserve, bookedReserve, reserve - bookedReserve, detail = detail)
+        ctx.components += component(PeriodEndComponentKind.HEDGE, "$number:INEFFECTIVE", ineffective, bookedPl, ineffective - bookedPl, detail = detail)
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -559,6 +600,7 @@ class PeriodEndService(
 
     private companion object {
         const val MTM_EVENT = "PeriodEndMtm"
+        const val HEDGE_EVENT = "PeriodEndHedge"
         const val NRV_EVENT = "PeriodEndNrv"
         const val PROVISION_EVENT = "PeriodEndProvision"
         const val GRANT_EVENT = "PeriodEndGrantRelease"

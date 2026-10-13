@@ -67,3 +67,9 @@ month, so a run must not double count.
   after the month ends, or accept the timing difference.
 - The provision and the grant release depend on emissions maintained in `etscompliance`; an entity without
   installations has no provision.
+
+## Amendment (ADR 0045)
+Cash flow hedge accounting is modelled: designated relationships under four eyes, effectiveness by the lower of on
+every official valuation, and a period-end hedge component that puts the effective portion in the hedging reserve and
+the rest in profit or loss. The designated proportion of a hedging trade leaves its book type's MtM. `POST_OCI` by book
+type stays available but is no substitute for a designated hedge.

@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.allocation.api.PortfolioValueQuery
 import com.pianonurmi.etrm.etscompliance.api.EtsComplianceQuery
 import com.pianonurmi.etrm.inventory.api.LotQuery
 import com.pianonurmi.etrm.ledger.api.GlInterfaceQuery
+import com.pianonurmi.etrm.ledger.api.HedgeQuery
 import com.pianonurmi.etrm.ledger.api.LedgerQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.security.Role
@@ -58,6 +59,8 @@ class ReportCatalogue(
     private val clock: Clock,
     /** Allocation's portfolio value, for the give-away report; absent where allocation is not wired (tests). */
     private val giveAway: PortfolioValueQuery? = null,
+    /** Cash flow hedges, for the effectiveness report; absent where the ledger's hedges are not wired (tests). */
+    private val hedges: HedgeQuery? = null,
 ) {
     private class Definition(
         override val code: String,
@@ -200,6 +203,34 @@ class ReportCatalogue(
                     "saleMarkEur" to it.saleMarkEur,
                     "giveAwayEur" to it.giveAwayEur,
                 )
+            }
+        },
+        Definition(
+            "HEDGE_EFFECTIVENESS",
+            "Hedge effectiveness",
+            "Cash flow hedges measured on each official valuation in the period: instruments' value and change since " +
+                "designation, the hypothetical derivative, the reserve and ineffectiveness by the lower of (ADR 0045)",
+            FINANCE + Role.RISK,
+            listOf(ENTITY, FROM, TO),
+            listOf("hedge", "status", "valuationDate", "instrumentValue", "instrumentChange", "hypotheticalValue", "effective", "ineffective", "offsetRatio"),
+        ) { p ->
+            val query = hedges ?: return@Definition emptyList()
+            val from = p.date("from")
+            val to = p.date("to")
+            query.hedges(p.uuid("legalEntityId")).flatMap { hedge ->
+                query.hedge(hedge.id).measurements.filter { !it.valuationDate.isBefore(from) && !it.valuationDate.isAfter(to) }.map {
+                    mapOf(
+                        "hedge" to hedge.number,
+                        "status" to hedge.status.name,
+                        "valuationDate" to it.valuationDate,
+                        "instrumentValue" to it.instrumentValue,
+                        "instrumentChange" to it.instrumentChange,
+                        "hypotheticalValue" to it.hypotheticalValue,
+                        "effective" to it.effective,
+                        "ineffective" to it.ineffective,
+                        "offsetRatio" to it.offsetRatio,
+                    )
+                }
             }
         },
         Definition(

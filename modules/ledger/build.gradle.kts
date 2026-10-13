@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":modules:valuation"))
     implementation(project(":modules:etscompliance"))
     implementation(project(":modules:workflow"))
+    implementation(project(":modules:document"))
     implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))

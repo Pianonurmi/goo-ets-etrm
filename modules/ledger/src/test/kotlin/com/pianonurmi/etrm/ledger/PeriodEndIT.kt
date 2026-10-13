@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.ledger
 import com.pianonurmi.etrm.allocation.api.AllocationLineView
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationQuery
+import com.pianonurmi.etrm.document.api.DocumentCommand
 import com.pianonurmi.etrm.etscompliance.api.EmissionKind
 import com.pianonurmi.etrm.etscompliance.api.EmissionRecordView
 import com.pianonurmi.etrm.etscompliance.api.EmissionStatus
@@ -20,11 +21,16 @@ import com.pianonurmi.etrm.ledger.adapter.jooq.JooqCostLayerRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlExportRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlInterfaceRepository
+import com.pianonurmi.etrm.ledger.adapter.jooq.JooqHedgeRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqJournalRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodEndRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPeriodRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqPostingRuleRepository
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqSeedRepository
+import com.pianonurmi.etrm.ledger.api.HedgeDirection
+import com.pianonurmi.etrm.ledger.api.HedgeInstrument
+import com.pianonurmi.etrm.ledger.api.HedgeStatus
+import com.pianonurmi.etrm.ledger.api.HedgedItem
 import com.pianonurmi.etrm.ledger.api.ManualJournal
 import com.pianonurmi.etrm.ledger.api.ManualLine
 import com.pianonurmi.etrm.ledger.api.MtmTreatment
@@ -32,7 +38,10 @@ import com.pianonurmi.etrm.ledger.api.PeriodEndComponentKind
 import com.pianonurmi.etrm.ledger.api.PeriodEndRunView
 import com.pianonurmi.etrm.ledger.api.PolicyChangeStatus
 import com.pianonurmi.etrm.ledger.api.PolicyKind
+import com.pianonurmi.etrm.ledger.api.RequestHedgeDesignation
+import com.pianonurmi.etrm.ledger.api.RequestHedgeDiscontinuation
 import com.pianonurmi.etrm.ledger.api.RequestPolicyChange
+import com.pianonurmi.etrm.ledger.application.HedgeService
 import com.pianonurmi.etrm.ledger.application.LedgerEventListeners
 import com.pianonurmi.etrm.ledger.application.LedgerService
 import com.pianonurmi.etrm.ledger.application.PeriodEndService
@@ -52,6 +61,7 @@ import com.pianonurmi.etrm.product.api.BoundBuckets
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductBucketView
 import com.pianonurmi.etrm.product.api.ProductCatalogueQuery
+import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.AccountingPolicy
 import com.pianonurmi.etrm.referencedata.api.AllowanceClassification
@@ -62,7 +72,15 @@ import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import com.pianonurmi.etrm.trade.api.DeliveryObligationView
+import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
+import com.pianonurmi.etrm.trade.api.PriceType
+import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
+import com.pianonurmi.etrm.trade.api.TradeStatus
+import com.pianonurmi.etrm.trade.api.TradeView
+import com.pianonurmi.etrm.valuation.api.ForwardTerms
+import com.pianonurmi.etrm.valuation.api.ForwardValue
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
 import com.pianonurmi.etrm.valuation.api.ValuationResultView
@@ -105,6 +123,10 @@ class PeriodEndIT {
     private lateinit var ledger: LedgerService
     private lateinit var listeners: LedgerEventListeners
     private lateinit var periodEnd: PeriodEndService
+    private lateinit var withHedges: PeriodEndService
+    private lateinit var hedges: HedgeService
+    private val tradesById = mutableMapOf<UUID, TradeView>()
+    private var hedgedForward = BigDecimal("80")
     private lateinit var referenceData: ReferenceDataService
 
     @BeforeAll
@@ -162,7 +184,15 @@ class PeriodEndIT {
         }
         val plans = mockk<AllocationQuery> { every { requirePlan(planId) } returns mockk { every { lines } returns listOf(line) } }
         val obligations = mockk<ObligationQuery> { every { obligation(obligationId) } returns mockk { every { sourceRef } returns saleRef } }
+        every { valuations.run(any()) } answers { valuationRuns.values.flatMap { it.values }.firstOrNull { r -> r.id == firstArg<UUID>() } }
+        // The hypothetical derivative: q x (forward - locked price), undiscounted, in EUR.
+        every { valuations.forwardValue(any(), any(), any()) } answers {
+            val terms = thirdArg<ForwardTerms>()
+            val value = (terms.quantity * (hedgedForward - terms.price)).setScale(2)
+            ForwardValue(hedgedForward, BigDecimal.ONE, value, value, "EUR")
+        }
         val trades = mockk<TradeQuery> {
+            every { trade(any()) } answers { tradesById[firstArg()] }
             every { obligation(saleRef) } returns mockk<DeliveryObligationView> {
                 every { price } returns BigDecimal("0.80")
                 every { priceCurrency } returns Currency.getInstance("EUR")
@@ -190,6 +220,31 @@ class PeriodEndIT {
             actor,
             publisher,
             clock,
+        )
+        val documents = mockk<DocumentCommand> { every { renderPdf(any()) } returns mockk { every { id } returns UUID.randomUUID() } }
+        hedges = HedgeService(JooqHedgeRepository(dsl), trades, valuations, documents, referenceData, actor, publisher, clock)
+        withHedges = PeriodEndService(
+            ledger,
+            JooqJournalRepository(dsl),
+            JooqCostLayerRepository(dsl),
+            JooqPeriodRepository(dsl),
+            JooqPeriodEndRepository(dsl),
+            referenceData,
+            catalogue,
+            valuations,
+            compliance,
+            lots,
+            buckets,
+            mockk(relaxed = true),
+            curves,
+            fx,
+            plans,
+            obligations,
+            trades,
+            actor,
+            publisher,
+            clock,
+            hedges,
         )
     }
 
@@ -271,6 +326,39 @@ class PeriodEndIT {
                 null,
             ),
         )
+    }
+
+    /** A bought EUA forward of 1 000 t, open, delivering in December. */
+    private fun forwardPurchase(entity: UUID, number: String, side: Side = Side.BUY): TradeView {
+        val schedule = mockk<DeliveryScheduleView> {
+            every { remainingQuantity } returns BigDecimal(1000)
+            every { deliveryDate } returns LocalDate.of(2026, 12, 14)
+        }
+        val leg = mockk<TradeLegView> {
+            every { priceType } returns PriceType.FIXED
+            every { this@mockk.side } returns side
+            every { allowanceProductCode } returns "EUA"
+            every { bucketCode } returns null
+            every { priceCurrency } returns Currency.getInstance("EUR")
+            every { deliveries } returns listOf(schedule)
+        }
+        val trade = mockk<TradeView> {
+            every { id } returns UUID.nameUUIDFromBytes(number.toByteArray())
+            every { tradeNumber } returns number
+            every { legalEntityId } returns entity
+            every { status } returns TradeStatus.CONFIRMED
+            every { productFamily } returns ProductFamily.EMISSION_ALLOWANCE
+            every { legs } returns listOf(leg)
+        }
+        tradesById[trade.id] = trade
+        return trade
+    }
+
+    private fun hedgeMtm(trade: TradeView, value: String) = mockk<ValuationResultView> {
+        every { bookType } returns BookType.TRADING
+        every { status } returns ResultStatus.OK
+        every { mtmBase } returns BigDecimal(value)
+        every { tradeId } returns trade.id
     }
 
     private fun PeriodEndRunView.component(kind: PeriodEndComponentKind, key: String) = components.single { it.kind == kind && it.key == key }
@@ -414,6 +502,60 @@ class PeriodEndIT {
         }
         periodEnd.policyChanges(PolicyChangeStatus.APPLIED).single().id shouldBe change.id
         shouldThrow<ValidationException> { periodEnd.applyPolicyChange(change.id, "accountant3") }
+    }
+
+    @Test
+    @Suppress("LongMethod") // one hedge from designation through two period ends and its discontinuation
+    fun `a cash flow hedge is designated under four eyes, splits its value into the reserve and ineffectiveness, and freezes the reserve when discontinued`() {
+        val e = entity("PE-HEDGE")
+        val forward = forwardPurchase(e, "T-HEDGE-1")
+        hedgedForward = BigDecimal("80")
+        official(e, LocalDate.of(2026, 10, 30), listOf(hedgeMtm(forward, "2000")))
+        val item = HedgedItem(HedgeDirection.PURCHASE, ProductFamily.EMISSION_ALLOWANCE, "EUA", null, null, BigDecimal(1000), LocalDate.of(2026, 12, 14), "EUR")
+        shouldThrow<ValidationException> {
+            hedges.requestDesignation(RequestHedgeDesignation(e, item, listOf(HedgeInstrument(forwardPurchase(e, "T-HEDGE-SOLD", Side.SELL).id)), "x"))
+        }.message!! shouldContain "hedged by buying"
+        val proposed = hedges.requestDesignation(
+            RequestHedgeDesignation(e, item, listOf(HedgeInstrument(forward.id)), "Fix the price of the allowances bought for 2026 compliance"),
+        )
+        proposed.status shouldBe HedgeStatus.PENDING
+        proposed.hedgeRatio.compareTo(BigDecimal.ONE) shouldBe 0
+        proposed.checks.all { it.passed } shouldBe true
+        shouldThrow<SegregationOfDutiesException> { hedges.approveDesignation(proposed.id, "accountant1") }
+        val active = hedges.approveDesignation(proposed.id, "accountant2")
+        active.designationPrice!!.compareTo(BigDecimal("80")) shouldBe 0
+        active.instrumentBaseline shouldBe BigDecimal("2000.00")
+        // The trade cannot be designated a second time.
+        shouldThrow<ValidationException> { hedges.requestDesignation(RequestHedgeDesignation(e, item, listOf(HedgeInstrument(forward.id)), "again")) }
+
+        // November: the forward rises to 85. The instruments gained 5 500, the hypothetical 5 000: 5 000 is effective.
+        hedgedForward = BigDecimal("85")
+        official(e, LocalDate.of(2026, 11, 30), listOf(hedgeMtm(forward, "7500")))
+        val november = YearMonth.of(2026, 11)
+        val run = withHedges.run(e, november)
+        run.component(PeriodEndComponentKind.HEDGE, "${active.number}:RESERVE").required shouldBe BigDecimal("5000.00")
+        run.component(PeriodEndComponentKind.HEDGE, "${active.number}:INEFFECTIVE").required shouldBe BigDecimal("2500.00")
+        balance(e, november, "1800") shouldBe BigDecimal("7500.00")
+        balance(e, november, "2950") shouldBe BigDecimal("-5000.00")
+        balance(e, november, "3500") shouldBe BigDecimal("-2500.00")
+        // The designated trade is not in the trading book's MtM as well.
+        run.components.none { it.kind == PeriodEndComponentKind.MTM && it.key == "TRADING:ASSET" && it.required.signum() != 0 } shouldBe true
+        withHedges.run(e, november).entryIds.shouldBeEmpty()
+        hedges.hedge(active.id).measurements.single().let {
+            it.instrumentChange shouldBe BigDecimal("5500.00")
+            it.offsetRatio shouldBe BigDecimal("110.0")
+        }
+
+        // Discontinued while the purchase is still expected: the reserve stays at 5 000, the rest goes to profit or loss.
+        shouldThrow<ValidationException> { hedges.requestDiscontinuation(active.id, RequestHedgeDiscontinuation(" ", true)) }
+        hedges.requestDiscontinuation(active.id, RequestHedgeDiscontinuation("Purchase moved to a spot auction", stillExpected = true))
+        shouldThrow<SegregationOfDutiesException> { hedges.approveDiscontinuation(active.id, "accountant1") }
+        hedges.approveDiscontinuation(active.id, "accountant2").discontinuation!!.frozenReserve shouldBe BigDecimal("5000.00")
+        official(e, LocalDate.of(2026, 12, 31), listOf(hedgeMtm(forward, "6000")))
+        val december = withHedges.run(e, YearMonth.of(2026, 12))
+        december.component(PeriodEndComponentKind.HEDGE, "${active.number}:RESERVE").required shouldBe BigDecimal("5000.00")
+        december.component(PeriodEndComponentKind.HEDGE, "${active.number}:INEFFECTIVE").required shouldBe BigDecimal("1000.00")
+        ledger.verifyJournal(e).shouldBeEmpty()
     }
 
     private companion object {

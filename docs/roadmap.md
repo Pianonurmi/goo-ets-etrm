@@ -156,6 +156,6 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M1 | Discounted MtM (ADR 0044): to the payment date in the contract currency, futures undiscounted; pay date, factor, curve and undiscounted value kept per result | done |
 | M2 | TIME and RATES in the P&L explain | done |
 | M3 | Carry interpolation of allowance forwards: beyond the last future at the last segment's carry, set per curve and recorded with each snapshot; the demo EUA curve uses it | done |
-| M4 | Hedge designation and effectiveness (ADR 0045) | |
-| M5 | Hedge accounting at period end | |
+| M4 | Hedge designation and effectiveness (ADR 0045): cash flow hedges of forecast purchases and sales, designation and discontinuation under four eyes, documentation as a PDF, lower-of measurement on every official valuation (hypothetical derivative valued like a trade), `HEDGE_EFFECTIVENESS` report | done |
+| M5 | Hedge accounting at period end: designated proportions leave the book types' MtM; instruments at fair value, effective portion in the hedging reserve, the rest in profit or loss, reversed next day; frozen reserve after discontinuation; demo hedges | done |
 | M6 | Screens, demo, documentation, release 0.11.0 | |

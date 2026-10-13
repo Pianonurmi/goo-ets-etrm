@@ -4229,6 +4229,248 @@
         "required" : [ "computedAt", "deliveryDates", "holderEntityId", "rows", "stamp", "tier" ],
         "type" : "object"
       },
+      "HedgeCheck" : {
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "passed" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "code", "detail", "passed" ],
+        "type" : "object"
+      },
+      "HedgeDetail" : {
+        "properties" : {
+          "measurements" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HedgeMeasurementView"
+            },
+            "type" : "array"
+          },
+          "relationship" : {
+            "$ref" : "#/components/schemas/HedgeRelationshipView"
+          }
+        },
+        "required" : [ "measurements", "relationship" ],
+        "type" : "object"
+      },
+      "HedgeDiscontinuation" : {
+        "properties" : {
+          "decidedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "decidedBy" : {
+            "type" : [ "string", "null" ]
+          },
+          "frozenReserve" : {
+            "type" : [ "number", "null" ]
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requestedBy" : {
+            "type" : "string"
+          },
+          "stillExpected" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "reason", "requestedAt", "requestedBy", "stillExpected" ],
+        "type" : "object"
+      },
+      "HedgeInstrument" : {
+        "properties" : {
+          "proportion" : {
+            "type" : "number"
+          },
+          "tradeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "tradeId" ],
+        "type" : "object"
+      },
+      "HedgeInstrumentView" : {
+        "properties" : {
+          "proportion" : {
+            "type" : "number"
+          },
+          "quantity" : {
+            "type" : "number"
+          },
+          "tradeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "tradeNumber" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "proportion", "quantity", "tradeId", "tradeNumber" ],
+        "type" : "object"
+      },
+      "HedgeMeasurementView" : {
+        "properties" : {
+          "effective" : {
+            "type" : "number"
+          },
+          "hypotheticalValue" : {
+            "type" : "number"
+          },
+          "ineffective" : {
+            "type" : "number"
+          },
+          "instrumentChange" : {
+            "type" : "number"
+          },
+          "instrumentValue" : {
+            "type" : "number"
+          },
+          "measuredAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "offsetRatio" : {
+            "type" : [ "number", "null" ]
+          },
+          "relationshipId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "valuationDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "valuationRunId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "effective", "hypotheticalValue", "ineffective", "instrumentChange", "instrumentValue", "measuredAt", "relationshipId", "valuationDate", "valuationRunId" ],
+        "type" : "object"
+      },
+      "HedgeRelationshipView" : {
+        "properties" : {
+          "checks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HedgeCheck"
+            },
+            "type" : "array"
+          },
+          "decidedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "decidedBy" : {
+            "type" : [ "string", "null" ]
+          },
+          "designationDate" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "designationPrice" : {
+            "type" : [ "number", "null" ]
+          },
+          "discontinuation" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/HedgeDiscontinuation"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "documentId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "hedgeRatio" : {
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "instrumentBaseline" : {
+            "type" : [ "number", "null" ]
+          },
+          "instruments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HedgeInstrumentView"
+            },
+            "type" : "array"
+          },
+          "item" : {
+            "$ref" : "#/components/schemas/HedgedItem"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "objective" : {
+            "type" : "string"
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requestedBy" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "ACTIVE", "REJECTED", "DISCONTINUED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "checks", "hedgeRatio", "id", "instruments", "item", "legalEntityId", "number", "objective", "requestedAt", "requestedBy", "status" ],
+        "type" : "object"
+      },
+      "HedgedItem" : {
+        "properties" : {
+          "allowanceProductCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "bucketCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "direction" : {
+            "enum" : [ "PURCHASE", "SALE" ],
+            "type" : "string"
+          },
+          "expectedDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "productFamily" : {
+            "enum" : [ "GUARANTEE_OF_ORIGIN", "EMISSION_ALLOWANCE" ],
+            "type" : "string"
+          },
+          "productionYear" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
+          },
+          "quantity" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "currency", "direction", "expectedDate", "productFamily", "quantity" ],
+        "type" : "object"
+      },
       "HistoryEntryMapStringObject" : {
         "properties" : {
           "actor" : {
@@ -6821,7 +7063,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "MTM", "NRV", "EMISSION_PROVISION", "GRANT_RELEASE", "FX_REVALUATION" ],
+            "enum" : [ "MTM", "HEDGE", "NRV", "EMISSION_PROVISION", "GRANT_RELEASE", "FX_REVALUATION" ],
             "type" : "string"
           },
           "posted" : {
@@ -9039,6 +9281,40 @@
           }
         },
         "required" : [ "amount", "counterpartyId", "currency", "kind", "validFrom" ],
+        "type" : "object"
+      },
+      "RequestHedgeDesignation" : {
+        "properties" : {
+          "instruments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HedgeInstrument"
+            },
+            "type" : "array"
+          },
+          "item" : {
+            "$ref" : "#/components/schemas/HedgedItem"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "objective" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "instruments", "item", "legalEntityId", "objective" ],
+        "type" : "object"
+      },
+      "RequestHedgeDiscontinuation" : {
+        "properties" : {
+          "reason" : {
+            "type" : "string"
+          },
+          "stillExpected" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "reason", "stillExpected" ],
         "type" : "object"
       },
       "RequestLimit" : {
@@ -15032,6 +15308,174 @@
           }
         },
         "tags" : [ "Ledger" ]
+      }
+    },
+    "/api/v1/ledger/hedges" : {
+      "get" : {
+        "operationId" : "hedge_hedges",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "ACTIVE", "REJECTED", "DISCONTINUED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/HedgeRelationshipView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Hedge accounting" ]
+      },
+      "post" : {
+        "operationId" : "hedge_requestDesignation",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RequestHedgeDesignation"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HedgeRelationshipView"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Hedge accounting" ]
+      }
+    },
+    "/api/v1/ledger/hedges/{id}" : {
+      "get" : {
+        "operationId" : "hedge_hedge",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HedgeDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Hedge accounting" ]
+      }
+    },
+    "/api/v1/ledger/hedges/{id}/discontinuation" : {
+      "post" : {
+        "operationId" : "hedge_requestDiscontinuation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RequestHedgeDiscontinuation"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HedgeRelationshipView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Hedge accounting" ]
       }
     },
     "/api/v1/ledger/journal/verify" : {
@@ -25039,6 +25483,9 @@
   }, {
     "description" : "Hierarchical code sets: energy sources, technologies, labels, regions, support schemes",
     "name" : "Taxonomy"
+  }, {
+    "description" : "Cash flow hedges: designation and discontinuation under four eyes, effectiveness per official valuation",
+    "name" : "Hedge accounting"
   }, {
     "description" : "Report catalogue and export log, EMIR events and completeness",
     "name" : "Reports"
