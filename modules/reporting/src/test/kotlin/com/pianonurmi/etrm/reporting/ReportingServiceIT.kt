@@ -96,6 +96,7 @@ class ReportingServiceIT {
             every { side } returns Side.BUY
             every { this@mockk.upi } returns upi
             every { isin } returns null
+            every { option } returns null
             every { price } returns BigDecimal("70.00")
             every { priceCurrency } returns Currency.getInstance("EUR")
             every { quantity } returns BigDecimal(1000)

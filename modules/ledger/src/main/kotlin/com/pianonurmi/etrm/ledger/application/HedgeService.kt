@@ -148,6 +148,7 @@ class HedgeService(
         if (trade.productFamily != item.productFamily) throw ValidationException("${trade.tradeNumber} is not a ${item.productFamily} trade")
         val side = if (item.direction == HedgeDirection.PURCHASE) Side.BUY else Side.SELL
         trade.legs.forEach { leg ->
+            if (leg.option != null) throw ValidationException("${trade.tradeNumber} is an option; designate forwards")
             if (leg.futuresContractCode != null) {
                 throw ValidationException("${trade.tradeNumber} is a future, settled daily by variation margin; designate forwards")
             }

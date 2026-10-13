@@ -1268,6 +1268,13 @@
           "isin" : {
             "type" : [ "string", "null" ]
           },
+          "option" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/OptionTerms"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "price" : {
             "type" : "number"
           },
@@ -7321,6 +7328,26 @@
         "required" : [ "criterion", "deliveryDate", "deliveryWindow", "holderEntityId", "kind", "quantityMwh" ],
         "type" : "object"
       },
+      "OptionTerms" : {
+        "properties" : {
+          "expiryDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "optionType" : {
+            "enum" : [ "CALL", "PUT" ],
+            "type" : "string"
+          },
+          "strike" : {
+            "type" : "number"
+          },
+          "underlyingContractCode" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "expiryDate", "optionType", "strike", "underlyingContractCode" ],
+        "type" : "object"
+      },
       "OverrideRequest" : {
         "properties" : {
           "note" : {
@@ -10811,6 +10838,13 @@
           "notional" : {
             "readOnly" : true,
             "type" : "number"
+          },
+          "option" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/OptionTerms"
+            }, {
+              "type" : "null"
+            } ]
           },
           "price" : {
             "type" : "number"

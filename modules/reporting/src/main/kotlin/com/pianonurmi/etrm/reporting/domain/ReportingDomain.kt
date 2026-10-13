@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.reporting.api.EmirEventView
 import com.pianonurmi.etrm.reporting.api.EmirFieldRule
 import com.pianonurmi.etrm.reporting.api.ReportExportView
 import com.pianonurmi.etrm.reporting.api.ReportResult
+import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.ClearingStatus
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeView
@@ -54,7 +55,9 @@ object EmirFields {
     /** NEWT, MODI, TERM and EROR carry the trade's terms. */
     fun trade(trade: TradeView, parties: EmirParties, action: EmirAction, eventDate: LocalDate): Map<String, String?> {
         val leg = trade.legs.first()
-        val deliveries = trade.legs.flatMap { it.deliveries }.map { it.deliveryDate }
+        // An option delivers nothing; it matures at its expiry (ADR 0047).
+        val deliveries = trade.legs.flatMap { it.deliveries }.map { it.deliveryDate } + trade.legs.mapNotNull { it.option?.expiryDate }
+        val option = leg.option
         val cleared = trade.regulatory.clearingStatus == ClearingStatus.CLEARED
         return common(trade, parties, action, eventDate) + mapOf(
             "COUNTERPARTY_SIDE" to if (leg.side == Side.BUY) "BUYR" else "SLLR",
@@ -76,6 +79,17 @@ object EmirFields {
             "CLEARED" to if (cleared) "Y" else "N",
             "CCP" to parties.ccpLei.takeIf { cleared },
             "INTRAGROUP" to if (parties.intragroup) "Y" else "N",
+        ) + (
+            option?.let {
+                mapOf(
+                    "OPTION_TYPE" to if (it.optionType == OptionType.CALL) "CALL" else "PUTO",
+                    "OPTION_EXERCISE_STYLE" to "EURO",
+                    "STRIKE_PRICE" to it.strike.toPlainString(),
+                    "STRIKE_PRICE_CURRENCY" to leg.priceCurrency.currencyCode,
+                    "MATURITY_DATE_OF_UNDERLYING" to null,
+                    "UNDERLYING" to it.underlyingContractCode,
+                )
+            } ?: emptyMap()
         )
     }
 

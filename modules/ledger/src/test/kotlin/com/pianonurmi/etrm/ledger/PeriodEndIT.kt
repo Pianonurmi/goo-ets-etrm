@@ -339,6 +339,7 @@ class PeriodEndIT {
         }
         val leg = mockk<TradeLegView> {
             every { futuresContractCode } returns future
+            every { option } returns null
             every { priceType } returns PriceType.FIXED
             every { this@mockk.side } returns side
             every { allowanceProductCode } returns "EUA"

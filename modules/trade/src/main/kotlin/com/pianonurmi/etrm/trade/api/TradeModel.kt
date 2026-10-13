@@ -26,6 +26,19 @@ enum class Side {
 
 enum class PriceType { FIXED, INDEX, FORMULA }
 
+enum class OptionType { CALL, PUT }
+
+/**
+ * A European option on an exchange future (ADR 0047): exercised at expiry into [underlyingContractCode] at [strike]
+ * when in the money. The leg's price is the premium per unit, its quantity the units of the underlying.
+ */
+data class OptionTerms(
+    val optionType: OptionType,
+    val strike: BigDecimal,
+    val expiryDate: LocalDate,
+    val underlyingContractCode: String,
+)
+
 enum class TradeStatus {
     DRAFT,
     PENDING_APPROVAL,
@@ -89,6 +102,8 @@ data class TradeLegView(
     val upi: String? = null,
     /** ISIN of the instrument when it has one (futures, venue-traded contracts). */
     val isin: String? = null,
+    /** For options: the terms; the leg then has no delivery schedule, since exercise creates the future. */
+    val option: OptionTerms? = null,
 ) {
     val notional: BigDecimal get() = quantity * price
 }
@@ -195,6 +210,8 @@ data class CaptureLeg(
     val futuresContractCode: String? = null,
     val upi: String? = null,
     val isin: String? = null,
+    /** Required for options, refused otherwise; an option leg has no deliveries. */
+    val option: OptionTerms? = null,
 )
 
 data class CaptureTrade(

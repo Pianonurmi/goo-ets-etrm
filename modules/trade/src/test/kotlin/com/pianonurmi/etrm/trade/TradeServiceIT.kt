@@ -55,6 +55,8 @@ import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.FindingSeverity
+import com.pianonurmi.etrm.trade.api.OptionTerms
+import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
@@ -67,6 +69,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
 import io.mockk.every
 import io.mockk.mockk
@@ -494,6 +497,34 @@ class TradeServiceIT {
                 },
             )
         }
+
+        // An option on the future (ADR 0047): no deliveries, cleared like its underlying, expiring by its last trading day.
+        val option = { terms: OptionTerms?, quantity: Long, instrument: InstrumentType ->
+            euaTrade(entity, book, ccp, instrument, dec, quantity = quantity).let { c ->
+                c.copy(legs = c.legs.map { it.copy(deliveries = emptyList(), price = BigDecimal("4.20"), option = terms) })
+            }
+        }
+        val call = OptionTerms(OptionType.CALL, BigDecimal("80"), LocalDate.of(2026, 12, 16), "tst_eua_dec26")
+        trades.capture(option(call, 5_000, InstrumentType.OPTION)).let {
+            it.regulatory.clearingStatus shouldBe ClearingStatus.CLEARED
+            it.regulatory.ccpCounterpartyId shouldBe ccp
+            it.legs.single().option!!.underlyingContractCode shouldBe "TST_EUA_DEC26"
+            it.legs.single().deliveries shouldBe emptyList()
+            it.legs.single().futuresContractCode shouldBe null
+        }
+        shouldThrow<ValidationException> { trades.capture(option(null, 5_000, InstrumentType.OPTION)) }.message!! shouldContain "option terms"
+        shouldThrow<ValidationException> { trades.capture(option(call, 5_000, InstrumentType.FORWARD)) }.message!! shouldContain "Only options"
+        shouldThrow<ValidationException> { trades.capture(option(call, 1_500, InstrumentType.OPTION)) }.message!! shouldContain "whole lots"
+        shouldThrow<ValidationException> {
+            trades.capture(option(call.copy(expiryDate = LocalDate.of(2026, 12, 22)), 5_000, InstrumentType.OPTION))
+        }.message!! shouldContain "last trading day"
+        shouldThrow<ValidationException> { trades.capture(option(call.copy(strike = BigDecimal.ZERO), 5_000, InstrumentType.OPTION)) }
+        shouldThrow<ValidationException> {
+            trades.capture(euaTrade(entity, book, ccp, InstrumentType.OPTION, dec).let { c -> c.copy(legs = c.legs.map { it.copy(option = call) }) })
+        }.message!! shouldContain "no delivery schedule"
+        shouldThrow<ValidationException> {
+            trades.capture(option(call, 5_000, InstrumentType.OPTION).copy(counterpartyId = external))
+        }.message!! shouldContain "exchange or clearing house"
     }
 
     @Test

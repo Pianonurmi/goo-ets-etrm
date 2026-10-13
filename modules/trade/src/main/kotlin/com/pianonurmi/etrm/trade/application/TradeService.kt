@@ -33,6 +33,7 @@ import com.pianonurmi.etrm.trade.api.DeliveryObligationView
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
+import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
@@ -175,7 +176,9 @@ class TradeService(
             confirmedAt = null,
             confirmationRef = null,
             createdBy = actor,
-            legs = command.legs.mapIndexed { index, leg -> buildLeg(command.productFamily, command.legalEntityId, command.counterpartyId, index + 1, leg) },
+            legs = optionLegsChecked(command.instrumentType, command.legs).mapIndexed { index, leg ->
+                buildLeg(command.productFamily, command.legalEntityId, command.counterpartyId, index + 1, leg)
+            },
             obligationsOpenAt = entity.obligationsOpenAt,
             regulatory = command.regulatory ?: RegulatoryTerms(),
         )
@@ -202,7 +205,15 @@ class TradeService(
                 throw ValidationException("The CCP must be a clearing house")
             }
         }
+        val options = trade.legs.count { it.option != null }
+        if (trade.instrumentType == InstrumentType.OPTION && options != trade.legs.size) {
+            throw ValidationException(
+                "Every leg of an option names its option terms",
+            )
+        }
+        if (trade.instrumentType != InstrumentType.OPTION && options > 0) throw ValidationException("Only options carry option terms")
         if (trade.instrumentType == InstrumentType.FUTURE) terms = futuresTerms(trade, terms)
+        if (trade.instrumentType == InstrumentType.OPTION) terms = optionTerms(trade, terms)
         if (terms.clearingStatus == ClearingStatus.CLEARED && terms.ccpCounterpartyId == null) throw ValidationException("A cleared trade names its CCP")
         val lei = entity.lei
         if (lei != null && generatesOwnUti(trade, terms)) {
@@ -248,9 +259,61 @@ class TradeService(
         return terms.copy(venueMic = venue, clearingStatus = ClearingStatus.CLEARED, ccpCounterpartyId = ccp)
     }
 
-    private fun buildLeg(family: ProductFamily, legalEntityId: UUID, counterpartyId: UUID, legNo: Int, leg: CaptureLeg): TradeLegView {
-        if (leg.quantity.signum() <= 0) throw ValidationException("Leg $legNo quantity must be positive")
-        if (leg.price.signum() < 0) throw ValidationException("Leg $legNo price must not be negative")
+    /**
+     * An exchange option (ADR 0047): on an active future of the leg's product and currency, in whole lots, expiring
+     * between the trade date and the future's last trading day, cleared on the future's venue.
+     */
+    private fun optionTerms(trade: TradeView, terms: RegulatoryTerms): RegulatoryTerms {
+        val counterparty = referenceData.requireCounterparty(trade.counterpartyId)
+        if (counterparty.counterpartyType != CounterpartyType.EXCHANGE && counterparty.counterpartyType != CounterpartyType.CLEARING_HOUSE) {
+            throw ValidationException("An option is traded with an exchange or clearing house, not ${counterparty.code}")
+        }
+        if (trade.productFamily != ProductFamily.EMISSION_ALLOWANCE) throw ValidationException("Options are on allowance futures")
+        val venues = trade.legs.map { leg ->
+            val option = leg.option!!
+            val code = option.underlyingContractCode
+            val contract = futures.futuresContract(code)?.takeIf { it.active } ?: throw NotFoundException("FuturesContract", code)
+            if (leg.allowanceProductCode != contract.allowanceProductCode) {
+                throw ValidationException("Leg ${leg.legNo}: contract $code is on ${contract.allowanceProductCode}")
+            }
+            if (leg.priceType != PriceType.FIXED) throw ValidationException("Leg ${leg.legNo}: an option's premium is a fixed price")
+            if (leg.quantity.remainder(contract.contractSize).signum() != 0) {
+                throw ValidationException("Leg ${leg.legNo}: quantity must be whole lots of ${contract.contractSize.stripTrailingZeros().toPlainString()}")
+            }
+            if (leg.priceCurrency.currencyCode != contract.currency) {
+                throw ValidationException(
+                    "Leg ${leg.legNo}: contract $code trades in ${contract.currency}",
+                )
+            }
+            if (option.expiryDate.isBefore(trade.tradeDate)) throw ValidationException("Leg ${leg.legNo}: the option expired on ${option.expiryDate}")
+            if (option.expiryDate.isAfter(contract.lastTradingDay)) {
+                throw ValidationException("Leg ${leg.legNo}: an option on $code expires by its last trading day, ${contract.lastTradingDay}")
+            }
+            contract.venueMic
+        }.toSet()
+        val venue = venues.singleOrNull() ?: throw ValidationException("All legs of an option trade on one venue")
+        if (terms.venueMic != null && terms.venueMic != venue) throw ValidationException("The contracts trade on $venue, not ${terms.venueMic}")
+        val ccp = terms.ccpCounterpartyId ?: trade.counterpartyId.takeIf { counterparty.counterpartyType == CounterpartyType.CLEARING_HOUSE }
+        return terms.copy(venueMic = venue, clearingStatus = ClearingStatus.CLEARED, ccpCounterpartyId = ccp)
+    }
+
+    /** Options name their terms on every leg, and only options do (ADR 0047). */
+    private fun optionLegsChecked(instrument: InstrumentType, legs: List<CaptureLeg>): List<CaptureLeg> {
+        val options = legs.count { it.option != null }
+        if (instrument == InstrumentType.OPTION && options != legs.size) throw ValidationException("Every leg of an option names its option terms")
+        if (instrument != InstrumentType.OPTION && options > 0) throw ValidationException("Only options carry option terms")
+        return legs
+    }
+
+    /** A delivery schedule that adds up to the leg, or none for an option, whose exercise creates the future. */
+    private fun checkSchedule(legNo: Int, leg: CaptureLeg) {
+        val option = leg.option
+        if (option != null) {
+            if (leg.deliveries.isNotEmpty()) throw ValidationException("Leg $legNo: an option has no delivery schedule; exercise creates the future")
+            if (option.strike.signum() <= 0) throw ValidationException("Leg $legNo: the strike must be positive")
+            if (leg.futuresContractCode != null) throw ValidationException("Leg $legNo: an option names its underlying, not a futures contract")
+            return
+        }
         if (leg.deliveries.isEmpty()) throw ValidationException("Leg $legNo needs a delivery schedule")
         val scheduled = leg.deliveries.sumOf { it.quantity }
         if (scheduled.compareTo(leg.quantity) != 0) throw ValidationException("Leg $legNo deliveries total $scheduled but leg quantity is ${leg.quantity}")
@@ -260,6 +323,12 @@ class TradeService(
                 throw ValidationException("Leg $legNo delivery date ${d.deliveryDate} must lie within ${d.deliveryWindow}")
             }
         }
+    }
+
+    private fun buildLeg(family: ProductFamily, legalEntityId: UUID, counterpartyId: UUID, legNo: Int, leg: CaptureLeg): TradeLegView {
+        if (leg.quantity.signum() <= 0) throw ValidationException("Leg $legNo quantity must be positive")
+        if (leg.price.signum() < 0) throw ValidationException("Leg $legNo price must not be negative")
+        checkSchedule(legNo, leg)
         leg.deliveryAccountId?.let { accountId ->
             val account = referenceData.requireRegistryAccount(accountId)
             if (account.holderId != legalEntityId) throw ValidationException("Delivery account ${account.accountNumber} is not held by the trading entity")
@@ -309,6 +378,7 @@ class TradeService(
             futuresContractCode = leg.futuresContractCode?.uppercase(),
             upi = checkedUpi(legNo, leg.upi),
             isin = checkedIsin(legNo, leg.isin),
+            option = leg.option?.let { it.copy(underlyingContractCode = it.underlyingContractCode.trim().uppercase()) },
         )
     }
 
@@ -349,7 +419,7 @@ class TradeService(
         val current = locked(tradeId)
         authorise(current.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
         if (current.version != command.expectedVersion) throw StaleVersionException("Trade", tradeId, command.expectedVersion, current.version)
-        val legs = command.legs?.mapIndexed {
+        val legs = command.legs?.let { optionLegsChecked(current.instrumentType, it) }?.mapIndexed {
             index,
             leg,
             ->
