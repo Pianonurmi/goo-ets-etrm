@@ -46,13 +46,27 @@ from the plan or are still open:
 | Plan | Built | Why |
 |---|---|---|
 | Market data feeds from EEX/ICE and GoO platforms | File imports with formats stored as data (exchange settlement CSV, broker GoO CSV, ECB files), manual entry with plausibility checks, and an ECB reference rate adapter (disabled by default) | Exchange and platform data are licensed and `www.eex.com` and `www.ecb.europa.eu` are blocked from the build environment. The ECB adapter is tested against a local stub; allow `www.ecb.europa.eu` to test it live |
-| Curves per bucket and delivery period | EUA forward curve from futures settlements and spot; GoO vintage curves per bucket; linear between pillars, flat beyond, proxies and earlier vintages flagged; official snapshots under four eyes | Seasonality and smoothing wait for real data |
-| MtM and P&L explain (price, volume, new, FX, time) | Undiscounted MtM per delivery schedule; explain by new, cancelled, delivered, amended, price, FX and unexplained (exact by construction) | Time decay shows inside price for undiscounted forwards; options and futures margining are out of scope |
-| MtM accounting under IFRS 9 | Per book type policy as data (P&L, OCI or disclose only) posted at period end and reversed on day one; NRV on inventory; IAS 37 provision (net liability); IAS 20 grant release | Seeded policies are flagged until accounting signs them off; hedge accounting is not modelled |
+| Curves per bucket and delivery period | EUA forward curve from futures settlements and spot; GoO vintage curves per bucket; discount curves (zero rates by tenor) per currency; linear between pillars, flat or at the last carry rate beyond (ADR 0044), proxies and earlier vintages flagged; official snapshots under four eyes | Seasonality waits for monthly-delivery data; rate curves come from files until a vendor feed exists |
+| MtM and P&L explain (price, volume, new, FX, time) | MtM per delivery schedule discounted to the payment date (futures not); explain by new, cancelled, delivered, amended, time, price, rates, FX and unexplained (exact by construction) | Options and futures margining are out of scope |
+| MtM accounting under IFRS 9 | Per book type policy as data (P&L, OCI or disclose only) posted at period end and reversed on day one; NRV on inventory; IAS 37 provision (net liability); IAS 20 grant release | Seeded policies are flagged until accounting signs them off; cash flow hedges of forecast transactions are modelled (ADR 0045), fair value hedges are not |
 | Limits and credit exposure | Credit, position, tenor, stop loss and compliance short limits under four eyes; exposure from MtM, receivables, PFE and collateral; pre-trade check through a trade SPI | PFE add-ons are uncalibrated placeholders; concentration and expiry limits are left for later |
 | Installations, emissions, free allocation, surrender | As planned; deadlines as data with reminders | CBAM-linked phase-out of free allocation and ETS2 are not modelled |
 | EMIR / MiFID reporting | EMIR lifecycle events captured, completeness checked, exported; MiFID ancillary activity figures | No trade repository connection and no ISO 20022 XML; the Refit field layout is unverified; the ancillary test needs market-size data |
 | GL interface hardening | Exactly-once exports, layouts as data (generic, SAP-style unverified), acknowledgement, reconciliation with imported GL balances, hard-close gates | The receiving GL's specification is needed to verify the SAP layout |
+
+## Status after increment 11
+
+Increment 11 deepens valuation (see the [plan](plans/increment-11-valuation-depth.md), ADRs 0044 and 0045):
+
+- **Discounting.** Discount curves by currency (zero rates by tenor, signed off like other curves) discount MtM to the
+  payment date; futures are not discounted. Official MtM, credit exposure, the ledger's MtM and EMIR valuations are
+  fair values from the first discounted run on.
+- **Time and rates in the explain.** A day's passage (TIME) and the move of the discount curve (RATES) are separate
+  components; the components still add up exactly.
+- **Carry.** Allowance forwards can be read beyond the last future at the last segment's carry rate.
+- **Cash flow hedge accounting.** Forecast purchases and sales hedged with forwards are designated and discontinued
+  under four eyes with documentation, measured on every official valuation by the lower of, and split at period end
+  into the hedging reserve and profit or loss.
 
 ## Status after increment 10
 

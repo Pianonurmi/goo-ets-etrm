@@ -4,11 +4,18 @@
 Every open trade (`APPROVED`, `CONFIRMED`, `PARTIALLY_DELIVERED`) is valued per delivery schedule on its remaining
 quantity q (+ bought, − sold):
 
-    MtM = q × (market − contract)          undiscounted, in the contract currency
+    MtM = q × (market − contract) × DF     in the contract currency
     MtM base = MtM × rate(contract currency → base) on the valuation date
+
+**Discounting** (ADR 0044): DF is the factor to the schedule's payment date (else its delivery date) from the
+contract currency's official discount curve: zero rates by tenor, linear in days between tenor dates, simple
+compounding within a year and annual compounding with a simple stub beyond, ACT/360 for EUR. DF is 1 for futures
+(margined daily) and when the currency has no official discount curve. Results keep the pay date, the factor, the
+discount curve and snapshot, and the undiscounted MtM.
 
 **Market price**
 - **Allowances**: the latest official forward curve of the product on or before the date, at the delivery date.
+  Beyond the last future a curve read with `CARRY` grows at the last segment's carry rate; otherwise it is flat.
 - **GoO**: the official vintage curve of the leg's product bucket for the vintage year. The vintage year is the
   calendar year the criterion's window overlaps most (the later year on a tie), or the delivery year.
 

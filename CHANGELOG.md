@@ -7,7 +7,21 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+Valuation depth (increment 11).
+
 ### Added
+- **Discount curves:** zero rates by tenor per currency, built from rate quotes (negative rates allowed), signed off
+  by a second person like other curves, and a discount-factor lookup on the curves screen.
+- **Discounted MtM:** each delivery schedule is valued at its payment date's discount factor (futures are not
+  discounted); valuation results show the payment date, the factor and the value before discounting.
+- **Time and rates in the P&L explain:** the passage of time and the move of the discount curve are shown apart from
+  price.
+- **Carry beyond the last future:** an allowance forward curve can grow at its last carry rate instead of staying flat;
+  the demo EUA curve does.
+- **Cash flow hedge accounting:** forecast allowance or GoO purchases and sales hedged with forwards are designated by
+  one accountant and approved by another, with the hedge documentation issued as a PDF; effectiveness is measured on
+  every official valuation, and month end puts the effective portion in the hedging reserve and the rest in profit or
+  loss. Discontinuation also needs a second accountant. New report: hedge effectiveness.
 - **Invite-only demo behind a Cloudflare Tunnel:** `ops/demo/docker-compose.tunnel.yml` runs the showcase with a
   tunnel connector and publishes no port on the server; Cloudflare Access admits only the e-mail addresses you list,
   then everyone signs in with the demo password. Caddy takes each visitor's address from Cloudflare, so a wrong

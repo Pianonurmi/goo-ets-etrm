@@ -6,19 +6,24 @@
 | Available to sell | The most a new sale of a product could still receive from the supply counted without taking anything from existing obligations; also called headroom (ADR 0036) |
 | Basis (GoO) | Give-away handed over by sales delivered with certificates worth more than their own product; limited by GOO_BASIS (ADR 0040) |
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
+| Carry (curve) | Reading an allowance forward beyond its last future at the last segment's growth rate instead of flat (ADR 0044) |
 | Cheapest to deliver | For a GoO sale, the average value per MWh of the certificates that deliver it on the valuation-grade allocation; a management view next to the bucket mark (ADR 0039) |
 | Concentration (GoO) | Held certificates of one product bucket that no obligation uses after netting through the flow: the book's open exposure to that product (ADR 0040) |
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Criteria | Typed predicate tree describing which certificates satisfy a delivery |
+| Discount factor | What one unit paid on a future date is worth today, from the currency's official discount curve; MtM is multiplied by it (ADR 0044) |
 | Eligibility chain | Sale groups whose eligible supply is nested (the same criterion and target, later delivery dates) linked in the flow so supply enters once and reaches every group it may serve (increment 10, ADR 0036) |
 | EUA / EUAA | EU Allowance (general) / EU Aviation Allowance |
 | Expected issuance | Certificates an own device is expected to have issued for a production month: its forecast, or capacity × load factor, less what is already issued; P50 for views, P90 for plans (ADR 0038) |
 | Expiry haircut | Part of a certificate's value lost because it expires within 60 days of delivery; using such a lot costs less (ADR 0035) |
 | Give-away | The premium handed over when a certificate worth more than the sale's own product delivers it: value of the lot − mark of the sale's bucket |
 | GoO | Guarantee of Origin, 1 certificate = 1 MWh |
+| Hedging reserve | Equity account (2950) holding the effective portion of cash flow hedges until the hedged transaction happens (ADR 0045) |
+| Hypothetical derivative | A forward on the hedged forecast at the price locked at designation, valued like a trade; the yardstick for effectiveness (ADR 0045) |
 | Load factor | Typical capacity factor of a technology for a calendar month, central and P90; the fallback when a device has no forecast. The seeded values are illustrative |
 | Lot | Contiguous certificate number range with identical attributes in one registry account |
 | Lot class | Lots interchangeable for every criterion and for scoring |
+| Lower-of test | The hedging reserve takes the smaller of the instruments' change since designation and the hypothetical derivative's value; the rest is ineffectiveness (ADR 0045) |
 | Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
 | Naive net | Held certificates of a bucket minus its obligations, ignoring which certificates can serve which obligation; can look long while the bucket is short |
 | Obligation | Quantity of certificates to deliver (sale, intercompany) or cancel (disclosure, own consumption) by a date under criteria |

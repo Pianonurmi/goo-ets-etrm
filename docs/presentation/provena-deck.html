@@ -405,7 +405,7 @@
 <div class="frame" id="slide-16"><div class="stage"><section id="roadmap" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Roadmap</p>
-<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Ten increments, each one shippable</h2>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Eleven increments, each one shippable</h2>
 </div>
 <table style="width:1664px;border-collapse:collapse;font-size:24px">
 <tr><th style="text-align:left;padding:14px 20px;background:#0E6E7E;color:#F8FAFC;width:120px">Inc.</th><th style="text-align:left;padding:14px 20px;background:#0E6E7E;color:#F8FAFC">Delivered</th></tr>
@@ -418,11 +418,12 @@
 <tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">8</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">GoO portfolio: value-based allocation, available to sell, future supply, portfolio value, limits</td></tr>
 <tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">9</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Housekeeping: current dependencies, versioned releases and images, enterprise documentation</td></tr>
 <tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">10</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Portfolio follow-ups: figures patched in under a second, fast checks, GoO limits by vintage, give-away report</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">11</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Valuation depth: discount curves and discounted MtM, time and rates in the explain, cash flow hedge accounting</td></tr>
 </table>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 16 · Every increment ends green: full build, end-to-end tests, image scan, then main</p>
-<aside>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation; ten made the portfolio figures fast enough for a production-size book. Each increment has its plan, its milestone list and its decision records in the repository.</aside>
+<aside>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation; ten made the portfolio figures fast enough for a production-size book; eleven discounts MtM to payment and accounts for cash flow hedges. Each increment has its plan, its milestone list and its decision records in the repository.</aside>
 </section></div></div>
-<details class="notes"><summary>16 / 18 · Speaker notes</summary><p>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation; ten made the portfolio figures fast enough for a production-size book. Each increment has its plan, its milestone list and its decision records in the repository.</p></details>
+<details class="notes"><summary>16 / 18 · Speaker notes</summary><p>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation; ten made the portfolio figures fast enough for a production-size book; eleven discounts MtM to payment and accounts for cash flow hedges. Each increment has its plan, its milestone list and its decision records in the repository.</p></details>
 <div class="frame" id="slide-17"><div class="stage"><section id="production" data-transition="fade" style="background:#0E6E7E;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#CDE9EC;letter-spacing:2px;text-transform:uppercase">Path to production</p>
@@ -457,7 +458,7 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:8px">
 <h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Next to build</h3>
-<p style="font-size:26px;line-height:1.4;color:#E6F4F5">Discounting and hedge accounting; EUA futures margining; minimum shares checked against available to sell.</p>
+<p style="font-size:26px;line-height:1.4;color:#E6F4F5">EUA futures margining and options; minimum shares checked against available to sell; fair value hedges.</p>
 </div>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#CDE9EC">Provena · 17 · Unverified external layouts are marked verified = false until checked against their specification</p>
 <aside>The open items before production are inputs from outside the codebase. The integration points exist and are tested against stubs; layouts that have not been checked against the counterparty's own specification are flagged unverified, so nothing pretends to be certified. On the build side, increment 10 delivered the portfolio follow-ups (figures patched in place, GoO limits per vintage, the give-away report); the next candidates are discounting and hedge accounting, futures margining, and checking minimum shares against available to sell.</aside>

@@ -151,11 +151,12 @@ run inside a database transaction.
 - Warnings are errors, static analysis, a coverage rule; `main` moves only on a green pipeline. Current stack: Java 25,
   Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript.
 
-## 16. Roadmap: ten increments, each one shippable
+## 16. Roadmap: eleven increments, each one shippable
 
 - 1 core domain; 2 registries, settlement, inbox; 3 market data, valuation, risk, ETS, period end; 4–5 the web UI;
   6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping, versioned releases (0.9.0) and this documentation; 10 portfolio
-  follow-ups (0.10.0): figures patched in place, GoO limits by vintage, the give-away report.
+  follow-ups (0.10.0): figures patched in place, GoO limits by vintage, the give-away report; 11 valuation depth
+  (0.11.0): discounted MtM, time and rates in the explain, cash flow hedge accounting.
 
 ## 17. Path to production
 
@@ -163,8 +164,8 @@ run inside a database transaction.
 - Specifications: registry APIs (G-REX, NECS) and AIB code lists, the GL file layout, the EMIR layout and trade
   repository, market data vendors.
 - Sign-offs: accounting policies, VAT rules, PFE add-ons.
-- Next to build: discounting and hedge accounting, EUA futures margining, minimum shares checked against available
-  to sell.
+- Next to build: EUA futures margining and options, minimum shares checked against available to sell, fair value
+  hedges.
 
 *Notes:* Layouts not checked against their specification are marked unverified.
 

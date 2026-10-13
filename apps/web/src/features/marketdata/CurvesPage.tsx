@@ -70,8 +70,7 @@ function InterpolationSelect({ code, value }: { code: string; value: 'LINEAR' | 
         value={value}
         disabled={!allowed || change.isPending}
         onChange={(next) => {
-          if (next && next !== value)
-            change.mutate({ params: { path: { code } }, body: { interpolation: next } });
+          if (next && next !== value) change.mutate({ params: { path: { code } }, body: { interpolation: next } });
         }}
         w={360}
         data-testid="curve-interpolation"
