@@ -24,14 +24,18 @@ test.describe('options on EUA futures (ADR 0047)', () => {
       .getByRole('gridcell', { name: /official/i })
       .first()
       .click();
-    // The option columns are the grid's last: scroll them into view (the grid renders only visible columns).
-    await page
-      .locator('.ag-body-horizontal-scroll-viewport')
-      .first()
-      .evaluate((element) => {
-        element.scrollLeft = element.scrollWidth;
-      });
-    await expect(page.getByRole('columnheader', { name: 'Delta' })).toBeVisible();
+    // The option columns are the grid's last: scroll them into view once the rows are in (the grid renders only the
+    // columns in view).
+    await expect(page.locator('.ag-row').first()).toBeVisible();
+    await expect(async () => {
+      await page
+        .locator('.ag-body-horizontal-scroll-viewport')
+        .first()
+        .evaluate((element) => {
+          element.scrollLeft = element.scrollWidth;
+        });
+      await expect(page.getByRole('columnheader', { name: 'Delta' })).toBeVisible({ timeout: 1_000 });
+    }).toPass();
     await expect(page.getByRole('columnheader', { name: 'Vol (%)' })).toBeVisible();
   });
 
