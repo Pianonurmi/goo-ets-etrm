@@ -156,6 +156,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
         }
         val recent = calendar.recentCloses.filter { it.isAfter(calendar.monthEnd) }
         history.margin(finland, calendar.monthEnd.plusDays(1), calendar.lastClose)
+        history.clearingStatements(finland, days = STATEMENT_DAYS, disputed = calendar.recentCloses[calendar.recentCloses.size - 2])
         market.officialCurves(recent)
         recent.forEach { desk.officialValuation(finland, it) }
         market.pendingCurve()
@@ -212,6 +213,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
 
     companion object {
         private const val PARTIES = "parties"
+        private const val STATEMENT_DAYS = 15
 
         /** All fictitious; the first three are the ones the e2e journeys and older steps use. */
         private val COUNTERPARTIES = listOf(

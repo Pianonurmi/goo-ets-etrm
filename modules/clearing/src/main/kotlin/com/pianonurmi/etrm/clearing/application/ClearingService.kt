@@ -78,6 +78,7 @@ class ClearingService(
             clearingMember = command.clearingMember.trim(),
             currency = Currency.getInstance(command.currency.uppercase()).currencyCode,
             active = true,
+            initialMargin = BigDecimal.ZERO.setScale(2),
             createdBy = actor.userId,
             createdAt = clock.instant(),
         )

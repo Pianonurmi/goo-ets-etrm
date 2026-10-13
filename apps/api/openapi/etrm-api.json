@@ -1490,12 +1490,136 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "initialMargin" : {
+            "type" : "number"
+          },
           "legalEntityId" : {
             "format" : "uuid",
             "type" : "string"
           }
         },
-        "required" : [ "active", "clearingHouseId", "clearingMember", "code", "createdAt", "createdBy", "currency", "id", "legalEntityId" ],
+        "required" : [ "active", "clearingHouseId", "clearingMember", "code", "createdAt", "createdBy", "currency", "id", "initialMargin", "legalEntityId" ],
+        "type" : "object"
+      },
+      "ClearingBreakView" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "businessDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "closedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "closedBy" : {
+            "type" : [ "string", "null" ]
+          },
+          "differences" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MarginDifference"
+            },
+            "type" : "array"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "openedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "openedBy" : {
+            "type" : "string"
+          },
+          "resolution" : {
+            "type" : [ "string", "null" ]
+          },
+          "runId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "statementId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "OPEN", "MATCHED", "ACCEPTED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "accountId", "businessDate", "differences", "id", "legalEntityId", "openedAt", "openedBy", "statementId", "status" ],
+        "type" : "object"
+      },
+      "ClearingStatementView" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "businessDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "cashBalance" : {
+            "type" : [ "number", "null" ]
+          },
+          "contentHash" : {
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "fees" : {
+            "type" : "number"
+          },
+          "fileName" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "importedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "importedBy" : {
+            "type" : "string"
+          },
+          "initialMargin" : {
+            "type" : "number"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StatementLineView"
+            },
+            "type" : "array"
+          },
+          "supersededAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "variationMargin" : {
+            "type" : "number"
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "accountId", "businessDate", "contentHash", "currency", "fees", "id", "importedAt", "importedBy", "initialMargin", "legalEntityId", "lines", "variationMargin", "version" ],
         "type" : "object"
       },
       "CommentRequest" : {
@@ -6316,6 +6440,25 @@
         "required" : [ "accountCode" ],
         "type" : "object"
       },
+      "MarginDifference" : {
+        "properties" : {
+          "contractCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "kind" : {
+            "enum" : [ "NO_RUN", "POSITION", "VARIATION_MARGIN", "SETTLEMENT_PRICE" ],
+            "type" : "string"
+          },
+          "ours" : {
+            "type" : [ "number", "null" ]
+          },
+          "theirs" : {
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "kind" ],
+        "type" : "object"
+      },
       "MarginLineView" : {
         "properties" : {
           "contractCode" : {
@@ -10001,6 +10144,28 @@
         "required" : [ "active", "columnMapping", "constants", "dateFormat", "delimiter", "id", "kind", "profileCode", "registryCode", "skipLines", "updatedAt", "updatedBy", "version" ],
         "type" : "object"
       },
+      "StatementImportView" : {
+        "properties" : {
+          "breaks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ClearingBreakView"
+            },
+            "type" : "array"
+          },
+          "imported" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ClearingStatementView"
+            },
+            "type" : "array"
+          },
+          "unchanged" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "breaks", "imported", "unchanged" ],
+        "type" : "object"
+      },
       "StatementLine" : {
         "properties" : {
           "deviceGsrn" : {
@@ -10029,6 +10194,27 @@
           }
         },
         "required" : [ "issuanceRef", "lineNo", "range" ],
+        "type" : "object"
+      },
+      "StatementLineView" : {
+        "properties" : {
+          "contractCode" : {
+            "type" : "string"
+          },
+          "fees" : {
+            "type" : "number"
+          },
+          "position" : {
+            "type" : "number"
+          },
+          "settlementPrice" : {
+            "type" : [ "number", "null" ]
+          },
+          "variationMargin" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "contractCode", "fees", "position", "variationMargin" ],
         "type" : "object"
       },
       "StatementView" : {
@@ -12850,6 +13036,205 @@
         "tags" : [ "Clearing" ]
       }
     },
+    "/api/v1/clearing/accounts/{id}/statements" : {
+      "get" : {
+        "operationId" : "clearing_statements",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ClearingStatementView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      },
+      "post" : {
+        "operationId" : "clearing_importStatements",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "source",
+          "required" : false,
+          "schema" : {
+            "default" : "statement.csv",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "text/csv" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "text/plain" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatementImportView"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/breaks" : {
+      "get" : {
+        "operationId" : "clearing_breaks",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "OPEN", "MATCHED", "ACCEPTED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ClearingBreakView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/breaks/{breakId}" : {
+      "get" : {
+        "operationId" : "clearing_clearingBreak",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "breakId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClearingBreakView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
     "/api/v1/clearing/margin/{runId}" : {
       "get" : {
         "operationId" : "clearing_run",
@@ -12868,6 +13253,43 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MarginRunView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/statements/{statementId}" : {
+      "get" : {
+        "operationId" : "clearing_statement",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "statementId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClearingStatementView"
                 }
               }
             },
@@ -25868,9 +26290,6 @@
     "description" : "Deal capture, approval, confirmation, delivery and settlement",
     "name" : "Trades"
   }, {
-    "description" : "Clearing accounts and daily variation margin of cleared EUA futures",
-    "name" : "Clearing"
-  }, {
     "description" : "Mark-to-market runs, sign-off and P&L explain",
     "name" : "Valuation"
   }, {
@@ -25879,6 +26298,9 @@
   }, {
     "description" : "Obligations, coverage analysis and allocation plans",
     "name" : "Allocation"
+  }, {
+    "description" : "Clearing accounts, daily variation margin of cleared EUA futures, clearing statements and their breaks",
+    "name" : "Clearing"
   }, {
     "description" : "Sub-ledger: journal, trial balance, posting rules, periods, FX rates, GL export",
     "name" : "Ledger"

@@ -14,6 +14,10 @@ EUA futures margining (increment 12).
   futures cleared through it are margined at the exchange's settlement price (the position's move overnight and each
   new trade against the settlement price). Runs are kept per day and versioned when a trade or price changes
   (ADR 0046).
+- **Clearing statements:** the clearing member's daily statement (CSV) is imported per account, versioned when
+  re-sent and checked against the computed margin contract by contract; a difference opens a break in the inbox,
+  which closes when corrected or is accepted by a second person with a reason. Initial margin moves cash at the
+  member into margin posted (1970), and fees are booked to 4610.
 - **Variation margin in the ledger:** realised result on futures (3600) against cash at the clearing member (1960),
   posted daily; a corrected day posts only the difference.
 

@@ -37,6 +37,7 @@
   {"code": "4310", "name": "Write-down to net realisable value", "type": "EXPENSE", "glMapping": "431000"},
   {"code": "4400", "name": "Own generation - certificate issuance", "type": "REVENUE", "glMapping": "440000"},
   {"code": "4500", "name": "Unrealised MtM losses", "type": "EXPENSE", "glMapping": "450000"},
+  {"code": "4610", "name": "Clearing and exchange fees", "type": "EXPENSE", "glMapping": "461000"},
   {"code": "4900", "name": "Realised FX losses", "type": "EXPENSE", "glMapping": "490000"},
   {"code": "4910", "name": "Unrealised FX losses", "type": "EXPENSE", "glMapping": "491000"},
   {"code": "9000", "name": "Memo - sale commitments", "type": "MEMO", "glMapping": null},

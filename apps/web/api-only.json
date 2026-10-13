@@ -24,6 +24,11 @@
     "clearing_createAccount": "Clearing screens in increment 12 M5",
     "clearing_runs": "Clearing screens in increment 12 M5",
     "clearing_computeMargin": "Clearing screens in increment 12 M5",
-    "clearing_run": "Clearing screens in increment 12 M5"
+    "clearing_run": "Clearing screens in increment 12 M5",
+    "clearing_breaks": "Clearing screens in increment 12 M5",
+    "clearing_clearingBreak": "Clearing screens in increment 12 M5",
+    "clearing_importStatements": "Clearing screens in increment 12 M5",
+    "clearing_statement": "Clearing screens in increment 12 M5",
+    "clearing_statements": "Clearing screens in increment 12 M5"
   }
 }

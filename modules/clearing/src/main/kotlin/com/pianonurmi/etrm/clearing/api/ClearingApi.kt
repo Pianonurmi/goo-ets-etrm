@@ -16,6 +16,8 @@ data class ClearingAccountView(
     val clearingMember: String,
     val currency: String,
     val active: Boolean,
+    /** Initial margin as reported by the statement of the account's latest day. */
+    val initialMargin: BigDecimal,
     val createdBy: String,
     val createdAt: Instant,
 )

@@ -8,6 +8,7 @@
 | Bucket | Standard product definition (criteria) used as the aggregation dimension for positions, marks and scoring |
 | Carry (curve) | Reading an allowance forward beyond its last future at the last segment's growth rate instead of flat (ADR 0044) |
 | Cheapest to deliver | For a GoO sale, the average value per MWh of the certificates that deliver it on the valuation-grade allocation; a management view next to the bucket mark (ADR 0039) |
+| Clearing statement | The clearing member's figures of one business day (margin per contract, initial margin, fees, cash), reconciled against the computed margin (ADR 0046) |
 | Concentration (GoO) | Held certificates of one product bucket that no obligation uses after netting through the flow: the book's open exposure to that product (ADR 0040) |
 | Coverage | Max-flow based measure of how much open demand live inventory can satisfy, per obligation |
 | Criteria | Typed predicate tree describing which certificates satisfy a delivery |
@@ -20,6 +21,7 @@
 | GoO | Guarantee of Origin, 1 certificate = 1 MWh |
 | Hedging reserve | Equity account (2950) holding the effective portion of cash flow hedges until the hedged transaction happens (ADR 0045) |
 | Hypothetical derivative | A forward on the hedged forecast at the price locked at designation, valued like a trade; the yardstick for effectiveness (ADR 0045) |
+| Initial margin | Collateral the clearing house holds against an open futures position; a level set by the member's latest statement and booked on 1970 (ADR 0046) |
 | Load factor | Typical capacity factor of a technology for a calendar month, central and P90; the fallback when a device has no forecast. The seeded values are illustrative |
 | Lot | Contiguous certificate number range with identical attributes in one registry account |
 | Lot class | Lots interchangeable for every criterion and for scoring |

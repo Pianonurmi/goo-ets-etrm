@@ -64,6 +64,7 @@ class DemoDataSeederIT {
         availableToSell(finland)
         operations(finland, sweden)
         compliance(finland, sweden)
+        clearing(finland)
         inboxes()
         home(finland)
 
@@ -211,6 +212,22 @@ class DemoDataSeederIT {
             "BACK_OFFICE",
         ).get("/api/v1/inventory/breaks?registryAccountId=$seAccount&status=PENDING_ACCEPTANCE,RESOLVED").then().statusCode(200)
             .body("status", hasItems("PENDING_ACCEPTANCE", "RESOLVED"))
+    }
+
+    /** Futures margined through the clearing account, the member's statements in, and one day's difference in the inbox. */
+    private fun clearing(finland: String) {
+        val account = asUser("backoffice", "BACK_OFFICE").get("/api/v1/clearing/accounts?legalEntityId=$finland").then().statusCode(200)
+            .body("size()", equalTo(1)).extract().path<String>("[0].id")
+        asUser("backoffice", "BACK_OFFICE").get("/api/v1/clearing/accounts/$account/margin?from=2000-01-01&to=2100-01-01").then().statusCode(200)
+            .body("size()", greaterThan(100))
+            .body("findAll { it.lines.size() > 0 }.size()", greaterThan(50))
+        asUser("backoffice", "BACK_OFFICE").get("/api/v1/clearing/accounts/$account/statements?from=2000-01-01&to=2100-01-01").then().statusCode(200)
+            .body("size()", equalTo(15))
+        asUser("backoffice", "BACK_OFFICE").get("/api/v1/clearing/breaks?legalEntityId=$finland&status=OPEN").then().statusCode(200)
+            .body("size()", equalTo(1))
+            .body("[0].differences[0].kind", equalTo("VARIATION_MARGIN"))
+        asUser("middle", "MIDDLE_OFFICE").get("/api/v1/workflow/tasks?type=CLEARING_BREAK&actionable=true").then()
+            .body("items.size()", equalTo(1))
     }
 
     private fun compliance(finland: String, sweden: String) {

@@ -1,9 +1,16 @@
 package com.pianonurmi.etrm.clearing
 
 import com.pianonurmi.etrm.clearing.adapter.jooq.JooqClearingRepository
+import com.pianonurmi.etrm.clearing.adapter.jooq.JooqClearingStatementRepository
+import com.pianonurmi.etrm.clearing.api.ClearingBreakClosed
+import com.pianonurmi.etrm.clearing.api.ClearingBreakOpened
+import com.pianonurmi.etrm.clearing.api.ClearingBreakStatus
+import com.pianonurmi.etrm.clearing.api.ClearingStatementImported
 import com.pianonurmi.etrm.clearing.api.CreateClearingAccount
+import com.pianonurmi.etrm.clearing.api.MarginDifferenceKind
 import com.pianonurmi.etrm.clearing.api.VariationMarginComputed
 import com.pianonurmi.etrm.clearing.application.ClearingService
+import com.pianonurmi.etrm.clearing.application.ClearingStatementService
 import com.pianonurmi.etrm.marketdata.api.InstrumentKind
 import com.pianonurmi.etrm.marketdata.api.InstrumentView
 import com.pianonurmi.etrm.marketdata.api.MarketDataQuery
@@ -11,6 +18,7 @@ import com.pianonurmi.etrm.marketdata.api.QuoteQuality
 import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.marketdata.api.QuoteView
 import com.pianonurmi.etrm.platform.errors.ConflictException
+import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -22,11 +30,13 @@ import com.pianonurmi.etrm.referencedata.api.CounterpartyType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeFilter
 import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -53,8 +63,9 @@ class ClearingServiceIT {
     private val book = mutableListOf<TradeView>()
     private val settlements = mutableMapOf<LocalDate, BigDecimal>()
     private lateinit var clearing: ClearingService
+    private lateinit var statements: ClearingStatementService
 
-    private fun future(number: String, side: Side, tonnes: Int, price: String, on: LocalDate): TradeView {
+    private fun future(number: String, side: Side, tonnes: Int, price: String, on: LocalDate, owner: UUID = entity): TradeView {
         val leg = mockk<TradeLegView> {
             every { futuresContractCode } returns "EUAZ26"
             every { this@mockk.side } returns side
@@ -63,6 +74,7 @@ class ClearingServiceIT {
         }
         return mockk {
             every { id } returns UUID.nameUUIDFromBytes(number.toByteArray())
+            every { legalEntityId } returns owner
             every { tradeDate } returns on
             every { status } returns TradeStatus.CONFIRMED
             every { counterpartyId } returns ccp
@@ -78,7 +90,7 @@ class ClearingServiceIT {
     @BeforeAll
     fun setUp() {
         TestDatabase.migrate("clearing")
-        val trades = mockk<TradeQuery> { every { trades(any()) } answers { book.toList() } }
+        val trades = mockk<TradeQuery> { every { trades(any()) } answers { book.filter { it.legalEntityId == firstArg<TradeFilter>().legalEntityId } } }
         val futures = mockk<FuturesContractQuery> {
             every { futuresContract("EUAZ26") } returns mockk<FuturesContractView> {
                 every { lastTradingDay } returns LocalDate.of(2026, 12, 11)
@@ -114,7 +126,7 @@ class ClearingServiceIT {
             }
         }
         val referenceData = mockk<ReferenceDataQuery> {
-            every { requireLegalEntity(entity) } returns mockk()
+            every { requireLegalEntity(any()) } returns mockk()
             every { requireCounterparty(ccp) } returns mockk {
                 every { id } returns ccp
                 every { code } returns "CP-CLEARING"
@@ -126,15 +138,23 @@ class ClearingServiceIT {
                 every { counterpartyType } returns CounterpartyType.BROKER
             }
         }
+        val repository = JooqClearingRepository(TestDatabase.dsl)
+        val actor = ActorProvider { Actor("back", "back", setOf(Role.BACK_OFFICE), allEntities = true) }
+        val clock = Clock.fixed(Instant.parse("2026-10-07T18:00:00Z"), ZoneOffset.UTC)
+        val publisher = ApplicationEventPublisher {
+            published += it
+            if (it is VariationMarginComputed) statements.on(it)
+        }
+        statements = ClearingStatementService(repository, JooqClearingStatementRepository(TestDatabase.dsl), actor, publisher, clock)
         clearing = ClearingService(
-            JooqClearingRepository(TestDatabase.dsl),
+            repository,
             trades,
             futures,
             marketData,
             referenceData,
-            ActorProvider { Actor("back", "back", setOf(Role.BACK_OFFICE), allEntities = true) },
-            ApplicationEventPublisher { published += it },
-            Clock.fixed(Instant.parse("2026-10-07T18:00:00Z"), ZoneOffset.UTC),
+            actor,
+            publisher,
+            clock,
         )
     }
 
@@ -174,10 +194,101 @@ class ClearingServiceIT {
         clearing.runs(account.id, monday, tuesday).map { it.id } shouldBe listOf(corrected.id, first.id)
 
         // No settlement price on Wednesday yet; Saturday is not a business day.
+        settlements.remove(tuesday.plusDays(1))
         shouldThrow<ValidationException> { clearing.computeMargin(account.id, tuesday.plusDays(1)) }
         shouldThrow<ValidationException> { clearing.computeMargin(account.id, LocalDate.of(2026, 10, 10)) }
         // After the last trading day the contract no longer margins.
         clearing.computeMargin(account.id, LocalDate.of(2026, 12, 14)).variationMargin shouldBe BigDecimal("0.00")
         clearing.marginedTradeIds(entity) shouldBe setOf(UUID.nameUUIDFromBytes("F-1".toByteArray()), UUID.nameUUIDFromBytes("F-2".toByteArray()))
+    }
+
+    private fun statementFile(vararg rows: String) = "Date,Account,Record,Contract,Position,SettlementPrice,Amount,Currency\n" + rows.joinToString("") {
+        "$it\n"
+    }
+
+    @Test
+    @Suppress("LongMethod") // one account's statements through three business days
+    fun `statements are versioned, reconciled against the margin, and a break closes when matched or accepted by a second person`() {
+        val owner = UUID.randomUUID()
+        val account = clearing.createAccount(CreateClearingAccount("ECC-STMT", owner, ccp, "Member Bank AG"))
+        book += future("S-1", Side.BUY, 5000, "70.00", monday, owner)
+        settlement(monday, "70.40")
+        settlement(tuesday, "71.00")
+        settlement(tuesday.plusDays(1), "70.50")
+        clearing.computeMargin(account.id, monday)
+
+        val first = statements.importStatements(
+            account.id,
+            "ecc-2026-10-05.csv",
+            statementFile(
+                "2026-10-05,ECC-STMT,VM,EUAZ26,5000,70.40,2000.00,EUR",
+                "2026-10-05,ECC-STMT,FEE,EUAZ26,,,12.50,EUR",
+                "2026-10-05,ECC-STMT,IM,,,,15000.00,EUR",
+                "2026-10-05,ECC-STMT,CASH,,,,100000.00,EUR",
+            ),
+        )
+        first.imported.single().version shouldBe 1
+        first.breaks.shouldBeEmpty()
+        published.filterIsInstance<ClearingStatementImported>().last().let {
+            it.initialMarginChange shouldBe BigDecimal("15000.00")
+            it.feesChange shouldBe BigDecimal("12.50")
+        }
+        // The same figures again change nothing; 70.4 is 70.40.
+        val events = published.size
+        statements.importStatements(
+            account.id,
+            null,
+            statementFile(
+                "2026-10-05,ECC-STMT,VM,EUAZ26,5000,70.4,2000.00,EUR",
+                "2026-10-05,ECC-STMT,FEE,EUAZ26,,,12.50,EUR",
+                "2026-10-05,ECC-STMT,IM,,,,15000.00,EUR",
+                "2026-10-05,ECC-STMT,CASH,,,,100000.00,EUR",
+            ),
+        ).unchanged shouldBe 1
+        published.size shouldBe events
+
+        // Tuesday's statement arrives before the margin is computed: a break, which follows the run once it exists.
+        book += future("S-2", Side.SELL, 2000, "71.20", tuesday, owner)
+        val tuesdayFile = statementFile("2026-10-06,ECC-STMT,VM,EUAZ26,3000,71.00,3500.00,EUR", "2026-10-06,ECC-STMT,IM,,,,18000.00,EUR")
+        val noRun = statements.importStatements(account.id, null, tuesdayFile).breaks.single()
+        noRun.differences.single().kind shouldBe MarginDifferenceKind.NO_RUN
+        published.filterIsInstance<ClearingBreakOpened>().last().clearingBreak.id shouldBe noRun.id
+        published.filterIsInstance<ClearingStatementImported>().last().initialMarginChange shouldBe BigDecimal("3000.00")
+        clearing.computeMargin(account.id, tuesday).variationMargin shouldBe BigDecimal("3400.00")
+        val open = statements.clearingBreak(noRun.id)!!
+        open.status shouldBe ClearingBreakStatus.OPEN
+        open.differences.single().let {
+            it.kind shouldBe MarginDifferenceKind.VARIATION_MARGIN
+            it.ours shouldBe BigDecimal("3400.00")
+            it.theirs shouldBe BigDecimal("3500.00")
+        }
+        shouldThrow<SegregationOfDutiesException> { statements.accept(open.id, "back", "Member charged a give-up fee") }
+        shouldThrow<ValidationException> { statements.accept(open.id, "back2", " ") }
+        statements.accept(open.id, "back2", "Member's figure confirmed by phone; trade price corrected tomorrow").status shouldBe ClearingBreakStatus.ACCEPTED
+        statements.breaks(owner, ClearingBreakStatus.OPEN).shouldBeEmpty()
+
+        // Wednesday: the member reports the wrong position; re-sent corrected, the break matches and closes itself.
+        clearing.computeMargin(account.id, tuesday.plusDays(1)).variationMargin shouldBe BigDecimal("-1500.00")
+        val wrong = statements.importStatements(account.id, null, statementFile("2026-10-07,ECC-STMT,VM,EUAZ26,2000,70.50,-1500.00,EUR"))
+        wrong.breaks.single().differences.single().kind shouldBe MarginDifferenceKind.POSITION
+        val corrected = statements.importStatements(account.id, null, statementFile("2026-10-07,ECC-STMT,VM,EUAZ26,3000,70.50,-1500.00,EUR"))
+        corrected.imported.single().version shouldBe 2
+        corrected.breaks.shouldBeEmpty()
+        statements.clearingBreak(wrong.breaks.single().id)!!.status shouldBe ClearingBreakStatus.MATCHED
+        published.filterIsInstance<ClearingBreakClosed>().last().clearingBreak.status shouldBe ClearingBreakStatus.MATCHED
+        // Wednesday's files have no initial margin record (none required): the first released it, the second changes nothing.
+        published.filterIsInstance<ClearingStatementImported>().last().initialMarginChange shouldBe BigDecimal("0.00")
+
+        // Monday re-sent with another initial margin: an earlier day does not move the level.
+        statements.importStatements(
+            account.id,
+            null,
+            statementFile("2026-10-05,ECC-STMT,VM,EUAZ26,5000,70.40,2000.00,EUR", "2026-10-05,ECC-STMT,IM,,,,16000.00,EUR"),
+        ).imported.single().version shouldBe 2
+        published.filterIsInstance<ClearingStatementImported>().last().let {
+            it.initialMarginChange shouldBe BigDecimal("0.00")
+            it.feesChange shouldBe BigDecimal("-12.50")
+        }
+        statements.statements(account.id, monday, tuesday.plusDays(1)).map { it.businessDate } shouldBe listOf(tuesday.plusDays(1), tuesday, monday)
     }
 }

@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.ledger
 
+import com.pianonurmi.etrm.clearing.api.ClearingStatementImported
+import com.pianonurmi.etrm.clearing.api.ClearingStatementView
 import com.pianonurmi.etrm.clearing.api.MarginRunView
 import com.pianonurmi.etrm.clearing.api.VariationMarginComputed
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
@@ -103,6 +105,40 @@ class ClearingPostingsIT {
         val entries = ledger.entries(entity, YearMonth.of(2026, 10), null, 100, null, null).size
         postings.on(VariationMarginComputed(run(entity, monday.plusDays(1), 3, "-3200.00"), BigDecimal("-3200.00")))
         ledger.entries(entity, YearMonth.of(2026, 10), null, 100, null, null).size shouldBe entries
+        ledger.verifyJournal(entity).shouldBeEmpty()
+    }
+
+    private fun statement(entity: UUID, date: LocalDate, version: Int) = ClearingStatementView(
+        id = Ids.newId(),
+        accountId = UUID.nameUUIDFromBytes("ECC".toByteArray()),
+        legalEntityId = entity,
+        businessDate = date,
+        version = version,
+        currency = "EUR",
+        variationMargin = BigDecimal("0.00"),
+        initialMargin = BigDecimal("0.00"),
+        fees = BigDecimal("0.00"),
+        cashBalance = null,
+        lines = emptyList(),
+        contentHash = "s$version",
+        fileName = null,
+        importedBy = "back",
+        importedAt = clock.instant(),
+        supersededAt = null,
+    )
+
+    @Test
+    fun `initial margin moves cash at the member into margin posted, and fees are charged against that cash`() {
+        val entity = referenceData.createLegalEntity(CreateLegalEntity("VM-STMT", "VM Statement Oy", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        val monday = LocalDate.of(2026, 10, 5)
+        postings.on(ClearingStatementImported(statement(entity, monday, 1), BigDecimal("15000.00"), BigDecimal("12.50")))
+        postings.on(ClearingStatementImported(statement(entity, monday.plusDays(1), 1), BigDecimal("-4000.00"), BigDecimal("0.00")))
+        postings.on(ClearingStatementImported(statement(entity, monday, 2), BigDecimal("0.00"), BigDecimal("-2.50")))
+        balances(entity).let {
+            it["1970"] shouldBe BigDecimal("11000.00")
+            it["4610"] shouldBe BigDecimal("10.00")
+            it["1960"] shouldBe BigDecimal("-11010.00")
+        }
         ledger.verifyJournal(entity).shouldBeEmpty()
     }
 }

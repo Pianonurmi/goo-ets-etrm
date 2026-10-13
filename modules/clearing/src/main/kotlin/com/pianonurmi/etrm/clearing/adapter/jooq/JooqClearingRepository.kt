@@ -111,6 +111,7 @@ class JooqClearingRepository(private val dsl: DSLContext) : ClearingRepository {
         r.clearingMember,
         r.currency,
         r.active,
+        r.initialMargin,
         r.createdBy,
         r.createdAt,
     )
