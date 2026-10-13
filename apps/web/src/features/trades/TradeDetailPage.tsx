@@ -463,7 +463,7 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
         </Paper>
       ) : (
         <Paper withBorder radius="lg">
-          <ScrollTable label={t('trades.tabs.mtm')} minWidth={820}>
+          <ScrollTable label={t('trades.tabs.mtm')} minWidth={960}>
             <Table verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -471,6 +471,7 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
                   <Table.Th ta="right">{t('trades.columns.quantity')}</Table.Th>
                   <Table.Th ta="right">{t('trades.mtm.contractPrice')}</Table.Th>
                   <Table.Th ta="right">{t('trades.mtm.marketPrice')}</Table.Th>
+                  <Table.Th ta="right">{t('trades.mtm.discountFactor')}</Table.Th>
                   <Table.Th ta="right">{t('trades.mtm.mtm')}</Table.Th>
                   <Table.Th ta="right">{t('trades.mtm.mtmBase')}</Table.Th>
                   <Table.Th>{t('trades.mtm.curve')}</Table.Th>
@@ -487,6 +488,9 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
                       {row.marketPriceContract != null
                         ? formatMoney(row.marketPriceContract, row.contractCurrency)
                         : '—'}
+                    </Table.Td>
+                    <Table.Td ta="right" title={row.discountCurveCode ?? undefined}>
+                      {row.discountFactor != null ? formatDecimal(row.discountFactor, 2, 6) : '—'}
                     </Table.Td>
                     <Table.Td ta="right">
                       {row.mtm != null ? (

@@ -34,6 +34,8 @@ import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/forma
 import { useAllowanceProducts } from '@/features/trades/hooks';
 import {
   CURVE_KINDS,
+  DAY_COUNTS,
+  defaultDayCount,
   emptyCurve,
   lookupOptions,
   priceLookup,
@@ -50,7 +52,7 @@ import { translated, useBucketCodes, useRefreshMarketData } from './InstrumentAc
 
 const CURVE_FIELDS = new Set(Object.keys(emptyCurve()));
 
-/** A new forward or vintage curve; its snapshots are then built and signed off as usual. */
+/** A new forward, vintage or discount curve; its snapshots are then built and signed off as usual. */
 export function CreateCurveModal({
   curves,
   onClose,
@@ -115,7 +117,7 @@ export function CreateCurveModal({
             {...form.getInputProps('description')}
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            {kind === 'EUA_FORWARD' ? (
+            {kind === 'EUA_FORWARD' && (
               <Select
                 label={t('curves.product')}
                 data={allowances.map((product) => ({
@@ -126,7 +128,8 @@ export function CreateCurveModal({
                 data-testid="curve-allowance"
                 {...form.getInputProps('allowanceProductCode')}
               />
-            ) : (
+            )}
+            {kind === 'GOO_VINTAGE' && (
               <Select
                 label={t('curves.bucket')}
                 data={buckets}
@@ -143,6 +146,21 @@ export function CreateCurveModal({
               data-testid="curve-currency"
               {...form.getInputProps('currency')}
             />
+            {kind === 'DISCOUNT' && (
+              <Select
+                label={t('curves.dayCount')}
+                description={t('curves.dayCountHint')}
+                placeholder={t('curves.dayCountDefault', {
+                  dayCount: t(`curves.dayCounts.${defaultDayCount(form.values.currency)}`),
+                })}
+                data={DAY_COUNTS.map((value) => ({ value, label: t(`curves.dayCounts.${value}`) }))}
+                clearable
+                data-testid="curve-day-count"
+                value={form.values.dayCount || null}
+                onChange={(value) => form.setFieldValue('dayCount', value ?? '')}
+                error={form.errors.dayCount}
+              />
+            )}
           </SimpleGrid>
           <MultiSelect
             label={t('curves.quoteTypes')}
@@ -278,6 +296,55 @@ function PriceResult({ price }: { price: Schema<'CurvePrice'> }) {
   );
 }
 
+/** The discount factor to a payment date; without an official discount curve the service answers 1 and says so. */
+function DiscountResult({ factor, currency }: { factor: Schema<'DiscountFactor'>; currency: string }) {
+  const { t } = useTranslation();
+  if (!factor.discounted) {
+    return (
+      <EmptyState
+        title={t('curves.noDiscountCurve', { currency })}
+        description={t('curves.noDiscountCurveHint')}
+        testId="discount-none"
+      />
+    );
+  }
+  return (
+    <Stack gap={4} data-testid="discount-result">
+      <Group gap="xs">
+        <Text size="xl" fw={700} className="etrm-figure" data-testid="discount-value">
+          {formatDecimal(factor.value, 6, 6)}
+        </Text>
+        {factor.origin && (
+          <Badge variant="outline" color="gray" data-testid="discount-origin">
+            {t(`curves.origins.${factor.origin}`)}
+          </Badge>
+        )}
+      </Group>
+      <Text size="sm" className="etrm-figure" data-testid="discount-details">
+        {t('curves.discountDetails', {
+          rate: factor.rate == null ? '—' : formatDecimal(factor.rate, 2, 6),
+          days: formatDecimal(factor.days, 0, 0),
+        })}
+      </Text>
+      {factor.curveCode && (
+        <Text size="sm" c="dimmed">
+          {t('curves.priceFrom', { curve: factor.curveCode, date: formatDate(factor.curveDate) })}
+        </Text>
+      )}
+      {factor.snapshotId && (
+        <Anchor
+          component={Link}
+          to={`/market-data/snapshots/${factor.snapshotId}`}
+          size="sm"
+          data-testid="discount-snapshot"
+        >
+          {t('curves.openSnapshot')}
+        </Anchor>
+      )}
+    </Stack>
+  );
+}
+
 function LookupOutcome({ lookup }: { lookup: PriceLookup }) {
   const { t } = useTranslation();
   const forward = $api.useQuery(
@@ -292,6 +359,19 @@ function LookupOutcome({ lookup }: { lookup: PriceLookup }) {
     { params: { query: lookup.kind === 'vintage' ? lookup.query : { bucket: '', year: 0, asOf: '' } } },
     { enabled: lookup.kind === 'vintage', retry: false },
   );
+  const discount = $api.useQuery(
+    'get',
+    '/api/v1/market-data/curves/discount-factor',
+    { params: { query: lookup.kind === 'discount' ? lookup.query : { currency: '', payDate: '', asOf: '' } } },
+    { enabled: lookup.kind === 'discount', retry: false },
+  );
+  if (lookup.kind === 'discount') {
+    return (
+      <QueryState isPending={discount.isPending} error={discount.error}>
+        {discount.data && <DiscountResult factor={discount.data} currency={lookup.query.currency} />}
+      </QueryState>
+    );
+  }
   const result = lookup.kind === 'forward' ? forward : vintage;
   if (isNotFound(result.error)) {
     return <EmptyState title={t('curves.noPrice')} description={t('curves.noPriceHint')} testId="price-none" />;
@@ -303,7 +383,7 @@ function LookupOutcome({ lookup }: { lookup: PriceLookup }) {
   );
 }
 
-/** The price valuation would read: an EUA forward for a delivery date or a GoO vintage, as of a date. */
+/** The price valuation would read: an EUA forward for a delivery date, a GoO vintage, or a discount factor to a payment date, as of a date. */
 export function PriceLookupPanel({ curves, asOf }: { curves: readonly Curve[]; asOf: string }) {
   const { t } = useTranslation();
   const options = lookupOptions(curves);
@@ -313,6 +393,8 @@ export function PriceLookupPanel({ curves, asOf }: { curves: readonly Curve[]; a
     delivery: `${dayjs().year() + 1}-12-15`,
     bucket: options.buckets[0] ?? '',
     year: String(dayjs().year()),
+    currency: options.currencies[0] ?? 'EUR',
+    payDate: dayjs().add(3, 'month').format('YYYY-MM-DD'),
     asOf,
   }));
   const [lookup, setLookup] = useState<PriceLookup | null>(null);
@@ -331,6 +413,7 @@ export function PriceLookupPanel({ curves, asOf }: { curves: readonly Curve[]; a
           data={[
             { value: 'forward', label: t('curves.forward') },
             { value: 'vintage', label: t('curves.vintage') },
+            { value: 'discount', label: t('curves.discountFactor') },
           ]}
           data-testid="price-kind"
         />
@@ -353,6 +436,24 @@ export function PriceLookupPanel({ curves, asOf }: { curves: readonly Curve[]; a
                 data-testid="price-delivery"
               />
             </>
+          ) : form.kind === 'discount' ? (
+            <Group align="flex-end" data-testid="discount-lookup">
+              <TextInput
+                label={t('marketData.currency')}
+                maxLength={3}
+                value={form.currency}
+                onChange={(e) => set({ currency: e.currentTarget.value.toUpperCase() })}
+                w={100}
+                data-testid="discount-currency"
+              />
+              <TextInput
+                type="date"
+                label={t('curves.payDate')}
+                value={form.payDate}
+                onChange={(e) => set({ payDate: e.currentTarget.value })}
+                data-testid="discount-pay-date"
+              />
+            </Group>
           ) : (
             <>
               <Select

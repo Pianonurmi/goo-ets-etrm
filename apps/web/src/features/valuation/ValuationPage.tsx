@@ -379,6 +379,7 @@ export function RunDetailPage() {
       { field: 'tradeNumber', headerName: t('trades.columns.number'), width: 150 },
       { field: 'legNo', headerName: t('valuation.leg'), width: 80 },
       { field: 'deliveryDate', headerName: t('trades.form.deliveryDate'), width: 130 },
+      { field: 'payDate', headerName: t('valuation.payDate'), width: 120 },
       { field: 'productKey', headerName: t('trades.columns.product'), flex: 1, minWidth: 160 },
       {
         field: 'quantity',
@@ -400,6 +401,24 @@ export function RunDetailPage() {
         width: 140,
         type: 'rightAligned',
         valueFormatter: (p) => formatDecimal(p.value as number, 2, 6),
+      },
+      {
+        field: 'discountFactor',
+        headerName: t('valuation.discountFactor'),
+        headerTooltip: t('valuation.discountHint'),
+        width: 130,
+        type: 'rightAligned',
+        valueFormatter: (p) =>
+          p.value === null || p.value === undefined ? '—' : formatDecimal(p.value as number, 2, 6),
+      },
+      {
+        field: 'mtmUndiscounted',
+        headerName: t('valuation.mtmUndiscounted'),
+        headerTooltip: t('valuation.discountHint'),
+        width: 170,
+        type: 'rightAligned',
+        valueFormatter: (p) =>
+          p.value === null || p.value === undefined ? '—' : formatMoney(p.value as number, p.data?.contractCurrency),
       },
       {
         field: 'mtmBase',

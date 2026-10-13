@@ -54,7 +54,34 @@ describe('instruments', () => {
       productionYear: 2026,
       currency: 'EUR',
       unit: null,
+      tenor: null,
     });
+  });
+
+  it('takes an optional tenor for a rate only', () => {
+    expect(instrumentFields('RATE')).toMatchObject({ tenor: true, unit: true });
+    expect(instrumentFields('INDEX')).toMatchObject({ tenor: false });
+    const rate = {
+      ...emptyInstrument(),
+      kind: 'RATE' as const,
+      code: 'EUR_OIS_3M',
+      description: 'EUR OIS 3M',
+      unit: 'pct',
+    };
+    expect(validateInstrument(rate)).toEqual({});
+    expect(toCreateInstrument(rate).tenor).toBeNull();
+    expect(toCreateInstrument({ ...rate, tenor: ' 3m ' })).toMatchObject({ kind: 'RATE', unit: 'PCT', tenor: '3M' });
+    expect(toCreateInstrument({ ...rate, kind: 'INDEX', tenor: '3M' }).tenor).toBeNull();
+  });
+
+  it('accepts overnight and a count of days, weeks, months or years as tenor', () => {
+    const rate = { ...emptyInstrument(), kind: 'RATE' as const, code: 'R', description: 'R', unit: 'PCT' };
+    for (const tenor of ['ON', 'on', '1D', '2W', '3M', '10Y', '12m']) {
+      expect(validateInstrument({ ...rate, tenor })).toEqual({});
+    }
+    for (const tenor of ['0M', '3', 'M', '3Q', '03M', '1.5Y', 'O/N']) {
+      expect(validateInstrument({ ...rate, tenor })).toEqual({ tenor: 'marketData.errors.tenor' });
+    }
   });
 
   it('lets a future take its currency from the contract', () => {

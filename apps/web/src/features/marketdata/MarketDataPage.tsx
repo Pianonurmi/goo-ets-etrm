@@ -63,6 +63,7 @@ function InstrumentsTab() {
       { field: 'productionYear', headerName: t('positions.vintage'), width: 100 },
       { field: 'allowanceProductCode', headerName: t('trades.form.allowanceProduct'), width: 150 },
       { field: 'currency', headerName: t('trades.form.currency'), width: 100 },
+      { field: 'tenor', headerName: t('marketData.tenor'), width: 90 },
       { field: 'active', headerName: t('marketData.active'), width: 90 },
     ],
     [t],

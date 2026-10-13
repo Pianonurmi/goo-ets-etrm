@@ -1,5 +1,5 @@
 /** The causes of an MtM change in the order they are explained: trade events first, then market moves, then the rest. */
-const ORDER = ['NEW', 'AMENDED', 'CANCELLED', 'DELIVERED', 'PRICE', 'FX', 'UNEXPLAINED'];
+const ORDER = ['NEW', 'AMENDED', 'CANCELLED', 'DELIVERED', 'TIME', 'PRICE', 'RATES', 'FX', 'UNEXPLAINED'];
 
 /** P&L explain components as chart bars in explanation order, leaving out causes with no effect; amounts are the server's. */
 export function explainBars(

@@ -147,6 +147,15 @@ export function CreateInstrumentModal({ onClose }: { onClose: () => void }) {
                 {...form.getInputProps('unit')}
               />
             )}
+            {fields.tenor && (
+              <TextInput
+                label={t('marketData.tenor')}
+                description={t('marketData.tenorHint')}
+                placeholder="3M"
+                data-testid="instrument-tenor"
+                {...form.getInputProps('tenor')}
+              />
+            )}
             {fields.currency && (
               <TextInput
                 label={t('marketData.currency')}

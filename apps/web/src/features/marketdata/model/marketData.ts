@@ -19,6 +19,9 @@ export const FIXING_RULES: FixingRule[] = ['ON_DATE', 'PRIOR_DAY', 'MONTH_AVERAG
 /** Codes the services accept for instruments, curves and indices. */
 export const CODE_PATTERN = /^[A-Za-z0-9_]+$/;
 
+/** A rate's tenor: overnight, or a number of days, weeks, months or years (`3M`, `10Y`). */
+export const TENOR_PATTERN = /^(ON|[1-9][0-9]*[DWMY])$/;
+
 export interface InstrumentForm {
   code: string;
   kind: InstrumentKind;
@@ -29,6 +32,8 @@ export interface InstrumentForm {
   productionYear: string;
   currency: string;
   unit: string;
+  /** Rates only; optional. */
+  tenor: string;
 }
 
 export interface InstrumentFields {
@@ -37,6 +42,8 @@ export interface InstrumentFields {
   bucket: boolean;
   productionYear: boolean;
   unit: boolean;
+  /** Only a rate has a tenor, and it is optional. */
+  tenor: boolean;
   /** A future takes its currency from the contract. */
   currency: boolean;
 }
@@ -49,6 +56,7 @@ export function instrumentFields(kind: InstrumentKind): InstrumentFields {
     bucket: kind === 'GOO_VINTAGE',
     productionYear: kind === 'GOO_VINTAGE',
     unit: kind === 'INDEX' || kind === 'RATE',
+    tenor: kind === 'RATE',
     currency: kind !== 'EUA_FUTURE',
   };
 }
@@ -64,6 +72,7 @@ export function emptyInstrument(): InstrumentForm {
     productionYear: '',
     currency: 'EUR',
     unit: '',
+    tenor: '',
   };
 }
 
@@ -80,6 +89,9 @@ export function validateInstrument(form: InstrumentForm): Record<string, string>
     errors.productionYear = 'marketData.errors.year';
   }
   if (fields.unit && !form.unit.trim()) errors.unit = 'marketData.errors.required';
+  if (fields.tenor && form.tenor.trim() && !TENOR_PATTERN.test(form.tenor.trim().toUpperCase())) {
+    errors.tenor = 'marketData.errors.tenor';
+  }
   if (fields.currency && !/^[A-Za-z]{3}$/.test(form.currency.trim())) errors.currency = 'marketData.errors.currency';
   return errors;
 }
@@ -97,6 +109,7 @@ export function toCreateInstrument(form: InstrumentForm): Body<'CreateInstrument
     productionYear: fields.productionYear ? Number(form.productionYear.trim()) : null,
     currency: fields.currency ? form.currency.trim().toUpperCase() : 'EUR',
     unit: fields.unit ? form.unit.trim().toUpperCase() : null,
+    tenor: fields.tenor && form.tenor.trim() ? form.tenor.trim().toUpperCase() : null,
   };
 }
 

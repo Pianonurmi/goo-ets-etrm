@@ -67,6 +67,7 @@ export function CurvesPage() {
     { params: { path: { code }, query: { asOf } } },
     { enabled: Boolean(code) },
   );
+  const selected = curves.data?.find((curve) => curve.code === code);
   const [creating, setCreating] = useState(false);
   const build = $api.useMutation('post', '/api/v1/market-data/curves/{code}/snapshots', {
     meta: { notify: false },
@@ -128,6 +129,14 @@ export function CurvesPage() {
         />
         {buildButton}
       </Group>
+      {selected?.kind === 'DISCOUNT' && selected.dayCount && (
+        <Text size="sm" c="dimmed" data-testid="curve-day-count-info">
+          {t('curves.discountCurveInfo', {
+            currency: selected.currency,
+            dayCount: t(`curves.dayCounts.${selected.dayCount}`),
+          })}
+        </Text>
+      )}
       <ProblemAlert error={build.error} />
       {curves.data && (
         <SimpleGrid cols={{ base: 1, lg: 2 }}>
@@ -252,6 +261,8 @@ export function SnapshotPage() {
     );
   }
   const signOffTask = task.data?.items[0];
+  const isDiscount = data.kind === 'DISCOUNT';
+  const valueLabel = isDiscount ? t('curves.ratePercent') : t('trades.columns.price');
   return (
     <Stack gap={0}>
       <PageHeader
@@ -263,7 +274,13 @@ export function SnapshotPage() {
             <StatusBadge status="VERSION" label={`v${data.version}`} />
           </Group>
         }
-        description={`${t(`curves.kinds.${data.kind}`)} · ${data.currency}`}
+        description={[
+          t(`curves.kinds.${data.kind}`),
+          data.currency,
+          isDiscount && data.dayCount ? t(`curves.dayCounts.${data.dayCount}`) : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         actions={
           <>
             {signOffTask && (
@@ -297,6 +314,9 @@ export function SnapshotPage() {
           { label: t('curves.points'), value: data.points.length },
           { label: t('curves.gaps'), value: data.gaps.length },
           { label: t('marketData.currency'), value: data.currency },
+          ...(isDiscount && data.dayCount
+            ? [{ label: t('curves.dayCount'), value: t(`curves.dayCounts.${data.dayCount}`) }]
+            : []),
           {
             label: t('curves.inputsHash'),
             value: (
@@ -333,7 +353,9 @@ export function SnapshotPage() {
               h={220}
               data={data.points.map((point) => ({ pillar: point.pillar, price: point.price }))}
               dataKey="pillar"
-              series={[{ name: 'price', label: data.currency, color: 'brand.6' }]}
+              series={[
+                { name: 'price', label: isDiscount ? t('curves.ratePercentShort') : data.currency, color: 'brand.6' },
+              ]}
               curveType="monotone"
               yAxisProps={{ domain: ['auto', 'auto'] }}
               valueFormatter={(value) => formatDecimal(value, 2, 4)}
@@ -347,8 +369,9 @@ export function SnapshotPage() {
           <Table verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>{t('curves.pillar')}</Table.Th>
-                <Table.Th ta="right">{t('trades.columns.price')}</Table.Th>
+                <Table.Th>{isDiscount ? t('curves.tenor') : t('curves.pillar')}</Table.Th>
+                {isDiscount && <Table.Th>{t('curves.pillarDate')}</Table.Th>}
+                <Table.Th ta="right">{valueLabel}</Table.Th>
                 <Table.Th>{t('curves.origin')}</Table.Th>
                 <Table.Th>{t('marketData.note')}</Table.Th>
                 <Table.Th />
@@ -358,6 +381,7 @@ export function SnapshotPage() {
               {data.points.map((point) => (
                 <Table.Tr key={point.pillar}>
                   <Table.Td>{point.pillar}</Table.Td>
+                  {isDiscount && <Table.Td>{formatDate(point.pillarDate)}</Table.Td>}
                   <Table.Td ta="right">{formatDecimal(point.price, 2, 6)}</Table.Td>
                   <Table.Td c="dimmed">{point.origin}</Table.Td>
                   <Table.Td>{point.note}</Table.Td>
@@ -387,7 +411,7 @@ export function SnapshotPage() {
           <Stack>
             <ProblemAlert error={overrideMutation.error} />
             <TextInput
-              label={t('trades.columns.price')}
+              label={valueLabel}
               inputMode="decimal"
               value={override.price}
               onChange={(e) => setOverride({ ...override, price: e.currentTarget.value })}

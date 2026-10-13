@@ -9,4 +9,19 @@ describe('explainBars', () => {
       { component: 'other', amount: 1 },
     ]);
   });
+
+  it('puts the passage of time before the price and the discount rate moves between price and FX', () => {
+    const all = { UNEXPLAINED: 1, FX: 2, RATES: 3, PRICE: 4, TIME: 5, DELIVERED: 6, CANCELLED: 7, AMENDED: 8, NEW: 9 };
+    expect(explainBars(all, (c) => c).map((bar) => bar.component)).toEqual([
+      'NEW',
+      'AMENDED',
+      'CANCELLED',
+      'DELIVERED',
+      'TIME',
+      'PRICE',
+      'RATES',
+      'FX',
+      'UNEXPLAINED',
+    ]);
+  });
 });

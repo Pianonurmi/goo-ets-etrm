@@ -624,6 +624,9 @@
       "marketPrice": "Market price",
       "mtm": "MtM",
       "mtmBase": "MtM (base)",
+      "payDate": "Pay date",
+      "discountFactor": "Discount factor",
+      "mtmUndiscounted": "MtM undiscounted",
       "curve": "Curve"
     },
     "form": {
@@ -1238,6 +1241,8 @@
     "productionYear": "Production year",
     "currency": "Currency",
     "unit": "Unit",
+    "tenor": "Tenor",
+    "tenorHint": "Optional: ON, or a number with D, W, M or Y (3M, 10Y). Places a rate on a discount curve.",
     "addAlias": "Add alias",
     "aliasHint": "Maps a source's own code to an instrument, so imports from that source find it.",
     "aliasSource": "Source",
@@ -1277,7 +1282,8 @@
       "year": "Enter a four-digit year",
       "currency": "Enter a three-letter currency code",
       "whole": "Enter a whole number",
-      "decimal": "Enter a number, with a dot for decimals"
+      "decimal": "Enter a number, with a dot for decimals",
+      "tenor": "Enter ON, or a number followed by D, W, M or Y (for example 3M)"
     },
     "pickInstrumentHint": "Quotes come from imports, the ECB feed or are recorded by hand; each is checked for plausibility.",
     "kpi": {
@@ -1291,7 +1297,7 @@
   },
   "curves": {
     "title": "Curves",
-    "description": "Snapshots of forward and vintage curves; official ones are signed off by a second person.",
+    "description": "Snapshots of forward, vintage and discount curves; official ones are signed off by a second person.",
     "curve": "Curve",
     "asOf": "As of",
     "build": "Build snapshot",
@@ -1315,8 +1321,21 @@
     "kind": "Kind",
     "kinds": {
       "EUA_FORWARD": "EUA forward",
-      "GOO_VINTAGE": "GoO vintage"
+      "GOO_VINTAGE": "GoO vintage",
+      "DISCOUNT": "Discount"
     },
+    "dayCount": "Day count",
+    "dayCountHint": "How days between dates become years. Leave empty for the default.",
+    "dayCountDefault": "Default: {{dayCount}}",
+    "dayCounts": {
+      "ACT_360": "ACT/360",
+      "ACT_365F": "ACT/365F"
+    },
+    "discountCurveInfo": "Discount curve for {{currency}}, zero rates in percent a year by tenor, day count {{dayCount}}.",
+    "ratePercent": "Rate (% a year)",
+    "ratePercentShort": "Rate (%)",
+    "tenor": "Tenor",
+    "pillarDate": "Date",
     "quoteTypes": "Quote types",
     "stalenessDays": "Staleness (days)",
     "proxyCurve": "Proxy curve",
@@ -1331,6 +1350,11 @@
     "priceLookupHint": "The price valuation uses: the latest official curve on or before the date.",
     "forward": "Forward (EUA)",
     "vintage": "Vintage (GoO)",
+    "discountFactor": "Discount factor",
+    "payDate": "Payment date",
+    "noDiscountCurve": "No official discount curve for {{currency}}",
+    "noDiscountCurveHint": "Valuation does not discount for this currency: the factor is 1.",
+    "discountDetails": "Zero rate {{rate}} % a year over {{days}} days",
     "product": "Allowance product",
     "delivery": "Delivery date",
     "bucket": "Bucket",
@@ -1415,11 +1439,17 @@
       "AMENDED": "Amendments",
       "CANCELLED": "Cancellations",
       "DELIVERED": "Deliveries",
+      "TIME": "Time to payment",
       "PRICE": "Price moves",
+      "RATES": "Discount rate moves",
       "FX": "FX moves",
       "UNEXPLAINED": "Unexplained"
     },
     "resultsTab": "Results",
+    "payDate": "Pay date",
+    "discountFactor": "Discount factor",
+    "mtmUndiscounted": "MtM undiscounted",
+    "discountHint": "MtM is the undiscounted amount times the discount factor of the discount curve to the pay date. Futures are not discounted.",
     "ctdPrice": "CTD (EUR/MWh)",
     "ctdMtm": "MtM at CTD",
     "ctdHint": "Cheapest to deliver: the average value per MWh of the certificates that would deliver the sale. Shown only; the official MtM stays on the bucket curve.",

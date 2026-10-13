@@ -12,12 +12,35 @@ tabs follow: **Runs**, **Official run** and **P&L explain**.
   office or risk and made official by a second person.
 - Open a run to see its key facts, a **Lifecycle** timeline and the **Results by delivery**, which you can filter by
   book. **Submit for sign-off** sends a draft to the inbox; **Sign-off task** opens the task.
-- **P&L explain** compares two official runs, by cause: new trades, amendments, cancellations, deliveries, price
-  moves, FX moves and what stays unexplained.
+- **P&L explain** compares two official runs, by cause: new trades, amendments, cancellations, deliveries, time to
+  payment, price moves, discount rate moves, FX moves and what stays unexplained.
 - **Official run** finds the official run of a date (or the latest before it).
+- The results grid shows the **Pay date**, the **Discount factor** and the **MtM undiscounted** of each delivery; see
+  [Discounted mark to market](#discounted-mark-to-market).
 - In the results grid, **CTD (EUR/MWh)** and **MtM at CTD** appear for GoO sales; see [Portfolio value](#portfolio-value).
 
 > **Try it in the demo:** compare the last two official runs on the P&L explain.
+
+## Discounted mark to market
+
+A payment later is worth less today. The mark to market of a delivery is the quantity times the difference between
+the market price and the contract price, times the **discount factor** from the pay date to the valuation date:
+
+- **Pay date** is when the delivery is paid. **Discount factor** comes from the official discount curve of the
+  contract currency (see [Discount curves](market-data.md#discount-curves)); 1 means no discounting. **MtM
+  undiscounted** is the amount in the contract currency before discounting.
+- A currency with no official discount curve is not discounted, and neither are futures: their factor is 1.
+- With negative rates the factor can be above 1.
+- The trade's **Mark to market** tab shows the discount factor of each delivery too.
+
+Two causes in the **P&L explain** come from discounting:
+
+| Cause | What moved |
+|---|---|
+| Time to payment | The value of the earlier discount curve as the payment gets a day closer |
+| Discount rate moves | The move of the discount curve itself between the two runs |
+
+Time to payment is a steady drift from run to run; discount rate moves are the part that depends on the market.
 
 ## Portfolio value
 
