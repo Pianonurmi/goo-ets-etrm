@@ -491,18 +491,8 @@ class ValuationServiceIT {
         explain.mtmTo - explain.mtmFrom shouldBe explain.components.values.fold(BigDecimal.ZERO, BigDecimal::add)
     }
 
-    @Test
-    fun `an option is valued by Black-76 until it expires and its move is explained by price, volatility and time`() {
-        user = "risk1"
-        val first = LocalDate.of(2026, 10, 12)
-        val second = LocalDate.of(2026, 10, 13)
-        forward[first] = BigDecimal("72.00")
-        forward[second] = BigDecimal("74.00")
-        vols[first] = BigDecimal("50.00")
-        vols[second] = BigDecimal("45.00")
-        discountRates[first] = BigDecimal("3.00")
-        discountRates[second] = BigDecimal("3.50")
-        val expiry = LocalDate.of(2026, 12, 14)
+    /** A bought call on EUAZ26 expiring on [expiry] and a sold put that expired before the runs, valued with [discounting]. */
+    private fun optionBook(expiry: LocalDate): Pair<TradeView, ValuationService> {
         val call = trade(
             "T-OPT-CALL",
             ProductFamily.EMISSION_ALLOWANCE,
@@ -557,6 +547,22 @@ class ValuationServiceIT {
             Clock.fixed(Instant.parse("2026-10-13T18:00:00Z"), ZoneOffset.UTC),
             futures = futures,
         )
+        return call to options
+    }
+
+    @Test
+    fun `an option is valued by Black-76 until it expires and its move is explained by price, volatility and time`() {
+        user = "risk1"
+        val first = LocalDate.of(2026, 10, 12)
+        val second = LocalDate.of(2026, 10, 13)
+        forward[first] = BigDecimal("72.00")
+        forward[second] = BigDecimal("74.00")
+        vols[first] = BigDecimal("50.00")
+        vols[second] = BigDecimal("45.00")
+        discountRates[first] = BigDecimal("3.00")
+        discountRates[second] = BigDecimal("3.50")
+        val expiry = LocalDate.of(2026, 12, 14)
+        val (call, options) = optionBook(expiry)
         val run0 = options.run(entity, first, RunKind.EOD)
         val result = options.results(run0.id).single()
         result.tradeNumber shouldBe "T-OPT-CALL"

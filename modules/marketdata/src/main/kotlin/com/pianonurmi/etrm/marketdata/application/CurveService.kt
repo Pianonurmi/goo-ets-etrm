@@ -74,21 +74,7 @@ class CurveService(
         if (curves.curve(code) != null) throw ConflictException("Curve $code already exists")
         if (command.quoteTypes.isEmpty()) throw ValidationException("A curve needs at least one quote type")
         val volatility = command.kind == CurveKind.EUA_VOLATILITY
-        if (!volatility && QuoteType.VOLATILITY in command.quoteTypes) throw ValidationException("Only volatility curves use volatility quotes")
-        when (command.kind) {
-            CurveKind.EUA_FORWARD, CurveKind.EUA_VOLATILITY -> {
-                val product = command.allowanceProductCode ?: throw ValidationException("A ${command.kind} curve needs allowanceProductCode")
-                catalogue.allowanceProduct(product) ?: throw NotFoundException("AllowanceProduct", product)
-            }
-            CurveKind.GOO_VINTAGE -> buckets.requireBucket(command.bucketCode ?: throw ValidationException("A vintage curve needs bucketCode"))
-            CurveKind.DISCOUNT -> if (command.allowanceProductCode != null || command.bucketCode != null) {
-                throw ValidationException("A discount curve is for a currency, not a product or bucket")
-            }
-        }
-        if (command.kind != CurveKind.DISCOUNT && command.dayCount != null) throw ValidationException("Only discount curves have a day count")
-        if (command.kind != CurveKind.EUA_FORWARD && command.interpolation != Interpolation.LINEAR) {
-            throw ValidationException("Only forward curves are read with carry")
-        }
+        checkShape(command)
         val currency = Currency.getInstance(command.currency.uppercase()).currencyCode
         if (command.kind == CurveKind.DISCOUNT && curves.curves(true).any { it.kind == CurveKind.DISCOUNT && it.currency == currency }) {
             throw ConflictException("$currency already has a discount curve")
@@ -119,6 +105,27 @@ class CurveService(
         )
         curves.insertCurve(curve)
         return curve
+    }
+
+    /** What each kind of curve names: a product, a bucket or only a currency; and what only some kinds have. */
+    private fun checkShape(command: CreateCurve) {
+        if (command.kind != CurveKind.EUA_VOLATILITY && QuoteType.VOLATILITY in command.quoteTypes) {
+            throw ValidationException("Only volatility curves use volatility quotes")
+        }
+        when (command.kind) {
+            CurveKind.EUA_FORWARD, CurveKind.EUA_VOLATILITY -> {
+                val product = command.allowanceProductCode ?: throw ValidationException("A ${command.kind} curve needs allowanceProductCode")
+                catalogue.allowanceProduct(product) ?: throw NotFoundException("AllowanceProduct", product)
+            }
+            CurveKind.GOO_VINTAGE -> buckets.requireBucket(command.bucketCode ?: throw ValidationException("A vintage curve needs bucketCode"))
+            CurveKind.DISCOUNT -> if (command.allowanceProductCode != null || command.bucketCode != null) {
+                throw ValidationException("A discount curve is for a currency, not a product or bucket")
+            }
+        }
+        if (command.kind != CurveKind.DISCOUNT && command.dayCount != null) throw ValidationException("Only discount curves have a day count")
+        if (command.kind != CurveKind.EUA_FORWARD && command.interpolation != Interpolation.LINEAR) {
+            throw ValidationException("Only forward curves are read with carry")
+        }
     }
 
     override fun build(curveCode: String, asOfDate: LocalDate, note: String?): CurveSnapshotView {
