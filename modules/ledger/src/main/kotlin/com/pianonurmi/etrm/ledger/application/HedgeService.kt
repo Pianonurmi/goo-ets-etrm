@@ -348,7 +348,9 @@ class HedgeService(
                 when (hedge.status) {
                     HedgeStatus.ACTIVE -> {
                         val measured = measure(hedge, run)
-                        if (measured == null) warnings += "Hedge ${hedge.number} has no price for its hypothetical derivative on ${run.valuationDate}; nothing reserved"
+                        if (measured == null) {
+                            warnings += "Hedge ${hedge.number} has no price for its hypothetical derivative on ${run.valuationDate}; nothing reserved"
+                        }
                         HedgePosition(hedge, value, measured?.effective ?: BigDecimal.ZERO.setScale(2))
                     }
                     else -> {

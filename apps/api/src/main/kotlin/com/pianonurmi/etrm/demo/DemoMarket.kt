@@ -63,7 +63,8 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
             api.post(
                 DemoUser.RISK,
                 "/api/v1/market-data/curves",
-                """{"code":"$EUA_CURVE","kind":"EUA_FORWARD","description":"EUA forward","allowanceProductCode":"EUA","currency":"EUR","interpolation":"CARRY"}""",
+                """{"code":"$EUA_CURVE","kind":"EUA_FORWARD","description":"EUA forward","allowanceProductCode":"EUA","currency":"EUR",
+                   "interpolation":"CARRY"}""",
             )
         }
         BUCKETS.filter { it.curve !in curves }.forEach { bucket ->
@@ -73,6 +74,11 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
                 """{"code":"${bucket.curve}","kind":"GOO_VINTAGE","description":"${bucket.label} vintages","bucketCode":"${bucket.code}","currency":"EUR"}""",
             )
         }
+        rateCurves(curves)
+    }
+
+    /** EUR and SEK swap rates by tenor, their discount curves (ADR 0044), and the import format the rates come in. */
+    private fun rateCurves(curves: List<Any?>) {
         RATE_CURVES.forEach { curve ->
             TENORS.forEach { tenor ->
                 ensureInstrument(
