@@ -44,7 +44,8 @@ test.describe('risk and EU ETS compliance', () => {
     await page.getByTestId('limit-reason').fill('Cap unsold Nordic hydro certificates of 2025');
     await page.getByTestId('request-limit-submit').click();
     await expect(page.getByText('Limit sent for approval')).toBeVisible();
-    // The vintage is part of the limit's scope.
+    // The vintage is part of the limit's scope (the new limit waits for approval, so show pending ones).
+    await page.getByLabel('Show pending, rejected and retired').check();
     await expect(page.getByRole('gridcell', { name: 'NORDIC_HYDRO · vintage 2025' }).first()).toBeVisible();
   });
 
