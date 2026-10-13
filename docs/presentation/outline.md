@@ -48,6 +48,8 @@ Everything shown is the working system, running on fictitious data.
 - Pictures: `trades-new.png`, `trades-detail.png`.
 
 *Notes:* The capture form checks what it can; the server validates everything and explains refusals per field.
+Exchange futures are margined every day through the clearing account, reconciled with the clearing member's
+statement, and delivered at the final settlement price.
 
 ## 5. Inventory and allocation
 
@@ -151,12 +153,13 @@ run inside a database transaction.
 - Warnings are errors, static analysis, a coverage rule; `main` moves only on a green pipeline. Current stack: Java 25,
   Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript.
 
-## 16. Roadmap: eleven increments, each one shippable
+## 16. Roadmap: twelve increments, each one shippable
 
 - 1 core domain; 2 registries, settlement, inbox; 3 market data, valuation, risk, ETS, period end; 4–5 the web UI;
   6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping, versioned releases (0.9.0) and this documentation; 10 portfolio
   follow-ups (0.10.0): figures patched in place, GoO limits by vintage, the give-away report; 11 valuation depth
-  (0.11.0): discounted MtM, time and rates in the explain, cash flow hedge accounting.
+  (0.11.0): discounted MtM, time and rates in the explain, cash flow hedge accounting; 12 futures margining (0.12.0):
+  daily variation margin, clearing statements and breaks, margin calls, delivery at the final settlement price.
 
 ## 17. Path to production
 
@@ -164,8 +167,7 @@ run inside a database transaction.
 - Specifications: registry APIs (G-REX, NECS) and AIB code lists, the GL file layout, the EMIR layout and trade
   repository, market data vendors.
 - Sign-offs: accounting policies, VAT rules, PFE add-ons.
-- Next to build: EUA futures margining and options, minimum shares checked against available to sell, fair value
-  hedges.
+- Next to build: options on EUA futures, minimum shares checked against available to sell, fair value hedges.
 
 *Notes:* Layouts not checked against their specification are marked unverified.
 

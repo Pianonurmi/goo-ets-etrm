@@ -54,6 +54,20 @@ from the plan or are still open:
 | EMIR / MiFID reporting | EMIR lifecycle events captured, completeness checked, exported; MiFID ancillary activity figures | No trade repository connection and no ISO 20022 XML; the Refit field layout is unverified; the ancillary test needs market-size data |
 | GL interface hardening | Exactly-once exports, layouts as data (generic, SAP-style unverified), acknowledgement, reconciliation with imported GL balances, hard-close gates | The receiving GL's specification is needed to verify the SAP layout |
 
+## Status after increment 12
+
+Increment 12 margins exchange-cleared EUA futures (see the [plan](plans/increment-12-futures-margining.md), ADR 0046):
+
+- **Clearing module.** Clearing accounts per entity and clearing house; daily variation margin per contract from the
+  official settlement prices, in immutable runs versioned when trades or prices change; an evening job.
+- **Ledger.** Variation margin is a realised result against cash at the clearing member; margined futures leave the
+  period-end MtM and cannot be designated as cash flow hedging instruments.
+- **Clearing statements.** The member's daily statement is imported, versioned and reconciled with the computed margin;
+  breaks are worked in the inbox. Initial margin and fees are booked from it.
+- **Margin calls and risk.** Cash short of the initial margin opens a margin call paid under four eyes; risk counts the
+  margin held as exposure to the clearing house instead of MtM and PFE, and limits margin liquidity.
+- **Delivery.** A margined future delivers at the final settlement price.
+
 ## Status after increment 11
 
 Increment 11 deepens valuation (see the [plan](plans/increment-11-valuation-depth.md), ADRs 0044 and 0045):
