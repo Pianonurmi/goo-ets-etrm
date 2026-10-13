@@ -7,6 +7,21 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+EUA futures margining (increment 12).
+
+### Added
+- **Clearing accounts and daily variation margin:** an entity's account at a clearing house; every evening the
+  futures cleared through it are margined at the exchange's settlement price (the position's move overnight and each
+  new trade against the settlement price). Runs are kept per day and versioned when a trade or price changes
+  (ADR 0046).
+- **Variation margin in the ledger:** realised result on futures (3600) against cash at the clearing member (1960),
+  posted daily; a corrected day posts only the difference.
+
+### Changed
+- **Period end:** futures margined through a clearing account are no longer in the period-end MtM, since their
+  result is already realised by the margin.
+- **Hedge accounting:** futures cannot be designated as cash flow hedging instruments.
+
 ## [0.11.0] - 2026-10-13
 
 Valuation depth (increment 11).

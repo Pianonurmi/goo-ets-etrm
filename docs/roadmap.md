@@ -13,6 +13,7 @@
 | 9 | Housekeeping before the next feature increment: CI actions off the retired Node 20, backend and web dependency majors (Gradle 9, Kotlin 2.4, Flyway 13, react-router 8, ESLint 10) with the held-back ones recorded, versioned releases with tagged images, README and presentation for an enterprise audience | done (0.9.0) |
 | 10 | Portfolio follow-ups: the portfolio figures prepared in about 3 s and patched in about 0.3 s at 100 000 lots, available-to-sell checks fast on realistic books, GoO limits by vintage and a pre-trade basis check for sales, a give-away report; device caps measured and kept outside the flow ([plan](plans/increment-10-portfolio-follow-ups.md)) | done (0.10.0) |
 | 11 | Valuation depth: discount curves and discounted MtM, TIME and RATES in the P&L explain, carry interpolation of allowance forwards, cash flow hedge accounting (designation under four eyes, effectiveness, the hedging reserve at period end, reclassification) ([plan](plans/increment-11-valuation-depth.md)) | done (0.11.0) |
+| 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | in progress |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -159,3 +160,14 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M4 | Hedge designation and effectiveness (ADR 0045): cash flow hedges of forecast purchases and sales, designation and discontinuation under four eyes, documentation as a PDF, lower-of measurement on every official valuation (hypothetical derivative valued like a trade), `HEDGE_EFFECTIVENESS` report | done |
 | M5 | Hedge accounting at period end: designated proportions leave the book types' MtM; instruments at fair value, effective portion in the hedging reserve, the rest in profit or loss, reversed next day; frozen reserve after discontinuation; demo hedges | done |
 | M6 | Screens (discount curves and factors, discounted results, TIME and RATES in the explain, carry setting, hedges list, designation, detail with effectiveness, discontinuation), demo hedges and rate curves, help, ADRs, deck; Playwright `valuation-depth.spec.ts`; release 0.11.0 | done |
+
+## Increment 12: EUA futures margining
+
+| Milestone | Content | Status |
+|---|---|---|
+| M0 | Plan and exploration | done |
+| M1 | Clearing accounts, daily variation margin, ledger postings, cleared futures out of the period-end MtM | done |
+| M2 | Clearing statements: import, initial margin and fees, reconciliation breaks | |
+| M3 | Margin calls under four eyes; CCP exposure as margin posted | |
+| M4 | Delivery of futures at the final settlement price | |
+| M5 | Screens, demo, documentation, release 0.12.0 | |

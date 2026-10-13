@@ -24,6 +24,7 @@
 | Lot | Contiguous certificate number range with identical attributes in one registry account |
 | Lot class | Lots interchangeable for every criterion and for scoring |
 | Lower-of test | The hedging reserve takes the smaller of the instruments' change since designation and the hypothetical derivative's value; the rest is ineffectiveness (ADR 0045) |
+| Margin run | One clearing account's variation margin of one business day; immutable, and a change of trades or prices gives a new version (ADR 0046) |
 | Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
 | Naive net | Held certificates of a bucket minus its obligations, ignoring which certificates can serve which obligation; can look long while the bucket is short |
 | Obligation | Quantity of certificates to deliver (sale, intercompany) or cancel (disclosure, own consumption) by a date under criteria |
@@ -41,6 +42,7 @@
 | Surrender | Delivery of allowances to the Union Registry against verified emissions |
 | Transfer route | Feasibility, fee and expected days of moving certificates between registries |
 | Value (allocation) | What a certificate is worth to allocation: the best official mark over every bucket it qualifies for |
+| Variation margin | The daily cash a cleared future pays or receives: the position's move from the previous settlement price, and each new trade's difference to the day's settlement price (ADR 0046) |
 | Vintage | Production period window of certificates |
 | Trusted account list | Union Registry list of accounts an account holder may transfer to without the 26-hour delay; entries activate after four working days |
 | Change request | A four-eyes change to sensitive master data, applied when a second person approves it in the inbox |

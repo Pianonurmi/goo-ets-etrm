@@ -21,6 +21,7 @@ import org.springframework.modulith.PackageInfo
         "etscompliance :: api",
         "workflow :: api",
         "document :: api",
+        "clearing :: api",
     ],
 )
 class LedgerModule

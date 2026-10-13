@@ -70,7 +70,7 @@
 ## Consequences
 - An exposure is only as current as its last measurement. The pre-trade check does not re-read settlement, so
   receivables changed since then are seen at the next measurement.
-- Not modelled: wrong-way risk, exposure profiles over time, margining of exchange trades, limits on concentration
+- Not modelled: wrong-way risk, exposure profiles over time, margining of exchange trades (variation margin since ADR 0046; the exposure follows in increment 12 M3), limits on concentration
   and on uncovered expiring certificates (planned for a later increment), and bank holidays in tenors.
 
 ## Amendment (ADR 0040)

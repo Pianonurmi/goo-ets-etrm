@@ -23,12 +23,31 @@ class DemoHistory(
     fun month(month: YearMonth, finland: DemoEntity, sweden: DemoEntity, parties: DemoParties) {
         val monthsAgo = ChronoUnit.MONTHS.between(month, YearMonth.from(calendar.today)).toInt()
         trade(month, monthsAgo, finland, sweden, parties)
+        margin(finland, month.atDay(1), month.atEndOfMonth())
         val monthEnd = DemoCalendar.weekdayOnOrBefore(month.atEndOfMonth())
         market.officialCurves(listOf(monthEnd))
         listOf(finland, sweden).forEach { entity ->
             desk.officialValuation(entity, monthEnd)
             api.post(DemoUser.MIDDLE, "/api/v1/positions/snapshots?legalEntityId=${entity.id}&asOf=${month.atEndOfMonth()}")
             close(entity, month, hard = monthsAgo >= HARD_CLOSE_FROM, acknowledge = true)
+        }
+    }
+
+    /** The clearing account of the futures (ADR 0046), at the demo's clearing house. */
+    fun clearingAccount(finland: DemoEntity, parties: DemoParties) {
+        api.post(
+            DemoUser.BACKOFFICE,
+            "/api/v1/clearing/accounts",
+            """{"code":"ECC-${finland.code}","legalEntityId":"${finland.id}","clearingHouseId":"${parties.getValue("CP-CLEARING")}",
+               "clearingMember":"Hanse Clearing Bank AG (fictitious)","currency":"EUR"}""",
+        )
+    }
+
+    /** Daily variation margin of the entity's clearing accounts on each business day with settlement prices, as the evening job computes it. */
+    fun margin(entity: DemoEntity, from: LocalDate, to: LocalDate) {
+        val accounts = api.getList(DemoUser.BACKOFFICE, "/api/v1/clearing/accounts?legalEntityId=${entity.id}")
+        DemoMarket.businessDays(maxOf(from, calendar.historyStart), minOf(to, calendar.lastClose)).forEach { day ->
+            accounts.forEach { api.post(DemoUser.BACKOFFICE, "/api/v1/clearing/accounts/${it["id"]}/margin", """{"businessDate":"$day"}""") }
         }
     }
 

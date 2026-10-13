@@ -73,6 +73,7 @@ data class MigrationProperties(
             "etscompliance",
             "position",
             "settlement",
+            "clearing",
             "valuation",
             "ledger",
             "risk",

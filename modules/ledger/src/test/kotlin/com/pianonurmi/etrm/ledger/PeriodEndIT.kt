@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.ledger
 import com.pianonurmi.etrm.allocation.api.AllocationLineView
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationQuery
+import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.document.api.DocumentCommand
 import com.pianonurmi.etrm.etscompliance.api.EmissionKind
 import com.pianonurmi.etrm.etscompliance.api.EmissionRecordView
@@ -126,6 +127,7 @@ class PeriodEndIT {
     private lateinit var withHedges: PeriodEndService
     private lateinit var hedges: HedgeService
     private val tradesById = mutableMapOf<UUID, TradeView>()
+    private val marginedTrades = mutableMapOf<UUID, Set<UUID>>()
     private var hedgedForward = BigDecimal("80")
     private lateinit var referenceData: ReferenceDataService
 
@@ -220,6 +222,7 @@ class PeriodEndIT {
             actor,
             publisher,
             clock,
+            clearing = mockk<ClearingQuery> { every { marginedTradeIds(any()) } answers { marginedTrades[firstArg()].orEmpty() } },
         )
         val documents = mockk<DocumentCommand> { every { renderPdf(any()) } returns mockk { every { id } returns UUID.randomUUID() } }
         hedges = HedgeService(JooqHedgeRepository(dsl), trades, valuations, documents, referenceData, actor, publisher, clock)
@@ -389,6 +392,18 @@ class PeriodEndIT {
         balance(e, october, "1800") shouldBe BigDecimal("1200.00")
         balance(e, october.plusMonths(1), "1800") shouldBe BigDecimal("-1200.00")
         ledger.verifyJournal(e).shouldBeEmpty()
+    }
+
+    @Test
+    fun `futures settled daily through variation margin are left out of the MtM`() {
+        val e = entity("PE-MARGIN")
+        val cleared = forwardPurchase(e, "PE-MARGIN-FUT")
+        val bilateral = forwardPurchase(e, "PE-MARGIN-FWD")
+        marginedTrades[e] = setOf(cleared.id)
+        official(e, LocalDate.of(2026, 10, 30), listOf(hedgeMtm(cleared, "900"), hedgeMtm(bilateral, "-300")))
+        periodEnd.run(e, october)
+        balance(e, october, "1800").signum() shouldBe 0
+        balance(e, october, "2800") shouldBe BigDecimal("-300.00")
     }
 
     @Test

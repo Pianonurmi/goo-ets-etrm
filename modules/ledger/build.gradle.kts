@@ -16,6 +16,7 @@ dependencies {
     implementation(project(":modules:etscompliance"))
     implementation(project(":modules:workflow"))
     implementation(project(":modules:document"))
+    implementation(project(":modules:clearing"))
     implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))

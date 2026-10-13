@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.ledger.application
 
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationQuery
+import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.etscompliance.api.EmissionKind
 import com.pianonurmi.etrm.etscompliance.api.EmissionStatus
 import com.pianonurmi.etrm.etscompliance.api.EtsComplianceQuery
@@ -97,6 +98,8 @@ class PeriodEndService(
     private val clock: Clock,
     /** Cash flow hedges (ADR 0045); none in tests that wire the service by hand. */
     private val hedges: HedgeService? = null,
+    /** Cleared futures are settled daily by variation margin (ADR 0046) and carry no unrealised MtM. */
+    private val clearing: ClearingQuery? = null,
 ) : PeriodEndCommand, PeriodEndQuery {
     /** What one run is working with. */
     private class Context(val entity: LegalEntityView, val period: YearMonth, val runId: UUID) {
@@ -155,7 +158,8 @@ class PeriodEndService(
 
     private fun mtm(ctx: Context, valuationRunId: UUID) {
         val all = valuations.results(valuationRunId)
-        val results = all.filter { it.status == ResultStatus.OK && it.mtmBase != null }
+        val margined = clearing?.marginedTradeIds(ctx.entity.id).orEmpty()
+        val results = all.filter { it.status == ResultStatus.OK && it.mtmBase != null && (margined.isEmpty() || it.tradeId !in margined) }
         val excluded = all.size - results.size
         if (excluded > 0) ctx.warnings += "$excluded delivery schedules of the valuation have no MtM (missing price, rate or bucket, or excluded)"
         val hedged = hedges?.let { h -> valuations.run(valuationRunId)?.let { h.positions(ctx.entity.id, it, ctx.warnings) } }.orEmpty()

@@ -83,6 +83,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
             DemoStep("Instruments, futures and curves") { market.instruments() },
             DemoStep("Price and FX history") { market.history() },
             DemoStep("Generic GoO curves") { market.genericCurves() },
+            DemoStep("Clearing account") { history.clearingAccount(it.get(FINLAND), it.parties()) },
             DemoStep("Certificates DEMO-FI") { DemoInventory(api, calendar).receive(it.get(FINLAND), issuanceSeed = 1) },
             DemoStep("Certificates DEMO-SE") { DemoInventory(api, calendar).receive(it.get(SWEDEN), issuanceSeed = 2) },
         ) + calendar.historyMonths.map { month ->
@@ -147,12 +148,14 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
     /** Last month closes softly with its export not yet acknowledged; the last five days get official curves and valuations. */
     private fun lastMonth(finland: DemoEntity, sweden: DemoEntity, market: DemoMarket, desk: DemoDesk, history: DemoHistory) {
         market.officialCurves(listOf(calendar.dayBeforeMonthEnd, calendar.monthEnd))
+        history.margin(finland, calendar.previousMonth.atDay(1), calendar.monthEnd)
         listOf(finland, sweden).forEach { entity ->
             listOf(calendar.dayBeforeMonthEnd, calendar.monthEnd).forEach { desk.officialValuation(entity, it) }
             api.post(DemoUser.MIDDLE, "/api/v1/positions/snapshots?legalEntityId=${entity.id}&asOf=${calendar.previousMonth.atEndOfMonth()}")
             history.close(entity, calendar.previousMonth, hard = false, acknowledge = false)
         }
         val recent = calendar.recentCloses.filter { it.isAfter(calendar.monthEnd) }
+        history.margin(finland, calendar.monthEnd.plusDays(1), calendar.lastClose)
         market.officialCurves(recent)
         recent.forEach { desk.officialValuation(finland, it) }
         market.pendingCurve()

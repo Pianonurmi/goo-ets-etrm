@@ -73,3 +73,7 @@ Cash flow hedge accounting is modelled: designated relationships under four eyes
 every official valuation, and a period-end hedge component that puts the effective portion in the hedging reserve and
 the rest in profit or loss. The designated proportion of a hedging trade leaves its book type's MtM. `POST_OCI` by book
 type stays available but is no substitute for a designated hedge.
+
+## Amendment (ADR 0046)
+Futures margined through a clearing account leave the period-end MtM: their result is realised every day by the
+variation margin, posted to 1960 and 3600.

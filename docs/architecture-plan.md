@@ -47,7 +47,7 @@ from the plan or are still open:
 |---|---|---|
 | Market data feeds from EEX/ICE and GoO platforms | File imports with formats stored as data (exchange settlement CSV, broker GoO CSV, ECB files), manual entry with plausibility checks, and an ECB reference rate adapter (disabled by default) | Exchange and platform data are licensed and `www.eex.com` and `www.ecb.europa.eu` are blocked from the build environment. The ECB adapter is tested against a local stub; allow `www.ecb.europa.eu` to test it live |
 | Curves per bucket and delivery period | EUA forward curve from futures settlements and spot; GoO vintage curves per bucket; discount curves (zero rates by tenor) per currency; linear between pillars, flat or at the last carry rate beyond (ADR 0044), proxies and earlier vintages flagged; official snapshots under four eyes | Seasonality waits for monthly-delivery data; rate curves come from files until a vendor feed exists |
-| MtM and P&L explain (price, volume, new, FX, time) | MtM per delivery schedule discounted to the payment date (futures not); explain by new, cancelled, delivered, amended, time, price, rates, FX and unexplained (exact by construction) | Options and futures margining are out of scope |
+| MtM and P&L explain (price, volume, new, FX, time) | MtM per delivery schedule discounted to the payment date (futures not); explain by new, cancelled, delivered, amended, time, price, rates, FX and unexplained (exact by construction) | Options are out of scope; cleared futures are margined daily (ADR 0046, increment 12) |
 | MtM accounting under IFRS 9 | Per book type policy as data (P&L, OCI or disclose only) posted at period end and reversed on day one; NRV on inventory; IAS 37 provision (net liability); IAS 20 grant release | Seeded policies are flagged until accounting signs them off; cash flow hedges of forecast transactions are modelled (ADR 0045), fair value hedges are not |
 | Limits and credit exposure | Credit, position, tenor, stop loss and compliance short limits under four eyes; exposure from MtM, receivables, PFE and collateral; pre-trade check through a trade SPI | PFE add-ons are uncalibrated placeholders; concentration and expiry limits are left for later |
 | Installations, emissions, free allocation, surrender | As planned; deadlines as data with reminders | CBAM-linked phase-out of free allocation and ETS2 are not modelled |
@@ -454,5 +454,5 @@ Observability and supply-chain hardening, Java 25 with virtual threads, Kafka ex
 - Exact list of registries and whether API credentials exist (Grexel API access is contractual per registry).
 - Entity accounting policies: EUA as intangible vs inventory; free allocation at nominal vs fair value; GoO own-use treatment.
 - Which GL system and interface format (SAP IDoc vs flat file).
-- Whether exchange-cleared EUA futures with margining are needed in increment 3 or later.
+- ~~Whether exchange-cleared EUA futures with margining are needed.~~ Increment 12 margins them (ADR 0046).
 - Market data vendors for GoO bucket marks.

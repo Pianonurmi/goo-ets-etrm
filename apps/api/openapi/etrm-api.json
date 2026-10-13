@@ -1461,6 +1461,43 @@
         "required" : [ "change", "entityKey", "entityType", "id", "reason", "requestedAt", "requestedBy", "status", "summary", "version" ],
         "type" : "object"
       },
+      "ClearingAccountView" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "clearingHouseId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "clearingMember" : {
+            "type" : "string"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdBy" : {
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "clearingHouseId", "clearingMember", "code", "createdAt", "createdBy", "currency", "id", "legalEntityId" ],
+        "type" : "object"
+      },
       "CommentRequest" : {
         "properties" : {
           "body" : {
@@ -1558,6 +1595,16 @@
           }
         },
         "required" : [ "asOf", "complianceYear", "emissionsBasis", "estimatedEmissions", "freeAllocationExpected", "freeAllocationOutstanding", "freeAllocationReceived", "heldAllowances", "holdings", "legalEntityId", "netPosition", "obligationOutstanding", "openPurchases", "openSales", "surrenderDeadline", "surrendered" ],
+        "type" : "object"
+      },
+      "ComputeMargin" : {
+        "properties" : {
+          "businessDate" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "businessDate" ],
         "type" : "object"
       },
       "ConfirmInstructionForBreak" : {
@@ -1933,6 +1980,29 @@
           }
         },
         "required" : [ "bookType", "code", "legalEntityId", "name" ],
+        "type" : "object"
+      },
+      "CreateClearingAccount" : {
+        "properties" : {
+          "clearingHouseId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "clearingMember" : {
+            "type" : "string"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "clearingHouseId", "clearingMember", "code", "legalEntityId" ],
         "type" : "object"
       },
       "CreateCounterparty" : {
@@ -6244,6 +6314,85 @@
           }
         },
         "required" : [ "accountCode" ],
+        "type" : "object"
+      },
+      "MarginLineView" : {
+        "properties" : {
+          "contractCode" : {
+            "type" : "string"
+          },
+          "positionAfter" : {
+            "type" : "number"
+          },
+          "positionBefore" : {
+            "type" : "number"
+          },
+          "previousSettlementPrice" : {
+            "type" : [ "number", "null" ]
+          },
+          "settlementPrice" : {
+            "type" : "number"
+          },
+          "tradedQuantity" : {
+            "type" : "number"
+          },
+          "variationMargin" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "contractCode", "positionAfter", "positionBefore", "settlementPrice", "tradedQuantity", "variationMargin" ],
+        "type" : "object"
+      },
+      "MarginRunView" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "businessDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "computedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "computedBy" : {
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "inputsHash" : {
+            "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MarginLineView"
+            },
+            "type" : "array"
+          },
+          "supersededAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "variationMargin" : {
+            "type" : "number"
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "accountId", "businessDate", "computedAt", "computedBy", "currency", "id", "inputsHash", "legalEntityId", "lines", "variationMargin", "version" ],
         "type" : "object"
       },
       "MasterAgreement" : {
@@ -12522,6 +12671,220 @@
           }
         },
         "tags" : [ "Audit" ]
+      }
+    },
+    "/api/v1/clearing/accounts" : {
+      "get" : {
+        "operationId" : "clearing_accounts",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ClearingAccountView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      },
+      "post" : {
+        "operationId" : "clearing_createAccount",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateClearingAccount"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClearingAccountView"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/accounts/{id}/margin" : {
+      "get" : {
+        "operationId" : "clearing_runs",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/MarginRunView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      },
+      "post" : {
+        "operationId" : "clearing_computeMargin",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ComputeMargin"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MarginRunView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/margin/{runId}" : {
+      "get" : {
+        "operationId" : "clearing_run",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "runId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MarginRunView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
       }
     },
     "/api/v1/confirmations" : {
@@ -25504,6 +25867,9 @@
   }, {
     "description" : "Deal capture, approval, confirmation, delivery and settlement",
     "name" : "Trades"
+  }, {
+    "description" : "Clearing accounts and daily variation margin of cleared EUA futures",
+    "name" : "Clearing"
   }, {
     "description" : "Mark-to-market runs, sign-off and P&L explain",
     "name" : "Valuation"
