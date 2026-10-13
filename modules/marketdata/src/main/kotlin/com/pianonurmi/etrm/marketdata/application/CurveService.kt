@@ -16,6 +16,7 @@ import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.marketdata.api.InstrumentKind
+import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.SnapshotStatus
 import com.pianonurmi.etrm.marketdata.domain.CurveBuilder
@@ -82,6 +83,9 @@ class CurveService(
             }
         }
         if (command.kind != CurveKind.DISCOUNT && command.dayCount != null) throw ValidationException("Only discount curves have a day count")
+        if (command.kind != CurveKind.EUA_FORWARD && command.interpolation != Interpolation.LINEAR) {
+            throw ValidationException("Only forward curves are read with carry")
+        }
         val currency = Currency.getInstance(command.currency.uppercase()).currencyCode
         if (command.kind == CurveKind.DISCOUNT && curves.curves(true).any { it.kind == CurveKind.DISCOUNT && it.currency == currency }) {
             throw ConflictException("$currency already has a discount curve")
@@ -103,6 +107,7 @@ class CurveService(
             proxySpread = command.proxySpread,
             active = true,
             dayCount = if (command.kind == CurveKind.DISCOUNT) command.dayCount ?: if (currency == "EUR") DayCount.ACT_360 else DayCount.ACT_365F else null,
+            interpolation = command.interpolation,
         )
         curves.insertCurve(curve)
         return curve
@@ -188,6 +193,7 @@ class CurveService(
             supersededAt = null,
             points = points,
             dayCount = curve.dayCount,
+            interpolation = curve.interpolation,
         )
         curves.insertSnapshot(snapshot)
         return snapshot
@@ -202,6 +208,14 @@ class CurveService(
         val existing = base.points.firstOrNull { it.pillar == pillar } ?: throw NotFoundException("CurvePillar", pillar)
         val points = base.points.map { if (it.pillar == pillar) it.copy(price = price, origin = PointOrigin.OVERRIDE, note = note) else it }
         return store(curve, base.asOfDate, points, base.gaps, "Override of ${existing.pillar} in version ${base.version}: $note")
+    }
+
+    override fun setInterpolation(curveCode: String, interpolation: Interpolation): CurveView {
+        actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.RISK)
+        val curve = curves.curve(curveCode.uppercase()) ?: throw NotFoundException("Curve", curveCode)
+        if (curve.kind != CurveKind.EUA_FORWARD && interpolation != Interpolation.LINEAR) throw ValidationException("Only forward curves are read with carry")
+        curves.setInterpolation(curve.code, interpolation)
+        return curves.curve(curve.code)!!
     }
 
     override fun submit(snapshotId: UUID): CurveSnapshotView {

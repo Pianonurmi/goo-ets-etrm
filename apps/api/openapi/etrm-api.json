@@ -2018,6 +2018,10 @@
           "description" : {
             "type" : "string"
           },
+          "interpolation" : {
+            "enum" : [ "LINEAR", "CARRY" ],
+            "type" : "string"
+          },
           "kind" : {
             "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
             "type" : "string"
@@ -2666,6 +2670,10 @@
           "inputsHash" : {
             "type" : "string"
           },
+          "interpolation" : {
+            "enum" : [ "LINEAR", "CARRY" ],
+            "type" : "string"
+          },
           "kind" : {
             "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
             "type" : "string"
@@ -2724,6 +2732,10 @@
             "type" : [ "string", "null" ]
           },
           "description" : {
+            "type" : "string"
+          },
+          "interpolation" : {
+            "enum" : [ "LINEAR", "CARRY" ],
             "type" : "string"
           },
           "kind" : {
@@ -5011,6 +5023,16 @@
           }
         },
         "required" : [ "active", "code", "currency", "description", "kind", "unit" ],
+        "type" : "object"
+      },
+      "InterpolationRequest" : {
+        "properties" : {
+          "interpolation" : {
+            "enum" : [ "LINEAR", "CARRY" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "interpolation" ],
         "type" : "object"
       },
       "InvoiceLineView" : {
@@ -16090,6 +16112,52 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CurvePrice"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Curves" ]
+      }
+    },
+    "/api/v1/market-data/curves/{code}/interpolation" : {
+      "post" : {
+        "operationId" : "curve_setInterpolation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "code",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/InterpolationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CurveView"
                 }
               }
             },

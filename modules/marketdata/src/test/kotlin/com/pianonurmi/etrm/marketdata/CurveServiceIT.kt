@@ -14,6 +14,7 @@ import com.pianonurmi.etrm.marketdata.api.CurveSnapshotSubmitted
 import com.pianonurmi.etrm.marketdata.api.DayCount
 import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.InstrumentKind
+import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.marketdata.api.QuoteType
@@ -150,6 +151,17 @@ class CurveServiceIT {
         curves.forwardPrice("EUA", LocalDate.of(2026, 12, 21), asOf)!!.value shouldBe BigDecimal("71.000000")
         curves.forwardPrice("EUA", LocalDate.of(2026, 12, 21), asOf, knownAt = signedOffAt)!!.value shouldBe BigDecimal("71.200000")
         curves.snapshots("EUA_FWD", asOf).map { it.status } shouldBe listOf(SnapshotStatus.SUPERSEDED, SnapshotStatus.OFFICIAL)
+
+        // Read with carry from the next snapshot on: beyond Dec-27 the price grows instead of staying flat.
+        val flat = curves.forwardPrice("EUA", LocalDate.of(2028, 6, 1), asOf)!!.value
+        curves.setInterpolation("EUA_FWD", Interpolation.CARRY).interpolation shouldBe Interpolation.CARRY
+        curves.forwardPrice("EUA", LocalDate.of(2028, 6, 1), asOf)!!.value shouldBe flat
+        val carried = curves.build("EUA_FWD", asOf)
+        carried.interpolation shouldBe Interpolation.CARRY
+        curves.submit(carried.id)
+        signOff(carried.id, "checker")
+        (curves.forwardPrice("EUA", LocalDate.of(2028, 6, 1), asOf)!!.value > flat) shouldBe true
+        shouldThrow<ValidationException> { curves.setInterpolation("FI_HYDRO", Interpolation.CARRY) }
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.marketdata.api.CurvePointView
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
 import com.pianonurmi.etrm.marketdata.api.DayCount
 import com.pianonurmi.etrm.marketdata.api.DiscountFactor
+import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.marketdata.api.QuoteQuality
@@ -24,7 +25,7 @@ import java.util.UUID
 class CurveMathTest {
     private val asOf = LocalDate.of(2026, 10, 9)
 
-    private fun snapshot(kind: CurveKind, vararg points: CurvePointView) = CurveSnapshotView(
+    private fun snapshot(kind: CurveKind, vararg points: CurvePointView, interpolation: Interpolation = Interpolation.LINEAR) = CurveSnapshotView(
         UUID.randomUUID(),
         "C",
         kind,
@@ -42,6 +43,7 @@ class CurveMathTest {
         null,
         points.toList(),
         if (kind == CurveKind.DISCOUNT) DayCount.ACT_360 else null,
+        interpolation,
     )
 
     private fun dated(date: String, price: String) = CurvePointView(date, LocalDate.parse(date), null, BigDecimal(price), PointOrigin.QUOTE, emptyList(), null)
@@ -66,6 +68,24 @@ class CurveMathTest {
         }
         CurveMath.priceOn(curve, LocalDate.of(2028, 6, 1))!!.origin shouldBe PriceOrigin.EXTRAPOLATED
         CurveMath.priceOn(snapshot(CurveKind.EUA_FORWARD), asOf) shouldBe null
+    }
+
+    @Test
+    fun `a carry curve continues the last segment's carry beyond the last future and is linear before it`() {
+        val curve = snapshot(
+            CurveKind.EUA_FORWARD,
+            dated("2026-10-13", "70.00"),
+            dated("2026-12-21", "72.00"),
+            dated("2027-12-20", "76.00"),
+            interpolation = Interpolation.CARRY,
+        )
+        // 164 days past Dec-27 at the Dec-26 to Dec-27 carry of 4/72 over 364 days: 76 x (1 + 4/72 x 164/364).
+        CurveMath.priceOn(curve, LocalDate.of(2028, 6, 1))!!.let {
+            it.value shouldBe BigDecimal("77.902320")
+            it.origin shouldBe PriceOrigin.EXTRAPOLATED
+        }
+        CurveMath.priceOn(curve, LocalDate.of(2026, 11, 16))!!.value shouldBe BigDecimal("70.985507")
+        CurveMath.priceOn(curve, LocalDate.of(2027, 12, 20))!!.value shouldBe BigDecimal("76.00")
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
 import com.pianonurmi.etrm.marketdata.api.CurveView
 import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.DiscountFactors
+import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
@@ -39,6 +40,13 @@ class CurveController(private val query: CurveQuery, private val command: CurveC
     fun create(
         @RequestBody body: CreateCurve,
     ): CurveView = command.createCurve(body)
+
+    /** How later snapshots of a forward curve are read beyond the last future (MIDDLE_OFFICE or RISK). */
+    @PostMapping("/{code}/interpolation")
+    fun setInterpolation(
+        @PathVariable code: String,
+        @RequestBody body: InterpolationRequest,
+    ): CurveView = command.setInterpolation(code, body.interpolation)
 
     @PostMapping("/{code}/snapshots")
     @ResponseStatus(HttpStatus.CREATED)
@@ -98,6 +106,8 @@ class CurveController(private val query: CurveQuery, private val command: CurveC
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) payDate: LocalDate,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) asOf: LocalDate,
     ): DiscountFactor = discounting.discountFactor(currency, payDate, asOf)
+
+    data class InterpolationRequest(val interpolation: Interpolation)
 
     data class BuildRequest(val asOf: LocalDate, val note: String? = null)
 

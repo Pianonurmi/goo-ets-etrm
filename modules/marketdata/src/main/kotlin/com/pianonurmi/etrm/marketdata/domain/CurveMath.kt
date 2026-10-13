@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
 import com.pianonurmi.etrm.marketdata.api.DayCount
 import com.pianonurmi.etrm.marketdata.api.DiscountFactor
+import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.marketdata.api.QuoteType
@@ -16,14 +17,30 @@ import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-/** Reading prices off a snapshot: linear in calendar days between dated pillars, flat beyond; vintages by year. */
+/**
+ * Reading prices off a snapshot: linear in calendar days between dated pillars; beyond the last, flat or (CARRY) at
+ * the last segment's carry rate; before the first, flat. Vintages by year.
+ */
 object CurveMath {
     fun priceOn(snapshot: CurveSnapshotView, date: LocalDate): CurvePrice? {
         require(snapshot.kind == CurveKind.EUA_FORWARD) { "${snapshot.curveCode} is not a forward curve" }
         val points = snapshot.points.filter { it.pillarDate != null }.sortedBy { it.pillarDate }
         if (points.isEmpty()) return null
-        val (value, origin) = interpolate(points, date)
+        val (value, origin) = if (snapshot.interpolation == Interpolation.CARRY && points.size > 1 && date.isAfter(points.last().pillarDate)) {
+            carried(points[points.size - 2], points.last(), date) to PriceOrigin.EXTRAPOLATED
+        } else {
+            interpolate(points, date)
+        }
         return CurvePrice(value, snapshot.currency, origin, snapshot.curveCode, snapshot.id, snapshot.asOfDate)
+    }
+
+    /** `F_n (1 + (F_n / F_n-1 − 1) × (T − T_n) / (T_n − T_n-1))`: the last segment's simple carry continued. */
+    private fun carried(before: CurvePointView, last: CurvePointView, date: LocalDate): BigDecimal {
+        val segment = ChronoUnit.DAYS.between(before.pillarDate, last.pillarDate)
+        val beyond = ChronoUnit.DAYS.between(last.pillarDate, date)
+        val growth = last.price.divide(before.price, MC) - BigDecimal.ONE
+        val factor = BigDecimal.ONE + growth.multiply(BigDecimal(beyond), MC).divide(BigDecimal(segment), MC)
+        return last.price.multiply(factor, MC).setScale(6, RoundingMode.HALF_EVEN)
     }
 
     /** The vintage's own point, else the nearest earlier vintage (GoO of an older year are no dearer, a cautious mark). */

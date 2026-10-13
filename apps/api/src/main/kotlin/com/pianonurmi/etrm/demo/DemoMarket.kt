@@ -63,7 +63,7 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
             api.post(
                 DemoUser.RISK,
                 "/api/v1/market-data/curves",
-                """{"code":"$EUA_CURVE","kind":"EUA_FORWARD","description":"EUA forward","allowanceProductCode":"EUA","currency":"EUR"}""",
+                """{"code":"$EUA_CURVE","kind":"EUA_FORWARD","description":"EUA forward","allowanceProductCode":"EUA","currency":"EUR","interpolation":"CARRY"}""",
             )
         }
         BUCKETS.filter { it.curve !in curves }.forEach { bucket ->

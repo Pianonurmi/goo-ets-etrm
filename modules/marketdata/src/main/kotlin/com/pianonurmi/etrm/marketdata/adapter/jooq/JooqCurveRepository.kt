@@ -10,6 +10,7 @@ import com.pianonurmi.etrm.marketdata.api.CurvePointView
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
 import com.pianonurmi.etrm.marketdata.api.CurveView
 import com.pianonurmi.etrm.marketdata.api.DayCount
+import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.marketdata.api.SnapshotStatus
@@ -50,7 +51,12 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
             .set(CURVE.PROXY_SPREAD, curve.proxySpread)
             .set(CURVE.ACTIVE, curve.active)
             .set(CURVE.DAY_COUNT, curve.dayCount?.name)
+            .set(CURVE.INTERPOLATION, curve.interpolation.name)
             .execute()
+    }
+
+    override fun setInterpolation(code: String, interpolation: Interpolation) {
+        dsl.update(CURVE).set(CURVE.INTERPOLATION, interpolation.name).where(CURVE.CODE.eq(code)).execute()
     }
 
     override fun nextVersion(curveCode: String, asOfDate: LocalDate): Int = (
@@ -71,6 +77,7 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
             .set(CURVE_SNAPSHOT.NOTE, snapshot.note)
             .set(CURVE_SNAPSHOT.BUILT_BY, snapshot.builtBy)
             .set(CURVE_SNAPSHOT.BUILT_AT, snapshot.builtAt)
+            .set(CURVE_SNAPSHOT.INTERPOLATION, snapshot.interpolation.name)
             .execute()
         snapshot.points.forEach { p ->
             dsl.insertInto(CURVE_POINT)
@@ -155,6 +162,7 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
         r.proxySpread,
         r.active,
         r.dayCount?.let(DayCount::valueOf),
+        Interpolation.valueOf(r.interpolation),
     )
 
     private fun toSnapshot(r: CurveSnapshotRecord): CurveSnapshotView {
@@ -177,6 +185,7 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
             r.supersededAt,
             points(r.id),
             curve.dayCount,
+            Interpolation.valueOf(r.interpolation),
         )
     }
 }

@@ -24,6 +24,12 @@ enum class DayCount(val basis: Int) {
     ACT_365F(365),
 }
 
+/**
+ * How a forward curve is read off its pillars: linear in days between them either way (a constant carry rate under
+ * simple compounding); beyond the last pillar flat ([LINEAR]) or growing at the last segment's carry rate ([CARRY]).
+ */
+enum class Interpolation { LINEAR, CARRY }
+
 enum class SnapshotStatus { DRAFT, PENDING_SIGN_OFF, OFFICIAL, SUPERSEDED, REJECTED }
 
 /** Where a stored point's price came from. */
@@ -58,6 +64,7 @@ data class CurveView(
     val active: Boolean,
     /** Discount curves only. */
     val dayCount: DayCount? = null,
+    val interpolation: Interpolation = Interpolation.LINEAR,
 )
 
 data class CreateCurve(
@@ -73,6 +80,8 @@ data class CreateCurve(
     val proxySpread: BigDecimal = BigDecimal.ZERO,
     /** Discount curves only; ACT_360 for EUR and ACT_365F for other currencies when left out. */
     val dayCount: DayCount? = null,
+    /** Forward curves only. */
+    val interpolation: Interpolation = Interpolation.LINEAR,
 )
 
 data class CurvePointView(
@@ -114,6 +123,8 @@ data class CurveSnapshotView(
     val points: List<CurvePointView>,
     /** Discount curves only. */
     val dayCount: DayCount? = null,
+    /** The method the snapshot was built with. */
+    val interpolation: Interpolation = Interpolation.LINEAR,
 )
 
 interface CurveQuery {
@@ -181,6 +192,9 @@ interface CurveCommand {
 
     /** A new draft version of [snapshotId] with one pillar set by hand. */
     fun override(snapshotId: UUID, pillar: String, price: BigDecimal, note: String): CurveSnapshotView
+
+    /** How later snapshots of a forward curve are read beyond the last pillar; snapshots already built keep theirs. */
+    fun setInterpolation(curveCode: String, interpolation: Interpolation): CurveView
 
     /** Sends a draft for sign-off by a second person (workflow task `CURVE_SIGN_OFF`). */
     fun submit(snapshotId: UUID): CurveSnapshotView

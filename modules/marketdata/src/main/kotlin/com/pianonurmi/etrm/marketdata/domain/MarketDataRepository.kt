@@ -120,6 +120,8 @@ interface CurveRepository {
 
     fun insertCurve(curve: com.pianonurmi.etrm.marketdata.api.CurveView)
 
+    fun setInterpolation(code: String, interpolation: com.pianonurmi.etrm.marketdata.api.Interpolation)
+
     fun nextVersion(curveCode: String, asOfDate: LocalDate): Int
 
     fun insertSnapshot(snapshot: com.pianonurmi.etrm.marketdata.api.CurveSnapshotView)

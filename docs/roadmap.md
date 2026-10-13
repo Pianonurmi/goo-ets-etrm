@@ -155,7 +155,7 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M0 | Discount curves: `DISCOUNT` curves by currency with a day count, zero rates by tenor from rate instruments (negative allowed, moves checked in basis points), discount factors in decimals, a lookup endpoint; demo EUR and SEK curves | done |
 | M1 | Discounted MtM (ADR 0044): to the payment date in the contract currency, futures undiscounted; pay date, factor, curve and undiscounted value kept per result | done |
 | M2 | TIME and RATES in the P&L explain | done |
-| M3 | Carry interpolation of allowance forwards | |
+| M3 | Carry interpolation of allowance forwards: beyond the last future at the last segment's carry, set per curve and recorded with each snapshot; the demo EUA curve uses it | done |
 | M4 | Hedge designation and effectiveness (ADR 0045) | |
 | M5 | Hedge accounting at period end | |
 | M6 | Screens, demo, documentation, release 0.11.0 | |

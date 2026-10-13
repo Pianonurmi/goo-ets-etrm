@@ -59,3 +59,11 @@ They add up exactly to the change in MtM (property test with random factors).
 - Valuation reads one discount factor per currency and payment date per run.
 - Rate instruments and their quotes come in as files, like prices. A vendor feed is still to come (architecture
   plan).
+
+## Addendum: carry beyond the last future (increment 11 M3)
+Forward curves were flat beyond their last pillar. Allowances carry: a forward is spot grown at the cost of carry, so a
+delivery after the last listed December was undervalued. A forward curve can now be read with `CARRY`: unchanged
+between pillars (linear in days is already a constant carry rate under simple compounding), and beyond the last
+pillar `F_n × (1 + (F_n / F_n-1 − 1) × (T − T_n) / (T_n − T_n-1))`, the last segment's carry continued. The method is
+set on the curve by middle office or risk and recorded with each snapshot, so an official price is reproducible after
+it changes. Seasonal shaping stays out: GoO curves are per production year and allowances have no seasonal shape.
