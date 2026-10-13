@@ -48,6 +48,20 @@ Choose the instrument **Future**: the product switches to EUA and only exchanges
 Pick the **futures contract**: it sets the allowance product, currency, venue and the single delivery on the
 contract's delivery date. The quantity must be whole lots of the contract size.
 
+### Options
+
+Choose the instrument **Option**: the product switches to EUA and only exchanges and clearing houses are offered.
+Each leg has **Option terms**:
+
+- the **underlying contract**, the futures contract the option is on; it sets the allowance product and currency;
+- the **type**, call or put, and the **strike** per tonne;
+- the **expiry date**, from the trade date up to the contract's last trading day (the field under the contract shows
+  it).
+
+The price of an option leg is the **premium per tonne**, and the quantity is the tonnes of the underlying in whole lots
+of the contract size. An option has no delivery schedule: exercise at expiry creates the future, which delivers. On the
+trade page the option terms are listed on each leg in place of the deliveries table.
+
 ### Index pricing
 
 Switch a leg's **Pricing** to **Index**, choose the price index and enter the **spread**. The price is fixed later

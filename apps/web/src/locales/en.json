@@ -673,6 +673,17 @@
       "futuresContract": "Futures contract",
       "futureDelivery": "Delivers once on {{date}}, in whole lots of {{size}} t",
       "futureChooseContract": "Choose the contract: it sets the product, currency and delivery date",
+      "optionTerms": "Option terms",
+      "optionTermsHint": "A European option on a futures contract. Exercise at expiry creates the future at the strike.",
+      "underlying": "Underlying contract",
+      "underlyingChoose": "Choose the future the option is on: it sets the product and currency",
+      "underlyingHint": "Last trading day {{day}}, whole lots of {{size}} t",
+      "optionType": "Type",
+      "strike": "Strike (per tonne)",
+      "expiry": "Expiry date",
+      "premium": "Premium per tonne",
+      "premiumHint": "Paid in full on the option; quantity is tonnes of the underlying",
+      "optionNoDelivery": "An option delivers nothing: exercise at expiry creates the future, which delivers.",
       "whatTitle": "What is traded",
       "whatHint": "The product, the instrument and when it was traded.",
       "whoTitle": "With whom",
@@ -694,6 +705,18 @@
     "familiesShort": {
       "GUARANTEE_OF_ORIGIN": "GoO",
       "EMISSION_ALLOWANCE": "EUA"
+    },
+    "optionTypes": {
+      "CALL": "Call",
+      "PUT": "Put"
+    },
+    "optionTerms": {
+      "type": "Type",
+      "strike": "Strike",
+      "expiry": "Expiry",
+      "underlying": "Underlying",
+      "premiumSuffix": "premium per tonne",
+      "noDeliveries": "An option has no delivery schedule: exercise at expiry creates the future, which delivers."
     },
     "instruments": {
       "SPOT": "Spot",

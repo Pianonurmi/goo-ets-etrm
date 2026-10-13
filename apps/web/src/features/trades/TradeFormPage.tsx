@@ -19,7 +19,7 @@ import { useForm } from '@mantine/form';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
@@ -56,6 +56,8 @@ import {
   unitOf,
   validateTrade,
   withFuture,
+  withUnderlying,
+  type FuturesContract,
   type InstrumentType,
   type ProductFamily,
   type TradeFormValues,
@@ -125,23 +127,31 @@ function TradeForm({ existing }: { existing?: TradeView }) {
   const [unplaced, setUnplaced] = useState<string[]>([]);
   const amending = existing !== undefined;
 
+  // The contracts load once the instrument asks for them, after the form exists; validation reads the latest.
+  const contractsRef = useRef<FuturesContract[]>([]);
+
   const form = useForm<TradeFormValues>({
     initialValues: existing ? fromTrade(existing) : emptyTrade(today),
     validate: (values) =>
       validateTrade(values, {
         amend: amending,
         intercompany: isIntercompany(counterparties.byId.get(values.counterpartyId)),
+        contracts: contractsRef.current,
       }),
   });
   const instrument = form.values.instrumentType;
   const future = instrument === 'FUTURE';
+  const option = instrument === 'OPTION';
   const counterparty = counterparties.byId.get(form.values.counterpartyId);
   const intercompany = isIntercompany(counterparty);
   const mirrorBooks = useBooks(
     intercompany && !amending ? (counterparty?.linkedLegalEntityId ?? undefined) : undefined,
   );
-  const contracts = useFuturesContracts(future);
-  const indices = usePriceIndices(!future);
+  const contracts = useFuturesContracts(future || option);
+  useEffect(() => {
+    contractsRef.current = contracts;
+  }, [contracts]);
+  const indices = usePriceIndices(!future && !option);
   const capture = $api.useMutation('post', '/api/v1/trades', { meta: { notify: false } });
   const amend = $api.useMutation('put', '/api/v1/trades/{id}', { meta: { notify: false } });
   const family = form.values.productFamily;
@@ -204,10 +214,24 @@ function TradeForm({ existing }: { existing?: TradeView }) {
     counterpartiesFor(counterparties.list, 'FUTURE').some((candidate) => candidate.id === id);
   const setInstrument = (next: InstrumentType) => {
     form.setFieldValue('instrumentType', next);
-    if (next === 'FUTURE') {
+    if (next === 'FUTURE' || next === 'OPTION') {
       setFamily('EMISSION_ALLOWANCE');
       if (!tradesFuturesWith(form.values.counterpartyId)) form.setFieldValue('counterpartyId', '');
     }
+    // An option's premium is a fixed price per tonne.
+    if (next === 'OPTION') {
+      form.setFieldValue(
+        'legs',
+        form.values.legs.map((leg) => ({ ...leg, priceType: 'FIXED' as const, priceIndex: '' })),
+      );
+    }
+  };
+  const chooseUnderlying = (index: number, code: string | null) => {
+    const contract = contracts.find((candidate) => candidate.code === code);
+    const leg = form.values.legs[index];
+    if (!contract || !leg) return;
+    form.setFieldValue(`legs.${index}`, withUnderlying(leg, contract));
+    form.setFieldValue('venueMic', contract.venueMic);
   };
   const chooseContract = (index: number, code: string | null) => {
     const contract = contracts.find((candidate) => candidate.code === code);
@@ -215,6 +239,13 @@ function TradeForm({ existing }: { existing?: TradeView }) {
     if (!contract || !leg) return;
     form.setFieldValue(`legs.${index}`, withFuture(leg, contract));
     form.setFieldValue('venueMic', contract.venueMic);
+  };
+
+  const underlyingHint = (code: string) => {
+    const contract = contracts.find((candidate) => candidate.code === code);
+    return contract
+      ? t('trades.form.underlyingHint', { day: contract.lastTradingDay, size: contract.contractSize })
+      : t('trades.form.underlyingChoose');
   };
 
   const units = family === 'EMISSION_ALLOWANCE' ? t('trades.form.unitsEua') : t('trades.form.unitsGoo');
@@ -243,7 +274,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                 ]}
                 value={family}
                 onChange={(value) => setFamily(value)}
-                disabled={amending || future}
+                disabled={amending || future || option}
                 fullWidth
               />
             </Stack>
@@ -289,7 +320,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                 value: cp.id,
                 label: `${cp.name} (${cp.code})`,
               }))}
-              description={future ? t('trades.form.futureCounterparty') : undefined}
+              description={future || option ? t('trades.form.futureCounterparty') : undefined}
               required
               disabled={amending}
               searchable
@@ -384,7 +415,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                   {family === 'EMISSION_ALLOWANCE' && (
                     <Select
                       label={t('trades.form.allowanceProduct')}
-                      disabled={future}
+                      disabled={future || option}
                       data={allowances.map((product) => ({
                         value: product.code,
                         label: `${product.code} · ${product.name}`,
@@ -399,7 +430,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                     data-testid={`leg-${index}-quantity`}
                     {...form.getInputProps(`legs.${index}.quantity`)}
                   />
-                  {!future && (
+                  {!future && !option && (
                     <Stack gap={4}>
                       <Text size="sm" fw={500}>
                         {t('trades.form.priceType')}
@@ -416,7 +447,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                       />
                     </Stack>
                   )}
-                  {!future && leg.priceType === 'INDEX' && (
+                  {!future && !option && leg.priceType === 'INDEX' && (
                     <Select
                       label={t('trades.form.priceIndex')}
                       data={indices.map((priceIndex) => ({
@@ -429,7 +460,14 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                     />
                   )}
                   <TextInput
-                    label={!future && leg.priceType === 'INDEX' ? t('trades.form.spread') : t('trades.columns.price')}
+                    label={
+                      option
+                        ? t('trades.form.premium')
+                        : !future && leg.priceType === 'INDEX'
+                          ? t('trades.form.spread')
+                          : t('trades.columns.price')
+                    }
+                    description={option ? t('trades.form.premiumHint') : undefined}
                     inputMode="decimal"
                     required
                     data-testid={`leg-${index}-price`}
@@ -439,11 +477,59 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                     label={t('trades.form.currency')}
                     data={CURRENCIES}
                     allowDeselect={false}
-                    disabled={future}
+                    disabled={future || option}
                     {...form.getInputProps(`legs.${index}.priceCurrency`)}
                   />
                 </SimpleGrid>
               </SubSection>
+              {option && (
+                <SubSection title={t('trades.form.optionTerms')} description={t('trades.form.optionTermsHint')}>
+                  <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+                    <Select
+                      label={t('trades.form.underlying')}
+                      data={contracts.map((contract) => ({
+                        value: contract.code,
+                        label: `${contract.code} · ${contract.deliveryMonth} · ${contract.venueMic}`,
+                      }))}
+                      description={underlyingHint(leg.underlyingContractCode)}
+                      required
+                      searchable
+                      data-testid={`leg-${index}-underlying`}
+                      {...form.getInputProps(`legs.${index}.underlyingContractCode`)}
+                      onChange={(code: string | null) => chooseUnderlying(index, code)}
+                    />
+                    <Stack gap={4}>
+                      <Text size="sm" fw={500}>
+                        {t('trades.form.optionType')}
+                      </Text>
+                      <SegmentedControl
+                        data={[
+                          { value: 'CALL', label: t('trades.optionTypes.CALL') },
+                          { value: 'PUT', label: t('trades.optionTypes.PUT') },
+                        ]}
+                        data-testid={`leg-${index}-option-type`}
+                        value={leg.optionType}
+                        onChange={(value) => form.setFieldValue(`legs.${index}.optionType`, value)}
+                        fullWidth
+                      />
+                    </Stack>
+                    <TextInput
+                      label={t('trades.form.strike')}
+                      inputMode="decimal"
+                      required
+                      data-testid={`leg-${index}-strike`}
+                      {...form.getInputProps(`legs.${index}.strike`)}
+                    />
+                    <TextInput
+                      type="date"
+                      label={t('trades.form.expiry')}
+                      required
+                      data-testid={`leg-${index}-expiry`}
+                      {...form.getInputProps(`legs.${index}.expiryDate`)}
+                    />
+                  </SimpleGrid>
+                </SubSection>
+              )}
               {family === 'GUARANTEE_OF_ORIGIN' && (
                 <SubSection title={t('trades.form.criteria')} description={t('trades.form.criteriaHint')}>
                   <CriteriaBuilder
@@ -477,8 +563,13 @@ function TradeForm({ existing }: { existing?: TradeView }) {
               )}
               <SubSection
                 title={t('trades.form.deliveries')}
-                description={future ? undefined : t('trades.form.deliveriesHint')}
+                description={future || option ? undefined : t('trades.form.deliveriesHint')}
               >
+                {option && (
+                  <Text size="sm" c="dimmed" data-testid={`leg-${index}-option-delivery`}>
+                    {t('trades.form.optionNoDelivery')}
+                  </Text>
+                )}
                 {future && (
                   <Text size="sm" c="dimmed" data-testid={`leg-${index}-future-delivery`}>
                     {leg.futuresContractCode
@@ -490,7 +581,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
                       : t('trades.form.futureChooseContract')}
                   </Text>
                 )}
-                {!future && (
+                {!future && !option && (
                   <Stack gap="xs">
                     {leg.deliveries.map((_, d) => (
                       <Stack key={d} gap={4}>

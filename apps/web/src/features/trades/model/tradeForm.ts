@@ -12,6 +12,7 @@ export type PriceType = 'FIXED' | 'INDEX';
 export type ProductFamily = CaptureTrade['productFamily'];
 export type InstrumentType = CaptureTrade['instrumentType'];
 export type Side = CaptureLeg['side'];
+export type OptionType = NonNullable<CaptureLeg['option']>['optionType'];
 
 /** Form state: decimals stay strings so nothing is rounded before the server sees it. */
 export interface DeliveryValues {
@@ -32,6 +33,11 @@ export interface LegValues {
   priceType: PriceType;
   priceIndex: string;
   futuresContractCode: string;
+  /** OPTION only: call or put, strike (price per tonne), expiry and the futures contract the option is on. */
+  optionType: OptionType;
+  strike: string;
+  expiryDate: string;
+  underlyingContractCode: string;
   deliveryAccountId: string;
   counterpartyAccountRef: string;
   deliveries: DeliveryValues[];
@@ -75,6 +81,10 @@ export function emptyLeg(family: ProductFamily, today: string): LegValues {
     priceType: 'FIXED',
     priceIndex: '',
     futuresContractCode: '',
+    optionType: 'CALL',
+    strike: '',
+    expiryDate: '',
+    underlyingContractCode: '',
     deliveryAccountId: '',
     counterpartyAccountRef: '',
     deliveries: [emptyDelivery(today)],
@@ -102,7 +112,7 @@ export function emptyTrade(today: string): TradeFormValues {
 
 const blank = (value: string) => (value.trim() === '' ? null : value.trim());
 
-/** A future trades with an exchange or a clearing house. */
+/** A future or an option trades with an exchange or a clearing house. */
 export function tradesFutures(counterparty: Counterparty | undefined): boolean {
   return counterparty?.counterpartyType === 'EXCHANGE' || counterparty?.counterpartyType === 'CLEARING_HOUSE';
 }
@@ -112,10 +122,12 @@ export function isIntercompany(counterparty: Counterparty | undefined): boolean 
   return counterparty?.counterpartyType === 'INTERCOMPANY' && Boolean(counterparty.linkedLegalEntityId);
 }
 
-/** Counterparties offered for the instrument: futures only with exchanges and clearing houses, never a broker. */
+/** Counterparties offered for the instrument: futures and options only with exchanges and clearing houses, never a broker. */
 export function counterpartiesFor(list: Counterparty[], instrument: InstrumentType): Counterparty[] {
   return list.filter((counterparty) =>
-    instrument === 'FUTURE' ? tradesFutures(counterparty) : counterparty.counterpartyType !== 'BROKER',
+    instrument === 'FUTURE' || instrument === 'OPTION'
+      ? tradesFutures(counterparty)
+      : counterparty.counterpartyType !== 'BROKER',
   );
 }
 
@@ -152,9 +164,26 @@ export function withFuture(leg: LegValues, contract: FuturesContract): LegValues
   };
 }
 
-function toLeg(leg: LegValues, family: ProductFamily, future: boolean): CaptureLeg {
+/**
+ * Leg terms set by the futures contract an option is on: its allowance product and currency. The expiry stays as
+ * the user typed it (the server checks it against the contract's last trading day).
+ */
+export function withUnderlying(leg: LegValues, contract: FuturesContract): LegValues {
+  return {
+    ...leg,
+    underlyingContractCode: contract.code,
+    allowanceProductCode: contract.allowanceProductCode,
+    priceCurrency: contract.currency,
+    priceType: 'FIXED',
+    priceIndex: '',
+  };
+}
+
+function toLeg(leg: LegValues, family: ProductFamily, instrument: InstrumentType): CaptureLeg {
   const goo = family === 'GUARANTEE_OF_ORIGIN';
-  const index = !future && leg.priceType === 'INDEX';
+  const future = instrument === 'FUTURE';
+  const option = instrument === 'OPTION';
+  const index = !future && !option && leg.priceType === 'INDEX';
   return {
     side: leg.side,
     criterion: goo ? leg.criterion : undefined,
@@ -166,9 +195,18 @@ function toLeg(leg: LegValues, family: ProductFamily, future: boolean): CaptureL
     priceType: index ? 'INDEX' : 'FIXED',
     priceIndex: index ? blank(leg.priceIndex) : null,
     futuresContractCode: future ? blank(leg.futuresContractCode) : null,
+    // An option names its terms and delivers nothing: exercise creates the future. Other instruments carry none.
+    option: option
+      ? {
+          optionType: leg.optionType,
+          strike: decimal(leg.strike),
+          expiryDate: leg.expiryDate,
+          underlyingContractCode: leg.underlyingContractCode.trim(),
+        }
+      : undefined,
     deliveryAccountId: blank(leg.deliveryAccountId),
     counterpartyAccountRef: blank(leg.counterpartyAccountRef),
-    deliveries: leg.deliveries.map((delivery) => ({
+    deliveries: (option ? [] : leg.deliveries).map((delivery) => ({
       deliveryWindow: { start: delivery.start, endExclusive: delivery.endExclusive },
       deliveryDate: delivery.deliveryDate,
       // A future delivers its whole quantity once.
@@ -178,7 +216,7 @@ function toLeg(leg: LegValues, family: ProductFamily, future: boolean): CaptureL
 }
 
 const legsOf = (values: TradeFormValues) =>
-  values.legs.map((leg) => toLeg(leg, values.productFamily, values.instrumentType === 'FUTURE'));
+  values.legs.map((leg) => toLeg(leg, values.productFamily, values.instrumentType));
 
 function regulatory(values: TradeFormValues): CaptureTrade['regulatory'] {
   if (!values.executionTimestamp && !values.venueMic) return null;
@@ -248,6 +286,10 @@ export function fromTrade(trade: TradeView): TradeFormValues {
       priceType: leg.priceType === 'INDEX' ? 'INDEX' : 'FIXED',
       priceIndex: leg.priceIndex ?? '',
       futuresContractCode: leg.futuresContractCode ?? '',
+      optionType: leg.option?.optionType ?? 'CALL',
+      strike: text(leg.option?.strike),
+      expiryDate: leg.option?.expiryDate ?? '',
+      underlyingContractCode: leg.option?.underlyingContractCode ?? '',
       deliveryAccountId: leg.deliveryAccountId ?? '',
       counterpartyAccountRef: leg.counterpartyAccountRef ?? '',
       deliveries: leg.deliveries.map((delivery) => ({
@@ -281,10 +323,48 @@ export const FORM_FIELDS = new Set([
 export interface TradeContext {
   amend: boolean;
   intercompany: boolean;
+  /** The active futures contracts, to check an option's expiry and lots against its underlying. */
+  contracts?: FuturesContract[];
+}
+
+/** True when [quantity] (a decimal string) is a whole number of lots of [size] tonnes; no floating point. */
+export function wholeLots(quantity: string, size: number): boolean {
+  const match = /^(\d+)(?:\.0*)?$/.exec(quantity.trim());
+  if (!match || !Number.isInteger(size) || size <= 0) return false;
+  return BigInt(match[1] ?? '0') % BigInt(size) === 0n;
+}
+
+function validateOption(
+  leg: LegValues,
+  index: number,
+  tradeDate: string,
+  contracts: FuturesContract[] | undefined,
+  errors: Record<string, string>,
+) {
+  const required = 'Required';
+  const at = (field: string) => `legs.${index}.${field}`;
+  if (!leg.underlyingContractCode) errors[at('underlyingContractCode')] = required;
+  if (!/^\d+(\.\d+)?$/.test(leg.strike.trim()) || !/[1-9]/.test(leg.strike)) errors[at('strike')] = 'A positive number';
+  if (!leg.expiryDate) {
+    errors[at('expiryDate')] = required;
+  } else if (tradeDate && leg.expiryDate < tradeDate) {
+    errors[at('expiryDate')] = 'The option must not expire before the trade date';
+  }
+  const contract = contracts?.find((candidate) => candidate.code === leg.underlyingContractCode);
+  if (!contract) return;
+  if (leg.expiryDate && leg.expiryDate > contract.lastTradingDay && !errors[at('expiryDate')]) {
+    errors[at('expiryDate')] = `The option expires by the last trading day of the contract, ${contract.lastTradingDay}`;
+  }
+  if (/^\d+(\.\d+)?$/.test(leg.quantity.trim()) && !wholeLots(leg.quantity, contract.contractSize)) {
+    errors[at('quantity')] = `Whole lots of ${contract.contractSize} t`;
+  }
 }
 
 /** Checks the browser can make before sending; the server validates everything again. */
-export function validateTrade(values: TradeFormValues, { amend, intercompany }: TradeContext): Record<string, string> {
+export function validateTrade(
+  values: TradeFormValues,
+  { amend, intercompany, contracts }: TradeContext,
+): Record<string, string> {
   const errors: Record<string, string> = {};
   const required = 'Required';
   const positive = /^\d+(\.\d+)?$/;
@@ -294,15 +374,19 @@ export function validateTrade(values: TradeFormValues, { amend, intercompany }: 
   if (amend && !values.reason.trim()) errors.reason = required;
   if (!amend && intercompany && !values.mirrorBookId) errors.mirrorBookId = required;
   const future = values.instrumentType === 'FUTURE';
+  const option = values.instrumentType === 'OPTION';
   values.legs.forEach((leg, index) => {
     if (future && !leg.futuresContractCode) errors[`legs.${index}.futuresContractCode`] = required;
-    if (!future && leg.priceType === 'INDEX' && !leg.priceIndex) errors[`legs.${index}.priceIndex`] = required;
+    if (!future && !option && leg.priceType === 'INDEX' && !leg.priceIndex)
+      errors[`legs.${index}.priceIndex`] = required;
     if (!positive.test(leg.quantity.trim()) || Number(leg.quantity) <= 0)
       errors[`legs.${index}.quantity`] = 'A positive number';
     if (!positive.test(leg.price.trim())) errors[`legs.${index}.price`] = 'A number';
     if (values.productFamily === 'EMISSION_ALLOWANCE' && !leg.allowanceProductCode)
       errors[`legs.${index}.allowanceProductCode`] = required;
-    if (future) return;
+    if (option) validateOption(leg, index, values.tradeDate, contracts, errors);
+    // A future delivers once on its contract's date and an option delivers nothing: no schedule to check.
+    if (future || option) return;
     leg.deliveries.forEach((delivery, d) => {
       if (!positive.test(delivery.quantity.trim()))
         errors[`legs.${index}.deliveries.${d}.quantity`] = 'A positive number';

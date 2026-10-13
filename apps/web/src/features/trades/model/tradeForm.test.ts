@@ -8,7 +8,9 @@ import {
   toAmendTrade,
   toCaptureTrade,
   validateTrade,
+  wholeLots,
   withFuture,
+  withUnderlying,
   type FuturesContract,
   type TradeView,
 } from './tradeForm';
@@ -194,5 +196,159 @@ describe('trade form', () => {
       { path: 'externalRef', before: undefined, after: 'X' },
       { path: 'legs.0.price', before: 1.95, after: 2.0 },
     ]);
+  });
+
+  describe('options', () => {
+    const contract = {
+      code: 'EUA-DEC27',
+      allowanceProductCode: 'EUA',
+      currency: 'EUR',
+      deliveryDate: '2027-12-20',
+      lastTradingDay: '2027-12-17',
+      contractSize: 1000,
+      venueMic: 'XEEE',
+    } as FuturesContract;
+    const optionTrade = () => {
+      const values = {
+        ...emptyTrade('2026-10-10'),
+        productFamily: 'EMISSION_ALLOWANCE' as const,
+        instrumentType: 'OPTION' as const,
+        bookId: 'b1',
+        counterpartyId: 'c1',
+      };
+      values.legs[0] = {
+        ...withUnderlying(values.legs[0]!, contract),
+        side: 'BUY',
+        optionType: 'PUT',
+        strike: '70.50',
+        expiryDate: '2027-12-10',
+        quantity: '5000',
+        price: '3.25',
+      };
+      return values;
+    };
+
+    it('sends the option terms, no deliveries and no futures contract', () => {
+      const leg = toCaptureTrade(optionTrade(), 'e1').legs[0];
+      expect(JSON.parse(JSON.stringify(leg))).toMatchObject({
+        side: 'BUY',
+        allowanceProductCode: 'EUA',
+        priceType: 'FIXED',
+        price: '3.25',
+        futuresContractCode: null,
+        option: { optionType: 'PUT', strike: '70.50', expiryDate: '2027-12-10', underlyingContractCode: 'EUA-DEC27' },
+        deliveries: [],
+      });
+    });
+
+    it('leaves the option out of other instruments', () => {
+      const values = { ...optionTrade(), instrumentType: 'FORWARD' as const };
+      const leg = toCaptureTrade(values, 'e1').legs[0];
+      expect('option' in JSON.parse(JSON.stringify(leg))).toBe(false);
+      expect(leg?.deliveries).toHaveLength(1);
+    });
+
+    it('takes product and currency from the underlying and keeps the premium fixed', () => {
+      const leg = withUnderlying(
+        { ...emptyTrade('2026-10-10').legs[0]!, priceType: 'INDEX', priceIndex: 'X', priceCurrency: 'SEK' },
+        contract,
+      );
+      expect(leg).toMatchObject({
+        underlyingContractCode: 'EUA-DEC27',
+        allowanceProductCode: 'EUA',
+        priceCurrency: 'EUR',
+        priceType: 'FIXED',
+        priceIndex: '',
+        futuresContractCode: '',
+      });
+    });
+
+    it('accepts a complete option and asks for no delivery schedule', () => {
+      const values = optionTrade();
+      values.legs[0]!.deliveries[0]!.quantity = '';
+      expect(validateTrade(values, { amend: false, intercompany: false, contracts: [contract] })).toEqual({});
+    });
+
+    it('requires an underlying, a positive strike and an expiry', () => {
+      const values = optionTrade();
+      Object.assign(values.legs[0]!, { underlyingContractCode: '', strike: '0', expiryDate: '' });
+      expect(validateTrade(values, { amend: false, intercompany: false })).toMatchObject({
+        'legs.0.underlyingContractCode': 'Required',
+        'legs.0.strike': 'A positive number',
+        'legs.0.expiryDate': 'Required',
+      });
+      values.legs[0]!.strike = '';
+      expect(validateTrade(values, { amend: false, intercompany: false })['legs.0.strike']).toBe('A positive number');
+    });
+
+    it('checks the expiry against the trade date and the last trading day, and the quantity against the lot', () => {
+      const values = optionTrade();
+      const check = () => validateTrade(values, { amend: false, intercompany: false, contracts: [contract] });
+      values.legs[0]!.expiryDate = '2026-10-09';
+      expect(check()['legs.0.expiryDate']).toMatch(/before the trade date/);
+      values.legs[0]!.expiryDate = '2026-10-10';
+      expect(check()['legs.0.expiryDate']).toBeUndefined();
+      values.legs[0]!.expiryDate = '2027-12-18';
+      expect(check()['legs.0.expiryDate']).toMatch(/2027-12-17/);
+      values.legs[0]!.expiryDate = '2027-12-17';
+      expect(check()['legs.0.expiryDate']).toBeUndefined();
+      values.legs[0]!.quantity = '5500';
+      expect(check()['legs.0.quantity']).toBe('Whole lots of 1000 t');
+    });
+
+    it('counts whole lots without floating point', () => {
+      expect(wholeLots('5000', 1000)).toBe(true);
+      expect(wholeLots('5000.000', 1000)).toBe(true);
+      expect(wholeLots('5000.5', 1000)).toBe(false);
+      expect(wholeLots('999999999999999999000', 1000)).toBe(true);
+      expect(wholeLots('1500', 1000)).toBe(false);
+    });
+
+    it('offers only exchanges and clearing houses for an option', () => {
+      const list = [party('CP-A', 'EXTERNAL'), party('CP-ICE', 'EXCHANGE'), party('CP-CCP', 'CLEARING_HOUSE')];
+      expect(counterpartiesFor(list, 'OPTION').map((c) => c.code)).toEqual(['CP-ICE', 'CP-CCP']);
+    });
+
+    it('fills the form from an existing option trade and sends the terms back on amendment', () => {
+      const trade = {
+        id: 't1',
+        bookId: 'b1',
+        counterpartyId: 'c1',
+        productFamily: 'EMISSION_ALLOWANCE',
+        instrumentType: 'OPTION',
+        tradeDate: '2026-10-01',
+        trader: 'trader',
+        version: 1,
+        regulatory: null,
+        legs: [
+          {
+            id: 'l1',
+            legNo: 1,
+            side: 'BUY',
+            quantity: 5000,
+            unit: 'TCO2E',
+            price: 3.25,
+            priceCurrency: 'EUR',
+            priceType: 'FIXED',
+            allowanceProductCode: 'EUA',
+            option: { optionType: 'CALL', strike: 72, expiryDate: '2027-12-10', underlyingContractCode: 'EUA-DEC27' },
+            deliveries: [],
+          },
+        ],
+      } as unknown as TradeView;
+      const values = fromTrade(trade);
+      expect(values.legs[0]).toMatchObject({
+        optionType: 'CALL',
+        strike: '72',
+        expiryDate: '2027-12-10',
+        underlyingContractCode: 'EUA-DEC27',
+        deliveries: [],
+      });
+      values.reason = 'strike correction';
+      values.legs[0]!.strike = '72.5';
+      expect(JSON.parse(JSON.stringify(toAmendTrade(values, 1)))).toMatchObject({
+        legs: [{ option: { optionType: 'CALL', strike: '72.5', underlyingContractCode: 'EUA-DEC27' }, deliveries: [] }],
+      });
+    });
   });
 });

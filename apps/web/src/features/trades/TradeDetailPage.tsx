@@ -211,6 +211,7 @@ function Legs({ trade }: { trade: TradeView }) {
               {leg.priceType === 'FIXED' && (
                 <Text size="sm" c="dimmed" className="etrm-figure">
                   @ {formatDecimal(leg.price, 2, 6)} {leg.priceCurrency}
+                  {leg.option ? ` ${t('trades.optionTerms.premiumSuffix')}` : ''}
                 </Text>
               )}
             </Group>
@@ -240,40 +241,64 @@ function Legs({ trade }: { trade: TradeView }) {
               { label: t('trades.form.counterpartyAccount'), value: leg.counterpartyAccountRef ?? '—' },
             ]}
           />
-          <ScrollTable label={t('trades.tabs.legs')} minWidth={860} mt="md">
-            <Table verticalSpacing="xs" highlightOnHover style={{ whiteSpace: 'nowrap' }}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w={40}>#</Table.Th>
-                  <Table.Th>{t('trades.form.windowStart')}</Table.Th>
-                  <Table.Th>{t('trades.form.windowEnd')}</Table.Th>
-                  <Table.Th>{t('trades.form.deliveryDate')}</Table.Th>
-                  <Table.Th ta="right">{t('trades.scheduled')}</Table.Th>
-                  <Table.Th ta="right">{t('trades.delivered')}</Table.Th>
-                  <Table.Th w={150}>{t('trades.columns.status')}</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody className="etrm-figure">
-                {leg.deliveries.map((delivery) => (
-                  <Table.Tr key={delivery.id}>
-                    <Table.Td c="dimmed">{delivery.scheduleNo}</Table.Td>
-                    <Table.Td>{formatDate(delivery.deliveryWindow.start)}</Table.Td>
-                    <Table.Td>{formatDate(delivery.deliveryWindow.endExclusive)}</Table.Td>
-                    <Table.Td>{formatDate(delivery.deliveryDate)}</Table.Td>
-                    <Table.Td ta="right">{formatDecimal(delivery.quantity, 0, 3)}</Table.Td>
-                    <Table.Td ta="right">{formatDecimal(delivery.deliveredQuantity, 0, 3)}</Table.Td>
-                    <Table.Td>
-                      <StatusBadge status={delivery.status} />
-                    </Table.Td>
-                    <Table.Td ta="right">
-                      <DeliveryActions trade={trade} leg={leg} schedule={delivery} />
-                    </Table.Td>
+          {leg.option && (
+            <div data-testid="trade-option-terms" data-leg={leg.legNo}>
+              <Text size="sm" fw={600} mt="md" mb="xs">
+                {t('trades.form.optionTerms')}
+              </Text>
+              <FactGrid
+                facts={[
+                  { label: t('trades.optionTerms.type'), value: t(`trades.optionTypes.${leg.option.optionType}`) },
+                  {
+                    label: t('trades.optionTerms.strike'),
+                    value: `${formatDecimal(leg.option.strike, 2, 6)} ${leg.priceCurrency}`,
+                  },
+                  { label: t('trades.optionTerms.expiry'), value: formatDate(leg.option.expiryDate) },
+                  { label: t('trades.optionTerms.underlying'), value: leg.option.underlyingContractCode },
+                ]}
+              />
+            </div>
+          )}
+          {leg.option ? (
+            <Text size="sm" c="dimmed" mt="md" data-testid="option-no-deliveries">
+              {t('trades.optionTerms.noDeliveries')}
+            </Text>
+          ) : (
+            <ScrollTable label={t('trades.tabs.legs')} minWidth={860} mt="md">
+              <Table verticalSpacing="xs" highlightOnHover style={{ whiteSpace: 'nowrap' }}>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th w={40}>#</Table.Th>
+                    <Table.Th>{t('trades.form.windowStart')}</Table.Th>
+                    <Table.Th>{t('trades.form.windowEnd')}</Table.Th>
+                    <Table.Th>{t('trades.form.deliveryDate')}</Table.Th>
+                    <Table.Th ta="right">{t('trades.scheduled')}</Table.Th>
+                    <Table.Th ta="right">{t('trades.delivered')}</Table.Th>
+                    <Table.Th w={150}>{t('trades.columns.status')}</Table.Th>
+                    <Table.Th />
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollTable>
+                </Table.Thead>
+                <Table.Tbody className="etrm-figure">
+                  {leg.deliveries.map((delivery) => (
+                    <Table.Tr key={delivery.id}>
+                      <Table.Td c="dimmed">{delivery.scheduleNo}</Table.Td>
+                      <Table.Td>{formatDate(delivery.deliveryWindow.start)}</Table.Td>
+                      <Table.Td>{formatDate(delivery.deliveryWindow.endExclusive)}</Table.Td>
+                      <Table.Td>{formatDate(delivery.deliveryDate)}</Table.Td>
+                      <Table.Td ta="right">{formatDecimal(delivery.quantity, 0, 3)}</Table.Td>
+                      <Table.Td ta="right">{formatDecimal(delivery.deliveredQuantity, 0, 3)}</Table.Td>
+                      <Table.Td>
+                        <StatusBadge status={delivery.status} />
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <DeliveryActions trade={trade} leg={leg} schedule={delivery} />
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollTable>
+          )}
         </Paper>
       ))}
     </Stack>
