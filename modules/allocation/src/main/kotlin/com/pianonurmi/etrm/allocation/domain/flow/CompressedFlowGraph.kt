@@ -206,7 +206,65 @@ private inline fun BitSet.forEachSetBit(action: (Int) -> Unit) {
 }
 
 /**
- * A max-flow over a [CompressedFlowGraph]: source → atom (its quantity) → group (unbounded) → sink (its demand).
+ * Nested eligibility as chains (increment 10). Groups that differ only by delivery date have nested eligible sets (a
+ * later date drops the supply that expires first), and a dense book has thousands of them: one edge per (atom, group)
+ * makes the network large and every augmenting search slow. Here the groups' distinct eligible [sets] are ordered into
+ * chains of nested sets, each a subset of the one before it. An atom enters each chain once, at the smallest set that
+ * holds it ([entries]); flow passes from a set to the larger one before it ([parent]) and from each set to its groups.
+ * A group is reachable from exactly the atoms eligible for it, and every edge between atoms and groups is unbounded,
+ * so the network has the same finite cuts as one edge per (atom, group): every maximum flow figure is unchanged.
+ */
+class EligibilityChains(graph: CompressedFlowGraph) {
+    val sets: List<BitSet>
+    val setOfGroup: IntArray
+    val parent: IntArray
+    val entries: Array<IntArray>
+
+    /** Edges between atoms and groups: atom → set, set → larger set, set → group. */
+    val edgeCount: Int
+
+    init {
+        val index = LinkedHashMap<BitSet, Int>()
+        setOfGroup = IntArray(graph.groups.size) { g -> index.getOrPut(graph.groups[g].eligibleUnits) { index.size } }
+        sets = index.keys.toList()
+        val size = IntArray(sets.size) { sets[it].cardinality() }
+        parent = IntArray(sets.size) { -1 }
+        val chains = ArrayList<MutableList<Int>>()
+        val outside = BitSet()
+        sets.indices.sortedWith(compareByDescending<Int> { size[it] }.thenBy { it }).forEach { s ->
+            val chain = chains.firstOrNull { chain ->
+                outside.clear()
+                outside.or(sets[s])
+                outside.andNot(sets[chain.last()])
+                outside.isEmpty
+            }
+            if (chain == null) {
+                chains += mutableListOf(s)
+            } else {
+                parent[s] = chain.last()
+                chain += s
+            }
+        }
+        // Membership along a chain is a prefix (the sets shrink), so the smallest set holding a unit is found by bisection.
+        entries = Array(graph.atoms.size) { a ->
+            val unit = graph.atoms[a].unitIndexes[0]
+            chains.filter { sets[it[0]][unit] }.map { chain ->
+                var low = 0
+                var high = chain.size - 1
+                while (low < high) {
+                    val mid = (low + high + 1) / 2
+                    if (sets[chain[mid]][unit]) low = mid else high = mid - 1
+                }
+                chain[low]
+            }.toIntArray()
+        }
+        edgeCount = entries.sumOf { it.size } + parent.count { it >= 0 } + setOfGroup.size
+    }
+}
+
+/**
+ * A max-flow over a [CompressedFlowGraph]: source → atom (its quantity) → group (unbounded, through
+ * [EligibilityChains]) → sink (its demand).
  * Groups join the sink one priority tier at a time and the flow is augmented after each tier, so supply granted to a
  * higher tier is never taken back (augmenting paths can reroute it but not reduce it) while the result is still a
  * global maximum.
@@ -219,7 +277,8 @@ class FlowState(val graph: CompressedFlowGraph) {
 
     /** A spare vertex that collects a trial's flow ([headroom]); it has no edges outside a trial. */
     val probe = sink + 1
-    val network = FlowGraph(probe + 1, atomCount + groupCount + graph.edgeCount)
+    val chains = EligibilityChains(graph)
+    val network = FlowGraph(probe + 1 + chains.sets.size, atomCount + groupCount + chains.edgeCount)
     private val supplyEdges = IntArray(atomCount)
     private val demandEdges = IntArray(groupCount) { -1 }
 
@@ -227,11 +286,16 @@ class FlowState(val graph: CompressedFlowGraph) {
 
     fun groupNode(group: Int): Int = 1 + atomCount + group
 
+    /** The vertex of an eligible set of [chains], after the probe. */
+    private fun setNode(set: Int): Int = probe + 1 + set
+
     init {
         graph.atoms.forEach { atom ->
             supplyEdges[atom.index] = network.addEdge(source, atomNode(atom.index), atom.quantityMwh)
-            atom.groupIndexes.forEach { g -> network.addEdge(atomNode(atom.index), groupNode(g), UNBOUNDED) }
+            chains.entries[atom.index].forEach { set -> network.addEdge(atomNode(atom.index), setNode(set), UNBOUNDED) }
         }
+        chains.parent.forEachIndexed { set, larger -> if (larger >= 0) network.addEdge(setNode(set), setNode(larger), UNBOUNDED) }
+        graph.groups.forEach { g -> network.addEdge(setNode(chains.setOfGroup[g.index]), groupNode(g.index), UNBOUNDED) }
         graph.groups.groupBy { it.priority }.toSortedMap().values.forEach { tier ->
             tier.forEach { g -> demandEdges[g.index] = network.addEdge(groupNode(g.index), sink, g.demandMwh) }
             network.augment(source, sink)

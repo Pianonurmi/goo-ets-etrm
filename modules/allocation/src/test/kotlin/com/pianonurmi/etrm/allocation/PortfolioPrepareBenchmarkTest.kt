@@ -91,9 +91,23 @@ class PortfolioPrepareBenchmarkTest {
             a.groupIndexes.toList() shouldBe b.groupIndexes.toList()
         }
         val scoreMs = measureTimeMillis { problem.score(problem.classes.first(), problem.obligations.first()) }
-        println("benchmark prepare lots=$lotCount classes=${problem.classes.size} obligations=$obligationCount build=${buildMs}ms flow=${flowMs}ms")
         println(
-            "benchmark prepare graph: groups=${graph.groups.size} atoms=${graph.atoms.size} edges=${graph.edgeCount} " +
+            "benchmark prepare lots=$lotCount classes=${problem.classes.size} obligations=$obligationCount " +
+                "build=${buildMs}ms flow=${flowMs}ms",
+        )
+        val checks = obligations.map { it.criterion }.distinct().map { builder.eligible(problem.classes, it, LocalDate.of(2026, 12, 15), null) }
+        val checkNs = List(CHECKS) { i -> kotlin.system.measureNanoTime { state.headroomDetail(checks[i % checks.size]) } }.sorted()
+        val snapNs = List(CHECKS) { kotlin.system.measureNanoTime { state.network.restore(state.network.snapshot()) } }.sorted()
+        val freeNs = List(CHECKS) { i -> kotlin.system.measureNanoTime { state.headroom(checks[i % checks.size], limit = 0) } }.sorted()
+        println(
+            "benchmark prepare available to sell: check p95=${"%.2f".format(checkNs[checkNs.size * 95 / 100] / 1_000_000.0)}ms " +
+                "(snapshot+restore p95=${"%.2f".format(snapNs[snapNs.size * 95 / 100] / 1_000_000.0)}ms, " +
+                "trial without augmenting p95=${"%.2f".format(freeNs[freeNs.size * 95 / 100] / 1_000_000.0)}ms)",
+        )
+        val tableMs = measureTimeMillis { repeat(TABLE_CELLS) { state.headroom(checks[it % checks.size]) } }
+        println("benchmark prepare available to sell: table ($TABLE_CELLS cells)=${tableMs}ms")
+        println(
+            "benchmark prepare graph: groups=${graph.groups.size} atoms=${graph.atoms.size} edges=${graph.edgeCount} chained=${state.chains.edgeCount} " +
                 "profiles=${(problem.profiles?.maxOrNull() ?: -1) + 1} without profiles=${compressMs}ms; solver scoring (first score)=${scoreMs}ms",
         )
 
@@ -124,6 +138,8 @@ class PortfolioPrepareBenchmarkTest {
 
     private companion object {
         const val SAMPLE = 40
+        const val CHECKS = 200
+        const val TABLE_CELLS = 192
         const val PATCHED = 1_000
     }
 

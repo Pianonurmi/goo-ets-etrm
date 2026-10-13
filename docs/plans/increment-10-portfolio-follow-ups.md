@@ -45,7 +45,7 @@ portfolio figures are ready for a production-size book:
 | M1 | Incremental prepare (ADR 0043). **Profiles:** held classes with the same criteria matches (one bit per distinct bound criterion), registry and expiry rank among the delivery dates are eligible for the same demands; compression refines profiles instead of classes. **Patch:** a stale entry diffs the entity's live lot versions (a narrow `(id, version)` query, exact even when transactions commit out of order) and the open obligations against what it holds, fetches only the changed lots, updates classes (an emptied class stays as a tombstone so indexes hold; a new class key is appended and gets its bits in the cached rows), adds rows for new eligibility keys, and solves the flow again. The previous entry is never mutated; readers keep it until the new one is published. A full build runs on a new day, a catalogue change, a route change, too many tombstones or more than a set share of changed lots. Targets at design size: under 300 ms for one changed lot or obligation, and the full build under 3 s. A property test compares patched and fully built entries over random change sequences: coverage, residuals, headroom and the table. |
 | M2 | GoO limits by vintage, and sale checks (amends ADR 0040). `LimitScope.productionYear` for concentration, expiry and basis, held in the existing JSONB scope (no migration; additive in the `LimitBreached` JSON). Measures filter classes and obligations by year, and an EUR concentration uses that vintage's mark. Pre-trade: purchases match bucket and year through allocation (the year comes from the obligation rules in `VintageYears`, so risk gains no dependency on product criteria). A GoO sale gets a projected `GOO_BASIS` finding: allocation takes the trade's deliveries as virtual demand on the prepared flow and returns the projected give-away of the cheapest eligible free supply. Over the limit needs risk approval; at warning it is a warning. While figures are being prepared the check is INFO "not checked" and never blocks. Web: a vintage picker on the limit form and the year in the scope label. The demo adds a vintage-scoped limit. |
 | M3 | Give-away report. `GOO_GIVE_AWAY` in the `ReportCatalogue`: per sale line of the plans realised in a period, with plan, trade, delivery date, sale bucket, vintage, MWh, delivered value, sale mark and give-away. Roles are RISK, MIDDLE_OFFICE, ACCOUNTANT and AUDITOR; allocation's read guard admits AUDITOR for this query. Logged with its content hash like every report. Reporting gains `allocation :: api`. `realisedGiveAway` gains the per-obligation lines, and valuation's explain keeps its totals. |
-| M4 | Side constraints in the flow (amends ADR 0007 and 0036). It starts with a spike gated on numbers at design size. **Device caps:** obligations with a cap form their own groups, and their edges come from atoms split by device, each capped at the obligation's share. Compression stays exact for the uncapped majority. **Minimum shares** are lower bounds, which a priority max-flow cannot hold exactly; available to sell checks them as a post-condition, and the finding names the quota a sale would put at risk. If the device split grows the graph past the check budget (p95 above 150 ms), caps stay outside the flow and the decision is recorded. Either way the UI text says exactly which bound the figure is. |
+| M4 | Side constraints in the flow, behind a spike gated on design-size numbers; if it fails, caps stay outside and the decision is recorded. Outcome: the gate failed (see M4 below), and the check on a realistic book is made fast instead, by routing nested eligibility through chains. |
 | M5 | Close. ADR 0043 and amendments; architecture plan ("Status after increment 10"); arc42; the domain and user guides; glossary; screenshots for changed screens; k6 baseline if it moves; the deck's roadmap and "next" slides; `CHANGELOG.md`; release 0.10.0 with the Release workflow. |
 
 ## Delivered
@@ -128,6 +128,32 @@ registries, one registry without outgoing routes, and future supply. At design s
 - **Wiring:** reporting gains `allocation :: api`.
 - **No total row:** the grid and the spreadsheet sum the column.
 - **Plan-time figures:** a line that later fails at the registry stays listed, which the report's description says.
+
+### M4: device caps fail their gate; the check gets fast instead
+- **The spike.** Device caps in the flow, exact (a node per capped obligation and device, supply split by device where
+  a capped obligation may take it), passed a property test against an uncompressed reference. At design size with
+  one sale in twenty capped at 50 %, building the flow went from 0.7 s to 32 s: a generic capped sale splits nearly
+  all supply by device (800 devices). The gate fails, the code is not kept, and caps and minimum shares stay outside
+  the flow. Available to sell and coverage remain upper bounds, as the screens say (ADR 0007).
+- **What the realistic benchmark showed instead:**
+  - A warm available-to-sell check takes 148 ms at the 95th percentile, not the 0.5 ms measured on the uniform book.
+  - The augmenting search over 344 000 supply-to-sale edges is 125 ms of it.
+  - The 192-cell table would take about 30 s.
+- **The fix: nested eligibility as chains.** Sale groups whose eligible supply is nested (the same criterion and
+  target, later delivery dates) form chains. Supply enters each chain once, at the smallest set that holds it, and
+  flows to the larger ones; each set leads to its groups. Every sale is reachable from exactly the same supply. With
+  only unbounded edges in between, the minimum cuts, and so every flow figure, are unchanged.
+- **Result at design size:**
+
+  | | Before | After |
+  |---|---|---|
+  | Edges | 344 000 | 19 500 |
+  | Check, 95th percentile | 148 ms | 30 ms |
+  | Residual copy per trial | 5 ms | 0.1 ms |
+  | 192-cell table | about 30 s | 4 s |
+
+  The existing property tests pass unchanged: compressed against uncompressed (coverage per tier, minimum cut,
+  shortage groups), headroom brute force, and patched against full.
 
 ## Conventions that apply
 

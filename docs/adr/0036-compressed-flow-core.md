@@ -92,8 +92,14 @@ to be answered in milliseconds, sometimes while a trade is being captured.
 
 ## Consequences
 - Coverage, headroom, the product hierarchy and the portfolio value share one implementation and one benchmark.
-- Measured at design size (100 000 lots, 5 000 obligations): a warm check takes 0.5 ms at the 95th percentile
-  (target 150 ms), a joint check of 12 deliveries 47 ms, and the table's 192 cells 51 ms (target 2 s).
+- Measured at design size (100 000 lots, 5 000 obligations) on a uniform book: a warm check takes 0.5 ms at the 95th
+  percentile (target 150 ms), a joint check of 12 deliveries 47 ms, and the table's 192 cells 51 ms (target 2 s).
+- On a realistic book (increment 10: a year of expiry dates, several target registries) one edge per (atom, group)
+  made 344 000 edges. A check took 148 ms and the table about 30 s. Since then groups with nested eligible sets are
+  chained (`EligibilityChains`): supply enters each chain at the smallest set holding it and flows to the larger
+  ones, so every group is reachable from exactly the same supply and every maximum flow figure is unchanged. That
+  gives 19 500 edges, a check of 30 ms and the table in 4 s; the table is kept with the prepared figures until they
+  change.
 - The per-entity cache (M3) holds the problem and a few thousand flow nodes. **Preparing it is a full problem
   build**: about 22 s at design size when this ADR was written, about 3.5 s since increment 10 (eligibility rows
   share their parts, the scarcity index is left to solvers, atoms come from partition refinement). It happens on the

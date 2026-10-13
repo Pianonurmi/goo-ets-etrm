@@ -25,6 +25,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   its product's mark and the give-away, logged like every report.
 
 ### Changed
+- **Available-to-sell checks on large books:** sales whose eligible supply is nested (later delivery dates) share a
+  chain in the flow, so a check at 100 000 lots takes about 30 ms instead of about 150 ms, and the table 4 s instead
+  of about 30 s. Device caps stay outside the flow (measured: 32 s instead of 0.7 s to build it).
 - **Preparing the portfolio figures:** a full build at 100 000 lots and 5 000 sales takes about 3 s instead of about
   28 s. Eligibility is computed once per criterion, the scarcity index only for plans, and the flow is compressed by
   profile. Plan coverage is faster too (2.3 s to 0.7 s).
