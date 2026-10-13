@@ -3,3 +3,4 @@ build/
 src/shared/api/schema.d.ts
 playwright-report/
 test-results/
+*.tsbuildinfo
