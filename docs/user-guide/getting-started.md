@@ -25,7 +25,8 @@ approving every step that moves value.
 ## The inbox
 
 Every approval goes through the inbox: trades, allocation plans, curve snapshots, valuation runs, limits,
-verified emissions, invoices, posting rules, master data changes and reconciliation breaks.
+verified emissions, invoices, posting rules, cash flow hedge designations and discontinuations, master data
+changes and reconciliation breaks.
 
 ![The approval inbox of middle office](../images/inbox-middle.png)
 

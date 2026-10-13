@@ -22,6 +22,7 @@ registerSubjectScreens(
   'REGISTRY_INSTRUCTION',
   'RECONCILIATION_BREAK',
   'TRADE_CONFIRMATION',
+  'HEDGE',
 );
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
@@ -109,6 +110,14 @@ export const router = createBrowserRouter([
       {
         path: 'ledger',
         lazy: async () => ({ Component: (await import('@/features/ledger/LedgerPage')).LedgerPage }),
+      },
+      {
+        path: 'ledger/hedges',
+        lazy: async () => ({ Component: (await import('@/features/ledger/HedgesPage')).HedgesPage }),
+      },
+      {
+        path: 'ledger/hedges/:hedgeId',
+        lazy: async () => ({ Component: (await import('@/features/ledger/HedgeDetailPage')).HedgeDetailPage }),
       },
       {
         path: 'month-end',

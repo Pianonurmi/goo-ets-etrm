@@ -1,4 +1,4 @@
-import { formatDate, formatDecimal, formatMoney, formatQuantity } from './format';
+import { formatDate, formatDecimal, formatMoney, formatPercent, formatQuantity } from './format';
 
 describe('format', () => {
   it('formats decimals from numbers and strings without arithmetic', () => {
@@ -12,6 +12,12 @@ describe('format', () => {
     expect(formatMoney(1950, 'EUR')).toBe('1,950.00 EUR');
     expect(formatMoney(undefined, 'EUR')).toBe('');
     expect(formatQuantity(600, 'MWH')).toBe('600 MWH');
+  });
+
+  it('shows a fraction as a percentage', () => {
+    expect(formatPercent(0.95)).toBe('95 %');
+    expect(formatPercent('1.0625', 2)).toBe('106.25 %');
+    expect(formatPercent(null)).toBe('');
   });
 
   it('formats dates', () => {

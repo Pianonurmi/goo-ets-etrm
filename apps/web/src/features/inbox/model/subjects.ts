@@ -20,6 +20,7 @@ const SUBJECT_ROUTES: Record<string, (ref: string) => string> = {
   REGISTRY_INSTRUCTION: (ref) => `/registry/instructions/${ref}`,
   RECONCILIATION_BREAK: (ref) => `/reconciliation/breaks/${ref}`,
   TRADE_CONFIRMATION: (ref) => `/confirmations/${ref}`,
+  HEDGE: (ref) => `/ledger/hedges/${ref}`,
 };
 
 /** Subject types whose screens exist; extended as screens are added. */

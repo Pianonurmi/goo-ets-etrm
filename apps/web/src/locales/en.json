@@ -23,6 +23,7 @@
     "risk": "Risk",
     "ets": "EU ETS compliance",
     "ledger": "Ledger",
+    "hedges": "Hedges",
     "monthEnd": "Month end",
     "reports": "Reports",
     "referenceData": "Reference data",
@@ -1750,6 +1751,187 @@
       "covered": "Covered"
     }
   },
+  "hedges": {
+    "title": "Cash flow hedges",
+    "description": "Forecast allowance and certificate transactions of {{entity}} hedged by forwards, with their documentation and effectiveness.",
+    "breadcrumb": "Hedges",
+    "designate": "Designate hedge",
+    "designateTitle": "Designate a cash flow hedge",
+    "designateIntro": "Hedge accounting applies from the day a second accountant approves the designation. It is never applied to earlier valuations.",
+    "designated": "Hedge {{number}} proposed; a second accountant approves it in the inbox",
+    "kpi": {
+      "active": "Active hedges",
+      "activeHint": "Measured on every official valuation",
+      "pending": "Awaiting approval",
+      "pendingHint": "A second accountant decides in the inbox",
+      "nonePending": "Nothing waiting",
+      "discontinuing": "Discontinuation requested",
+      "discontinuingHint": "Waiting for a second accountant",
+      "noneDiscontinuing": "No discontinuations waiting"
+    },
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "statuses": {
+      "PENDING": "Awaiting approval",
+      "ACTIVE": "Active",
+      "REJECTED": "Rejected",
+      "DISCONTINUED": "Discontinued"
+    },
+    "empty": "No hedges yet",
+    "emptyHint": "A hedge links forwards you hold to a forecast purchase or sale, so their value changes are recognised in equity until the transaction happens.",
+    "shown": "{{count}} hedges shown",
+    "emptyFiltered": "No hedges with this status",
+    "emptyFilteredHint": "Pick another status or show all.",
+    "showAll": "Show all statuses",
+    "columns": {
+      "number": "Hedge",
+      "direction": "Direction",
+      "product": "Product",
+      "quantity": "Quantity",
+      "expectedDate": "Expected date",
+      "ratio": "Hedge ratio",
+      "status": "Status",
+      "designationDate": "Designated",
+      "instruments": "Instruments"
+    },
+    "directions": {
+      "PURCHASE": "Purchase",
+      "SALE": "Sale"
+    },
+    "families": {
+      "EMISSION_ALLOWANCE": "EU allowances",
+      "GUARANTEE_OF_ORIGIN": "Guarantees of Origin"
+    },
+    "units": {
+      "EMISSION_ALLOWANCE": "tCO2e",
+      "GUARANTEE_OF_ORIGIN": "MWh"
+    },
+    "form": {
+      "itemTitle": "Hedged forecast",
+      "itemHint": "A highly probable purchase or sale of allowances or certificates.",
+      "direction": "Direction",
+      "family": "Product family",
+      "allowanceProduct": "Allowance product",
+      "bucket": "Product bucket",
+      "productionYear": "Production year (optional)",
+      "quantity": "Quantity",
+      "quantityUnit": "Quantity ({{unit}})",
+      "expectedDate": "Expected date",
+      "currency": "Currency",
+      "objective": "Risk management objective and strategy",
+      "objectiveHint": "Goes into the hedge documentation, for example what is hedged, why and how effectiveness is judged.",
+      "instrumentsTitle": "Hedging instruments",
+      "instrumentsHint": "Open fixed-price forwards of this entity on the {{side}} side. A trade can be designated at most in full across open hedges.",
+      "trades": "Trades",
+      "tradesPlaceholder": "Choose one or more trades",
+      "noTrades": "No open {{side}} trades of this product family",
+      "proportion": "Proportion",
+      "proportionHint": "Above 0 up to 1",
+      "fourEyes": "A second accountant approves the designation in the inbox before it takes effect.",
+      "submit": "Propose designation",
+      "loadingTrades": "Loading trades…"
+    },
+    "errors": {
+      "required": "Required",
+      "positive": "A number above zero",
+      "year": "A four-digit year",
+      "noInstruments": "Choose at least one trade",
+      "proportion": "Above 0 and at most 1"
+    },
+    "checks": {
+      "PRODUCT": "Product",
+      "CURRENCY": "Currency",
+      "TIMING": "Timing",
+      "RATIO": "Hedge ratio"
+    },
+    "sides": {
+      "BUY": "bought",
+      "SELL": "sold"
+    },
+    "detail": {
+      "notFound": "Hedge",
+      "designation": "Designation",
+      "effectiveness": "Effectiveness",
+      "objective": "Objective",
+      "item": "Hedged item",
+      "instruments": "Instruments",
+      "instrumentTrade": "Trade",
+      "instrumentProportion": "Proportion",
+      "instrumentQuantity": "Quantity",
+      "noInstruments": "No instruments",
+      "checks": "Prospective checks",
+      "checksHint": "Critical terms of the instruments and the hedged item. They inform the decision; they do not block it.",
+      "met": "Met",
+      "notMet": "Not met",
+      "noChecks": "No checks recorded",
+      "document": "Documentation PDF",
+      "documentLink": "Hedge documentation",
+      "inbox": "Open the approval task",
+      "direction": "Direction",
+      "product": "Product",
+      "quantity": "Quantity",
+      "expectedDate": "Expected date",
+      "currency": "Currency",
+      "ratio": "Hedge ratio",
+      "designationDate": "Designation date",
+      "designationPrice": "Locked forward price",
+      "baseline": "Instruments at designation",
+      "notDesignated": "Not designated yet",
+      "decidedBy": "Decided by",
+      "requestedBy": "Proposed by"
+    },
+    "measurements": {
+      "title": "Measurements",
+      "chartTitle": "Instruments against the hypothetical derivative",
+      "chartHint": "Change in the instruments' value since designation, the hypothetical derivative's value and the reserve, in {{currency}}, on each official valuation.",
+      "empty": "No measurements yet",
+      "emptyHint": "A hedge is measured on every official valuation signed off after its designation. Earlier valuations are not measured, so the first measurement comes with the next official valuation.",
+      "valuationDate": "Valuation",
+      "instrumentValue": "Instruments' value",
+      "instrumentChange": "Change since designation",
+      "hypotheticalValue": "Hypothetical derivative",
+      "effective": "Reserve (effective)",
+      "ineffective": "Ineffective (profit or loss)",
+      "offset": "Dollar offset",
+      "measuredAt": "Measured",
+      "series": {
+        "instrumentChange": "Instruments' change",
+        "hypotheticalValue": "Hypothetical derivative",
+        "effective": "Reserve"
+      },
+      "method": "The reserve is the lower of the instruments' change and the hypothetical derivative's value when both move the same way; the rest is ineffectiveness in profit or loss."
+    },
+    "lifecycle": {
+      "title": "Lifecycle",
+      "requested": "Designation proposed",
+      "awaitingApproval": "Waiting for a second accountant",
+      "approved": "Designation approved",
+      "rejected": "Designation rejected",
+      "discontinuing": "Discontinuation waiting for approval",
+      "discontinued": "Discontinued"
+    },
+    "discontinuation": {
+      "title": "Discontinuation",
+      "reason": "Reason",
+      "forecast": "Forecast",
+      "stillExpected": "Still expected: the reserve is frozen at its last measured amount",
+      "notExpected": "No longer expected: the reserve is recycled to profit or loss",
+      "requested": "Requested",
+      "decided": "Decided",
+      "frozenReserve": "Frozen reserve",
+      "waiting": "Waiting for a second accountant to approve."
+    },
+    "discontinue": {
+      "action": "Discontinue",
+      "title": "Discontinue hedge {{number}}",
+      "intro": "Hedge accounting stops once a second accountant approves. Say whether the forecast transaction is still expected.",
+      "reason": "Reason",
+      "stillExpected": "The forecast transaction is still expected",
+      "stillExpectedHint": "On: the reserve is frozen at its last measured amount until the transaction happens. Off: it is recycled to profit or loss.",
+      "submit": "Request discontinuation",
+      "requested": "Discontinuation of {{number}} requested; a second accountant approves it in the inbox"
+    }
+  },
   "ledger": {
     "title": "Ledger",
     "description": "Journal, trial balance, chart of accounts and posting rules of {{entity}}.",
@@ -1859,6 +2041,7 @@
     "disclosedOnly": "disclosed only",
     "kinds": {
       "MTM": "Mark to market",
+      "HEDGE": "Cash flow hedge",
       "NRV": "Net realisable value",
       "EMISSION_PROVISION": "Emission provision",
       "GRANT_RELEASE": "Grant release",

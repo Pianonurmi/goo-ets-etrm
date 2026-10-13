@@ -14,6 +14,7 @@ import {
   IconPackages,
   IconBook2,
   IconCalendarCheck,
+  IconShieldHalf,
   IconReportAnalytics,
   IconBuildingFactory2,
   IconShieldCheck,
@@ -61,6 +62,7 @@ const REGISTRY_READERS: readonly Role[] = [
   'RISK',
   'AUDITOR',
 ];
+const HEDGE_READERS: readonly Role[] = ['ACCOUNTANT', 'AUDITOR', 'RISK', 'MIDDLE_OFFICE'];
 const RISK_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'TRADER', 'AUDITOR'];
 
 export const NAVIGATION: NavSection[] = [
@@ -118,6 +120,7 @@ export const NAVIGATION: NavSection[] = [
       { path: '/risk', label: 'nav.risk', icon: <IconShieldCheck size={ICON} />, roles: RISK_READERS },
       { path: '/ets', label: 'nav.ets', icon: <IconBuildingFactory2 size={ICON} /> },
       { path: '/ledger', label: 'nav.ledger', icon: <IconBook2 size={ICON} />, roles: FINANCE },
+      { path: '/ledger/hedges', label: 'nav.hedges', icon: <IconShieldHalf size={ICON} />, roles: HEDGE_READERS },
       { path: '/month-end', label: 'nav.monthEnd', icon: <IconCalendarCheck size={ICON} />, roles: FINANCE },
       { path: '/reports', label: 'nav.reports', icon: <IconReportAnalytics size={ICON} /> },
     ],

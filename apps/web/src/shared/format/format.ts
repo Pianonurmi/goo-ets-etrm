@@ -27,6 +27,14 @@ export function formatDecimal(value: Numeric, minimumFractionDigits = 0, maximum
   return parsed === null ? '' : numberFormat(minimumFractionDigits, maximumFractionDigits).format(parsed);
 }
 
+/** A fraction as a percentage (`0.95` → `95 %`); display only, the server computes the ratio. */
+export function formatPercent(fraction: Numeric, maximumFractionDigits = 1): string {
+  const parsed = toNumber(fraction);
+  if (parsed === null) return '';
+  const text = new Intl.NumberFormat(LOCALE, { style: 'percent', maximumFractionDigits }).format(parsed);
+  return text.replace('%', ' %');
+}
+
 export function formatMoney(value: Numeric, currency?: string | null): string {
   const amount = formatDecimal(value, 2, 2);
   return amount && currency ? `${amount} ${currency}` : amount;

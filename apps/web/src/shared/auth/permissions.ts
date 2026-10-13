@@ -91,6 +91,8 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   ledger_exports: ['ACCOUNTANT', 'AUDITOR'],
   ledger_reconciliation: ['ACCOUNTANT', 'AUDITOR'],
   ledger_upsertRule: ['ACCOUNTANT'],
+  hedge_requestDesignation: ['ACCOUNTANT'],
+  hedge_requestDiscontinuation: ['ACCOUNTANT'],
   periodEnd_run: ['ACCOUNTANT'],
   periodEnd_requestPolicyChange: ['ACCOUNTANT'],
   reporting_exports: ['AUDITOR', 'ACCOUNTANT', 'RISK', 'MIDDLE_OFFICE'],

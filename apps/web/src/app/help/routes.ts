@@ -44,6 +44,7 @@ const ROUTES: [prefix: string, target: HelpTarget][] = [
   ['/valuation', { page: 'valuation' }],
   ['/risk', { page: 'risk' }],
   ['/ets', { page: 'ets' }],
+  ['/ledger/hedges', { page: 'ledger', anchor: 'cash-flow-hedges' }],
   ['/ledger', { page: 'ledger' }],
   ['/month-end', { page: 'ledger', anchor: 'month-end' }],
   ['/reports', { page: 'reports' }],
