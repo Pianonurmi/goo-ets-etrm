@@ -75,7 +75,7 @@ These points differ from the plan or are still open:
 |---|---|---|
 | Flow cache keyed by the inventory journal sequence, patched in place on events | Prepared per entity and tier and checked against a stamp of aggregates on every read. Since increment 10 the held figures are patched in place from a diff of live lot versions and the open obligations (ADR 0043): about 0.3 s at design size, a full build about 3 s | A stamp is safe across pods without events; a version diff is exact whatever order transactions commit in, which a journal position is not |
 | Unpriced supply takes the nearest priced ancestor's mark | Unpriced supply is valued at zero and flagged; the plan reports it as `unpricedMwh` | A borrowed price would hide the gap in the curves |
-| A `GiveAwayQuery` and a `ReportCatalogue` entry | Realised give-away is part of `PortfolioValueQuery`; no report entry | One query serves the explain and the run detail; the figures are a management view |
+| A `GiveAwayQuery` and a `ReportCatalogue` entry | Realised give-away is part of `PortfolioValueQuery`; since increment 10 its lines (`giveAwayLines`) feed the `GOO_GIVE_AWAY` report | One query serves the explain, the run detail and the report; the figures are a management view |
 | Limits with a production year scope, pre-trade checks for sales | Built in increment 10: `productionYear` scopes every GoO limit, and a GoO sale is projected on the free certificates, cheapest first, against the basis limits (`GOO_BASIS`) | A sale adds nothing to concentration, so the sale check is about the give-away it would hand over |
 | Side constraints (device caps, minimum shares) in the flow | Outside the flow, so available to sell and coverage are upper bounds | Same reasoning as ADR 0007 |
 

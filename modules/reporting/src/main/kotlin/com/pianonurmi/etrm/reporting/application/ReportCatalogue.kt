@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.reporting.application
 
+import com.pianonurmi.etrm.allocation.api.PortfolioValueQuery
 import com.pianonurmi.etrm.etscompliance.api.EtsComplianceQuery
 import com.pianonurmi.etrm.inventory.api.LotQuery
 import com.pianonurmi.etrm.ledger.api.GlInterfaceQuery
@@ -55,6 +56,8 @@ class ReportCatalogue(
     private val fxRates: FxRates,
     private val repository: ReportingRepository,
     private val clock: Clock,
+    /** Allocation's portfolio value, for the give-away report; absent where allocation is not wired (tests). */
+    private val giveAway: PortfolioValueQuery? = null,
 ) {
     private class Definition(
         override val code: String,
@@ -172,6 +175,31 @@ class ReportCatalogue(
         ) { p ->
             lots.expiryLadder(p.uuid("legalEntityId"), today(), p.int("months", DEFAULT_MONTHS)).map { (month, mwh) ->
                 mapOf("month" to YearMonth.from(month).toString(), "mwh" to mwh)
+            }
+        },
+        Definition(
+            "GOO_GIVE_AWAY",
+            "GoO give-away",
+            "Sales of the plans approved in the period, as valued then: certificates worth more than the sale's own product " +
+                "hand over the difference (ADR 0035)",
+            RISK + FINANCE + Role.MIDDLE_OFFICE,
+            listOf(ENTITY, FROM, TO),
+            listOf("approvedAt", "planId", "tradeRef", "deliveryDate", "saleBucket", "vintage", "mwh", "deliveredValueEur", "saleMarkEur", "giveAwayEur"),
+        ) { p ->
+            val query = giveAway ?: return@Definition emptyList()
+            query.giveAwayLines(p.uuid("legalEntityId"), p.date("from"), p.date("to").plusDays(1)).map {
+                mapOf(
+                    "approvedAt" to it.approvedAt.toString(),
+                    "planId" to it.planId,
+                    "tradeRef" to it.tradeRef,
+                    "deliveryDate" to it.deliveryDate,
+                    "saleBucket" to it.saleBucketCode,
+                    "vintage" to it.vintageYear,
+                    "mwh" to it.mwh,
+                    "deliveredValueEur" to it.deliveredValueEur,
+                    "saleMarkEur" to it.saleMarkEur,
+                    "giveAwayEur" to it.giveAwayEur,
+                )
             }
         },
         Definition(

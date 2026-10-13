@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":modules:product"))
     implementation(project(":modules:trade"))
     implementation(project(":modules:inventory"))
+    implementation(project(":modules:allocation"))
     implementation(project(":modules:marketdata"))
     implementation(project(":modules:valuation"))
     implementation(project(":modules:etscompliance"))

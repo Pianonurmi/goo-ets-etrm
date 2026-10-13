@@ -21,6 +21,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - **Sales checked against the basis limit:** a GoO sale is served from the cheapest free certificates that qualify,
   and the premium it would hand over is checked against the entity's basis limits before capture (`GOO_BASIS`).
 
+- **GoO give-away report** (`GOO_GIVE_AWAY`): every sale of the plans approved in a period with its delivered value,
+  its product's mark and the give-away, logged like every report.
+
 ### Changed
 - **Preparing the portfolio figures:** a full build at 100 000 lots and 5 000 sales takes about 3 s instead of about
   28 s. Eligibility is computed once per criterion, the scarcity index only for plans, and the flow is compressed by

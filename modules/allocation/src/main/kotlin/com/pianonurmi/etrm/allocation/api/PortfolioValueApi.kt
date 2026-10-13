@@ -75,10 +75,35 @@ data class RealisedGiveAway(val holderEntityId: UUID, val from: LocalDate, val t
 
 data class PlanGiveAway(val planId: UUID, val approvedAt: Instant, val mwh: Long, val giveAwayEur: BigDecimal)
 
+/**
+ * One sale of a plan approved in a period, as valued when the plan was made (ADR 0035): its delivered MWh, the value of
+ * the certificates that delivered it, its own product's mark and the give-away. Plan-time figures: a line that fails
+ * at the registry later is not taken out.
+ */
+data class GiveAwayLine(
+    val planId: UUID,
+    val approvedAt: Instant,
+    val obligationId: UUID,
+    val tradeRef: String?,
+    val deliveryDate: LocalDate?,
+    val saleBucketCode: String?,
+    val vintageYear: Int?,
+    val mwh: Long,
+    val deliveredValueEur: BigDecimal,
+    val saleMarkEur: BigDecimal?,
+    val giveAwayEur: BigDecimal?,
+)
+
 interface PortfolioValueQuery {
     /** Null when the allocation cannot be solved here (the OR-Tools library is not available). */
     fun value(holderEntityId: UUID, asOf: LocalDate): PortfolioValue?
 
     /** Plans approved from [from] up to and excluding [to]. */
     fun realisedGiveAway(holderEntityId: UUID, from: LocalDate, to: LocalDate): RealisedGiveAway
+
+    /**
+     * The sales of the plans approved from [from] up to and excluding [to], one line each, by approval then delivery
+     * date: what the give-away report lists. Readable by auditors too.
+     */
+    fun giveAwayLines(holderEntityId: UUID, from: LocalDate, to: LocalDate): List<GiveAwayLine>
 }

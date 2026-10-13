@@ -23,6 +23,7 @@
   | PNL_EXPLAIN | components between two runs | same |
   | POSITION_BY_BOOK | open quantity and MtM by book and product | same |
   | GOO_EXPIRY | live certificates by expiry month | operations, finance, audit |
+  | GOO_GIVE_AWAY | sales of the plans approved in a period, as valued then: MWh, delivered value, sale mark and give-away (increment 10) | risk, middle office, finance, audit |
   | CREDIT_EXPOSURE | exposure per counterparty | risk, middle office, audit |
   | LIMIT_UTILISATION | limits with their latest measurement | same |
   | ETS_COMPLIANCE_STATUS | installations for a compliance year | compliance roles, audit |

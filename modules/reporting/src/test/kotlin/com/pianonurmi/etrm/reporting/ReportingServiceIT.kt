@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.reporting
 
+import com.pianonurmi.etrm.allocation.api.GiveAwayLine
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.money.QuantityUnit
@@ -170,6 +171,23 @@ class ReportingServiceIT {
             mockk(relaxed = true),
             repository,
             clock,
+            giveAway = mockk {
+                every { giveAwayLines(entity, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 11, 1)) } returns listOf(
+                    GiveAwayLine(
+                        planId = PLAN,
+                        approvedAt = Instant.parse("2026-10-05T09:00:00Z"),
+                        obligationId = UUID.randomUUID(),
+                        tradeRef = "T-GIVE",
+                        deliveryDate = LocalDate.of(2026, 12, 15),
+                        saleBucketCode = "EU_RENEWABLE",
+                        vintageYear = 2026,
+                        mwh = 500,
+                        deliveredValueEur = BigDecimal("1000.00"),
+                        saleMarkEur = BigDecimal("0.50"),
+                        giveAwayEur = BigDecimal("750.00"),
+                    ),
+                )
+            },
         )
         reporting = ReportingService(catalogue, repository, emir, tradeQuery, actors, { published += it }, clock)
         every { valuations.results(RUN, null) } answers {
@@ -256,7 +274,22 @@ class ReportingServiceIT {
         shouldThrow<ForbiddenException> { reporting.produce("MIFID_ANCILLARY_ACTIVITY", parameters, ReportFormat.CSV) }
     }
 
+    @Test
+    fun `the give-away report lists the sales of the plans approved in the period, last day included`() {
+        roles = setOf(Role.AUDITOR)
+        val parameters = mapOf("legalEntityId" to entity.toString(), "from" to "2026-10-01", "to" to "2026-10-31")
+        val output = reporting.produce("GOO_GIVE_AWAY", parameters, ReportFormat.CSV)
+        Csv.parse(output.content) shouldBe listOf(
+            listOf("approvedAt", "planId", "tradeRef", "deliveryDate", "saleBucket", "vintage", "mwh", "deliveredValueEur", "saleMarkEur", "giveAwayEur"),
+            listOf("2026-10-05T09:00:00Z", PLAN.toString(), "T-GIVE", "2026-12-15", "EU_RENEWABLE", "2026", "500", "1000.00", "0.50", "750.00"),
+        )
+        output.export.seq shouldBe 1
+        roles = setOf(Role.TRADER)
+        shouldThrow<ForbiddenException> { reporting.produce("GOO_GIVE_AWAY", parameters, ReportFormat.CSV) }
+    }
+
     private companion object {
+        val PLAN: UUID = UUID.randomUUID()
         val RUN: UUID = UUID.randomUUID()
     }
 }

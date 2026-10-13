@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.allocation.application
 
+import com.pianonurmi.etrm.allocation.api.GiveAwayLine
 import com.pianonurmi.etrm.allocation.api.InventoryBucketValue
 import com.pianonurmi.etrm.allocation.api.ObligationDeliveryValue
 import com.pianonurmi.etrm.allocation.api.PlanGiveAway
@@ -8,6 +9,7 @@ import com.pianonurmi.etrm.allocation.api.PortfolioValue
 import com.pianonurmi.etrm.allocation.api.PortfolioValueQuery
 import com.pianonurmi.etrm.allocation.api.RealisedGiveAway
 import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
+import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.allocation.domain.PortfolioValuer
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
@@ -29,6 +31,7 @@ class PortfolioValueService(
     private val plans: AllocationPlanRepository,
     private val actorProvider: ActorProvider,
     private val clock: Clock,
+    private val obligations: ObligationRepository,
 ) : PortfolioValueQuery {
     override fun value(holderEntityId: UUID, asOf: LocalDate): PortfolioValue? {
         authorise(holderEntityId)
@@ -115,6 +118,35 @@ class PortfolioValueService(
             .map { PlanGiveAway(it.id, it.approvedAt!!, it.allocatedMwh, it.value!!.giveAwayEur) }
             .sortedBy { it.approvedAt }
         return RealisedGiveAway(holderEntityId, from, to, money(approved.sumOf { it.giveAwayEur }), approved)
+    }
+
+    override fun giveAwayLines(holderEntityId: UUID, from: LocalDate, to: LocalDate): List<GiveAwayLine> {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.RISK, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.ACCOUNTANT, Role.AUDITOR, Role.SYSTEM)
+        actor.requireEntity(holderEntityId)
+        val start = from.atStartOfDay().toInstant(ZoneOffset.UTC)
+        val end = to.atStartOfDay().toInstant(ZoneOffset.UTC)
+        return plans.byEntity(holderEntityId, activeOnly = false)
+            .filter { it.status in REALISED && it.approvedAt?.let { at -> at >= start && at < end } == true && it.value != null }
+            .flatMap { plan ->
+                plan.value!!.byObligation.map { line ->
+                    val obligation = obligations.find(line.obligationId)
+                    GiveAwayLine(
+                        planId = plan.id,
+                        approvedAt = plan.approvedAt!!,
+                        obligationId = line.obligationId,
+                        tradeRef = obligation?.tradeRef,
+                        deliveryDate = obligation?.deliveryDate,
+                        saleBucketCode = line.saleBucketCode,
+                        vintageYear = obligation?.vintageYear,
+                        mwh = line.mwh,
+                        deliveredValueEur = line.deliveredValueEur,
+                        saleMarkEur = line.saleMarkEur,
+                        giveAwayEur = line.giveAwayEur,
+                    )
+                }
+            }
+            .sortedWith(compareBy<GiveAwayLine>({ it.approvedAt }, { it.deliveryDate }, { it.obligationId }))
     }
 
     private fun authorise(holderEntityId: UUID) {

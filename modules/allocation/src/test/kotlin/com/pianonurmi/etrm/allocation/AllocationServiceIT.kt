@@ -110,6 +110,7 @@ import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneOffset
 import java.util.Currency
 import java.util.UUID
 
@@ -134,6 +135,7 @@ class AllocationServiceIT {
     private lateinit var portfolio: PortfolioService
     private lateinit var flows: PortfolioFlowCache
     private lateinit var gooRisk: GooRiskService
+    private lateinit var portfolioValues: PortfolioValueService
     private lateinit var newFlows: () -> PortfolioFlowCache
     private lateinit var referenceData: ReferenceDataService
     private lateinit var entityId: UUID
@@ -218,9 +220,10 @@ class AllocationServiceIT {
             buckets,
             criteria,
             GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) },
-            PortfolioValueService(flows, planRepository, actor, clock),
+            PortfolioValueService(flows, planRepository, actor, clock, JooqObligationRepository(dsl)),
             clock,
         )
+        portfolioValues = PortfolioValueService(flows, planRepository, actor, clock, JooqObligationRepository(dsl))
         headroom = HeadroomService(flows, problemBuilder, buckets, criteria, actor, clock)
         futureView = FutureSupplyService(flows, actor, clock)
         portfolio = PortfolioService(flows, problemBuilder, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
@@ -427,6 +430,17 @@ class AllocationServiceIT {
             it.giveAwayEur shouldBe BigDecimal("750.00")
             it.vintageYear shouldBe 2026
         }
+    }
+
+    /** The give-away report's lines: one per sale of an approved plan, as valued when it was proposed; none tomorrow. */
+    private fun giveAwayLinesOf(planId: UUID, sales: Set<UUID>) {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        portfolioValues.giveAwayLines(entityId, today.minusDays(1), today.plusDays(1)).filter { it.planId == planId }.let { lines ->
+            lines.map { it.obligationId }.toSet() shouldBe sales
+            lines.sumOf { it.mwh } shouldBe 1_300
+            lines.mapNotNull { it.giveAwayEur }.fold(BigDecimal.ZERO, BigDecimal::add).compareTo(BigDecimal("140.00")) shouldBe 0
+        }
+        portfolioValues.giveAwayLines(entityId, today.plusDays(1), today.plusDays(2)).shouldBeEmpty()
     }
 
     private fun freeByKey(prepared: PreparedFlow): Map<String, Long> =
@@ -781,8 +795,7 @@ class AllocationServiceIT {
         currentUser = "middle-office"
         val approved = allocation.approve(proposed.id)
         approved.status shouldBe PlanStatus.CONFIRMED
-        approved.lines.all { it.status == LineStatus.CONFIRMED } shouldBe true
-        approved.lines.all { it.externalRef?.startsWith("SIM-") == true } shouldBe true
+        approved.lines.all { it.status == LineStatus.CONFIRMED && it.externalRef?.startsWith("SIM-") == true } shouldBe true
 
         obligations.requireObligation(hydroSale.id).status shouldBe ObligationStatus.FULFILLED
         obligations.requireObligation(disclosure.id).status shouldBe ObligationStatus.FULFILLED
@@ -797,6 +810,7 @@ class AllocationServiceIT {
         }.sumOf { it.quantityMwh } shouldBe 700
         allocation.plans(entityId, activeOnly = true).shouldBeEmpty()
         allocation.coverage(entityId, scope).totalDemandMwh shouldBe 0
+        giveAwayLinesOf(proposed.id, setOf(hydroSale.id, disclosure.id))
     }
 
     @Test

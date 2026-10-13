@@ -12,6 +12,7 @@ import org.springframework.modulith.PackageInfo
         "product :: api",
         "trade :: api",
         "inventory :: api",
+        "allocation :: api",
         "marketdata :: api",
         "valuation :: api",
         "etscompliance :: api",
