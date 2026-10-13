@@ -157,6 +157,9 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   inventory_verifyJournal: ['AUDITOR', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'RISK'],
   inventory_recordMovement: ['BACK_OFFICE', 'REGISTRY_OPERATOR'],
   registry_allowanceTransfer: ['REGISTRY_OPERATOR', 'BACK_OFFICE', 'MIDDLE_OFFICE'],
+  clearing_createAccount: ['BACK_OFFICE', 'MIDDLE_OFFICE'],
+  clearing_computeMargin: ['BACK_OFFICE', 'MIDDLE_OFFICE'],
+  clearing_importStatements: ['BACK_OFFICE', 'MIDDLE_OFFICE'],
   inventory_statement: ['REGISTRY_OPERATOR', 'BACK_OFFICE', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'RISK', 'AUDITOR'],
 };
 

@@ -10,6 +10,7 @@ import {
   IconBuildingArch,
   IconGitCompare,
   IconChecklist,
+  IconCoins,
   IconListDetails,
   IconPackages,
   IconBook2,
@@ -62,6 +63,7 @@ const REGISTRY_READERS: readonly Role[] = [
   'RISK',
   'AUDITOR',
 ];
+const CLEARING_READERS: readonly Role[] = ['BACK_OFFICE', 'MIDDLE_OFFICE', 'ACCOUNTANT', 'RISK', 'AUDITOR'];
 const HEDGE_READERS: readonly Role[] = ['ACCOUNTANT', 'AUDITOR', 'RISK', 'MIDDLE_OFFICE'];
 const RISK_READERS: readonly Role[] = ['RISK', 'MIDDLE_OFFICE', 'TRADER', 'AUDITOR'];
 
@@ -110,6 +112,12 @@ export const NAVIGATION: NavSection[] = [
         label: 'nav.settlement',
         icon: <IconFileInvoice size={ICON} />,
         roles: SETTLEMENT_READERS,
+      },
+      {
+        path: '/clearing',
+        label: 'nav.clearing',
+        icon: <IconCoins size={ICON} />,
+        roles: CLEARING_READERS,
       },
     ],
   },

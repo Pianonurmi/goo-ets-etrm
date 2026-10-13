@@ -6,11 +6,13 @@
 // timelines on every screen, all in lazy chunks; the first page stayed within its own budget.
 // Then to 1100 kB for the help manual and tours (M10, M11): the markdown renderer (about 28 kB) loads only when
 // help is opened, the tours (about 9 kB) only when one starts.
+// Then to 1130 kB for the clearing screens (increment 12 M5): five tabs, three drawers, two modals and a break page,
+// about 13 kB in lazy chunks plus 2 kB of texts in the entry chunk; the first page stayed within its own budget.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const BUDGET_KB = { entry: 330, entryCss: 50, chunk: 360, total: 1100 };
+const BUDGET_KB = { entry: 330, entryCss: 50, chunk: 360, total: 1130 };
 const dist = new URL('../build/dist/', import.meta.url).pathname;
 const assets = join(dist, 'assets');
 const kb = (bytes) => Math.round(bytes / 102.4) / 10;

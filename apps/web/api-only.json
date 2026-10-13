@@ -19,19 +19,5 @@
     "taxonomy_subtree": "Taxonomy subtree for integrations; the taxonomy editor loads the whole tree",
     "payment_payment": "Single payment by id; the payments tab shows payments in full in its list"
   },
-  "planned": {
-    "clearing_accounts": "Clearing screens in increment 12 M5",
-    "clearing_createAccount": "Clearing screens in increment 12 M5",
-    "clearing_runs": "Clearing screens in increment 12 M5",
-    "clearing_computeMargin": "Clearing screens in increment 12 M5",
-    "clearing_run": "Clearing screens in increment 12 M5",
-    "clearing_breaks": "Clearing screens in increment 12 M5",
-    "clearing_clearingBreak": "Clearing screens in increment 12 M5",
-    "clearing_importStatements": "Clearing screens in increment 12 M5",
-    "clearing_statement": "Clearing screens in increment 12 M5",
-    "clearing_statements": "Clearing screens in increment 12 M5",
-    "clearing_marginCall": "Clearing screens in increment 12 M5",
-    "clearing_marginCalls": "Clearing screens in increment 12 M5",
-    "clearing_marginPosted": "Clearing screens in increment 12 M5"
-  }
+  "planned": {}
 }

@@ -8,6 +8,8 @@ describe('help routing', () => {
     expect(helpFor('/trades/new')).toEqual({ page: 'trading', anchor: 'capture-a-trade' });
     expect(helpFor('/trades/0193')).toEqual({ page: 'trading' });
     expect(helpFor('/admin/demo')).toEqual({ page: 'demo', anchor: 'resetting-the-demo' });
+    expect(helpFor('/clearing')).toEqual({ page: 'clearing' });
+    expect(helpFor('/clearing/breaks/0193')).toEqual({ page: 'clearing' });
     expect(helpFor('/')).toEqual({ page: 'getting-started' });
     expect(helpFor('/tradesx')).toEqual({ page: 'getting-started' });
   });

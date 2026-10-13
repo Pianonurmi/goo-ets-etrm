@@ -23,6 +23,8 @@ registerSubjectScreens(
   'RECONCILIATION_BREAK',
   'TRADE_CONFIRMATION',
   'HEDGE',
+  'CLEARING_BREAK',
+  'MARGIN_CALL',
 );
 
 /** Feature screens load lazily, so the first page only pays for the shell. */
@@ -141,6 +143,16 @@ export const router = createBrowserRouter([
         path: 'settlement/netting/:nettingId',
         lazy: async () => ({
           Component: (await import('@/features/settlement/NettingDetailPage')).NettingDetailPage,
+        }),
+      },
+      {
+        path: 'clearing',
+        lazy: async () => ({ Component: (await import('@/features/clearing/ClearingPage')).ClearingPage }),
+      },
+      {
+        path: 'clearing/breaks/:breakId',
+        lazy: async () => ({
+          Component: (await import('@/features/clearing/BreakDetailPage')).BreakDetailPage,
         }),
       },
       {

@@ -21,6 +21,8 @@ const SUBJECT_ROUTES: Record<string, (ref: string) => string> = {
   RECONCILIATION_BREAK: (ref) => `/reconciliation/breaks/${ref}`,
   TRADE_CONFIRMATION: (ref) => `/confirmations/${ref}`,
   HEDGE: (ref) => `/ledger/hedges/${ref}`,
+  CLEARING_BREAK: (ref) => `/clearing/breaks/${ref}`,
+  MARGIN_CALL: () => '/clearing?tab=margin-calls',
 };
 
 /** Subject types whose screens exist; extended as screens are added. */
