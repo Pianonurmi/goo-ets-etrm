@@ -8,6 +8,7 @@ import java.time.Duration
  * ```yaml
  * etrm.marketdata:
  *   max-move-pct: 25            # a price moving more than this from the previous one is held as suspect
+ *   max-rate-move-bp: 50        # the same for interest rates, in basis points
  *   fx-max-staleness-days: 10   # FX rates older than this are not used
  *   ecb:
  *     enabled: false            # pull the ECB reference rates on working days
@@ -17,6 +18,7 @@ import java.time.Duration
 @ConfigurationProperties(prefix = "etrm.marketdata")
 data class MarketDataSettings(
     val maxMovePct: BigDecimal = BigDecimal(25),
+    val maxRateMoveBp: BigDecimal = BigDecimal(50),
     val fxMaxStalenessDays: Long = 10,
     val ecb: EcbSettings = EcbSettings(),
 )

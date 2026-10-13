@@ -2011,11 +2011,15 @@
           "currency" : {
             "type" : "string"
           },
+          "dayCount" : {
+            "enum" : [ "ACT_360", "ACT_365F" ],
+            "type" : [ "string", "null" ]
+          },
           "description" : {
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE" ],
+            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
             "type" : "string"
           },
           "proxyCurveCode" : {
@@ -2098,6 +2102,9 @@
           "productionYear" : {
             "format" : "int32",
             "type" : [ "integer", "null" ]
+          },
+          "tenor" : {
+            "type" : [ "string", "null" ]
           },
           "unit" : {
             "type" : [ "string", "null" ]
@@ -2642,6 +2649,10 @@
           "curveCode" : {
             "type" : "string"
           },
+          "dayCount" : {
+            "enum" : [ "ACT_360", "ACT_365F" ],
+            "type" : [ "string", "null" ]
+          },
           "gaps" : {
             "items" : {
               "type" : "string"
@@ -2656,7 +2667,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE" ],
+            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
             "type" : "string"
           },
           "note" : {
@@ -2708,11 +2719,15 @@
           "currency" : {
             "type" : "string"
           },
+          "dayCount" : {
+            "enum" : [ "ACT_360", "ACT_365F" ],
+            "type" : [ "string", "null" ]
+          },
           "description" : {
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE" ],
+            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
             "type" : "string"
           },
           "proxyCurveCode" : {
@@ -3139,6 +3154,41 @@
         "required" : [ "reason" ],
         "type" : "object"
       },
+      "DiscountFactor" : {
+        "properties" : {
+          "curveCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "curveDate" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "days" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "discounted" : {
+            "readOnly" : true,
+            "type" : "boolean"
+          },
+          "origin" : {
+            "enum" : [ "POINT", "INTERPOLATED", "EXTRAPOLATED", "EARLIER_VINTAGE" ],
+            "type" : [ "string", "null" ]
+          },
+          "rate" : {
+            "type" : [ "number", "null" ]
+          },
+          "snapshotId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "value" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "days", "discounted", "value" ],
+        "type" : "object"
+      },
       "DocumentView" : {
         "properties" : {
           "createdAt" : {
@@ -3483,7 +3533,7 @@
             "type" : "string"
           },
           "component" : {
-            "enum" : [ "NEW", "CANCELLED", "DELIVERED", "AMENDED", "PRICE", "FX", "UNEXPLAINED" ],
+            "enum" : [ "NEW", "CANCELLED", "DELIVERED", "AMENDED", "TIME", "PRICE", "RATES", "FX", "UNEXPLAINED" ],
             "type" : "string"
           },
           "scheduleId" : {
@@ -4952,6 +5002,9 @@
           "productionYear" : {
             "format" : "int32",
             "type" : [ "integer", "null" ]
+          },
+          "tenor" : {
+            "type" : [ "string", "null" ]
           },
           "unit" : {
             "type" : "string"
@@ -10918,6 +10971,16 @@
             "format" : "date",
             "type" : "string"
           },
+          "discountCurveCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "discountFactor" : {
+            "type" : [ "number", "null" ]
+          },
+          "discountSnapshotId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
           "fxToBase" : {
             "type" : [ "number", "null" ]
           },
@@ -10940,7 +11003,14 @@
           "mtmBase" : {
             "type" : [ "number", "null" ]
           },
+          "mtmUndiscounted" : {
+            "type" : [ "number", "null" ]
+          },
           "note" : {
+            "type" : [ "string", "null" ]
+          },
+          "payDate" : {
+            "format" : "date",
             "type" : [ "string", "null" ]
           },
           "priceOrigin" : {
@@ -15747,6 +15817,58 @@
               }
             },
             "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Curves" ]
+      }
+    },
+    "/api/v1/market-data/curves/discount-factor" : {
+      "get" : {
+        "operationId" : "curve_discountFactor",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "currency",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "payDate",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "asOf",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscountFactor"
+                }
+              }
+            },
+            "description" : "OK"
           },
           "default" : {
             "content" : {
@@ -24862,9 +24984,6 @@
     "description" : "Investigate, correct or accept reconciliation breaks",
     "name" : "Reconciliation breaks"
   }, {
-    "description" : "Forward and vintage curves: build, override, sign-off (four eyes) and official prices",
-    "name" : "Curves"
-  }, {
     "description" : "MtM, net realisable value, emission provision, grant release and FX revaluation; accounting policies",
     "name" : "Period end"
   }, {
@@ -24891,6 +25010,9 @@
   }, {
     "description" : "Immutable business documents: confirmations, invoices, statements",
     "name" : "Documents"
+  }, {
+    "description" : "Forward, vintage and discount curves: build, override, sign-off (four eyes), official prices and discount factors",
+    "name" : "Curves"
   }, {
     "description" : "Append-only audit trail of domain events and commands",
     "name" : "Audit"

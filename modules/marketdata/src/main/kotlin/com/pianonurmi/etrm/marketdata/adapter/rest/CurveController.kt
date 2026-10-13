@@ -6,6 +6,8 @@ import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
 import com.pianonurmi.etrm.marketdata.api.CurveView
+import com.pianonurmi.etrm.marketdata.api.DiscountFactor
+import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
@@ -25,8 +27,8 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/market-data/curves")
-@Tag(name = "Curves", description = "Forward and vintage curves: build, override, sign-off (four eyes) and official prices")
-class CurveController(private val query: CurveQuery, private val command: CurveCommand) {
+@Tag(name = "Curves", description = "Forward, vintage and discount curves: build, override, sign-off (four eyes), official prices and discount factors")
+class CurveController(private val query: CurveQuery, private val command: CurveCommand, private val discounting: DiscountFactors) {
     @GetMapping
     fun curves(
         @RequestParam(defaultValue = "true") activeOnly: Boolean,
@@ -88,6 +90,14 @@ class CurveController(private val query: CurveQuery, private val command: CurveC
         @RequestParam year: Int,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) asOf: LocalDate,
     ): CurvePrice = query.vintagePrice(bucket, year, asOf) ?: throw NotFoundException("Vintage price", "$bucket $year on $asOf")
+
+    /** The factor for a payment in [currency] on [payDate], seen from [asOf]; exactly 1 without an official discount curve. */
+    @GetMapping("/discount-factor")
+    fun discountFactor(
+        @RequestParam currency: String,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) payDate: LocalDate,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) asOf: LocalDate,
+    ): DiscountFactor = discounting.discountFactor(currency, payDate, asOf)
 
     data class BuildRequest(val asOf: LocalDate, val note: String? = null)
 

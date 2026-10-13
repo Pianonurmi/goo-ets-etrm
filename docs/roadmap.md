@@ -12,6 +12,7 @@
 | 8 | GoO portfolio management: value-based allocation in EUR with the give-away when specific certificates cover generic sales, shadow prices, available-to-sell, a flow-netted product hierarchy, portfolio value and cheapest-to-deliver (management view), future supply (purchases, expected issuance) that plans reserve against, GoO risk limits ([plan](plans/increment-8-goo-portfolio.md)) | done |
 | 9 | Housekeeping before the next feature increment: CI actions off the retired Node 20, backend and web dependency majors (Gradle 9, Kotlin 2.4, Flyway 13, react-router 8, ESLint 10) with the held-back ones recorded, versioned releases with tagged images, README and presentation for an enterprise audience | done (0.9.0) |
 | 10 | Portfolio follow-ups: the portfolio figures prepared in about 3 s and patched in about 0.3 s at 100 000 lots, available-to-sell checks fast on realistic books, GoO limits by vintage and a pre-trade basis check for sales, a give-away report; device caps measured and kept outside the flow ([plan](plans/increment-10-portfolio-follow-ups.md)) | done (0.10.0) |
+| 11 | Valuation depth: discount curves and discounted MtM, TIME and RATES in the P&L explain, carry interpolation of allowance forwards, cash flow hedge accounting (designation under four eyes, effectiveness, the hedging reserve at period end, reclassification) ([plan](plans/increment-11-valuation-depth.md)) | in progress |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -147,3 +148,14 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M4 | Device caps in the flow spiked and measured (32 s instead of 0.7 s with one sale in twenty capped), kept outside; nested eligibility chained instead: a check 148 ms → 30 ms, the table about 30 s → 4 s | done |
 | M5 | Close: documentation, deck, release 0.10.0 | done |
 
+## Increment 11: valuation depth
+
+| Milestone | Content | Status |
+|---|---|---|
+| M0 | Discount curves: `DISCOUNT` curves by currency with a day count, zero rates by tenor from rate instruments (negative allowed, moves checked in basis points), discount factors in decimals, a lookup endpoint; demo EUR and SEK curves | done |
+| M1 | Discounted MtM (ADR 0044): to the payment date in the contract currency, futures undiscounted; pay date, factor, curve and undiscounted value kept per result | done |
+| M2 | TIME and RATES in the P&L explain | done |
+| M3 | Carry interpolation of allowance forwards | |
+| M4 | Hedge designation and effectiveness (ADR 0045) | |
+| M5 | Hedge accounting at period end | |
+| M6 | Screens, demo, documentation, release 0.11.0 | |

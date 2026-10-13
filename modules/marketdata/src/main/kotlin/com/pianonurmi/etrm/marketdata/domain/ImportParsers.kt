@@ -142,7 +142,8 @@ object ImportParsers {
             when {
                 date == null -> issues += ParseIssue(lineNo, "Unreadable date '${field("date")}'")
                 instrument.isNullOrBlank() -> issues += ParseIssue(lineNo, "No instrument")
-                value == null || value.signum() <= 0 -> issues += ParseIssue(lineNo, "Unreadable price '${field("value")}'")
+                // Positivity depends on the instrument (rates may be negative) and is checked when the price is stored.
+                value == null -> issues += ParseIssue(lineNo, "Unreadable price '${field("value")}'")
                 type == null -> issues += ParseIssue(lineNo, "Unknown quote type '${field("quoteType")}'")
                 currency != null && !currency.matches(CURRENCY) -> issues += ParseIssue(lineNo, "Unreadable currency '$currency'")
                 else -> rows += ParsedRow.Price(lineNo, date, instrument, type, value, currency)

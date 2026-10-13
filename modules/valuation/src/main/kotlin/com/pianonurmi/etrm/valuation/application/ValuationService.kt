@@ -3,6 +3,8 @@ package com.pianonurmi.etrm.valuation.application
 import com.pianonurmi.etrm.allocation.api.PortfolioValueQuery
 import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
+import com.pianonurmi.etrm.marketdata.api.DiscountFactor
+import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.platform.errors.NotFoundException
@@ -57,10 +59,11 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Values the remaining quantity of every open trade per delivery schedule against official curves, undiscounted:
- * MtM = q × (market − contract), q signed by side, the market price converted into the contract currency and the
- * result into the entity's base currency at the valuation date's rates. Index legs not yet fixed are worth their
- * spread; formula legs are left out.
+ * Values the remaining quantity of every open trade per delivery schedule against official curves, discounted to the
+ * payment date (ADR 0044): MtM = q × (market − contract) × DF, q signed by side, the market price converted into the
+ * contract currency and the result into the entity's base currency at the valuation date's rates. DF comes from the
+ * contract currency's official discount curve (1 without one); futures are margined daily and not discounted. Index
+ * legs not yet fixed are worth their spread; formula legs are left out.
  */
 @Service
 @Transactional
@@ -70,6 +73,7 @@ class ValuationService(
     private val curves: CurveQuery,
     private val fx: FxRates,
     private val fixings: IndexFixings,
+    private val discounting: DiscountFactors,
     private val criteria: CriteriaService,
     private val referenceData: ReferenceDataQuery,
     private val actorProvider: ActorProvider,
@@ -88,8 +92,9 @@ class ValuationService(
         val open = trades.trades(TradeFilter(legalEntityId = legalEntityId, statuses = VALUED, limit = MAX_TRADES))
         val runId = Ids.newId()
         val books = mutableMapOf<UUID, BookType>()
+        val discount = discounter(date)
         val valued = open.flatMap { trade ->
-            value(runId, trade, date, entity.baseCurrency.currencyCode) { books.getOrPut(it) { referenceData.requireBook(it).bookType } }
+            value(runId, trade, date, entity.baseCurrency.currencyCode, discount) { books.getOrPut(it) { referenceData.requireBook(it).bookType } }
         }
         val portfolio = portfolioOf(runId, legalEntityId, date, entity.baseCurrency.currencyCode, valued)
         val results = portfolio?.let { withCheapestToDeliver(valued, it, date) } ?: valued
@@ -102,7 +107,8 @@ class ValuationService(
             baseCurrency = entity.baseCurrency.currencyCode,
             totalMtmBase = results.mapNotNull { it.mtmBase }.fold(BigDecimal.ZERO, BigDecimal::add).setScale(2),
             exceptions = results.count { it.status != ResultStatus.OK && it.status != ResultStatus.EXCLUDED },
-            inputs = results.filter { it.curveCode != null }.associate { it.curveCode!! to it.snapshotId.toString() },
+            inputs = results.filter { it.curveCode != null }.associate { it.curveCode!! to it.snapshotId.toString() } +
+                results.filter { it.discountCurveCode != null }.associate { it.discountCurveCode!! to it.discountSnapshotId.toString() },
             note = note,
             createdBy = actor.userId,
             createdAt = clock.instant(),
@@ -184,7 +190,7 @@ class ValuationService(
             val price = ctd[result.scheduleId]
             if (price == null || result.contractPrice == null || result.fxToBase == null) return@map result
             val inContract = if (result.contractCurrency == EUR) BigDecimal.ONE else fx.rate(date, EUR, result.contractCurrency)?.rate ?: return@map result
-            val mtm = result.quantity * (price * inContract - result.contractPrice)
+            val mtm = result.quantity * (price * inContract - result.contractPrice) * (result.discountFactor ?: BigDecimal.ONE)
             result.copy(ctdPriceEur = price, ctdMtmBase = (mtm * result.fxToBase).setScale(2, RoundingMode.HALF_UP))
         }
     }
@@ -211,7 +217,8 @@ class ValuationService(
         repository.setStatus(runId, RunStatus.OFFICIAL, by, now, note)
         val prior = repository.official(run.legalEntityId, run.valuationDate, orEarlier = true, before = true)
         if (prior != null) {
-            repository.insertExplain(runId, prior.id, PnlExplainer.explain(repository.results(prior.id, null), repository.results(runId, null), ::cancelled))
+            val rows = PnlExplainer.explain(repository.results(prior.id, null), repository.results(runId, null), roller(run.valuationDate), ::cancelled)
+            repository.insertExplain(runId, prior.id, rows)
             val before = repository.portfolio(prior.id)
             val now = repository.portfolio(runId)
             if (before != null && now != null) repository.insertPortfolioExplain(runId, prior.id, PortfolioExplainer.explain(before, now))
@@ -232,11 +239,38 @@ class ValuationService(
 
     private fun cancelled(tradeId: UUID): Boolean = trades.trade(tradeId)?.status == TradeStatus.CANCELLED
 
+    /** Discount factors of one valuation date, read once per currency and payment date. */
+    private fun discounter(date: LocalDate): (String, LocalDate) -> DiscountFactor {
+        val memo = HashMap<Pair<String, LocalDate>, DiscountFactor>()
+        return { currency, payDate -> memo.getOrPut(currency to payDate) { discounting.discountFactor(currency, payDate, date) } }
+    }
+
+    /** The earlier result's discount curve seen from [date], for the later result's payment: the explain's TIME step. */
+    private fun roller(date: LocalDate): (ValuationResultView, ValuationResultView) -> BigDecimal {
+        val memo = HashMap<Pair<UUID, LocalDate>, BigDecimal>()
+        return { r0, r1 ->
+            val snapshot = r0.discountSnapshotId
+            val payDate = r1.payDate
+            if (snapshot == null || payDate == null) {
+                BigDecimal.ONE
+            } else {
+                memo.getOrPut(snapshot to payDate) { discounting.discountFactor(snapshot, date, payDate).value }
+            }
+        }
+    }
+
     // ----------------------------------------------------------------------------------------------------------
     // Pricing
     // ----------------------------------------------------------------------------------------------------------
 
-    private fun value(runId: UUID, trade: TradeView, date: LocalDate, base: String, bookType: (UUID) -> BookType): List<ValuationResultView> =
+    private fun value(
+        runId: UUID,
+        trade: TradeView,
+        date: LocalDate,
+        base: String,
+        discount: (String, LocalDate) -> DiscountFactor,
+        bookType: (UUID) -> BookType,
+    ): List<ValuationResultView> =
         trade.legs.flatMap { leg ->
             leg.deliveries.filter { it.remainingQuantity.signum() > 0 }.map { schedule ->
                 val sign = if (leg.side == Side.BUY) BigDecimal.ONE else BigDecimal.ONE.negate()
@@ -269,21 +303,36 @@ class ValuationService(
                     mtmBase = null,
                     status = ResultStatus.OK,
                     note = null,
+                    payDate = schedule.paymentDate ?: schedule.deliveryDate,
                 )
-                price(draft, trade, leg, date, base)
+                price(draft, trade, leg, date, base, discount)
             }
         }
 
     /** A schedule that cannot be valued, with the reason. */
     private class Unpriced(val status: ResultStatus, val year: Int?, reason: String) : RuntimeException(reason)
 
-    private fun price(draft: ValuationResultView, trade: TradeView, leg: TradeLegView, date: LocalDate, base: String): ValuationResultView = try {
-        priced(draft, trade, leg, date, base)
+    private fun price(
+        draft: ValuationResultView,
+        trade: TradeView,
+        leg: TradeLegView,
+        date: LocalDate,
+        base: String,
+        discount: (String, LocalDate) -> DiscountFactor,
+    ): ValuationResultView = try {
+        priced(draft, trade, leg, date, base, discount)
     } catch (e: Unpriced) {
         draft.copy(productionYear = e.year, status = e.status, note = e.message)
     }
 
-    private fun priced(draft: ValuationResultView, trade: TradeView, leg: TradeLegView, date: LocalDate, base: String): ValuationResultView {
+    private fun priced(
+        draft: ValuationResultView,
+        trade: TradeView,
+        leg: TradeLegView,
+        date: LocalDate,
+        base: String,
+        discount: (String, LocalDate) -> DiscountFactor,
+    ): ValuationResultView {
         if (leg.priceType == PriceType.FORMULA) throw Unpriced(ResultStatus.EXCLUDED, null, "Formula-priced legs are not valued")
         val year = if (trade.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN) {
             leg.criterion?.let { VintageYears.of(criteria.bind(it, criteria.contextFor(draft.deliveryDate)), draft.deliveryDate) }
@@ -308,7 +357,10 @@ class ValuationService(
             // An index leg pays its fixing plus the spread; until fixed, the forward price stands in for the fixing.
             else -> (fixedIndex(leg, draft.deliveryDate, date) ?: marketContract) + leg.price
         }
-        val value = Mtm.value(draft.quantity, marketContract, contract)
+        // Futures are margined daily: their value is paid out now, not on delivery.
+        val df = if (leg.futuresContractCode != null) DiscountFactor.NONE else discount(draft.contractCurrency, draft.payDate!!)
+        val undiscounted = Mtm.value(draft.quantity, marketContract, contract)
+        val value = Mtm.value(draft.quantity, marketContract, contract, df.value)
         return draft.copy(
             productionYear = year,
             contractPrice = contract,
@@ -323,6 +375,10 @@ class ValuationService(
             mtm = Mtm.money(value),
             mtmBase = Mtm.money(value * toBase),
             note = if (market.curveDate != date) "Curve of ${market.curveDate}" else null,
+            discountFactor = df.value,
+            discountCurveCode = df.curveCode,
+            discountSnapshotId = df.snapshotId,
+            mtmUndiscounted = Mtm.money(undiscounted),
         )
     }
 
@@ -384,7 +440,7 @@ class ValuationService(
         readable(legalEntityId)
         val r0 = repository.official(legalEntityId, from, orEarlier = true) ?: return null
         val r1 = repository.official(legalEntityId, to, orEarlier = true) ?: return null
-        val rows = PnlExplainer.explain(repository.results(r0.id, null), repository.results(r1.id, null), ::cancelled)
+        val rows = PnlExplainer.explain(repository.results(r0.id, null), repository.results(r1.id, null), roller(r1.valuationDate), ::cancelled)
         val components = ExplainComponent.entries.associateWith { c -> rows.filter { it.component == c }.fold(BigDecimal.ZERO) { s, r -> s + r.amountBase } }
             .filterValues { it.signum() != 0 }
         return PnlExplainView(
@@ -407,7 +463,7 @@ class ValuationService(
         readable(trade.legalEntityId)
         val base = referenceData.requireLegalEntity(trade.legalEntityId).baseCurrency.currencyCode
         val bookType = referenceData.requireBook(trade.bookId).bookType
-        return value(UUID(0, 0), trade, date, base) { bookType }
+        return value(UUID(0, 0), trade, date, base, discounter(date)) { bookType }
     }
 
     private companion object {

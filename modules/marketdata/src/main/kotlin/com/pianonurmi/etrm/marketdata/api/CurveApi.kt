@@ -13,6 +13,15 @@ enum class CurveKind {
 
     /** GoO prices of one product bucket by production year. */
     GOO_VINTAGE,
+
+    /** Zero rates (percent a year) of one currency by tenor, for discounting (ADR 0044). */
+    DISCOUNT,
+}
+
+/** How a discount curve turns days into years: actual days over 360 (EUR money markets) or over 365. */
+enum class DayCount(val basis: Int) {
+    ACT_360(360),
+    ACT_365F(365),
 }
 
 enum class SnapshotStatus { DRAFT, PENDING_SIGN_OFF, OFFICIAL, SUPERSEDED, REJECTED }
@@ -47,6 +56,8 @@ data class CurveView(
     val proxyCurveCode: String?,
     val proxySpread: BigDecimal,
     val active: Boolean,
+    /** Discount curves only. */
+    val dayCount: DayCount? = null,
 )
 
 data class CreateCurve(
@@ -60,6 +71,8 @@ data class CreateCurve(
     val stalenessDays: Int = 5,
     val proxyCurveCode: String? = null,
     val proxySpread: BigDecimal = BigDecimal.ZERO,
+    /** Discount curves only; ACT_360 for EUR and ACT_365F for other currencies when left out. */
+    val dayCount: DayCount? = null,
 )
 
 data class CurvePointView(
@@ -99,6 +112,8 @@ data class CurveSnapshotView(
     val signedOffAt: Instant?,
     val supersededAt: Instant?,
     val points: List<CurvePointView>,
+    /** Discount curves only. */
+    val dayCount: DayCount? = null,
 )
 
 interface CurveQuery {
@@ -121,6 +136,36 @@ interface CurveQuery {
 
     /** Price of a GoO bucket's vintage from the latest official vintage curve on or before [asOf]. */
     fun vintagePrice(bucketCode: String, productionYear: Int, asOf: LocalDate, knownAt: Instant? = null): CurvePrice?
+}
+
+/**
+ * A discount factor for a payment: [value] is what one unit paid on the payment date is worth on the date it was
+ * seen from. [NONE] (exactly 1) when there is no official discount curve for the currency, or the payment is due.
+ */
+data class DiscountFactor(
+    val value: BigDecimal,
+    /** The interpolated zero rate in percent a year. */
+    val rate: BigDecimal?,
+    val days: Long,
+    val origin: PriceOrigin?,
+    val curveCode: String?,
+    val snapshotId: UUID?,
+    val curveDate: LocalDate?,
+) {
+    val discounted: Boolean get() = snapshotId != null
+
+    companion object {
+        val NONE = DiscountFactor(BigDecimal.ONE, null, 0, null, null, null, null)
+    }
+}
+
+/** Discount factors from official discount curves (ADR 0044); nothing else stores interest rates. */
+interface DiscountFactors {
+    /** From the latest official discount curve of [currency] on or before [asOf], for a payment on [payDate] seen from [asOf]. */
+    fun discountFactor(currency: String, payDate: LocalDate, asOf: LocalDate, knownAt: Instant? = null): DiscountFactor
+
+    /** From one snapshot's rates, for a payment on [payDate] seen from [from] (the P&L explain rolls a curve forward this way). */
+    fun discountFactor(snapshotId: UUID, from: LocalDate, payDate: LocalDate): DiscountFactor
 }
 
 /** Marks for allocation scoring: EUR/MWh of a bucket's vintage, or null when there is no official curve price. */

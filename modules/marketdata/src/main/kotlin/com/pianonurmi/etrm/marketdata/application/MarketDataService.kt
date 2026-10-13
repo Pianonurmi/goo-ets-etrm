@@ -24,6 +24,7 @@ import com.pianonurmi.etrm.marketdata.api.QuotesImported
 import com.pianonurmi.etrm.marketdata.api.RecordFxRate
 import com.pianonurmi.etrm.marketdata.api.RecordQuote
 import com.pianonurmi.etrm.marketdata.api.UpsertImportFormat
+import com.pianonurmi.etrm.marketdata.domain.CurveMath
 import com.pianonurmi.etrm.marketdata.domain.FxRateRepository
 import com.pianonurmi.etrm.marketdata.domain.FxResolver
 import com.pianonurmi.etrm.marketdata.domain.ImportParsers
@@ -154,7 +155,12 @@ class MarketDataService(
             currency = contract?.currency ?: Currency.getInstance(command.currency.uppercase()).currencyCode,
             unit = unit,
             active = true,
+            tenor = command.tenor?.trim()?.uppercase()?.takeIf { it.isNotEmpty() },
         )
+        instrument.tenor?.let { tenor ->
+            if (command.kind != InstrumentKind.RATE) throw ValidationException("Only rate instruments have a tenor")
+            if (tenor != "ON" && !CurveMath.TENOR.matches(tenor)) throw ValidationException("A tenor is ON or a number of D, W, M or Y, e.g. 3M: $tenor")
+        }
         when (command.kind) {
             InstrumentKind.EUA_FUTURE -> if (contract == null) throw ValidationException("A futures instrument needs futuresContractCode")
             InstrumentKind.EUA_SPOT, InstrumentKind.EUA_FORWARD -> if (product == null) {
@@ -180,7 +186,6 @@ class MarketDataService(
     override fun recordQuote(command: RecordQuote): QuoteView {
         actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.RISK)
         val instrument = instruments.byCode(command.instrumentCode.uppercase()) ?: throw NotFoundException("Instrument", command.instrumentCode)
-        if (command.value.signum() <= 0) throw ValidationException("A price must be positive")
         return storeQuote(instrument, command.quoteDate, command.quoteType, command.value, command.currency, command.source.uppercase(), null)
             ?: quotes.current(instrument.code, command.quoteDate, command.quoteType, command.source.uppercase())!!
     }
@@ -197,10 +202,16 @@ class MarketDataService(
     ): QuoteView? {
         val ccy = currency?.uppercase() ?: instrument.currency
         if (ccy != instrument.currency) throw ValidationException("${instrument.code} is quoted in ${instrument.currency}, not $ccy")
+        // Interest rates may be zero or negative; prices may not.
+        if (instrument.kind != InstrumentKind.RATE && value.signum() <= 0) throw ValidationException("A price must be positive")
         val current = quotes.current(instrument.code, date, type, source)
         if (current != null && current.value.compareTo(value) == 0) return null
         val previous = quotes.previous(instrument.code, type, date)
-        val suspect = Plausibility.suspect(previous?.value, value, settings.maxMovePct)
+        val suspect = if (instrument.kind == InstrumentKind.RATE) {
+            Plausibility.suspectRate(previous?.value, value, settings.maxRateMoveBp)
+        } else {
+            Plausibility.suspect(previous?.value, value, settings.maxMovePct)
+        }
         val now = clock.instant()
         current?.let { quotes.supersede(it.id, now) }
         val quote = QuoteView(
@@ -213,7 +224,7 @@ class MarketDataService(
             source = source,
             importId = importId,
             quality = if (suspect) QuoteQuality.SUSPECT else QuoteQuality.OK,
-            qualityNote = if (suspect) "Moved more than ${settings.maxMovePct}% from ${previous!!.value.toPlainString()} on ${previous.quoteDate}" else null,
+            qualityNote = if (suspect) suspectNote(instrument, previous!!) else null,
             recordedBy = actorProvider.current().userId,
             recordedAt = now,
             supersededAt = null,
@@ -222,6 +233,11 @@ class MarketDataService(
         quotes.insert(quote)
         if (suspect) events.publishEvent(QuoteFlagged(quote, previous!!.value))
         return quote
+    }
+
+    private fun suspectNote(instrument: InstrumentView, previous: QuoteView): String {
+        val limit = if (instrument.kind == InstrumentKind.RATE) "${settings.maxRateMoveBp} bp" else "${settings.maxMovePct}%"
+        return "Moved more than $limit from ${previous.value.toPlainString()} on ${previous.quoteDate}"
     }
 
     override fun acknowledgeQuote(quoteId: UUID, note: String): QuoteView {

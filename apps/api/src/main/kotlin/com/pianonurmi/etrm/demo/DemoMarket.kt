@@ -9,8 +9,8 @@ import kotlin.random.Random
 
 /**
  * Market data with history: instruments, two EUA December futures, GoO vintages for four buckets (and two generic
- * ones, [genericCurves]), a GoO price index,
- * and seven months of daily prices and FX rates, loaded the way a desk would, as file imports. Prices are random
+ * ones, [genericCurves]), a GoO price index, EUR and SEK discount curves from rates by tenor (ADR 0044),
+ * and seven months of daily prices, rates and FX rates, loaded the way a desk would, as file imports. Prices are random
  * walks from a fixed seed, so every seed run produces the same history relative to its date.
  */
 class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar) {
@@ -73,6 +73,28 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
                 """{"code":"${bucket.curve}","kind":"GOO_VINTAGE","description":"${bucket.label} vintages","bucketCode":"${bucket.code}","currency":"EUR"}""",
             )
         }
+        RATE_CURVES.forEach { curve ->
+            TENORS.forEach { tenor ->
+                ensureInstrument(
+                    rateCode(curve.currency, tenor),
+                    """{"code":"${rateCode(curve.currency, tenor)}","kind":"RATE","description":"${curve.currency} $tenor swap rate",
+                       "currency":"${curve.currency}","unit":"PCT","tenor":"$tenor"}""",
+                )
+            }
+            if (curve.code !in curves) {
+                api.post(
+                    DemoUser.RISK,
+                    "/api/v1/market-data/curves",
+                    """{"code":"${curve.code}","kind":"DISCOUNT","description":"${curve.currency} discounting","currency":"${curve.currency}"}""",
+                )
+            }
+        }
+        api.put(
+            DemoUser.RISK,
+            "/api/v1/market-data/import-formats",
+            """{"code":"DEMO_RATES_CSV","kind":"QUOTES_LONG_CSV","description":"Broker swap rates: date, instrument, mid (percent)","source":"BROKER",
+               "columnMapping":{"date":"Date","instrument":"Instrument","value":"Mid"},"constants":{"quoteType":"MID"}}""",
+        )
     }
 
     /**
@@ -122,6 +144,25 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
         import("DEMO_EUA_CLOSE_CSV", "broker-eua-close.csv", eua.toString())
         import("GENERIC_SETTLEMENT_CSV", "eex-settlements.csv", settlements.toString())
         import("GENERIC_BROKER_GOO_CSV", "broker-goo-mids.csv", broker.toString())
+        rates()
+    }
+
+    /** Swap rates by tenor in percent, moving a few basis points a day; a stream of their own, so prices stay as they were. */
+    private fun rates() {
+        val random = Random(SEED + 2)
+        val level = RATE_CURVES.associate { it.currency to it.start }.toMutableMap()
+        val file = StringBuilder("Date,Instrument,Mid\n")
+        businessDays(calendar.historyStart, calendar.lastClose).forEach { day ->
+            RATE_CURVES.forEach { curve ->
+                val shift = BigDecimal(random.nextInt(-3, 4)).movePointLeft(2)
+                val short = (level.getValue(curve.currency) + shift).setScale(4, RoundingMode.HALF_UP)
+                level[curve.currency] = short
+                TENORS.forEachIndexed { i, tenor ->
+                    file.append("$day,${rateCode(curve.currency, tenor)},${short + curve.slope.multiply(BigDecimal(i))}\n")
+                }
+            }
+        }
+        import("DEMO_RATES_CSV", "broker-swap-rates.csv", file.toString())
     }
 
     /** Builds, submits and (as the second analyst) signs off every curve on each date. */
@@ -180,7 +221,7 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
         import("GENERIC_BROKER_GOO_CSV", "broker-goo-generic-mids.csv", broker.toString())
     }
 
-    fun curveCodes(): List<String> = listOf(EUA_CURVE) + (BUCKETS + GENERIC).map { it.curve }
+    fun curveCodes(): List<String> = listOf(EUA_CURVE) + (BUCKETS + GENERIC).map { it.curve } + RATE_CURVES.map { it.code }
 
     private fun vintages() = listOf(year - 1, year)
 
@@ -198,6 +239,10 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
     private fun walk(value: BigDecimal, random: Random, volatility: BigDecimal, scale: Int): BigDecimal {
         val shock = BigDecimal(random.nextInt(-1000, 1001)).divide(BigDecimal(1000))
         return value.multiply(BigDecimal.ONE + volatility.multiply(shock)).setScale(scale, RoundingMode.HALF_UP)
+    }
+
+    data class RateCurve(val currency: String, val start: BigDecimal, val slope: BigDecimal) {
+        val code get() = "${currency}_DISC"
     }
 
     data class Bucket(val code: String, val label: String, val start: BigDecimal) {
@@ -223,6 +268,15 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
             Bucket("EU_RENEWABLE", "European renewable", BigDecimal("0.240")),
             Bucket("ANY_GOO", "Any guarantee of origin", BigDecimal("0.180")),
         )
+
+        /** Discounting in the two entities' currencies: an upward sloping curve, a few basis points more per tenor. */
+        val RATE_CURVES = listOf(
+            RateCurve("EUR", BigDecimal("2.1500"), BigDecimal("0.0600")),
+            RateCurve("SEK", BigDecimal("1.9000"), BigDecimal("0.0500")),
+        )
+        val TENORS = listOf("ON", "1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y")
+
+        fun rateCode(currency: String, tenor: String) = "RATE_${currency}_$tenor"
 
         fun vintageCode(bucket: String, year: Int) = "GOO_${bucket}_$year"
 

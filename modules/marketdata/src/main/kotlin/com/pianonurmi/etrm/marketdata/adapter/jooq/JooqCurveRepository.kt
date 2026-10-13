@@ -9,6 +9,7 @@ import com.pianonurmi.etrm.marketdata.api.CurveKind
 import com.pianonurmi.etrm.marketdata.api.CurvePointView
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
 import com.pianonurmi.etrm.marketdata.api.CurveView
+import com.pianonurmi.etrm.marketdata.api.DayCount
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.marketdata.api.SnapshotStatus
@@ -48,6 +49,7 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
             .set(CURVE.PROXY_CURVE_CODE, curve.proxyCurveCode)
             .set(CURVE.PROXY_SPREAD, curve.proxySpread)
             .set(CURVE.ACTIVE, curve.active)
+            .set(CURVE.DAY_COUNT, curve.dayCount?.name)
             .execute()
     }
 
@@ -152,6 +154,7 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
         r.proxyCurveCode,
         r.proxySpread,
         r.active,
+        r.dayCount?.let(DayCount::valueOf),
     )
 
     private fun toSnapshot(r: CurveSnapshotRecord): CurveSnapshotView {
@@ -173,6 +176,7 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
             r.signedOffAt,
             r.supersededAt,
             points(r.id),
+            curve.dayCount,
         )
     }
 }

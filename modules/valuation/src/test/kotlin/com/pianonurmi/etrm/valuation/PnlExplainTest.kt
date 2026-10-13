@@ -37,8 +37,9 @@ class PnlExplainTest {
         f: BigDecimal,
         x: BigDecimal,
         status: ResultStatus = ResultStatus.OK,
+        d: BigDecimal = BigDecimal.ONE,
     ): ValuationResultView {
-        val value = Mtm.value(q, f, k)
+        val value = Mtm.value(q, f, k, d)
         return ValuationResultView(
             UUID.randomUUID(),
             schedule,
@@ -68,6 +69,7 @@ class PnlExplainTest {
             Mtm.money(value * x),
             status,
             null,
+            discountFactor = d,
         )
     }
 
@@ -97,8 +99,9 @@ class PnlExplainTest {
     }
 
     @Test
-    fun `components add up to the change in MtM for any change of quantity, terms, market and rate`() = runBlocking<Unit> {
+    fun `components add up to the change in MtM for any change of quantity, terms, market, rate and discounting`() = runBlocking<Unit> {
         val money = Arb.int(1, 20_000).map { BigDecimal(it).divide(BigDecimal(100)) }
+        val discount = Arb.int(900_000, 1_000_000).map { BigDecimal(it).movePointLeft(6).setScale(10) }
         val case = Arb.bind(
             Arb.int(-5_000, 5_000).map { BigDecimal(it) },
             Arb.int(-5_000, 5_000).map { BigDecimal(it) },
@@ -109,19 +112,24 @@ class PnlExplainTest {
             Arb.int(80, 120).map { BigDecimal(it).divide(BigDecimal(100)).setScale(10, RoundingMode.HALF_EVEN) },
             Arb.int(80, 120).map { BigDecimal(it).divide(BigDecimal(100)).setScale(10, RoundingMode.HALF_EVEN) },
             Arb.boolean(),
-        ) { q0, q1, k0, k1, f0, f1, x0, x1, amended -> listOf(q0, q1, k0, k1, f0, f1, x0, x1) to amended }
+            discount,
+            discount,
+            discount,
+        ) { q0, q1, k0, k1, f0, f1, x0, x1, amended, d0, d0r, d1 -> listOf(q0, q1, k0, k1, f0, f1, x0, x1, d0, d0r, d1) to amended }
         checkAll(PropTestConfig(iterations = 500), Arb.list(case, 1..6)) { cases ->
             val before = mutableListOf<ValuationResultView>()
             val after = mutableListOf<ValuationResultView>()
+            val rolled = mutableMapOf<UUID, BigDecimal>()
             cases.forEach { (v, amended) ->
                 val s = UUID.randomUUID()
-                before += result(s, 1, v[0], v[2], v[4], v[6])
-                after += result(s, if (amended) 2 else 1, v[1], if (amended) v[3] else v[2], v[5], v[7])
+                before += result(s, 1, v[0], v[2], v[4], v[6], d = v[8])
+                after += result(s, if (amended) 2 else 1, v[1], if (amended) v[3] else v[2], v[5], v[7], d = v[10])
+                rolled[s] = v[9]
             }
-            val rows = PnlExplainer.explain(before, after) { false }
+            val rows = PnlExplainer.explain(before, after, { _, r1 -> rolled.getValue(r1.scheduleId) }) { false }
             rows.fold(BigDecimal.ZERO) { sum, r -> sum + r.amountBase }.compareTo(after.sumOf { it.mtmBase!! } - before.sumOf { it.mtmBase!! }) shouldBe 0
-            // Rounding is all that is left unexplained.
-            rows.filter { it.component == ExplainComponent.UNEXPLAINED }.forEach { (it.amountBase.abs() <= BigDecimal("0.03")) shouldBe true }
+            // Rounding is all that is left unexplained: two values and five components, half a cent each at most.
+            rows.filter { it.component == ExplainComponent.UNEXPLAINED }.forEach { (it.amountBase.abs() <= BigDecimal("0.035")) shouldBe true }
         }
     }
 }

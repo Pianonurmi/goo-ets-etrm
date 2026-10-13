@@ -50,3 +50,10 @@ must not depend on accounting choices (those live in the ledger, M6).
 Runs also keep a portfolio value and, at sign-off, a portfolio explain: a management view in separate immutable
 tables. The run total, the results' official MtM and the P&L explain above are unchanged; GoO sale results also
 carry their cheapest-to-deliver price and MtM, shown only.
+
+## Amendment (ADR 0044)
+MtM is discounted to the payment date: `q × (market − contract) × DF`, with DF from the contract currency's official
+discount curve (1 without one, and for futures). The explain gains **TIME** (the earlier discount curve seen from the
+later date) and **RATES** (the move of the discount curve), between DELIVERED/AMENDED and FX; the components still
+add up exactly. Runs before discounting have no discount factor, so the first discounted run shows the switch in
+RATES.

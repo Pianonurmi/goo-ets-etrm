@@ -29,7 +29,11 @@ enum class ResultStatus {
     EXCLUDED,
 }
 
-enum class ExplainComponent { NEW, CANCELLED, DELIVERED, AMENDED, PRICE, FX, UNEXPLAINED }
+/**
+ * Why MtM moved between two runs (ADR 0019, ADR 0044). TIME is the old discount curve a day closer to payment;
+ * RATES the move of the discount curve itself.
+ */
+enum class ExplainComponent { NEW, CANCELLED, DELIVERED, AMENDED, TIME, PRICE, RATES, FX, UNEXPLAINED }
 
 /** One delivery schedule valued: quantity signed (+ bought, − sold), prices per unit, MtM in contract and base currency. */
 data class ValuationResultView(
@@ -67,6 +71,16 @@ data class ValuationResultView(
      */
     val ctdPriceEur: BigDecimal? = null,
     val ctdMtmBase: BigDecimal? = null,
+    /**
+     * Discounting (ADR 0044): the schedule's payment date, the factor applied to its value (1 when the currency has
+     * no official discount curve, for futures, which are margined daily, and in runs before discounting), the
+     * discount curve snapshot, and the value before discounting in the contract currency.
+     */
+    val payDate: LocalDate? = null,
+    val discountFactor: BigDecimal? = null,
+    val discountCurveCode: String? = null,
+    val discountSnapshotId: UUID? = null,
+    val mtmUndiscounted: BigDecimal? = null,
 )
 
 data class ValuationRunView(

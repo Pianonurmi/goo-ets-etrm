@@ -34,6 +34,8 @@ data class InstrumentView(
     val currency: String,
     val unit: String,
     val active: Boolean,
+    /** Rate instruments on a discount curve: ON, or a number of days, weeks, months or years (`3M`, `10Y`). */
+    val tenor: String? = null,
 )
 
 data class CreateInstrument(
@@ -46,6 +48,7 @@ data class CreateInstrument(
     val productionYear: Int? = null,
     val currency: String = "EUR",
     val unit: String? = null,
+    val tenor: String? = null,
 )
 
 data class QuoteView(

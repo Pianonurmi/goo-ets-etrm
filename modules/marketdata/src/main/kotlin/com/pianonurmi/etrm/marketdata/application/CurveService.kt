@@ -11,6 +11,9 @@ import com.pianonurmi.etrm.marketdata.api.CurveSnapshotSignedOff
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotSubmitted
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
 import com.pianonurmi.etrm.marketdata.api.CurveView
+import com.pianonurmi.etrm.marketdata.api.DayCount
+import com.pianonurmi.etrm.marketdata.api.DiscountFactor
+import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.marketdata.api.InstrumentKind
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
@@ -61,7 +64,7 @@ class CurveService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
-) : CurveQuery, CurveCommand, GooMarks {
+) : CurveQuery, CurveCommand, GooMarks, DiscountFactors {
     override fun createCurve(command: CreateCurve): CurveView {
         actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.RISK)
         val code = command.code.trim().uppercase()
@@ -74,6 +77,14 @@ class CurveService(
                 catalogue.allowanceProduct(product) ?: throw NotFoundException("AllowanceProduct", product)
             }
             CurveKind.GOO_VINTAGE -> buckets.requireBucket(command.bucketCode ?: throw ValidationException("A vintage curve needs bucketCode"))
+            CurveKind.DISCOUNT -> if (command.allowanceProductCode != null || command.bucketCode != null) {
+                throw ValidationException("A discount curve is for a currency, not a product or bucket")
+            }
+        }
+        if (command.kind != CurveKind.DISCOUNT && command.dayCount != null) throw ValidationException("Only discount curves have a day count")
+        val currency = Currency.getInstance(command.currency.uppercase()).currencyCode
+        if (command.kind == CurveKind.DISCOUNT && curves.curves(true).any { it.kind == CurveKind.DISCOUNT && it.currency == currency }) {
+            throw ConflictException("$currency already has a discount curve")
         }
         command.proxyCurveCode?.let { proxy ->
             val p = curves.curve(proxy.uppercase()) ?: throw NotFoundException("Curve", proxy)
@@ -85,12 +96,13 @@ class CurveService(
             description = command.description,
             allowanceProductCode = command.allowanceProductCode?.uppercase().takeIf { command.kind == CurveKind.EUA_FORWARD },
             bucketCode = command.bucketCode?.uppercase().takeIf { command.kind == CurveKind.GOO_VINTAGE },
-            currency = Currency.getInstance(command.currency.uppercase()).currencyCode,
+            currency = currency,
             quoteTypes = command.quoteTypes,
             stalenessDays = command.stalenessDays,
             proxyCurveCode = command.proxyCurveCode?.uppercase(),
             proxySpread = command.proxySpread,
             active = true,
+            dayCount = if (command.kind == CurveKind.DISCOUNT) command.dayCount ?: if (currency == "EUR") DayCount.ACT_360 else DayCount.ACT_365F else null,
         )
         curves.insertCurve(curve)
         return curve
@@ -108,12 +120,16 @@ class CurveService(
             latest = { instrument, type -> quotes.latest(instrument, type, asOfDate, null) },
             proxy = proxy?.points.orEmpty(),
             proxySpread = curve.proxySpread,
+            positiveOnly = curve.kind != CurveKind.DISCOUNT,
         )
         if (result.points.isEmpty()) throw ValidationException("No prices for curve ${curve.code} on $asOfDate (missing: ${result.gaps.joinToString()})")
         return store(curve, asOfDate, result.points, result.gaps, note)
     }
 
-    /** Futures of the product still to deliver (by delivery date) plus spot two working days out; or the bucket's vintages. */
+    /**
+     * Futures of the product still to deliver (by delivery date) plus spot two working days out; the bucket's
+     * vintages; or the currency's rate instruments by tenor, each ending its tenor after the snapshot date.
+     */
     private fun pillars(curve: CurveView, asOf: LocalDate): List<PillarInput> = when (curve.kind) {
         CurveKind.EUA_FORWARD -> {
             val product = curve.allowanceProductCode!!
@@ -128,6 +144,10 @@ class CurveService(
         CurveKind.GOO_VINTAGE -> instruments.all(InstrumentKind.GOO_VINTAGE, true)
             .filter { it.bucketCode == curve.bucketCode && it.currency == curve.currency }
             .map { PillarInput(it.productionYear.toString(), null, it.productionYear, it.code) }
+        CurveKind.DISCOUNT -> instruments.all(InstrumentKind.RATE, true)
+            .filter { it.currency == curve.currency && it.tenor != null }
+            .map { PillarInput(it.tenor!!, CurveMath.tenorDate(asOf, it.tenor), null, it.code) }
+            .sortedBy { it.pillarDate }
     }
 
     private fun workingDaysAfter(date: LocalDate, days: Int): LocalDate {
@@ -167,6 +187,7 @@ class CurveService(
             signedOffAt = null,
             supersededAt = null,
             points = points,
+            dayCount = curve.dayCount,
         )
         curves.insertSnapshot(snapshot)
         return snapshot
@@ -175,8 +196,8 @@ class CurveService(
     override fun override(snapshotId: UUID, pillar: String, price: BigDecimal, note: String): CurveSnapshotView {
         actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.RISK)
         if (note.isBlank()) throw ValidationException("An override needs a reason")
-        if (price.signum() <= 0) throw ValidationException("A price must be positive")
         val base = curves.snapshot(snapshotId) ?: throw NotFoundException("CurveSnapshot", snapshotId)
+        if (base.kind != CurveKind.DISCOUNT && price.signum() <= 0) throw ValidationException("A price must be positive")
         val curve = curves.curve(base.curveCode)!!
         val existing = base.points.firstOrNull { it.pillar == pillar } ?: throw NotFoundException("CurvePillar", pillar)
         val points = base.points.map { if (it.pillar == pillar) it.copy(price = price, origin = PointOrigin.OVERRIDE, note = note) else it }
@@ -252,6 +273,19 @@ class CurveService(
     override fun vintagePrice(bucketCode: String, productionYear: Int, asOf: LocalDate, knownAt: Instant?): CurvePrice? {
         val curve = curves.curves(true).firstOrNull { it.kind == CurveKind.GOO_VINTAGE && it.bucketCode == bucketCode.uppercase() } ?: return null
         return latestOfficial(curve.code, asOf, knownAt)?.let { CurveMath.priceFor(it, productionYear) }
+    }
+
+    @Transactional(readOnly = true)
+    override fun discountFactor(currency: String, payDate: LocalDate, asOf: LocalDate, knownAt: Instant?): DiscountFactor {
+        val curve = curves.curves(true).firstOrNull { it.kind == CurveKind.DISCOUNT && it.currency == currency.uppercase() } ?: return DiscountFactor.NONE
+        val snapshot = latestOfficial(curve.code, asOf, knownAt) ?: return DiscountFactor.NONE
+        return CurveMath.discountFactor(snapshot, asOf, payDate)
+    }
+
+    @Transactional(readOnly = true)
+    override fun discountFactor(snapshotId: UUID, from: LocalDate, payDate: LocalDate): DiscountFactor {
+        val snapshot = curves.snapshot(snapshotId) ?: throw NotFoundException("CurveSnapshot", snapshotId)
+        return CurveMath.discountFactor(snapshot, from, payDate)
     }
 
     /** Allocation marks are EUR/MWh; a curve in another currency gives no mark rather than a wrong one. */

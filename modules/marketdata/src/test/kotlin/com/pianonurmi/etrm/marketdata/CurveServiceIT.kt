@@ -11,6 +11,8 @@ import com.pianonurmi.etrm.marketdata.api.CreateInstrument
 import com.pianonurmi.etrm.marketdata.api.CurveKind
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotSignedOff
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotSubmitted
+import com.pianonurmi.etrm.marketdata.api.DayCount
+import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.InstrumentKind
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
@@ -20,6 +22,7 @@ import com.pianonurmi.etrm.marketdata.api.SnapshotStatus
 import com.pianonurmi.etrm.marketdata.application.CurveService
 import com.pianonurmi.etrm.marketdata.application.MarketDataService
 import com.pianonurmi.etrm.marketdata.application.MarketDataSettings
+import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
@@ -107,6 +110,10 @@ class CurveServiceIT {
             CreateInstrument("CRV_FI_HYDRO_2026", InstrumentKind.GOO_VINTAGE, "FI hydro 2026", bucketCode = "FI_HYDRO", productionYear = 2026),
         )
         marketData.recordQuote(RecordQuote("CRV_FI_HYDRO_2026", asOf, QuoteType.MID, BigDecimal("0.85"), source = "BROKER"))
+        listOf("3M" to "2.00", "1Y" to "-0.10").forEach { (tenor, rate) ->
+            marketData.createInstrument(CreateInstrument("CRV_EUR_$tenor", InstrumentKind.RATE, "EUR $tenor", unit = "PCT", tenor = tenor))
+            marketData.recordQuote(RecordQuote("CRV_EUR_$tenor", asOf, QuoteType.MID, BigDecimal(rate)))
+        }
         curves.createCurve(CreateCurve("EUA_FWD", CurveKind.EUA_FORWARD, "EUA forward", allowanceProductCode = "EUA"))
         curves.createCurve(CreateCurve("FI_HYDRO", CurveKind.GOO_VINTAGE, "Finnish hydro", bucketCode = "FI_HYDRO", quoteTypes = listOf(QuoteType.MID)))
     }
@@ -157,5 +164,36 @@ class CurveServiceIT {
         curves.mark("NORDIC_WIND", 2026, asOf) shouldBe null
         shouldThrow<ValidationException> { curves.build("FI_HYDRO", LocalDate.of(2025, 1, 2)) }
         curves.official("FI_HYDRO", asOf) shouldNotBe null
+    }
+
+    @Test
+    fun `a discount curve is built from rate instruments by tenor and gives discount factors once official`() {
+        user = "builder"
+        shouldThrow<ValidationException> {
+            marketData.createInstrument(CreateInstrument("CRV_BAD", InstrumentKind.RATE, "bad", unit = "PCT", tenor = "3Q"))
+        }
+        shouldThrow<ValidationException> {
+            marketData.recordQuote(RecordQuote("CRV_EUA_SPOT", asOf, QuoteType.MID, BigDecimal("-1")))
+        }
+        curves.createCurve(CreateCurve("EUR_DISC", CurveKind.DISCOUNT, "EUR discounting", currency = "EUR")).dayCount shouldBe DayCount.ACT_360
+        shouldThrow<ConflictException> { curves.createCurve(CreateCurve("EUR_DISC2", CurveKind.DISCOUNT, "again", currency = "EUR")) }
+        curves.discountFactor("EUR", asOf.plusDays(90), asOf) shouldBe DiscountFactor.NONE
+
+        val draft = curves.build("EUR_DISC", asOf)
+        draft.points.map { Triple(it.pillar, it.pillarDate, it.price) } shouldBe listOf(
+            Triple("3M", LocalDate.of(2027, 1, 9), BigDecimal("2.000000")),
+            Triple("1Y", LocalDate.of(2027, 10, 9), BigDecimal("-0.100000")),
+        )
+        draft.dayCount shouldBe DayCount.ACT_360
+        curves.submit(draft.id)
+        signOff(draft.id, "checker")
+        curves.discountFactor("EUR", LocalDate.of(2027, 1, 9), asOf).let {
+            it.days shouldBe 92
+            it.value shouldBe BigDecimal("0.9949148795")
+            it.snapshotId shouldBe draft.id
+        }
+        // Seen from a later date, the same snapshot discounts over fewer days.
+        curves.discountFactor(draft.id, asOf.plusDays(30), LocalDate.of(2027, 1, 9)).days shouldBe 62
+        curves.discountFactor("SEK", LocalDate.of(2027, 1, 9), asOf) shouldBe DiscountFactor.NONE
     }
 }

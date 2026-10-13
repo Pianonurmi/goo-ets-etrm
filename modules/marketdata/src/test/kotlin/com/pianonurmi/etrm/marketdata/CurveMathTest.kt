@@ -3,6 +3,8 @@ package com.pianonurmi.etrm.marketdata
 import com.pianonurmi.etrm.marketdata.api.CurveKind
 import com.pianonurmi.etrm.marketdata.api.CurvePointView
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
+import com.pianonurmi.etrm.marketdata.api.DayCount
+import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.marketdata.api.QuoteQuality
@@ -39,6 +41,7 @@ class CurveMathTest {
         Instant.now(),
         null,
         points.toList(),
+        if (kind == CurveKind.DISCOUNT) DayCount.ACT_360 else null,
     )
 
     private fun dated(date: String, price: String) = CurvePointView(date, LocalDate.parse(date), null, BigDecimal(price), PointOrigin.QUOTE, emptyList(), null)
@@ -131,5 +134,37 @@ class CurveMathTest {
         result.points.map { it.productionYear to it.price } shouldBe listOf(2025 to BigDecimal("0.45"), 2026 to BigDecimal("0.90"))
         result.points.all { it.origin == PointOrigin.PROXY } shouldBe true
         result.gaps shouldBe emptyList()
+    }
+
+    @Test
+    fun `discount factors compound simply within a year and annually beyond, in decimals`() {
+        CurveMath.factor(BigDecimal("3"), 90, DayCount.ACT_360) shouldBe BigDecimal("0.9925558313")
+        // 500 days: one whole year at 3%, then a simple stub of 140/360.
+        CurveMath.factor(BigDecimal("3"), 500, DayCount.ACT_360) shouldBe BigDecimal("0.9596775483")
+        // A negative rate makes money paid later worth more.
+        CurveMath.factor(BigDecimal("-0.5"), 180, DayCount.ACT_360) shouldBe BigDecimal("1.0025062657")
+        CurveMath.factor(BigDecimal("3"), 0, DayCount.ACT_360) shouldBe BigDecimal.ONE
+    }
+
+    @Test
+    fun `a discount curve interpolates its rates by tenor date and does not discount what is due`() {
+        val curve = snapshot(
+            CurveKind.DISCOUNT,
+            dated(CurveMath.tenorDate(asOf, "3M").toString(), "2.00"),
+            dated(CurveMath.tenorDate(asOf, "1Y").toString(), "2.50"),
+        )
+        // 2027-04-09 is 90 of the 273 days from the 3M to the 1Y date: 2 + 0.5 x 90/273; 182 days from the curve date.
+        CurveMath.discountFactor(curve, asOf, LocalDate.of(2027, 4, 9)).let {
+            it.rate shouldBe BigDecimal("2.164835")
+            it.days shouldBe 182
+            it.value shouldBe BigDecimal("0.9891740405")
+            it.origin shouldBe PriceOrigin.INTERPOLATED
+            it.snapshotId shouldBe curve.id
+        }
+        CurveMath.discountFactor(curve, asOf, LocalDate.of(2030, 1, 1)).origin shouldBe PriceOrigin.EXTRAPOLATED
+        CurveMath.discountFactor(curve, asOf, asOf) shouldBe DiscountFactor.NONE
+        CurveMath.discountFactor(curve, asOf, asOf.minusDays(3)) shouldBe DiscountFactor.NONE
+        CurveMath.tenorDate(asOf, "ON") shouldBe asOf.plusDays(1)
+        CurveMath.tenorDate(asOf, "2W") shouldBe asOf.plusDays(14)
     }
 }

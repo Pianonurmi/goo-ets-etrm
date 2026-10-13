@@ -107,6 +107,10 @@ object Plausibility {
         val move = (next - previous).abs().multiply(BigDecimal(100)).divide(previous, 6, java.math.RoundingMode.HALF_UP)
         return move > maxMovePct
     }
+
+    /** Rates (percent) move in absolute terms: near zero a relative move means nothing. */
+    fun suspectRate(previous: BigDecimal?, next: BigDecimal, maxMoveBp: BigDecimal): Boolean =
+        previous != null && (next - previous).abs().multiply(BigDecimal(100)) > maxMoveBp
 }
 
 interface CurveRepository {

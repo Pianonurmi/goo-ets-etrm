@@ -64,6 +64,7 @@ class JooqInstrumentRepository(private val dsl: DSLContext) : InstrumentReposito
             .set(INSTRUMENT.CURRENCY, instrument.currency)
             .set(INSTRUMENT.UNIT, instrument.unit)
             .set(INSTRUMENT.ACTIVE, instrument.active)
+            .set(INSTRUMENT.TENOR, instrument.tenor)
             .execute()
     }
 
@@ -94,6 +95,7 @@ class JooqInstrumentRepository(private val dsl: DSLContext) : InstrumentReposito
         r.currency,
         r.unit,
         r.active,
+        r.tenor,
     )
 }
 

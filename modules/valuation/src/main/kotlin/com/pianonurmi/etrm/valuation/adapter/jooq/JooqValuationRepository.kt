@@ -88,6 +88,11 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
                     .set(VALUATION_RESULT.NOTE, r.note)
                     .set(VALUATION_RESULT.CTD_PRICE_EUR, r.ctdPriceEur)
                     .set(VALUATION_RESULT.CTD_MTM_BASE, r.ctdMtmBase)
+                    .set(VALUATION_RESULT.PAY_DATE, r.payDate)
+                    .set(VALUATION_RESULT.DISCOUNT_FACTOR, r.discountFactor)
+                    .set(VALUATION_RESULT.DISCOUNT_CURVE_CODE, r.discountCurveCode)
+                    .set(VALUATION_RESULT.DISCOUNT_SNAPSHOT_ID, r.discountSnapshotId)
+                    .set(VALUATION_RESULT.MTM_UNDISCOUNTED, r.mtmUndiscounted)
             },
         ).execute()
     }
@@ -289,5 +294,10 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
         r.note,
         r.ctdPriceEur,
         r.ctdMtmBase,
+        r.payDate,
+        r.discountFactor,
+        r.discountCurveCode,
+        r.discountSnapshotId,
+        r.mtmUndiscounted,
     )
 }

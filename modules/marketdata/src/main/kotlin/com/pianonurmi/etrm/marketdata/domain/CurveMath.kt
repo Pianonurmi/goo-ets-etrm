@@ -4,11 +4,14 @@ import com.pianonurmi.etrm.marketdata.api.CurveKind
 import com.pianonurmi.etrm.marketdata.api.CurvePointView
 import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveSnapshotView
+import com.pianonurmi.etrm.marketdata.api.DayCount
+import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.marketdata.api.QuoteView
 import java.math.BigDecimal
+import java.math.MathContext
 import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -19,24 +22,8 @@ object CurveMath {
         require(snapshot.kind == CurveKind.EUA_FORWARD) { "${snapshot.curveCode} is not a forward curve" }
         val points = snapshot.points.filter { it.pillarDate != null }.sortedBy { it.pillarDate }
         if (points.isEmpty()) return null
-
-        fun price(value: BigDecimal, origin: PriceOrigin) = CurvePrice(value, snapshot.currency, origin, snapshot.curveCode, snapshot.id, snapshot.asOfDate)
-        val exact = points.firstOrNull { it.pillarDate == date }
-        val first = points.first()
-        val last = points.last()
-        return when {
-            exact != null -> price(exact.price, PriceOrigin.POINT)
-            date.isBefore(first.pillarDate) -> price(first.price, PriceOrigin.EXTRAPOLATED)
-            date.isAfter(last.pillarDate) -> price(last.price, PriceOrigin.EXTRAPOLATED)
-            else -> {
-                val before = points.last { it.pillarDate!!.isBefore(date) }
-                val after = points.first { it.pillarDate!!.isAfter(date) }
-                val span = ChronoUnit.DAYS.between(before.pillarDate, after.pillarDate)
-                val elapsed = ChronoUnit.DAYS.between(before.pillarDate, date)
-                val value = before.price + (after.price - before.price) * BigDecimal(elapsed).divide(BigDecimal(span), SCALE, RoundingMode.HALF_EVEN)
-                price(value.setScale(6, RoundingMode.HALF_EVEN), PriceOrigin.INTERPOLATED)
-            }
-        }
+        val (value, origin) = interpolate(points, date)
+        return CurvePrice(value, snapshot.currency, origin, snapshot.curveCode, snapshot.id, snapshot.asOfDate)
     }
 
     /** The vintage's own point, else the nearest earlier vintage (GoO of an older year are no dearer, a cautious mark). */
@@ -49,7 +36,77 @@ object CurveMath {
             ?.let { CurvePrice(it.price, snapshot.currency, PriceOrigin.EARLIER_VINTAGE, snapshot.curveCode, snapshot.id, snapshot.asOfDate) }
     }
 
+    /**
+     * The zero rate for [date] off a discount snapshot, linear in calendar days between tenor dates and flat beyond,
+     * then the factor for a payment on [payDate] seen from [from] (ADR 0044): simple compounding up to a year,
+     * `1 / (1 + r t)`; beyond, annual compounding for the whole years with a simple stub, `1 / ((1 + r)^n (1 + r f))`.
+     * No floating point: everything in decimal arithmetic, the factor rounded to ten places. A payment on or before
+     * [from] is not discounted.
+     */
+    fun discountFactor(snapshot: CurveSnapshotView, from: LocalDate, payDate: LocalDate): DiscountFactor {
+        require(snapshot.kind == CurveKind.DISCOUNT) { "${snapshot.curveCode} is not a discount curve" }
+        val dayCount = requireNotNull(snapshot.dayCount) { "${snapshot.curveCode} has no day count" }
+        val days = ChronoUnit.DAYS.between(from, payDate)
+        if (days <= 0) return DiscountFactor.NONE
+        val points = snapshot.points.filter { it.pillarDate != null }.sortedBy { it.pillarDate }
+        if (points.isEmpty()) return DiscountFactor.NONE
+        val (rate, origin) = interpolate(points, payDate)
+        return DiscountFactor(factor(rate, days, dayCount), rate, days, origin, snapshot.curveCode, snapshot.id, snapshot.asOfDate)
+    }
+
+    /** `1 / (1 + r t)` within a year, `1 / ((1 + r)^n (1 + r f))` beyond, with [ratePct] in percent a year. */
+    fun factor(ratePct: BigDecimal, days: Long, dayCount: DayCount): BigDecimal {
+        if (days <= 0) return BigDecimal.ONE
+        val r = ratePct.divide(HUNDRED, MC)
+        val basis = dayCount.basis.toLong()
+        val years = days / basis
+        val stub = BigDecimal(days - years * basis).divide(BigDecimal(basis), MC)
+        val growth = if (years == 0L) {
+            BigDecimal.ONE + r.multiply(BigDecimal(days).divide(BigDecimal(basis), MC), MC)
+        } else {
+            (BigDecimal.ONE + r).pow(years.toInt(), MC).multiply(BigDecimal.ONE + r.multiply(stub, MC), MC)
+        }
+        require(growth.signum() > 0) { "A rate of $ratePct% cannot discount over $days days" }
+        return BigDecimal.ONE.divide(growth, MC).setScale(FACTOR_SCALE, RoundingMode.HALF_EVEN)
+    }
+
+    private fun interpolate(points: List<CurvePointView>, date: LocalDate): Pair<BigDecimal, PriceOrigin> {
+        val exact = points.firstOrNull { it.pillarDate == date }
+        val first = points.first()
+        val last = points.last()
+        return when {
+            exact != null -> exact.price to PriceOrigin.POINT
+            date.isBefore(first.pillarDate) -> first.price to PriceOrigin.EXTRAPOLATED
+            date.isAfter(last.pillarDate) -> last.price to PriceOrigin.EXTRAPOLATED
+            else -> {
+                val before = points.last { it.pillarDate!!.isBefore(date) }
+                val after = points.first { it.pillarDate!!.isAfter(date) }
+                val span = ChronoUnit.DAYS.between(before.pillarDate, after.pillarDate)
+                val elapsed = ChronoUnit.DAYS.between(before.pillarDate, date)
+                val value = before.price + (after.price - before.price) * BigDecimal(elapsed).divide(BigDecimal(span), SCALE, RoundingMode.HALF_EVEN)
+                value.setScale(6, RoundingMode.HALF_EVEN) to PriceOrigin.INTERPOLATED
+            }
+        }
+    }
+
+    /** The date a tenor (`ON`, `7D`, `2W`, `3M`, `10Y`) ends, counted from [from]. */
+    fun tenorDate(from: LocalDate, tenor: String): LocalDate {
+        if (tenor == "ON") return from.plusDays(1)
+        val match = requireNotNull(TENOR.matchEntire(tenor)) { "Unreadable tenor $tenor" }
+        val n = match.groupValues[1].toLong()
+        return when (match.groupValues[2]) {
+            "D" -> from.plusDays(n)
+            "W" -> from.plusWeeks(n)
+            "M" -> from.plusMonths(n)
+            else -> from.plusYears(n)
+        }
+    }
+
+    val TENOR = Regex("^([1-9][0-9]*)([DWMY])$")
     private const val SCALE = 10
+    private const val FACTOR_SCALE = 10
+    private val HUNDRED = BigDecimal(100)
+    private val MC = MathContext.DECIMAL128
 }
 
 /** A pillar to price: the instrument quoted for it and where it sits on the curve. */
@@ -71,6 +128,8 @@ object CurveBuilder {
         latest: (instrumentCode: String, type: QuoteType) -> QuoteView?,
         proxy: List<CurvePointView> = emptyList(),
         proxySpread: BigDecimal = BigDecimal.ZERO,
+        // Rates may be zero or negative; prices may not.
+        positiveOnly: Boolean = true,
     ): Result {
         val points = mutableListOf<CurvePointView>()
         val gaps = mutableListOf<String>()
@@ -95,7 +154,7 @@ object CurveBuilder {
         val covered = points.map { it.pillarDate to it.productionYear }.toSet()
         proxy.filter { (it.pillarDate to it.productionYear) !in covered }.forEach { pp ->
             val price = pp.price + proxySpread
-            if (price.signum() > 0) {
+            if (!positiveOnly || price.signum() > 0) {
                 points += CurvePointView(
                     "proxy:${pp.pillar}",
                     pp.pillarDate,

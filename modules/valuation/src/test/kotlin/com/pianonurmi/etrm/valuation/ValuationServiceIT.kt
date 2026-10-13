@@ -6,6 +6,8 @@ import com.pianonurmi.etrm.allocation.api.PortfolioValueQuery
 import com.pianonurmi.etrm.allocation.api.RealisedGiveAway
 import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
+import com.pianonurmi.etrm.marketdata.api.DiscountFactor
+import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
@@ -67,9 +69,29 @@ class ValuationServiceIT {
     private var euaRemaining = BigDecimal(1000)
     private lateinit var valuations: ValuationService
 
-    private fun schedule(remaining: () -> BigDecimal, date: LocalDate, id: UUID) = mockk<DeliveryScheduleView> {
+    /** Discount rates (percent, ACT/360, simple) by curve date; none in most tests, so their values stay undiscounted. */
+    private val discountRates = mutableMapOf<LocalDate, BigDecimal>()
+    private val discounting = object : DiscountFactors {
+        private fun snapshotOf(date: LocalDate) = UUID.nameUUIDFromBytes("disc-$date".toByteArray())
+
+        private fun factor(rate: BigDecimal, from: LocalDate, payDate: LocalDate, snapshot: UUID): DiscountFactor {
+            val days = java.time.temporal.ChronoUnit.DAYS.between(from, payDate)
+            val growth = BigDecimal.ONE + rate.divide(BigDecimal(100)) * BigDecimal(days).divide(BigDecimal(360), java.math.MathContext.DECIMAL128)
+            val value = BigDecimal.ONE.divide(growth, java.math.MathContext.DECIMAL128).setScale(10, java.math.RoundingMode.HALF_EVEN)
+            return DiscountFactor(value, rate, days, PriceOrigin.INTERPOLATED, "EUR_DISC", snapshot, from)
+        }
+
+        override fun discountFactor(currency: String, payDate: LocalDate, asOf: LocalDate, knownAt: Instant?): DiscountFactor =
+            discountRates[asOf]?.let { factor(it, asOf, payDate, snapshotOf(asOf)) } ?: DiscountFactor.NONE
+
+        override fun discountFactor(snapshotId: UUID, from: LocalDate, payDate: LocalDate): DiscountFactor =
+            factor(discountRates.entries.first { snapshotOf(it.key) == snapshotId }.value, from, payDate, snapshotId)
+    }
+
+    private fun schedule(remaining: () -> BigDecimal, date: LocalDate, id: UUID, payment: LocalDate? = null) = mockk<DeliveryScheduleView> {
         every { this@mockk.id } returns id
         every { deliveryDate } returns date
+        every { paymentDate } returns payment
         every { remainingQuantity } answers { remaining() }
     }
 
@@ -80,6 +102,7 @@ class ValuationServiceIT {
         currency: String,
         schedules: List<DeliveryScheduleView>,
         product: String? = "EUA",
+        futures: String? = null,
     ) = mockk<TradeLegView> {
         every { legNo } returns 1
         every { this@mockk.side } returns side
@@ -91,6 +114,7 @@ class ValuationServiceIT {
         every { criterion } returns null
         every { priceIndex } returns null
         every { deliveries } returns schedules
+        every { futuresContractCode } returns futures
     }
 
     private fun trade(number: String, family: ProductFamily, legs: List<TradeLegView>) = mockk<TradeView> {
@@ -223,6 +247,7 @@ class ValuationServiceIT {
             curves,
             fx,
             { _, _ -> null },
+            discounting,
             mockk(),
             referenceData,
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
@@ -319,6 +344,7 @@ class ValuationServiceIT {
             curves,
             fx,
             { _, _ -> null },
+            discounting,
             mockk(),
             referenceData,
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
@@ -355,5 +381,100 @@ class ValuationServiceIT {
         shouldThrow<Exception> {
             TestDatabase.dsl.execute("UPDATE etrm_valuation.portfolio_value SET give_away = 0 WHERE run_id = '${run1.id}'")
         }
+    }
+
+    /** A forward paid two days after delivery and an exchange future, valued with [discounting]. */
+    private fun discountedBook(): ValuationService {
+        val forwardBuy = trade(
+            "T-DISC-FWD",
+            ProductFamily.EMISSION_ALLOWANCE,
+            listOf(
+                leg(
+                    Side.BUY,
+                    "70.00",
+                    PriceType.FIXED,
+                    "EUR",
+                    listOf(schedule({ BigDecimal(1000) }, LocalDate.of(2026, 12, 21), UUID.randomUUID(), payment = LocalDate.of(2026, 12, 23))),
+                ),
+            ),
+        )
+        val futureBuy = trade(
+            "T-DISC-FUT",
+            ProductFamily.EMISSION_ALLOWANCE,
+            listOf(
+                leg(
+                    Side.BUY,
+                    "70.00",
+                    PriceType.FIXED,
+                    "EUR",
+                    listOf(
+                        schedule({
+                            BigDecimal(10)
+                        }, LocalDate.of(2026, 12, 21), UUID.randomUUID()),
+                    ),
+                    futures = "EUAZ26",
+                ),
+            ),
+        )
+        val book = mockk<TradeQuery> {
+            every { trades(any()) } returns listOf(forwardBuy, futureBuy)
+            every { trade(any()) } returns null
+        }
+        return ValuationService(
+            JooqValuationRepository(TestDatabase.dsl),
+            book,
+            curves,
+            fx,
+            { _, _ -> null },
+            discounting,
+            mockk(),
+            referenceData,
+            ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
+            ApplicationEventPublisher { },
+            Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+        )
+    }
+
+    @Test
+    fun `MtM is discounted to the payment date, futures are not, and the explain separates time and rates`() {
+        user = "risk1"
+        val first = LocalDate.of(2026, 10, 1)
+        val second = LocalDate.of(2026, 10, 2)
+        forward[first] = BigDecimal("72.00")
+        forward[second] = BigDecimal("73.00")
+        discountRates[first] = BigDecimal("3.00")
+        discountRates[second] = BigDecimal("3.50")
+        val discounted = discountedBook()
+        val run0 = discounted.run(entity, first, RunKind.EOD)
+        discounted.results(run0.id).associateBy { it.tradeNumber }.let { results ->
+            // 1000 x (72 - 70), paid 83 days later at 3 % ACT/360.
+            results.getValue("T-DISC-FWD").let {
+                it.payDate shouldBe LocalDate.of(2026, 12, 23)
+                it.discountFactor shouldBe BigDecimal("0.9931308450")
+                it.mtmUndiscounted shouldBe BigDecimal("2000.00")
+                it.mtm shouldBe BigDecimal("1986.26")
+                it.discountCurveCode shouldBe "EUR_DISC"
+            }
+            results.getValue("T-DISC-FUT").let {
+                it.discountFactor!!.compareTo(BigDecimal.ONE) shouldBe 0
+                it.discountSnapshotId shouldBe null
+                it.mtm shouldBe BigDecimal("20.00")
+            }
+        }
+        run0.inputs.keys shouldBe setOf("EUA_FWD", "EUR_DISC")
+        discounted.submit(run0.id)
+        discounted.signOff(run0.id, "risk2", null)
+
+        val run1 = discounted.submit(discounted.run(entity, second, RunKind.EOD).id)
+        discounted.signOff(run1.id, "risk2", null)
+        val explain = discounted.explain(entity, first, second)!!
+        explain.mtmFrom shouldBe BigDecimal("2006.26")
+        explain.mtmTo shouldBe BigDecimal("3006.27")
+        // TIME: the first curve a day closer to payment; PRICE: the forward's move at that rolled factor (plus the
+        // future's undiscounted 10); RATES: the curve's move from 3 % to 3.5 %.
+        explain.components.getValue(ExplainComponent.TIME) shouldBe BigDecimal("0.16")
+        explain.components.getValue(ExplainComponent.PRICE) shouldBe BigDecimal("1003.21")
+        explain.components.getValue(ExplainComponent.RATES) shouldBe BigDecimal("-3.37")
+        explain.mtmTo - explain.mtmFrom shouldBe explain.components.values.fold(BigDecimal.ZERO, BigDecimal::add)
     }
 }

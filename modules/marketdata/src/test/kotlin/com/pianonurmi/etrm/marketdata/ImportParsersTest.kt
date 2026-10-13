@@ -71,14 +71,16 @@ class ImportParsersTest {
             ),
             csv.toByteArray(),
         )
-        parsed.rows.single().let {
+        // A zero price parses: whether it may be zero depends on the instrument (rates may), checked when it is stored.
+        parsed.rows shouldHaveSize 2
+        parsed.rows.first().let {
             it as ParsedRow.Price
             it.instrumentRef shouldBe "EUA Dec-26"
             it.value shouldBe BigDecimal("72.45")
             it.type shouldBe QuoteType.SETTLEMENT
             it.currency shouldBe "EUR"
         }
-        parsed.issues.single().lineNo shouldBe 3
+        parsed.issues shouldHaveSize 0
     }
 
     @Test
