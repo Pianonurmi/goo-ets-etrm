@@ -1,0 +1,40 @@
+<section id="reliability" data-transition="fade" style="background:#0B1220;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#3FA8B7;letter-spacing:2px;text-transform:uppercase">Reliability</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#F8FAFC">Designed to targets, measured, rehearsed</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">99.9 %</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">availability target in business hours</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">15 min</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">recovery point; recovery time 4 hours</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">556/s</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">requests under stress, 104 users, no errors</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">15 ms</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">read p95 at baseline load (target 300 ms)</p>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Stateless, highly available</h3>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Horizontal scaling on Kubernetes; PostgreSQL as a three-instance cluster with a synchronous replica.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Recovery rehearsed</h3>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">A monthly drill restores a backup, compares row counts and verifies the hash chains.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Observable</h3>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Prometheus metrics, OpenTelemetry traces, structured logs, a trace id on every response.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1200px;font-size:24px;color:#94A3B8">Provena · 12 · Load figures: k6 against the application with the demo data</p>
+<aside>The targets come from the architecture plan: 99.9 per cent in business hours, RPO 15 minutes, RTO 4 hours, reads under 300 milliseconds at p95. The load figures are measured with k6: the baseline profile of 27 users has a read p95 of 15 milliseconds and a write p95 of 60; the stress profile of 104 users without pauses reached 556 requests a second with no errors. Recovery is a script, not a document: the DR drill backs up, restores, starts the application on the copy and verifies the lot and ledger hash chains. The one rehearsal still open is a drill against a production backup.</aside>
+</section>

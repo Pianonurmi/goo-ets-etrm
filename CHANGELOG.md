@@ -10,6 +10,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ### Added
 - **Release workflow:** releases a version from GitHub's Actions tab without a clone: it checks the version, tags
   the commit and runs CI for it, which publishes the image tags and the GitHub release.
+- **Presentation in the repository:** the 18-slide deck as a PDF and as a web page with speaker notes
+  (`docs/presentation/`), built from one HTML source per slide.
 
 ## [0.9.0] - 2026-10-12
 

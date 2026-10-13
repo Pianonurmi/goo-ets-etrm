@@ -286,8 +286,9 @@ SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun   # web UI and Swagg
 - [User guide](docs/user-guide/getting-started.md): one page per area, also served in the application under `/help/`.
 - [Documentation index](docs/README.md): architecture, domain notes, integration, operations and the glossary.
 - [Web UI](docs/ui/README.md) and its [design system](docs/ui/design-system.md).
-- Presentation: [the slides](https://claude.ai/artifact/NHG4trUF1EkTnB6dXmAxyv), downloadable as PowerPoint or PDF,
-  and their [outline with speaker notes](docs/presentation/outline.md).
+- Presentation: [the slides as PDF](docs/presentation/provena-deck.pdf) (18 slides: the product, architecture,
+  reliability, security, robustness, maintainability and the roadmap), the same deck as a
+  [web page with speaker notes](docs/presentation/provena-deck.html), and its [outline](docs/presentation/outline.md).
 
 ## Licence
 

@@ -1,0 +1,26 @@
+<section id="security" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Security</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Least privilege, two people, a checked supply chain</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Identity and access</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Single sign-on with OIDC. Every read and command checks the role and the legal entity it touches.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Segregation of duties</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Four eyes on everything that moves value, enforced in the services and again by the database.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Hardened web tier</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Strict content security policy, CSRF protection, formula-safe exports; ZAP and accessibility checks.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Supply chain</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">SBOMs for every build; the image is scanned and a critical fixable flaw stops the release.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 13 · Threat model documented; external penetration test prepared (scope, accounts, rules of engagement)</p>
+<aside>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a critical vulnerability with a fix available. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</aside>
+</section>

@@ -1,0 +1,26 @@
+<section id="robustness" data-transition="fade" style="background:#0E6E7E;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#CDE9EC;letter-spacing:2px;text-transform:uppercase">Robustness and data integrity</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#F8FAFC">A system of record that cannot quietly drift</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Append-only, hash-chained</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Lot journal, ledger and audit trail are protected by triggers. Errors are reversed, never edited.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Exactly-once effects</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Registry calls through an outbox; idempotent deliveries and GL exports; a timeout is reconciled, not resent.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Reproducible as of any date</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Bitemporal lots, prices and reference data; every report run is logged with its content hash.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Failures stay contained</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">A downstream problem is parked for attention; exact decimals only, no floating point in the domain.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#CDE9EC">Provena · 14 · Registry statements are reconciled against the books; each difference becomes a break with an owner</p>
+<aside>Robustness here means the books cannot drift without someone noticing. The lot journal, the ledger and the audit trail can only be appended to, and each row carries the hash of the one before, which the DR drill verifies. Registry instructions are written to an outbox in the business transaction and sent afterwards, so a crash never loses or duplicates one; a timeout becomes an unknown outcome that reconciliation resolves. When a delivery reaches a listener that cannot process it, the problem is parked as needing attention instead of rolling back the delivery itself.</aside>
+</section>

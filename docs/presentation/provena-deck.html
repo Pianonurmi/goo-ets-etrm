@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provena: an ETRM for guarantees of origin and EU emission allowances</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #05080f; color: #cbd5e1; font-family: Geist, Arial, sans-serif; }
+  main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; display: flex; flex-direction: column; gap: 12px; }
+  .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; }
+  .stage { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; transform-origin: top left; }
+  .stage section { position: relative; box-sizing: border-box; width: 1920px; height: 1080px; overflow: hidden; }
+  .stage section * { margin: 0; box-sizing: border-box; }
+  .stage section ul { list-style: disc; }
+  .stage section aside { display: none; }
+  .notes { margin-bottom: 28px; font-size: 15px; line-height: 1.5; }
+  .notes summary { cursor: pointer; color: #94a3b8; }
+  .notes p { margin: 8px 0 0; max-width: 72ch; }
+  @page { size: 1920px 1080px; margin: 0; }
+  @media print {
+    body { background: none; }
+    main { max-width: none; padding: 0; gap: 0; display: block; }
+    .frame { width: 1920px; height: 1080px; aspect-ratio: auto; border-radius: 0; break-after: page; }
+    .stage { transform: none !important; }
+    .notes { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+<div class="frame" id="slide-1"><div class="stage"><section id="cover" data-transition="fade" style="background:#0B1220;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:32px">
+<img src="../images/home-dark.png" alt="The Provena home page of a trader in dark mode: mark-to-market, GoO coverage, EUA position and trades pending approval" style="position:absolute;left:868px;top:255px;width:924px;height:578px;object-fit:contain;border:1px solid #2A3954;border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.45)">
+<p style="font-size:30px;font-weight:600;color:#3FA8B7;letter-spacing:2px;text-transform:uppercase;width:680px">Provena</p>
+<h1 style="font-size:84px;font-weight:700;line-height:1.08;width:680px;color:#F8FAFC">Certificates and allowances, from trade to ledger</h1>
+<p style="font-size:30px;line-height:1.4;width:640px;color:#CBD5E1">A trading and risk system for guarantees of origin and EU emission allowances, built for audited, regulated operations.</p>
+<aside>One system that follows a certificate from the trade to the registry, the invoice and the general ledger. The first part shows the product on its real screens, running on fictitious data; the second shows how it is built for reliability, security, robustness and maintainability, and the roadmap to production.</aside>
+</section></div></div>
+<details class="notes"><summary>1 / 18 · Speaker notes</summary><p>One system that follows a certificate from the trade to the registry, the invoice and the general ledger. The first part shows the product on its real screens, running on fictitious data; the second shows how it is built for reliability, security, robustness and maintainability, and the roadmap to production.</p></details>
+<div class="frame" id="slide-2"><div class="stage"><section id="problem" data-transition="fade" style="background:#0E6E7E;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#CDE9EC;letter-spacing:2px;text-transform:uppercase">The problem</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#F8FAFC">Why this is hard</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Certificates are ranges</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">A guarantee of origin is a range of numbers with attributes: country, source, technology, age and support.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Sales name criteria</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">A sale says which certificates qualify, not which lots; any lot that matches can deliver.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Registries differ</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">The Union Registry, national GoO registries and the AIB hub, through files, APIs and manual steps.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Two people, fixed dates</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Every step that moves value needs a second person, and compliance deadlines are set by law.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#CDE9EC">Provena · 2</p>
+<aside>Spreadsheets break on exactly these points: criteria matching, registry state and four eyes.</aside>
+</section></div></div>
+<details class="notes"><summary>2 / 18 · Speaker notes</summary><p>Spreadsheets break on exactly these points: criteria matching, registry state and four eyes.</p></details>
+<div class="frame" id="slide-3"><div class="stage"><section id="roles" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:row;gap:48px;align-items:start">
+<div style="width:528px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">One system</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Every role, one inbox</h2>
+</div>
+<p style="font-size:28px;line-height:1.4;color:#475569">Trading, operations, finance, risk and administration in one application.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">One inbox for every approval, with its four-eyes checks shown.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">Each role has its own home page and its own work.</p>
+</div>
+<img src="../images/inbox-middle.png" alt="The approval inbox of middle office, with trade approvals, curve sign-offs and due badges" style="width:1088px;height:680px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 3</p>
+<aside>Eleven personas in the demo, two for every approving role, so both sides of four eyes can be played.</aside>
+</section></div></div>
+<details class="notes"><summary>3 / 18 · Speaker notes</summary><p>Eleven personas in the demo, two for every approving role, so both sides of four eyes can be played.</p></details>
+<div class="frame" id="slide-4"><div class="stage"><section id="trading" data-transition="fade" style="background:#EEF3F6;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Trading</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Capture, approve, confirm, deliver</h2>
+</div>
+<div style="display:flex;gap:48px">
+<img src="../images/trades-new.png" alt="The trade capture form in sections: product, counterparty, legs with pricing and certificate criteria" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<img src="../images/trades-detail.png" alt="A trade with its key facts, pre-trade check finding and lifecycle from captured to settled" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<p style="font-size:26px;line-height:1.4;color:#475569">Forwards, spots and futures; fixed or index prices.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Pre-trade limit checks, then approval by a second person.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Confirmations matched field by field; delivery and settlement.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 4</p>
+<aside>Brokers, master agreements and intercompany mirror trades are covered too. The capture form checks what it can; the server validates everything and explains refusals per field.</aside>
+</section></div></div>
+<details class="notes"><summary>4 / 18 · Speaker notes</summary><p>Brokers, master agreements and intercompany mirror trades are covered too. The capture form checks what it can; the server validates everything and explains refusals per field.</p></details>
+<div class="frame" id="slide-5"><div class="stage"><section id="allocation" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Inventory and allocation</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">The right certificates for every sale</h2>
+</div>
+<div style="display:flex;gap:48px">
+<img src="../images/inventory-lots.png" alt="Certificate inventory: lots with source, vintage, status and expiry" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<img src="../images/allocation-workbench.png" alt="The allocation workbench: demand, covered and shortfall, coverage by obligation and plans" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<p style="font-size:26px;line-height:1.4;color:#475569">Lots with all their attributes and a hash-chained journal.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">One criteria builder for trades and searches.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Greedy or exact (CP-SAT) allocation, with what-if.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 5</p>
+<aside>Coverage is computed as a maximum flow. What-if runs without storing anything. An approved plan reserves the lots and creates the registry instructions.</aside>
+</section></div></div>
+<details class="notes"><summary>5 / 18 · Speaker notes</summary><p>Coverage is computed as a maximum flow. What-if runs without storing anything. An approved plan reserves the lots and creates the registry instructions.</p></details>
+<div class="frame" id="slide-6"><div class="stage"><section id="portfolio" data-transition="fade" style="background:#EEF3F6;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">GoO portfolio management</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">The book as a portfolio, not a list of lots</h2>
+</div>
+<div style="display:flex;gap:48px">
+<img src="../images/positions-products.png" alt="Products as a tree: long, short, covered within and short after netting per bucket" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<img src="../images/valuation-portfolio.png" alt="A valuation run's portfolio value: inventory, trade MtM, give-away and the bridge" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<p style="font-size:26px;line-height:1.4;color:#475569">Specific certificates serve generic sales: allocated by value, with the give-away shown.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Available to sell, a product tree netted through eligibility, and future supply.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Portfolio value next to each run, and limits on concentration, expiry and basis.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 6</p>
+<aside>A Nordic hydro certificate can deliver a generic EU renewable sale, but not the reverse. Allocation values each certificate at the best price it qualifies for and reports the premium given away. Available to sell reroutes existing sales where another certificate serves them as well. Purchases and expected issuance count as supply tiers, and plans can rely on them with virtual lines. Portfolio value and cheapest to deliver are a management view: official MtM, the ledger and EMIR stay on bucket curves.</aside>
+</section></div></div>
+<details class="notes"><summary>6 / 18 · Speaker notes</summary><p>A Nordic hydro certificate can deliver a generic EU renewable sale, but not the reverse. Allocation values each certificate at the best price it qualifies for and reports the premium given away. Available to sell reroutes existing sales where another certificate serves them as well. Purchases and expected issuance count as supply tiers, and plans can rely on them with virtual lines. Portfolio value and cheapest to deliver are a management view: official MtM, the ledger and EMIR stay on bucket curves.</p></details>
+<div class="frame" id="slide-7"><div class="stage"><section id="registry" data-transition="fade" style="background:#EEF3F6;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Registry and reconciliation</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Every transfer accounted for</h2>
+</div>
+<div style="display:flex;gap:48px">
+<img src="../images/registry-instruction.png" alt="A registry instruction with its key facts and lifecycle" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<img src="../images/reconciliation-breaks.png" alt="Reconciliation breaks by age, with their owners and states" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<p style="font-size:26px;line-height:1.4;color:#475569">Instructions stored first, sent afterwards; retries are safe.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Registry statements reconciled with our books.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Each difference is a break with an owner and an outcome.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 7</p>
+<aside>Registry calls never run inside a database transaction. Registry mappings that are not checked against the registry's own specification are marked unverified.</aside>
+</section></div></div>
+<details class="notes"><summary>7 / 18 · Speaker notes</summary><p>Registry calls never run inside a database transaction. Registry mappings that are not checked against the registry's own specification are marked unverified.</p></details>
+<div class="frame" id="slide-8"><div class="stage"><section id="markets" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Market data, valuation and risk</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Prices a second person signs off</h2>
+</div>
+<div style="display:flex;gap:48px">
+<img src="../images/valuation-runs.png" alt="Valuation: official mark to market, end-of-day runs signed off by a second person" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<img src="../images/risk-limits.png" alt="Risk limits with utilisation bars, one limit in breach" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<p style="font-size:26px;line-height:1.4;color:#475569">Curves become official once a second person signs them off.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Official end-of-day valuation and P&amp;L explain.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Limits, utilisation, breaches and credit support.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 8</p>
+<aside>Quotes, FX rates and indices come from one place; no other module stores prices. P&amp;L explain splits the change between runs into new trades, amendments, deliveries, price and FX moves.</aside>
+</section></div></div>
+<details class="notes"><summary>8 / 18 · Speaker notes</summary><p>Quotes, FX rates and indices come from one place; no other module stores prices. P&amp;L explain splits the change between runs into new trades, amendments, deliveries, price and FX moves.</p></details>
+<div class="frame" id="slide-9"><div class="stage"><section id="settlement" data-transition="fade" style="background:#EEF3F6;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Settlement and EU ETS</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Invoices and compliance</h2>
+</div>
+<div style="display:flex;gap:48px">
+<img src="../images/settlement-invoice.png" alt="An invoice with its lines, payments and lifecycle" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<img src="../images/ets-overview.png" alt="EU ETS compliance: net position, emissions, free allocation and the next deadline" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<p style="font-size:26px;line-height:1.4;color:#475569">Deliveries become invoices, approved by a second accountant.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Payments, netting and VAT rules, reverse charge included.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Emissions, free allocation and surrenders per installation.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 9</p>
+<aside>Invoice numbers are gap-free and every invoice has a PDF with a stored hash. EU ETS deadlines show up on the home page of the people who act on them.</aside>
+</section></div></div>
+<details class="notes"><summary>9 / 18 · Speaker notes</summary><p>Invoice numbers are gap-free and every invoice has a PDF with a stored hash. EU ETS deadlines show up on the home page of the people who act on them.</p></details>
+<div class="frame" id="slide-10"><div class="stage"><section id="finance" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Finance and control</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Books an auditor can follow</h2>
+</div>
+<div style="display:flex;gap:48px">
+<img src="../images/monthend-close.png" alt="Month end: the period soft closed, one hard-close blocker, period-end measurement and the GL export" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+<img src="../images/audit-trail.png" alt="The audit trail: every event with its actor, time and record" style="width:808px;height:505px;object-fit:contain;background:#E2E8F0;border:1px solid #CBD5E1;border-radius:16px">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<p style="font-size:26px;line-height:1.4;color:#475569">Posting rules feed an append-only, hash-chained journal.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">Month end: period end, soft and hard close, GL export.</p>
+<p style="font-size:26px;line-height:1.4;color:#475569">An audit trail of every change: who, when and why.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:600px;font-size:24px;color:#64748B">Provena · 10</p>
+<aside>Corrections are made by reversal, never by update. The hard close waits until every GL export is acknowledged and nothing is pending.</aside>
+</section></div></div>
+<details class="notes"><summary>10 / 18 · Speaker notes</summary><p>Corrections are made by reversal, never by update. The hard close waits until every GL export is acknowledged and nothing is pending.</p></details>
+<div class="frame" id="slide-11"><div class="stage"><section id="architecture" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Architecture</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">One application, eighteen bounded contexts</h2>
+</div>
+<svg aria-label="Architecture: people use the web UI, which calls the REST API of one Provena application. Inside it, four groups of modules (trading and portfolio; operations; finance and risk; platform) share domain events, and each owns its schema in PostgreSQL 17. The application sends registry instructions through an outbox, exports to the general ledger exactly once, publishes events to Kafka after commit, takes identities from an OIDC provider and reports metrics and traces." viewBox="0 0 1664 600" width="1664" height="600" xmlns="http://www.w3.org/2000/svg" font-family="Geist, Arial, sans-serif">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748B"/></marker></defs>
+<rect x="0" y="40" width="250" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="125" y="86" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">People</text>
+<text x="125" y="122" text-anchor="middle" font-size="22" fill="#475569">every role</text>
+<rect x="0" y="230" width="250" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="125" y="276" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Web UI</text>
+<text x="125" y="312" text-anchor="middle" font-size="22" fill="#475569">React · TypeScript</text>
+<rect x="0" y="420" width="250" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="125" y="466" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Identity</text>
+<text x="125" y="502" text-anchor="middle" font-size="22" fill="#475569">OIDC provider</text>
+<line x1="125" y1="150" x2="125" y2="226" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="250" y1="285" x2="286" y2="285" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="250" y1="475" x2="286" y2="400" stroke="#64748B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+<rect x="290" y="0" width="1010" height="440" rx="18" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+<text x="795" y="36" text-anchor="middle" font-size="24" font-weight="600" fill="#0E6E7E">Provena · Kotlin on Java 25 · Spring Boot 4 · Spring Modulith</text>
+<rect x="310" y="56" width="970" height="64" rx="10" fill="#0E6E7E"/>
+<text x="795" y="97" text-anchor="middle" font-size="24" font-weight="600" fill="#F8FAFC">REST API · OpenAPI contract · authorised by role and legal entity</text>
+<rect x="310" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="425" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Trading</text>
+<text x="425" y="214" text-anchor="middle" font-size="22" fill="#475569">trade</text>
+<text x="425" y="244" text-anchor="middle" font-size="22" fill="#475569">product</text>
+<text x="425" y="274" text-anchor="middle" font-size="22" fill="#475569">allocation</text>
+<text x="425" y="304" text-anchor="middle" font-size="22" fill="#475569">position</text>
+<rect x="556" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="671" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Operations</text>
+<text x="671" y="214" text-anchor="middle" font-size="22" fill="#475569">inventory</text>
+<text x="671" y="244" text-anchor="middle" font-size="22" fill="#475569">registry</text>
+<text x="671" y="274" text-anchor="middle" font-size="22" fill="#475569">settlement</text>
+<text x="671" y="304" text-anchor="middle" font-size="22" fill="#475569">ETS compliance</text>
+<rect x="802" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="917" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Finance and risk</text>
+<text x="917" y="210" text-anchor="middle" font-size="22" fill="#475569">market data</text>
+<text x="917" y="238" text-anchor="middle" font-size="22" fill="#475569">valuation · risk</text>
+<text x="917" y="266" text-anchor="middle" font-size="22" fill="#475569">ledger</text>
+<text x="917" y="294" text-anchor="middle" font-size="22" fill="#475569">reporting</text>
+<rect x="1048" y="138" width="232" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="1164" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Platform</text>
+<text x="1164" y="210" text-anchor="middle" font-size="22" fill="#475569">workflow · audit</text>
+<text x="1164" y="238" text-anchor="middle" font-size="22" fill="#475569">document</text>
+<text x="1164" y="266" text-anchor="middle" font-size="22" fill="#475569">reference data</text>
+<text x="1164" y="294" text-anchor="middle" font-size="22" fill="#475569">taxonomy</text>
+<rect x="310" y="370" width="970" height="52" rx="10" fill="#E6F4F5"/>
+<text x="795" y="404" text-anchor="middle" font-size="22" font-weight="600" fill="#0E6E7E">Domain events in the command transaction · boundaries verified by the build</text>
+<line x1="795" y1="440" x2="795" y2="476" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<rect x="290" y="480" width="1010" height="100" rx="14" fill="#0B1220"/>
+<text x="795" y="522" text-anchor="middle" font-size="26" font-weight="600" fill="#F8FAFC">PostgreSQL 17 · one schema per module</text>
+<text x="795" y="558" text-anchor="middle" font-size="22" fill="#CBD5E1">append-only, hash-chained journals · high availability with CloudNativePG</text>
+<rect x="1340" y="0" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="1502" y="46" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Registries</text>
+<text x="1502" y="82" text-anchor="middle" font-size="22" fill="#475569">Union · GoO · AIB hub</text>
+<rect x="1340" y="146" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="1502" y="192" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">General ledger</text>
+<text x="1502" y="228" text-anchor="middle" font-size="22" fill="#475569">file exports</text>
+<rect x="1340" y="292" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="1502" y="338" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Kafka</text>
+<text x="1502" y="374" text-anchor="middle" font-size="22" fill="#475569">optional</text>
+<rect x="1340" y="438" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="1502" y="484" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Monitoring</text>
+<text x="1502" y="520" text-anchor="middle" font-size="22" fill="#475569">metrics · traces · logs</text>
+<line x1="1300" y1="55" x2="1336" y2="55" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="1300" y1="201" x2="1336" y2="201" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="1300" y1="347" x2="1336" y2="347" stroke="#64748B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+<line x1="1300" y1="430" x2="1336" y2="480" stroke="#64748B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+</svg>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 11 · Registry calls go through an outbox, GL exports are exactly-once, events leave only after commit</p>
+<aside>A modular monolith: one deployable and one database, with the discipline of separate services. Each of the eighteen modules is a bounded context with its own schema and migrations. Another module may only use its published api package, and the build fails on any other dependency. Side effects across modules travel as domain events inside the command transaction; selected events leave for Kafka only after commit. Registry calls never run inside a database transaction: they are written to an outbox first. The web UI is bundled into the same jar, and the OpenAPI document between them is a committed contract.</aside>
+</section></div></div>
+<details class="notes"><summary>11 / 18 · Speaker notes</summary><p>A modular monolith: one deployable and one database, with the discipline of separate services. Each of the eighteen modules is a bounded context with its own schema and migrations. Another module may only use its published api package, and the build fails on any other dependency. Side effects across modules travel as domain events inside the command transaction; selected events leave for Kafka only after commit. Registry calls never run inside a database transaction: they are written to an outbox first. The web UI is bundled into the same jar, and the OpenAPI document between them is a committed contract.</p></details>
+<div class="frame" id="slide-12"><div class="stage"><section id="reliability" data-transition="fade" style="background:#0B1220;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#3FA8B7;letter-spacing:2px;text-transform:uppercase">Reliability</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#F8FAFC">Designed to targets, measured, rehearsed</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">99.9 %</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">availability target in business hours</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">15 min</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">recovery point; recovery time 4 hours</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">556/s</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">requests under stress, 104 users, no errors</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:32px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:72px;font-weight:700;line-height:1;color:#3FA8B7">15 ms</p>
+<p style="font-size:26px;line-height:1.35;color:#CBD5E1">read p95 at baseline load (target 300 ms)</p>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Stateless, highly available</h3>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Horizontal scaling on Kubernetes; PostgreSQL as a three-instance cluster with a synchronous replica.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Recovery rehearsed</h3>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">A monthly drill restores a backup, compares row counts and verifies the hash chains.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Observable</h3>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Prometheus metrics, OpenTelemetry traces, structured logs, a trace id on every response.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1200px;font-size:24px;color:#94A3B8">Provena · 12 · Load figures: k6 against the application with the demo data</p>
+<aside>The targets come from the architecture plan: 99.9 per cent in business hours, RPO 15 minutes, RTO 4 hours, reads under 300 milliseconds at p95. The load figures are measured with k6: the baseline profile of 27 users has a read p95 of 15 milliseconds and a write p95 of 60; the stress profile of 104 users without pauses reached 556 requests a second with no errors. Recovery is a script, not a document: the DR drill backs up, restores, starts the application on the copy and verifies the lot and ledger hash chains. The one rehearsal still open is a drill against a production backup.</aside>
+</section></div></div>
+<details class="notes"><summary>12 / 18 · Speaker notes</summary><p>The targets come from the architecture plan: 99.9 per cent in business hours, RPO 15 minutes, RTO 4 hours, reads under 300 milliseconds at p95. The load figures are measured with k6: the baseline profile of 27 users has a read p95 of 15 milliseconds and a write p95 of 60; the stress profile of 104 users without pauses reached 556 requests a second with no errors. Recovery is a script, not a document: the DR drill backs up, restores, starts the application on the copy and verifies the lot and ledger hash chains. The one rehearsal still open is a drill against a production backup.</p></details>
+<div class="frame" id="slide-13"><div class="stage"><section id="security" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Security</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Least privilege, two people, a checked supply chain</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Identity and access</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Single sign-on with OIDC. Every read and command checks the role and the legal entity it touches.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Segregation of duties</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Four eyes on everything that moves value, enforced in the services and again by the database.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Hardened web tier</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Strict content security policy, CSRF protection, formula-safe exports; ZAP and accessibility checks.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Supply chain</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">SBOMs for every build; the image is scanned and a critical fixable flaw stops the release.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 13 · Threat model documented; external penetration test prepared (scope, accounts, rules of engagement)</p>
+<aside>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a critical vulnerability with a fix available. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</aside>
+</section></div></div>
+<details class="notes"><summary>13 / 18 · Speaker notes</summary><p>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a critical vulnerability with a fix available. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</p></details>
+<div class="frame" id="slide-14"><div class="stage"><section id="robustness" data-transition="fade" style="background:#0E6E7E;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#CDE9EC;letter-spacing:2px;text-transform:uppercase">Robustness and data integrity</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#F8FAFC">A system of record that cannot quietly drift</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Append-only, hash-chained</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Lot journal, ledger and audit trail are protected by triggers. Errors are reversed, never edited.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Exactly-once effects</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Registry calls through an outbox; idempotent deliveries and GL exports; a timeout is reconciled, not resent.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Reproducible as of any date</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Bitemporal lots, prices and reference data; every report run is logged with its content hash.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Failures stay contained</h3>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">A downstream problem is parked for attention; exact decimals only, no floating point in the domain.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#CDE9EC">Provena · 14 · Registry statements are reconciled against the books; each difference becomes a break with an owner</p>
+<aside>Robustness here means the books cannot drift without someone noticing. The lot journal, the ledger and the audit trail can only be appended to, and each row carries the hash of the one before, which the DR drill verifies. Registry instructions are written to an outbox in the business transaction and sent afterwards, so a crash never loses or duplicates one; a timeout becomes an unknown outcome that reconciliation resolves. When a delivery reaches a listener that cannot process it, the problem is parked as needing attention instead of rolling back the delivery itself.</aside>
+</section></div></div>
+<details class="notes"><summary>14 / 18 · Speaker notes</summary><p>Robustness here means the books cannot drift without someone noticing. The lot journal, the ledger and the audit trail can only be appended to, and each row carries the hash of the one before, which the DR drill verifies. Registry instructions are written to an outbox in the business transaction and sent afterwards, so a crash never loses or duplicates one; a timeout becomes an unknown outcome that reconciliation resolves. When a delivery reaches a listener that cannot process it, the problem is parked as needing attention instead of rolling back the delivery itself.</p></details>
+<div class="frame" id="slide-15"><div class="stage"><section id="maintainability" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Maintainability</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Boundaries and contracts the build enforces</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Module boundaries</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Each module owns its schema and exposes one API package; any other dependency fails the build.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Contracts</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">The OpenAPI document is committed; the web client's types are generated from it, never written by hand.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Decisions on record</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">42 architecture decision records, arc42 documentation and a user manual inside the application.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#0F172A">Strict by default</h3>
+<p style="font-size:28px;line-height:1.4;color:#475569">Warnings are errors; static analysis, a coverage rule, and main moves only on a green pipeline.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 15 · Current stack: Java 25, Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript</p>
+<aside>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are kept current: increment 9 moved CI off the retired Node 20 and took the major versions of Gradle, Kotlin, Flyway, react-router and ESLint.</aside>
+</section></div></div>
+<details class="notes"><summary>15 / 18 · Speaker notes</summary><p>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are kept current: increment 9 moved CI off the retired Node 20 and took the major versions of Gradle, Kotlin, Flyway, react-router and ESLint.</p></details>
+<div class="frame" id="slide-16"><div class="stage"><section id="roadmap" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Roadmap</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Nine increments, each one shippable</h2>
+</div>
+<table style="width:1664px;border-collapse:collapse;font-size:24px">
+<tr><th style="text-align:left;padding:14px 20px;background:#0E6E7E;color:#F8FAFC;width:120px">Inc.</th><th style="text-align:left;padding:14px 20px;background:#0E6E7E;color:#F8FAFC">Delivered</th></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">1</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Core domain: products and criteria, trades, inventory, allocation, positions, ledger, audit</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">2</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Registry integration, reconciliation, settlement and invoicing, confirmations, approval inbox</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">3</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Market data, curves, valuation, risk and credit, ETS compliance, period end, reporting, GL</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">4–5</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Web UI for every area, including the operations screens</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">6</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Operations at scale: observability, supply chain, Kubernetes, HA database, load tests, DR</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">7</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Showcase: design system, six months of demo data, in-app manual and guided tours</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">8</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">GoO portfolio: value-based allocation, available to sell, future supply, portfolio value, limits</td></tr>
+<tr><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">9</td><td style="padding:10px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Housekeeping: current dependencies, versioned releases and images, enterprise documentation</td></tr>
+</table>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 16 · Every increment ends green: full build, end-to-end tests, image scan, then main</p>
+<aside>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation. Each increment has its plan, its milestone list and its decision records in the repository.</aside>
+</section></div></div>
+<details class="notes"><summary>16 / 18 · Speaker notes</summary><p>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation. Each increment has its plan, its milestone list and its decision records in the repository.</p></details>
+<div class="frame" id="slide-17"><div class="stage"><section id="production" data-transition="fade" style="background:#0E6E7E;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#CDE9EC;letter-spacing:2px;text-transform:uppercase">Path to production</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#F8FAFC">What remains needs a partner, not more code</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:16px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Assurance</h3>
+<ul style="font-size:26px;line-height:1.45;color:#E6F4F5;padding-left:28px">
+<li>External penetration test and retest</li>
+<li>DR drill on a production backup</li>
+<li>ETS deadline rules checked by compliance</li>
+</ul>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Specifications</h3>
+<ul style="font-size:26px;line-height:1.45;color:#E6F4F5;padding-left:28px">
+<li>Registry APIs (G-REX, NECS) and AIB code lists</li>
+<li>The receiving GL's file layout</li>
+<li>EMIR field layout and trade repository</li>
+<li>Market data vendors</li>
+</ul>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
+<h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Sign-offs</h3>
+<ul style="font-size:26px;line-height:1.45;color:#E6F4F5;padding-left:28px">
+<li>Accounting policies: MtM by book type, NRV, provision</li>
+<li>VAT rules</li>
+<li>PFE add-ons</li>
+</ul>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Next to build</h3>
+<p style="font-size:26px;line-height:1.4;color:#E6F4F5">Faster portfolio refresh on every change, device caps inside the flow, GoO limits per vintage; discounting and hedge accounting; EUA futures margining.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#CDE9EC">Provena · 17 · Unverified external layouts are marked verified = false until checked against their specification</p>
+<aside>The open items before production are inputs from outside the codebase. The integration points exist and are tested against stubs; layouts that have not been checked against the counterparty's own specification are flagged unverified, so nothing pretends to be certified. On the build side the next candidates are follow-ups to the portfolio work: refreshing the prepared flow on each change instead of rebuilding it, device caps and minimum shares inside the flow, and GoO limits per vintage.</aside>
+</section></div></div>
+<details class="notes"><summary>17 / 18 · Speaker notes</summary><p>The open items before production are inputs from outside the codebase. The integration points exist and are tested against stubs; layouts that have not been checked against the counterparty's own specification are flagged unverified, so nothing pretends to be certified. On the build side the next candidates are follow-ups to the portfolio work: refreshing the prepared flow on each change instead of rebuilding it, device caps and minimum shares inside the flow, and GoO limits per vintage.</p></details>
+<div class="frame" id="slide-18"><div class="stage"><section id="engineering" data-transition="fade" style="background:#0B1220;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#3FA8B7;letter-spacing:2px;text-transform:uppercase">In numbers, and try it</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#F8FAFC">Evidence you can run yourself</h2>
+</div>
+<div style="display:flex;gap:48px;align-items:start">
+<div style="width:736px;display:grid;grid-template-columns:1fr 1fr;gap:24px">
+<div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">334</p>
+<p style="font-size:24px;line-height:1.35;color:#CBD5E1">backend unit and integration tests</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">296</p>
+<p style="font-size:24px;line-height:1.35;color:#CBD5E1">web UI component tests</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">82</p>
+<p style="font-size:24px;line-height:1.35;color:#CBD5E1">browser journeys with accessibility checks</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">286 / 303</p>
+<p style="font-size:24px;line-height:1.35;color:#CBD5E1">API operations with a screen; the rest have a recorded reason</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<img src="../images/guide.png" alt="The demo guide: scenario cards with time, personas and a Start button" style="width:880px;height:550px;object-fit:contain;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1;width:880px">The demo with guided tours and a manual in the app, or your own copy with Docker in minutes.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#94A3B8">Provena · 18 · Counted on the build of October 2026 · github.com/Pianonurmi/goo-ets-etrm</p>
+<aside>Every number on this slide comes from the build itself: 334 backend tests including the end-to-end business scenarios, 296 component tests for the web UI, and 82 Playwright journeys that drive the real application in a browser with accessibility and content-security checks. A check in the build fails when an API operation has no screen and no recorded reason. To try it, use the public demo with a guided tour, or run the same image yourself from ops/demo with Docker Compose. Close with the demo URL and the repository.</aside>
+</section></div></div>
+<details class="notes"><summary>18 / 18 · Speaker notes</summary><p>Every number on this slide comes from the build itself: 334 backend tests including the end-to-end business scenarios, 296 component tests for the web UI, and 82 Playwright journeys that drive the real application in a browser with accessibility and content-security checks. A check in the build fails when an API operation has no screen and no recorded reason. To try it, use the public demo with a guided tour, or run the same image yourself from ops/demo with Docker Compose. Close with the demo URL and the repository.</p></details>
+</main>
+<script>
+  const fit = () => document.querySelectorAll('.frame').forEach((frame) => {
+    frame.querySelector('.stage').style.transform = 'scale(' + frame.clientWidth / 1920 + ')';
+  });
+  addEventListener('resize', fit);
+  fit();
+  addEventListener('keydown', (event) => {
+    const step = { ArrowRight: 1, PageDown: 1, ' ': 1, ArrowLeft: -1, PageUp: -1 }[event.key];
+    if (!step) return;
+    const frames = [...document.querySelectorAll('.frame')];
+    const current = frames.findIndex((frame) => frame.getBoundingClientRect().top > -frame.clientHeight / 2);
+    frames[Math.max(0, Math.min(frames.length - 1, current + step))]?.scrollIntoView({ behavior: 'smooth' });
+    event.preventDefault();
+  });
+</script>
+</body>
+</html>

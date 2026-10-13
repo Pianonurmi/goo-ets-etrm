@@ -1,0 +1,73 @@
+<section id="architecture" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Architecture</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">One application, eighteen bounded contexts</h2>
+</div>
+<svg aria-label="Architecture: people use the web UI, which calls the REST API of one Provena application. Inside it, four groups of modules (trading and portfolio; operations; finance and risk; platform) share domain events, and each owns its schema in PostgreSQL 17. The application sends registry instructions through an outbox, exports to the general ledger exactly once, publishes events to Kafka after commit, takes identities from an OIDC provider and reports metrics and traces." viewBox="0 0 1664 600" width="1664" height="600" xmlns="http://www.w3.org/2000/svg" font-family="Geist, Arial, sans-serif">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748B"/></marker></defs>
+<rect x="0" y="40" width="250" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="125" y="86" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">People</text>
+<text x="125" y="122" text-anchor="middle" font-size="22" fill="#475569">every role</text>
+<rect x="0" y="230" width="250" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="125" y="276" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Web UI</text>
+<text x="125" y="312" text-anchor="middle" font-size="22" fill="#475569">React · TypeScript</text>
+<rect x="0" y="420" width="250" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="125" y="466" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Identity</text>
+<text x="125" y="502" text-anchor="middle" font-size="22" fill="#475569">OIDC provider</text>
+<line x1="125" y1="150" x2="125" y2="226" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="250" y1="285" x2="286" y2="285" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="250" y1="475" x2="286" y2="400" stroke="#64748B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+<rect x="290" y="0" width="1010" height="440" rx="18" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+<text x="795" y="36" text-anchor="middle" font-size="24" font-weight="600" fill="#0E6E7E">Provena · Kotlin on Java 25 · Spring Boot 4 · Spring Modulith</text>
+<rect x="310" y="56" width="970" height="64" rx="10" fill="#0E6E7E"/>
+<text x="795" y="97" text-anchor="middle" font-size="24" font-weight="600" fill="#F8FAFC">REST API · OpenAPI contract · authorised by role and legal entity</text>
+<rect x="310" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="425" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Trading</text>
+<text x="425" y="214" text-anchor="middle" font-size="22" fill="#475569">trade</text>
+<text x="425" y="244" text-anchor="middle" font-size="22" fill="#475569">product</text>
+<text x="425" y="274" text-anchor="middle" font-size="22" fill="#475569">allocation</text>
+<text x="425" y="304" text-anchor="middle" font-size="22" fill="#475569">position</text>
+<rect x="556" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="671" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Operations</text>
+<text x="671" y="214" text-anchor="middle" font-size="22" fill="#475569">inventory</text>
+<text x="671" y="244" text-anchor="middle" font-size="22" fill="#475569">registry</text>
+<text x="671" y="274" text-anchor="middle" font-size="22" fill="#475569">settlement</text>
+<text x="671" y="304" text-anchor="middle" font-size="22" fill="#475569">ETS compliance</text>
+<rect x="802" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="917" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Finance and risk</text>
+<text x="917" y="210" text-anchor="middle" font-size="22" fill="#475569">market data</text>
+<text x="917" y="238" text-anchor="middle" font-size="22" fill="#475569">valuation · risk</text>
+<text x="917" y="266" text-anchor="middle" font-size="22" fill="#475569">ledger</text>
+<text x="917" y="294" text-anchor="middle" font-size="22" fill="#475569">reporting</text>
+<rect x="1048" y="138" width="232" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
+<text x="1164" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Platform</text>
+<text x="1164" y="210" text-anchor="middle" font-size="22" fill="#475569">workflow · audit</text>
+<text x="1164" y="238" text-anchor="middle" font-size="22" fill="#475569">document</text>
+<text x="1164" y="266" text-anchor="middle" font-size="22" fill="#475569">reference data</text>
+<text x="1164" y="294" text-anchor="middle" font-size="22" fill="#475569">taxonomy</text>
+<rect x="310" y="370" width="970" height="52" rx="10" fill="#E6F4F5"/>
+<text x="795" y="404" text-anchor="middle" font-size="22" font-weight="600" fill="#0E6E7E">Domain events in the command transaction · boundaries verified by the build</text>
+<line x1="795" y1="440" x2="795" y2="476" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<rect x="290" y="480" width="1010" height="100" rx="14" fill="#0B1220"/>
+<text x="795" y="522" text-anchor="middle" font-size="26" font-weight="600" fill="#F8FAFC">PostgreSQL 17 · one schema per module</text>
+<text x="795" y="558" text-anchor="middle" font-size="22" fill="#CBD5E1">append-only, hash-chained journals · high availability with CloudNativePG</text>
+<rect x="1340" y="0" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="1502" y="46" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Registries</text>
+<text x="1502" y="82" text-anchor="middle" font-size="22" fill="#475569">Union · GoO · AIB hub</text>
+<rect x="1340" y="146" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+<text x="1502" y="192" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">General ledger</text>
+<text x="1502" y="228" text-anchor="middle" font-size="22" fill="#475569">file exports</text>
+<rect x="1340" y="292" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="1502" y="338" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Kafka</text>
+<text x="1502" y="374" text-anchor="middle" font-size="22" fill="#475569">optional</text>
+<rect x="1340" y="438" width="324" height="110" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="1502" y="484" text-anchor="middle" font-size="26" font-weight="600" fill="#0F172A">Monitoring</text>
+<text x="1502" y="520" text-anchor="middle" font-size="22" fill="#475569">metrics · traces · logs</text>
+<line x1="1300" y1="55" x2="1336" y2="55" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="1300" y1="201" x2="1336" y2="201" stroke="#64748B" stroke-width="3" marker-end="url(#ah)"/>
+<line x1="1300" y1="347" x2="1336" y2="347" stroke="#64748B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+<line x1="1300" y1="430" x2="1336" y2="480" stroke="#64748B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+</svg>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 11 · Registry calls go through an outbox, GL exports are exactly-once, events leave only after commit</p>
+<aside>A modular monolith: one deployable and one database, with the discipline of separate services. Each of the eighteen modules is a bounded context with its own schema and migrations. Another module may only use its published api package, and the build fails on any other dependency. Side effects across modules travel as domain events inside the command transaction; selected events leave for Kafka only after commit. Registry calls never run inside a database transaction: they are written to an outbox first. The web UI is bundled into the same jar, and the OpenAPI document between them is a committed contract.</aside>
+</section>

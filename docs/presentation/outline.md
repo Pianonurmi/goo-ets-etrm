@@ -4,9 +4,14 @@ Eighteen slides, about 25 minutes: the product on its real screens (1–10), the
 values reliability, security, robustness and maintainability, and the roadmap (11–18). The deck uses the Provena brand (`docs/ui/design-system.md`). Its
 pictures come from `docs/images` (`npm run docs:screenshots`). Speaker notes follow each slide.
 
-The slides are published as a deck on claude.ai, built from this outline and the screenshots; download it as
-PowerPoint or PDF from the deck's Share menu: <https://claude.ai/artifact/NHG4trUF1EkTnB6dXmAxyv>. When the screens
-change, retake the screenshots and replace the pictures in the deck.
+The deck lives in this folder:
+
+- **Built files:** [`provena-deck.pdf`](provena-deck.pdf), one page per slide, and
+  [`provena-deck.html`](provena-deck.html), with speaker notes under each slide and arrow keys to move.
+- **Sources:** one HTML file per slide in `slides/` (a 1920 × 1080 `<section>` with inline styles; the speaker notes
+  are its `<aside>`), and their order in `deck.json`.
+- **Rebuilding:** run `cd apps/web && node ../../docs/presentation/build.mjs` (Playwright's Chromium) after
+  changing a slide, or after `npm run docs:screenshots` retakes the pictures in `docs/images`.
 
 ## 1. Provena: certificates and allowances, from trade to ledger
 

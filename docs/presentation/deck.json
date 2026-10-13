@@ -1,0 +1,23 @@
+{
+  "title": "Provena: an ETRM for guarantees of origin and EU emission allowances",
+  "order": [
+    "cover",
+    "problem",
+    "roles",
+    "trading",
+    "allocation",
+    "portfolio",
+    "registry",
+    "markets",
+    "settlement",
+    "finance",
+    "architecture",
+    "reliability",
+    "security",
+    "robustness",
+    "maintainability",
+    "roadmap",
+    "production",
+    "engineering"
+  ]
+}
