@@ -271,6 +271,36 @@
       }
     }
   },
+  "clearing": {
+    "title": "Margin futures",
+    "summary": "Daily variation margin, the clearing member's statements, breaks and margin calls.",
+    "steps": {
+      "kpis": {
+        "title": "At the clearing house",
+        "body": "Initial margin held, cash at the member, and the margin calls and breaks still open."
+      },
+      "margin": {
+        "title": "Daily margin",
+        "body": "Every evening each future is margined at the exchange's settlement price; a corrected trade or price gives a new version of the day."
+      },
+      "statements": {
+        "title": "Member statements",
+        "body": "Import the clearing member's statement; each day is checked against the margin computed here."
+      },
+      "breaks": {
+        "title": "Breaks",
+        "body": "A day where the two differ waits here until it is corrected or accepted."
+      },
+      "accept": {
+        "title": "Accept in the inbox",
+        "body": "A second person, not the one who imported the statement, accepts the member's figures with a reason."
+      },
+      "calls": {
+        "title": "Margin calls",
+        "body": "When the cash at the member falls short of the initial margin, the call is paid or disputed by a second person."
+      }
+    }
+  },
   "monthEnd": {
     "title": "Close the month",
     "summary": "Period end, closes and the GL interface.",
@@ -290,6 +320,10 @@
       "checklist": {
         "title": "Hard close",
         "body": "What still blocks the hard close, such as an export the ERP has not acknowledged."
+      },
+      "hedges": {
+        "title": "Hedges",
+        "body": "Cash flow hedges are designated by one accountant and approved by another; at month end the effective part goes to the hedging reserve, the rest to profit or loss."
       },
       "ledger": {
         "title": "Ledger",

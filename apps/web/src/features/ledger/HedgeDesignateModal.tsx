@@ -81,7 +81,7 @@ export function HedgeDesignateModal({ entityId, onClose }: { entityId: string; o
   });
   const { direction, productFamily: family } = form.values;
   const trades = useOpenTrades(entityId, family);
-  const candidates = eligibleTrades(trades.data?.items ?? [], direction, family);
+  const candidates = eligibleTrades(trades.data?.items ?? [], direction, family, form.values.allowanceProductCode);
   const side = instrumentSide(direction);
   const sideText = t(`hedges.sides.${side}`);
   const designate = $api.useMutation('post', '/api/v1/ledger/hedges', { meta: { notify: false } });

@@ -132,6 +132,8 @@ class HedgeService(
             currency = currency,
             allowanceProductCode = item.allowanceProductCode?.uppercase().takeIf { item.productFamily == ProductFamily.EMISSION_ALLOWANCE },
             bucketCode = item.bucketCode?.uppercase().takeIf { item.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN },
+            // Certificates have production years; allowances have none.
+            productionYear = item.productionYear.takeIf { item.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN },
             quantity = item.quantity.setScale(3, RoundingMode.HALF_EVEN),
         )
     }

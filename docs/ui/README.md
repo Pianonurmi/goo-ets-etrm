@@ -153,5 +153,6 @@ Tests at every level: [testing.md](testing.md).
   third-party origins.
 - **Bundle budget:** `npm run budget` (part of `./gradlew :apps:web:check`) fails when the first page's script (entry
   and preloaded chunks) exceeds 330 kB gzip or its stylesheet 50 kB, any chunk exceeds 360 kB, or the whole bundle
-  exceeds 1000 kB. The help manual is content under `/help/` and is not counted.
+  exceeds 1130 kB (raised step by step, each reason in `scripts/check-bundle.mjs`). The help manual is content under
+  `/help/` and is not counted.
   Load heavy screens and libraries lazily (`router.tsx`). Raise a budget only in a reviewed change.

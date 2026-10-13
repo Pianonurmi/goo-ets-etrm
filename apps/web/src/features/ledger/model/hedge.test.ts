@@ -32,6 +32,8 @@ const trade = (patch: Partial<TradeSummary>): TradeSummary =>
     tradeNumber: 'T-00001',
     side: 'BUY',
     productFamily: 'EMISSION_ALLOWANCE',
+    product: 'EUA',
+    instrumentType: 'FORWARD',
     status: 'CONFIRMED',
     ...patch,
   }) as TradeSummary;
@@ -183,6 +185,16 @@ describe('instrument choice', () => {
     expect(eligibleTrades(trades, 'PURCHASE', 'EMISSION_ALLOWANCE').map((x) => x.id)).toEqual(['a', 'd']);
     expect(eligibleTrades(trades, 'SALE', 'EMISSION_ALLOWANCE').map((x) => x.id)).toEqual(['b']);
     expect(eligibleTrades(trades, 'PURCHASE', 'GUARANTEE_OF_ORIGIN').map((x) => x.id)).toEqual(['e']);
+  });
+
+  it('offers only forwards of the hedged allowance product, never futures', () => {
+    const more = [
+      ...trades,
+      trade({ id: 'g', side: 'BUY', product: 'EUAA' }),
+      trade({ id: 'h', side: 'BUY', instrumentType: 'FUTURE' }),
+    ];
+    expect(eligibleTrades(more, 'PURCHASE', 'EMISSION_ALLOWANCE', 'EUA').map((x) => x.id)).toEqual(['a', 'd']);
+    expect(eligibleTrades(more, 'PURCHASE', 'EMISSION_ALLOWANCE', 'EUAA').map((x) => x.id)).toEqual(['g']);
   });
 });
 

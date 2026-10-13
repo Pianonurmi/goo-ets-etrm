@@ -14,6 +14,6 @@ describe('subject links', () => {
   it('links clearing breaks to their page and margin calls to the calls tab', () => {
     registerSubjectScreens('CLEARING_BREAK', 'MARGIN_CALL');
     expect(subjectLink('CLEARING_BREAK', 'b1')).toBe('/clearing/breaks/b1');
-    expect(subjectLink('MARGIN_CALL', 'c1')).toBe('/clearing?tab=margin-calls');
+    expect(subjectLink('MARGIN_CALL', 'c1')).toBe('/clearing?tab=margin-calls&call=c1');
   });
 });

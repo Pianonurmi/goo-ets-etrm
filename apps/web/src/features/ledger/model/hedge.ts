@@ -22,15 +22,24 @@ export function instrumentSide(direction: HedgeDirection): TradeSummary['side'] 
   return direction === 'PURCHASE' ? 'BUY' : 'SELL';
 }
 
-/** The open trades of the right side and product family that can be designated as instruments. */
+/**
+ * The open trades of the right side and product family that can be designated as instruments: for allowances only
+ * those of the hedged allowance product, and never futures, whose result the daily margin realises (ADR 0046).
+ */
 export function eligibleTrades(
   trades: readonly TradeSummary[],
   direction: HedgeDirection,
   family: HedgeFamily,
+  allowanceProductCode?: string,
 ): TradeSummary[] {
   const side = instrumentSide(direction);
   return trades.filter(
-    (trade) => trade.side === side && trade.productFamily === family && INSTRUMENT_STATUSES.includes(trade.status),
+    (trade) =>
+      trade.side === side &&
+      trade.productFamily === family &&
+      trade.instrumentType !== 'FUTURE' &&
+      INSTRUMENT_STATUSES.includes(trade.status) &&
+      (family !== 'EMISSION_ALLOWANCE' || !allowanceProductCode || trade.product === allowanceProductCode),
   );
 }
 
