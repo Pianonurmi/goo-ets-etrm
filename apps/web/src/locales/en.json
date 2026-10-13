@@ -1332,6 +1332,13 @@
       "ACT_365F": "ACT/365F"
     },
     "discountCurveInfo": "Discount curve for {{currency}}, zero rates in percent a year by tenor, day count {{dayCount}}.",
+    "interpolation": "Beyond the last future",
+    "interpolationHelp": "Applies to snapshots built from now on; signed-off snapshots keep their method.",
+    "interpolations": {
+      "LINEAR": "Flat at the last price",
+      "CARRY": "Grow at the last carry rate"
+    },
+    "interpolationChanged": "Curve method changed",
     "ratePercent": "Rate (% a year)",
     "ratePercentShort": "Rate (%)",
     "tenor": "Tenor",

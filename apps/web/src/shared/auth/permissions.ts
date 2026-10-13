@@ -66,6 +66,7 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   curve_build: ['MIDDLE_OFFICE', 'RISK'],
   curve_submit: ['MIDDLE_OFFICE', 'RISK'],
   curve_override: ['MIDDLE_OFFICE', 'RISK'],
+  curve_setInterpolation: ['MIDDLE_OFFICE', 'RISK'],
   valuation_run: ['MIDDLE_OFFICE', 'RISK'],
   valuation_submit: ['MIDDLE_OFFICE', 'RISK'],
   risk_requestLimit: ['RISK'],

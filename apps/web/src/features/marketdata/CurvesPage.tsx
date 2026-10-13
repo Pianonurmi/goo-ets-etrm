@@ -50,6 +50,37 @@ function useRefreshCurves() {
     });
 }
 
+/** How later snapshots of a forward curve are read beyond the last future: flat, or at the last carry rate. */
+function InterpolationSelect({ code, value }: { code: string; value: 'LINEAR' | 'CARRY' }) {
+  const { t } = useTranslation();
+  const allowed = useCan('curve_setInterpolation');
+  const refresh = useRefreshCurves();
+  const change = $api.useMutation('post', '/api/v1/market-data/curves/{code}/interpolation', {
+    onSuccess: () => {
+      notifySuccess(t('curves.interpolationChanged'));
+      void refresh();
+    },
+  });
+  return (
+    <>
+      <Select
+        label={t('curves.interpolation')}
+        description={t('curves.interpolationHelp')}
+        data={(['LINEAR', 'CARRY'] as const).map((v) => ({ value: v, label: t(`curves.interpolations.${v}`) }))}
+        value={value}
+        disabled={!allowed || change.isPending}
+        onChange={(next) => {
+          if (next && next !== value)
+            change.mutate({ params: { path: { code } }, body: { interpolation: next } });
+        }}
+        w={360}
+        data-testid="curve-interpolation"
+      />
+      <ProblemAlert error={change.error} />
+    </>
+  );
+}
+
 /**
  * Curves and their snapshots for a date, the official one, and a price lookup; building a snapshot starts the sign-off
  * (four eyes).
@@ -129,6 +160,9 @@ export function CurvesPage() {
         />
         {buildButton}
       </Group>
+      {selected?.kind === 'EUA_FORWARD' && (
+        <InterpolationSelect code={selected.code} value={selected.interpolation ?? 'LINEAR'} />
+      )}
       {selected?.kind === 'DISCOUNT' && selected.dayCount && (
         <Text size="sm" c="dimmed" data-testid="curve-day-count-info">
           {t('curves.discountCurveInfo', {
