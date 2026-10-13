@@ -54,36 +54,48 @@ class DemoHistory(
 
     /**
      * The clearing member's statements of the last [days] business days, from the computed margin with initial margin
-     * and fees added; on [disputed] the member's margin is off by a few euros, so a break waits in the inbox.
+     * and fees added; on [disputed] the member's margin is off by a few euros, so a break waits in the inbox. The cash
+     * falls short of the initial margin on the last two days: the first call is paid through the inbox, the second
+     * stays open.
      */
     fun clearingStatements(entity: DemoEntity, days: Int, disputed: LocalDate) {
         val account = api.getList(DemoUser.BACKOFFICE, "/api/v1/clearing/accounts?legalEntityId=${entity.id}").first()
         val to = calendar.lastClose
         val from = DemoMarket.businessDays(to.minusDays(days * 2L), to).takeLast(days).first()
-        val runs = api.getList(DemoUser.BACKOFFICE, "/api/v1/clearing/accounts/${account["id"]}/margin?from=$from&to=$to").sortedBy {
-            it["businessDate"].toString()
-        }
+        val runs = api.getList(DemoUser.BACKOFFICE, "/api/v1/clearing/accounts/${account["id"]}/margin?from=$from&to=$to")
+            .sortedBy { it["businessDate"].toString() }
         val code = account["code"]
         var cash = BigDecimal("250000.00")
-        val file = StringBuilder("Date,Account,Record,Contract,Position,SettlementPrice,Amount,Currency\n")
-        runs.forEach { run ->
+        val records = runs.mapIndexed { index, run ->
             val date = LocalDate.parse(run["businessDate"].toString())
+            val day = StringBuilder()
             var exposure = BigDecimal.ZERO
             @Suppress("UNCHECKED_CAST")
             (run["lines"] as List<Map<String, Any?>>).forEach { line ->
                 val position = BigDecimal(line["positionAfter"].toString())
                 val vm = BigDecimal(line["variationMargin"].toString()).setScale(2) + if (date == disputed) DISPUTED_DIFFERENCE else BigDecimal.ZERO
-                file.append("$date,$code,VM,${line["contractCode"]},${position.toPlainString()},${line["settlementPrice"]},${vm.toPlainString()},EUR\n")
+                day.append("$date,$code,VM,${line["contractCode"]},${position.toPlainString()},${line["settlementPrice"]},${vm.toPlainString()},EUR\n")
                 exposure += position.abs()
                 cash += vm
             }
             val fee = if (date.dayOfMonth <= DemoCalendar.weekdayOnOrAfter(date.withDayOfMonth(1)).dayOfMonth) MONTHLY_FEE else BigDecimal.ZERO
-            if (fee.signum() > 0) file.append("$date,$code,FEE,,,,${fee.toPlainString()},EUR\n")
-            file.append("$date,$code,IM,,,,${(exposure * INITIAL_MARGIN_PER_TONNE).setScale(2).toPlainString()},EUR\n")
+            if (fee.signum() > 0) day.append("$date,$code,FEE,,,,${fee.toPlainString()},EUR\n")
+            val initialMargin = (exposure * INITIAL_MARGIN_PER_TONNE).setScale(2)
+            day.append("$date,$code,IM,,,,${initialMargin.toPlainString()},EUR\n")
             cash -= fee
-            file.append("$date,$code,CASH,,,,${cash.toPlainString()},EUR\n")
+            // The last two days: the member has used the cash for the margin of other clients' trades in the demo story.
+            val shortfall = SHORTFALLS.getOrNull(runs.size - 1 - index)
+            if (shortfall != null) cash = initialMargin - shortfall
+            day.append("$date,$code,CASH,,,,${cash.toPlainString()},EUR\n")
+            day.toString()
         }
-        api.postText(DemoUser.BACKOFFICE, "/api/v1/clearing/accounts/${account["id"]}/statements?source=ecc-statements.csv", file.toString())
+        val header = "Date,Account,Record,Contract,Position,SettlementPrice,Amount,Currency\n"
+        val path = "/api/v1/clearing/accounts/${account["id"]}/statements"
+        api.postText(DemoUser.BACKOFFICE, "$path?source=ecc-statements.csv", header + records.dropLast(1).joinToString(""))
+        api.getList(DemoUser.BACKOFFICE, "/api/v1/clearing/margin-calls?legalEntityId=${entity.id}&status=OPEN").forEach {
+            api.approveTask(DemoUser.ACCOUNTANT, "MARGIN_CALL", it["id"].toString())
+        }
+        api.postText(DemoUser.BACKOFFICE, "$path?source=ecc-statement-$to.csv", header + records.last())
     }
 
     /** Period end and the close of one month; the month after must still be open (MtM reverses on its first day). */
@@ -152,6 +164,9 @@ class DemoHistory(
     companion object {
         private val DISPUTED_DIFFERENCE = BigDecimal("12.40")
         private val MONTHLY_FEE = BigDecimal("25.00")
+
+        /** Cash short of the initial margin on the last day (first) and the day before. */
+        private val SHORTFALLS = listOf(BigDecimal("1250.00"), BigDecimal("3500.00"))
 
         /** Roughly what ECC asks of an EUA December future: about 13 % of the price per tonne held. */
         private val INITIAL_MARGIN_PER_TONNE = BigDecimal("9.50")

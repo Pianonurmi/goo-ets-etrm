@@ -29,6 +29,9 @@
     "clearing_clearingBreak": "Clearing screens in increment 12 M5",
     "clearing_importStatements": "Clearing screens in increment 12 M5",
     "clearing_statement": "Clearing screens in increment 12 M5",
-    "clearing_statements": "Clearing screens in increment 12 M5"
+    "clearing_statements": "Clearing screens in increment 12 M5",
+    "clearing_marginCall": "Clearing screens in increment 12 M5",
+    "clearing_marginCalls": "Clearing screens in increment 12 M5",
+    "clearing_marginPosted": "Clearing screens in increment 12 M5"
   }
 }

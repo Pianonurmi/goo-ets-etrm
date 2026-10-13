@@ -38,6 +38,12 @@ enum class LimitType {
      * the give-away in EUR.
      */
     GOO_BASIS,
+
+    /**
+     * Cash tied up at clearing houses (ADR 0046): initial margin held plus margin calls still to pay, over the entity's
+     * clearing accounts, in the limit's currency.
+     */
+    MARGIN_LIQUIDITY,
 }
 
 /** What a limit applies to; which fields matter depends on the limit type. */

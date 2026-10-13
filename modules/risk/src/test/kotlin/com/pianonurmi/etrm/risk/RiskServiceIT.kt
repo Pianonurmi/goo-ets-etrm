@@ -5,6 +5,9 @@ import com.pianonurmi.etrm.allocation.api.GooBasis
 import com.pianonurmi.etrm.allocation.api.GooConcentration
 import com.pianonurmi.etrm.allocation.api.GooRiskQuery
 import com.pianonurmi.etrm.allocation.api.SaleProjection
+import com.pianonurmi.etrm.clearing.api.ClearingQuery
+import com.pianonurmi.etrm.clearing.api.MarginCallQuery
+import com.pianonurmi.etrm.clearing.api.MarginPostedView
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.json.Json
@@ -82,6 +85,7 @@ class RiskServiceIT {
     private val published = mutableListOf<Any>()
     private lateinit var risk: RiskService
     private lateinit var withGoo: (ObjectProvider<GooRiskQuery>?, ProductBucketQuery?) -> RiskService
+    private lateinit var withClearing: (ClearingQuery, MarginCallQuery) -> RiskService
     private lateinit var carryOver: CreditLimitCarryOver
 
     private fun counterpartyView(id: UUID, code: String, parentId: UUID?, limit: BigDecimal? = null) = mockk<CounterpartyView> {
@@ -182,6 +186,25 @@ class RiskServiceIT {
                 buckets = buckets,
             )
         }
+        withClearing = { clearing, margin ->
+            RiskService(
+                repository,
+                referenceData,
+                trades,
+                valuations,
+                settlement,
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                actors,
+                events,
+                clock,
+                clearing = clearing,
+                margin = margin,
+            )
+        }
         risk = withGoo(null, null)
         carryOver = CreditLimitCarryOver(repository, referenceData, clock)
     }
@@ -236,6 +259,32 @@ class RiskServiceIT {
         netting = true
         risk.measureEntity(entity)
         risk.exposures(entity).single { it.counterpartyId == counterparty }.exposure shouldBe BigDecimal("3550.00") // 200 + 200 - 50 + 4200 - 1000
+    }
+
+    @Test
+    fun `margined futures leave MtM and PFE, the margin held at the clearing house is exposure, and margin liquidity is limited`() {
+        val margined = openTrades.single()
+        val clearing = mockk<ClearingQuery> { every { marginedTradeIds(entity) } returns setOf(margined.id) }
+        val margin = mockk<MarginCallQuery> {
+            every { marginPosted(entity) } returns listOf(
+                MarginPostedView(UUID.randomUUID(), counterparty, "EUR", BigDecimal("5000.00"), BigDecimal("1000.00"), BigDecimal("2000.00")),
+            )
+        }
+        risk = withClearing(clearing, margin)
+        val limit = approved(RequestLimit(entity, LimitType.MARGIN_LIQUIDITY, LimitScope(), BigDecimal("6000"), "EUR", reason = "Cash tied up at ECC"))
+        val measured = risk.measureEntity(entity)
+        // No MtM or PFE on the future; 200 receivables, and the 5 000 initial margin and 1 000 cash the house holds.
+        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+            it.mtm shouldBe BigDecimal("0.00")
+            it.pfe shouldBe BigDecimal("0.00")
+            it.collateral shouldBe BigDecimal("-6000.00")
+            it.exposure shouldBe BigDecimal("6200.00")
+        }
+        measured.single { it.limitId == limit.id }.let {
+            it.value shouldBe BigDecimal("7000.00")
+            it.status shouldBe UtilisationStatus.BREACH
+        }
+        shouldThrow<ValidationException> { risk.requestLimit(RequestLimit(entity, LimitType.MARGIN_LIQUIDITY, LimitScope(), BigDecimal("1"), reason = "x")) }
     }
 
     @Test

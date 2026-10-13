@@ -42,6 +42,7 @@ import java.util.UUID
 class ClearingStatementService(
     private val accounts: ClearingRepository,
     private val repository: ClearingStatementRepository,
+    private val calls: MarginCallService,
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
@@ -58,6 +59,9 @@ class ClearingStatementService(
         val imported = days.mapNotNull { day ->
             store(account, day, fileName?.take(MAX_FILE_NAME), actor.userId).also { if (it == null) unchanged++ }
         }
+        // The latest day decides on a margin call, once per file.
+        val latest = repository.latestStatementDate(account.id)
+        imported.lastOrNull { it.businessDate == latest }?.let { calls.evaluate(account, it, actor.userId) }
         val breaks = days.mapNotNull { repository.openBreak(account.id, it.businessDate) }
         return StatementImportView(imported, unchanged, breaks)
     }

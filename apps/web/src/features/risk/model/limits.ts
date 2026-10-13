@@ -15,6 +15,7 @@ export const LIMIT_TYPES: LimitType[] = [
   'GOO_CONCENTRATION',
   'GOO_EXPIRY',
   'GOO_BASIS',
+  'MARGIN_LIQUIDITY',
 ];
 
 export interface LimitFields {
@@ -111,6 +112,15 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     book: false,
     currency: 'optional',
   },
+  MARGIN_LIQUIDITY: {
+    counterparty: 'hidden',
+    productFamily: 'hidden',
+    bucket: 'hidden',
+    horizon: 'hidden',
+    vintage: false,
+    book: false,
+    currency: 'required',
+  },
 };
 
 export interface ScopeNames {
@@ -141,6 +151,7 @@ export function limitUnit(limit: Pick<Limit, 'type' | 'currency' | 'scope'>): st
   switch (limit.type) {
     case 'CREDIT_EXPOSURE':
     case 'STOP_LOSS_MTD':
+    case 'MARGIN_LIQUIDITY':
       return limit.currency ?? '';
     case 'GOO_CONCENTRATION':
     case 'GOO_BASIS':

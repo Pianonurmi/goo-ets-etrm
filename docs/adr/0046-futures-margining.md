@@ -57,6 +57,22 @@
   the change. Event `ClearingStatement`, rule `CLEARING_STATEMENT`. The cash balance is stored for margin calls
   (M3).
 
+### Margin calls
+- **A call** opens when the account's latest statement (once per imported file, its last day) shows the cash at the
+  member below the initial margin required; the amount is the shortfall. At most one call per account is open: the
+  next statement cancels it and opens a new one if still short, since its shortfall already includes the unpaid
+  amount.
+- **Paid or disputed under four eyes** through the `MARGIN_CALL` inbox task (back office or accountant, not who
+  imported the statement; a database check too). Paying posts `MARGIN_CALL_PAYMENT` (event `MarginCallPaid`): bank
+  1900 to cash at the member 1960, dated the decision. A dispute needs a reason. Returning excess cash is not
+  modelled.
+
+### Risk
+- **Credit exposure to the clearing house**: margined futures are left out of MtM and PFE. The initial margin and
+  the (positive) cash the house holds count as collateral posted, so they add to the exposure.
+- **`MARGIN_LIQUIDITY` limit**: initial margin held plus open margin calls over the entity's clearing accounts, in
+  the limit's currency; four eyes like every limit.
+
 ### Accounting
 - **`VariationMarginComputed`** carries the run and the total of the version it supersedes. Ledger posts the
   difference (`FUTURES_VARIATION_MARGIN`, event `VariationMargin`, dimension `clearingAccount`): a gain debits 1960 cash
@@ -74,7 +90,7 @@
 ## Consequences
 - The ledger's futures result is realised P&L day by day; the realised total over a future's life equals the
   difference between the trade price and the final settlement price.
-- Margin calls and the CCP exposure follow in increment 12 M3, and delivery at the final settlement price in M4.
+- Delivery at the final settlement price follows in increment 12 M4.
 - Statement layouts of real clearing members differ; the CSV above is this system's own and is mapped to by hand.
 - Margin depends on official settlement prices of every business day; a gap stops that day's margin until a price is
   stored. Exchange holidays are treated as business days (no calendar yet); a run on a holiday is refused for want of

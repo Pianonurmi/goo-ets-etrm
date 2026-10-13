@@ -55,11 +55,21 @@ and does not hold the trade up. The findings show on the trade under
 > **Try it in the demo:** DEMO-FI has four approved GoO limits, one of them in warning and one on last year's vintage. Open **Risk**, then
 > **Measure now**.
 
+## Margin liquidity
+
+A **Margin liquidity** limit caps the cash tied up at clearing houses: the initial margin they hold plus the margin
+calls still to pay, over all the entity's clearing accounts. It applies to the whole entity and needs a currency. It
+is requested and approved like any other limit and measured with **Measure now**.
+
 ## Exposures and credit
 
 The **Exposures** tab shows exposure by counterparty, including the potential future exposure (PFE) add-ons, which
 the **PFE add-ons** tab lists with their calibration. On the **Credit support** tab, **Request credit support**
 sends guarantees and collateral for approval; they reduce exposure once approved.
+
+Futures margined through a clearing account have no MtM or PFE towards the clearing house: their result is paid every
+day. Instead, the initial margin and the cash the clearing house holds for the entity count as exposure to it, shown
+as negative collateral.
 
 ## Pre-trade checks
 

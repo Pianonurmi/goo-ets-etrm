@@ -1,11 +1,15 @@
 package com.pianonurmi.etrm.ledger.application
 
 import com.pianonurmi.etrm.clearing.api.ClearingStatementImported
+import com.pianonurmi.etrm.clearing.api.MarginCallClosed
+import com.pianonurmi.etrm.clearing.api.MarginCallStatus
 import com.pianonurmi.etrm.clearing.api.VariationMarginComputed
 import com.pianonurmi.etrm.ledger.api.PostingFacts
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * Cleared futures in the books (ADR 0046): the variation margin of a day is a realised result, paid to or from the
@@ -61,8 +65,30 @@ class ClearingPostings(private val ledger: LedgerService) {
         )
     }
 
+    /** A paid margin call moves cash from the bank to the clearing member. */
+    @EventListener
+    fun on(event: MarginCallClosed) {
+        val call = event.call
+        if (call.status != MarginCallStatus.PAID) return
+        ledger.post(
+            PostingFacts(
+                legalEntityId = call.legalEntityId,
+                eventType = CALL_EVENT,
+                eventId = event.eventId,
+                postingDate = LocalDate.ofInstant(call.decidedAt!!, ZoneOffset.UTC),
+                currency = call.currency,
+                sourceType = "MARGIN_CALL",
+                sourceRef = call.id.toString(),
+                description = "Margin call of ${call.businessDate} paid",
+                amounts = mapOf("amount" to call.amount),
+                dimensions = mapOf("clearingAccount" to call.accountId.toString()),
+            ),
+        )
+    }
+
     companion object {
         const val EVENT = "VariationMargin"
+        const val CALL_EVENT = "MarginCallPaid"
         const val STATEMENT_EVENT = "ClearingStatement"
     }
 }

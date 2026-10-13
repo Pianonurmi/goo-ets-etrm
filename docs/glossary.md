@@ -26,6 +26,7 @@
 | Lot | Contiguous certificate number range with identical attributes in one registry account |
 | Lot class | Lots interchangeable for every criterion and for scoring |
 | Lower-of test | The hedging reserve takes the smaller of the instruments' change since designation and the hypothetical derivative's value; the rest is ineffectiveness (ADR 0045) |
+| Margin call | The clearing member's demand for cash when the cash at the member is below the initial margin; paid or disputed by a second person (ADR 0046) |
 | Margin run | One clearing account's variation margin of one business day; immutable, and a change of trades or prices gives a new version (ADR 0046) |
 | Marginal cost | Shadow price of an obligation: what one more MWh delivered to it would cost, rerouting other sales included (indicative) |
 | Naive net | Held certificates of a bucket minus its obligations, ignoring which certificates can serve which obligation; can look long while the bucket is short |

@@ -18,6 +18,11 @@ EUA futures margining (increment 12).
   re-sent and checked against the computed margin contract by contract; a difference opens a break in the inbox,
   which closes when corrected or is accepted by a second person with a reason. Initial margin moves cash at the
   member into margin posted (1970), and fees are booked to 4610.
+- **Margin calls:** when the latest statement shows less cash at the member than the initial margin, a margin call
+  opens in the inbox; a second person pays it (bank to cash at the member) or disputes it with a reason. A later
+  statement replaces an unpaid call.
+- **Risk for cleared futures:** margined futures no longer count as MtM or PFE towards the clearing house; the margin
+  it holds counts as exposure instead. New limit type **Margin liquidity** (initial margin plus open calls).
 - **Variation margin in the ledger:** realised result on futures (3600) against cash at the clearing member (1960),
   posted daily; a corrected day posts only the difference.
 

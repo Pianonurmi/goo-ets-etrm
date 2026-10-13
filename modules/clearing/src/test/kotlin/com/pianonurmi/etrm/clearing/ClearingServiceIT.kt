@@ -2,15 +2,20 @@ package com.pianonurmi.etrm.clearing
 
 import com.pianonurmi.etrm.clearing.adapter.jooq.JooqClearingRepository
 import com.pianonurmi.etrm.clearing.adapter.jooq.JooqClearingStatementRepository
+import com.pianonurmi.etrm.clearing.adapter.jooq.JooqMarginCallRepository
 import com.pianonurmi.etrm.clearing.api.ClearingBreakClosed
 import com.pianonurmi.etrm.clearing.api.ClearingBreakOpened
 import com.pianonurmi.etrm.clearing.api.ClearingBreakStatus
 import com.pianonurmi.etrm.clearing.api.ClearingStatementImported
 import com.pianonurmi.etrm.clearing.api.CreateClearingAccount
+import com.pianonurmi.etrm.clearing.api.MarginCallClosed
+import com.pianonurmi.etrm.clearing.api.MarginCallOpened
+import com.pianonurmi.etrm.clearing.api.MarginCallStatus
 import com.pianonurmi.etrm.clearing.api.MarginDifferenceKind
 import com.pianonurmi.etrm.clearing.api.VariationMarginComputed
 import com.pianonurmi.etrm.clearing.application.ClearingService
 import com.pianonurmi.etrm.clearing.application.ClearingStatementService
+import com.pianonurmi.etrm.clearing.application.MarginCallService
 import com.pianonurmi.etrm.marketdata.api.InstrumentKind
 import com.pianonurmi.etrm.marketdata.api.InstrumentView
 import com.pianonurmi.etrm.marketdata.api.MarketDataQuery
@@ -64,6 +69,7 @@ class ClearingServiceIT {
     private val settlements = mutableMapOf<LocalDate, BigDecimal>()
     private lateinit var clearing: ClearingService
     private lateinit var statements: ClearingStatementService
+    private lateinit var calls: MarginCallService
 
     private fun future(number: String, side: Side, tonnes: Int, price: String, on: LocalDate, owner: UUID = entity): TradeView {
         val leg = mockk<TradeLegView> {
@@ -145,7 +151,9 @@ class ClearingServiceIT {
             published += it
             if (it is VariationMarginComputed) statements.on(it)
         }
-        statements = ClearingStatementService(repository, JooqClearingStatementRepository(TestDatabase.dsl), actor, publisher, clock)
+        val statementRepository = JooqClearingStatementRepository(TestDatabase.dsl)
+        calls = MarginCallService(repository, statementRepository, JooqMarginCallRepository(TestDatabase.dsl), actor, publisher, clock)
+        statements = ClearingStatementService(repository, statementRepository, calls, actor, publisher, clock)
         clearing = ClearingService(
             repository,
             trades,
@@ -290,5 +298,39 @@ class ClearingServiceIT {
             it.feesChange shouldBe BigDecimal("-12.50")
         }
         statements.statements(account.id, monday, tuesday.plusDays(1)).map { it.businessDate } shouldBe listOf(tuesday.plusDays(1), tuesday, monday)
+    }
+
+    @Test
+    fun `cash short of the initial margin is a margin call, replaced by the next statement and paid by a second person`() {
+        val owner = UUID.randomUUID()
+        val account = clearing.createAccount(CreateClearingAccount("ECC-CALL", owner, ccp, "Member Bank AG"))
+        val day = { date: LocalDate, im: String, cash: String -> "$date,ECC-CALL,IM,,,,$im,EUR\n$date,ECC-CALL,CASH,,,,$cash,EUR" }
+
+        // A two-day file: only its latest day decides on a call.
+        statements.importStatements(account.id, null, statementFile(day(monday.minusDays(3), "20000.00", "1000.00"), day(monday, "20000.00", "15000.00")))
+        val first = calls.marginCalls(owner, MarginCallStatus.OPEN).single()
+        first.amount shouldBe BigDecimal("5000.00")
+        first.businessDate shouldBe monday
+        published.filterIsInstance<MarginCallOpened>().count { it.call.accountId == account.id } shouldBe 1
+
+        // Tuesday's statement replaces the call: the shortfall already includes Monday's.
+        statements.importStatements(account.id, null, statementFile(day(tuesday, "20000.00", "18000.00")))
+        calls.marginCall(first.id)!!.status shouldBe MarginCallStatus.CANCELLED
+        val second = calls.marginCalls(owner, MarginCallStatus.OPEN).single()
+        second.amount shouldBe BigDecimal("2000.00")
+
+        shouldThrow<SegregationOfDutiesException> { calls.decide(second.id, "back", pay = true, null) }
+        shouldThrow<ValidationException> { calls.decide(second.id, "back2", pay = false, " ") }
+        calls.decide(second.id, "back2", pay = true, null).status shouldBe MarginCallStatus.PAID
+        published.filterIsInstance<MarginCallClosed>().last().call.status shouldBe MarginCallStatus.PAID
+        calls.marginPosted(owner).single().let {
+            it.initialMargin shouldBe BigDecimal("20000.00")
+            it.cashBalance shouldBe BigDecimal("18000.00")
+            it.openCalls shouldBe BigDecimal("0.00")
+        }
+
+        // Enough cash: no call.
+        statements.importStatements(account.id, null, statementFile(day(tuesday.plusDays(1), "10000.00", "20000.00")))
+        calls.marginCalls(owner, MarginCallStatus.OPEN).shouldBeEmpty()
     }
 }

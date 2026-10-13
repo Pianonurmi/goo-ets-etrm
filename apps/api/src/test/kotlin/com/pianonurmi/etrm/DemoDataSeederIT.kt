@@ -228,6 +228,11 @@ class DemoDataSeederIT {
             .body("[0].differences[0].kind", equalTo("VARIATION_MARGIN"))
         asUser("middle", "MIDDLE_OFFICE").get("/api/v1/workflow/tasks?type=CLEARING_BREAK&actionable=true").then()
             .body("items.size()", equalTo(1))
+        asUser("backoffice", "BACK_OFFICE").get("/api/v1/clearing/margin-calls?legalEntityId=$finland").then().statusCode(200)
+            .body("findAll { it.status == 'PAID' }.amount", hasItems(3500.0f))
+            .body("findAll { it.status == 'OPEN' }.amount", hasItems(1250.0f))
+        asUser("accountant", "ACCOUNTANT").get("/api/v1/workflow/tasks?type=MARGIN_CALL&actionable=true").then()
+            .body("items.size()", equalTo(1))
     }
 
     private fun compliance(finland: String, sweden: String) {

@@ -1541,7 +1541,8 @@
       "COMPLIANCE_SHORT": "Compliance short",
       "GOO_CONCENTRATION": "GoO concentration",
       "GOO_EXPIRY": "GoO expiry",
-      "GOO_BASIS": "GoO basis"
+      "GOO_BASIS": "GoO basis",
+      "MARGIN_LIQUIDITY": "Margin liquidity"
     },
     "typeHints": {
       "CREDIT_EXPOSURE": "Exposure to one counterparty, in money.",
@@ -1551,7 +1552,8 @@
       "COMPLIANCE_SHORT": "Allowances still missing for a compliance year, in tonnes.",
       "GOO_CONCENTRATION": "Unsold certificates of one product bucket: held GoO that no obligation uses. Applies to the whole entity.",
       "GOO_EXPIRY": "Held certificates that expire within the horizon and that no obligation uses. Applies to the whole entity.",
-      "GOO_BASIS": "Sales delivered with certificates worth more than their own product (the give-away). Applies to the whole entity."
+      "GOO_BASIS": "Sales delivered with certificates worth more than their own product (the give-away). Applies to the whole entity.",
+      "MARGIN_LIQUIDITY": "Cash tied up at clearing houses: initial margin held plus margin calls still to pay, in money. Applies to the whole entity."
     },
     "creditKinds": {
       "CASH_RECEIVED": "Cash received",

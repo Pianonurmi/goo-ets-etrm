@@ -6440,6 +6440,59 @@
         "required" : [ "accountCode" ],
         "type" : "object"
       },
+      "MarginCallView" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "amount" : {
+            "type" : "number"
+          },
+          "businessDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "decidedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "decidedBy" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : [ "string", "null" ]
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requestedBy" : {
+            "type" : "string"
+          },
+          "statementId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "OPEN", "PAID", "DISPUTED", "CANCELLED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "accountId", "amount", "businessDate", "currency", "id", "legalEntityId", "requestedAt", "requestedBy", "statementId", "status" ],
+        "type" : "object"
+      },
       "MarginDifference" : {
         "properties" : {
           "contractCode" : {
@@ -6484,6 +6537,32 @@
           }
         },
         "required" : [ "contractCode", "positionAfter", "positionBefore", "settlementPrice", "tradedQuantity", "variationMargin" ],
+        "type" : "object"
+      },
+      "MarginPostedView" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "cashBalance" : {
+            "type" : [ "number", "null" ]
+          },
+          "clearingHouseId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "initialMargin" : {
+            "type" : "number"
+          },
+          "openCalls" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "accountId", "clearingHouseId", "currency", "initialMargin", "openCalls" ],
         "type" : "object"
       },
       "MarginRunView" : {
@@ -9632,7 +9711,7 @@
             "$ref" : "#/components/schemas/LimitScope"
           },
           "type" : {
-            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT", "GOO_CONCENTRATION", "GOO_EXPIRY", "GOO_BASIS" ],
+            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT", "GOO_CONCENTRATION", "GOO_EXPIRY", "GOO_BASIS", "MARGIN_LIQUIDITY" ],
             "type" : "string"
           },
           "validFrom" : {
@@ -9787,7 +9866,7 @@
             "type" : "string"
           },
           "type" : {
-            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT", "GOO_CONCENTRATION", "GOO_EXPIRY", "GOO_BASIS" ],
+            "enum" : [ "CREDIT_EXPOSURE", "POSITION_NET", "TENOR_MAX_MONTHS", "STOP_LOSS_MTD", "COMPLIANCE_SHORT", "GOO_CONCENTRATION", "GOO_EXPIRY", "GOO_BASIS", "MARGIN_LIQUIDITY" ],
             "type" : "string"
           },
           "validFrom" : {
@@ -13216,6 +13295,131 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ClearingBreakView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/margin-calls" : {
+      "get" : {
+        "operationId" : "clearing_marginCalls",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "OPEN", "PAID", "DISPUTED", "CANCELLED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/MarginCallView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/margin-calls/{callId}" : {
+      "get" : {
+        "operationId" : "clearing_marginCall",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "callId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MarginCallView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/clearing/margin-posted" : {
+      "get" : {
+        "operationId" : "clearing_marginPosted",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/MarginPostedView"
+                  },
+                  "type" : "array"
                 }
               }
             },

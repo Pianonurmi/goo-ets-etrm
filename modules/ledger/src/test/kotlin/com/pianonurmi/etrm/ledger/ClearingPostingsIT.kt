@@ -2,6 +2,9 @@ package com.pianonurmi.etrm.ledger
 
 import com.pianonurmi.etrm.clearing.api.ClearingStatementImported
 import com.pianonurmi.etrm.clearing.api.ClearingStatementView
+import com.pianonurmi.etrm.clearing.api.MarginCallClosed
+import com.pianonurmi.etrm.clearing.api.MarginCallStatus
+import com.pianonurmi.etrm.clearing.api.MarginCallView
 import com.pianonurmi.etrm.clearing.api.MarginRunView
 import com.pianonurmi.etrm.clearing.api.VariationMarginComputed
 import com.pianonurmi.etrm.ledger.adapter.jooq.JooqGlAccountRepository
@@ -138,6 +141,28 @@ class ClearingPostingsIT {
             it["1970"] shouldBe BigDecimal("11000.00")
             it["4610"] shouldBe BigDecimal("10.00")
             it["1960"] shouldBe BigDecimal("-11010.00")
+        }
+        // A margin call paid from the bank; open, disputed or cancelled calls post nothing.
+        val call = MarginCallView(
+            Ids.newId(),
+            UUID.randomUUID(),
+            entity,
+            monday.plusDays(1),
+            UUID.randomUUID(),
+            BigDecimal("11010.00"),
+            "EUR",
+            MarginCallStatus.PAID,
+            "back",
+            clock.instant(),
+            "accountant",
+            clock.instant(),
+            null,
+        )
+        postings.on(MarginCallClosed(call.copy(status = MarginCallStatus.DISPUTED)))
+        postings.on(MarginCallClosed(call))
+        balances(entity).let {
+            it["1960"] shouldBe BigDecimal("0.00")
+            it["1900"] shouldBe BigDecimal("-11010.00")
         }
         ledger.verifyJournal(entity).shouldBeEmpty()
     }

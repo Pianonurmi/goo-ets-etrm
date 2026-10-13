@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":modules:position"))
     implementation(project(":modules:workflow"))
     implementation(project(":modules:allocation"))
+    implementation(project(":modules:clearing"))
     implementation(libs.springdoc.openapi)
     implementation(libs.shedlock.spring)
 

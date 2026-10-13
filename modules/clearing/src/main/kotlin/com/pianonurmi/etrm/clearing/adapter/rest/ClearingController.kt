@@ -9,6 +9,10 @@ import com.pianonurmi.etrm.clearing.api.ClearingStatementCommand
 import com.pianonurmi.etrm.clearing.api.ClearingStatementQuery
 import com.pianonurmi.etrm.clearing.api.ClearingStatementView
 import com.pianonurmi.etrm.clearing.api.CreateClearingAccount
+import com.pianonurmi.etrm.clearing.api.MarginCallQuery
+import com.pianonurmi.etrm.clearing.api.MarginCallStatus
+import com.pianonurmi.etrm.clearing.api.MarginCallView
+import com.pianonurmi.etrm.clearing.api.MarginPostedView
 import com.pianonurmi.etrm.clearing.api.MarginRunView
 import com.pianonurmi.etrm.clearing.api.StatementImportView
 import com.pianonurmi.etrm.platform.errors.NotFoundException
@@ -35,6 +39,7 @@ class ClearingController(
     private val command: ClearingCommand,
     private val statementQuery: ClearingStatementQuery,
     private val statementCommand: ClearingStatementCommand,
+    private val calls: MarginCallQuery,
 ) {
     @GetMapping("/accounts")
     fun accounts(
@@ -97,6 +102,24 @@ class ClearingController(
     fun clearingBreak(
         @PathVariable breakId: UUID,
     ): ClearingBreakView = statementQuery.clearingBreak(breakId) ?: throw NotFoundException("ClearingBreak", breakId)
+
+    /** Margin calls of the member; paid or disputed in the inbox (MARGIN_CALL tasks). */
+    @GetMapping("/margin-calls")
+    fun marginCalls(
+        @RequestParam(required = false) legalEntityId: UUID?,
+        @RequestParam(required = false) status: MarginCallStatus?,
+    ): List<MarginCallView> = calls.marginCalls(legalEntityId, status)
+
+    @GetMapping("/margin-calls/{callId}")
+    fun marginCall(
+        @PathVariable callId: UUID,
+    ): MarginCallView = calls.marginCall(callId) ?: throw NotFoundException("MarginCall", callId)
+
+    /** Initial margin and cash held at each clearing house, and the calls still open. */
+    @GetMapping("/margin-posted")
+    fun marginPosted(
+        @RequestParam legalEntityId: UUID,
+    ): List<MarginPostedView> = calls.marginPosted(legalEntityId)
 
     data class ComputeMargin(val businessDate: LocalDate)
 }

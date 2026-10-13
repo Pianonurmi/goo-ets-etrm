@@ -2,6 +2,8 @@ package com.pianonurmi.etrm.risk.application
 
 import com.pianonurmi.etrm.allocation.api.GooRiskQuery
 import com.pianonurmi.etrm.allocation.api.SaleProjection
+import com.pianonurmi.etrm.clearing.api.ClearingQuery
+import com.pianonurmi.etrm.clearing.api.MarginCallQuery
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingQuery
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotQuery
@@ -108,6 +110,9 @@ class RiskService(
     private val goo: ObjectProvider<GooRiskQuery>? = null,
     private val buckets: ProductBucketQuery? = null,
     private val savepoints: Savepoints = Savepoints.NONE,
+    /** Cleared futures and the margin held for them (ADR 0046). */
+    private val clearing: ClearingQuery? = null,
+    private val margin: MarginCallQuery? = null,
 ) : RiskQuery, RiskCommand {
     private val log = LoggerFactory.getLogger(RiskService::class.java)
 
@@ -265,6 +270,7 @@ class RiskService(
                 if (command.currency.isNullOrBlank()) throw ValidationException("A credit limit has a currency")
             }
             LimitType.STOP_LOSS_MTD -> if (command.currency.isNullOrBlank()) throw ValidationException("A stop loss has a currency")
+            LimitType.MARGIN_LIQUIDITY -> if (command.currency.isNullOrBlank()) throw ValidationException("A margin liquidity limit has a currency")
             LimitType.POSITION_NET -> if (command.scope.productFamily == null) throw ValidationException("A position limit names a product family")
             LimitType.TENOR_MAX_MONTHS, LimitType.COMPLIANCE_SHORT -> Unit
             LimitType.GOO_CONCENTRATION -> {
@@ -321,6 +327,15 @@ class RiskService(
             BigDecimal(maxOf(0L, -positions.complianceLadder(limit.legalEntityId!!, year).netPosition)) to "compliance year $year"
         }
         LimitType.GOO_CONCENTRATION, LimitType.GOO_EXPIRY, LimitType.GOO_BASIS -> gooMeasure(limit)
+        LimitType.MARGIN_LIQUIDITY -> marginLiquidity(limit, today)
+    }
+
+    /** Initial margin held plus open margin calls over the entity's clearing accounts, in the limit's currency. */
+    private fun marginLiquidity(limit: RiskLimitView, today: LocalDate): Pair<BigDecimal, String?> {
+        val posted = margin?.marginPosted(limit.legalEntityId!!).orEmpty()
+        val initial = posted.sumOf { convert(it.initialMargin, it.currency, limit.currency!!, today) }
+        val calls = posted.sumOf { convert(it.openCalls, it.currency, limit.currency!!, today) }
+        return money(initial + calls) to "initial margin ${money(initial)}, open calls ${money(calls)} over ${posted.size} clearing accounts"
     }
 
     /**
@@ -395,20 +410,23 @@ class RiskService(
 
     private fun measureExposures(entity: LegalEntityView, today: LocalDate) {
         val base = entity.baseCurrency.currencyCode
+        // Margined futures are settled every day: no MtM or PFE to the clearing house, which holds the margin instead.
+        val margined = clearing?.marginedTradeIds(entity.id).orEmpty()
+        val posted = margin?.marginPosted(entity.id).orEmpty().groupBy { it.clearingHouseId }
         val counterparties = referenceData.counterparties().associateBy { it.id }
         val run = valuations.official(entity.id, today, orEarlier = true)
         val mtmByCounterparty = run?.let { valuations.results(it.id) }.orEmpty()
-            .filter { it.status == ResultStatus.OK && it.mtmBase != null }
+            .filter { it.status == ResultStatus.OK && it.mtmBase != null && it.tradeId !in margined }
             .groupBy { it.counterpartyId }
             .mapValues { (_, rows) -> rows.groupBy { it.tradeId }.mapValues { (_, r) -> r.sumOf { it.mtmBase!! } } }
         val balances = settlement.counterpartyBalances(entity.id).groupBy { it.counterpartyId }
         val addOns = repository.pfeAddOns()
-        val pfeByCounterparty = openTrades(entity.id, LimitScope(), null).groupBy { it.counterpartyId }
+        val pfeByCounterparty = openTrades(entity.id, LimitScope(), null).filter { it.id !in margined }.groupBy { it.counterpartyId }
             .mapValues { (_, list) -> list.sumOf { pfe(it, addOns, base, today) } }
         val support = repository.creditSupportFor(null).filter { it.validOn(today) && (it.legalEntityId == null || it.legalEntityId == entity.id) }
             .groupBy { it.counterpartyId }
         val known = repository.exposures(entity.id).map { it.counterpartyId }
-        (mtmByCounterparty.keys + balances.keys + pfeByCounterparty.keys + support.keys + known).toSet().forEach { counterpartyId ->
+        (mtmByCounterparty.keys + balances.keys + pfeByCounterparty.keys + support.keys + posted.keys + known).toSet().forEach { counterpartyId ->
             val netting = counterparties[counterpartyId]?.nettingAgreed == true
             val mtm = CreditExposure.positiveMtm(mtmByCounterparty[counterpartyId].orEmpty().values, netting)
             val rows = balances[counterpartyId].orEmpty()
@@ -416,6 +434,8 @@ class RiskService(
             val payables = rows.filter { it.direction == SettlementDirection.PAYABLE }.sumOf { convert(it.total, it.currency, base, today) }
             val collateral = support[counterpartyId].orEmpty().sumOf {
                 convert(it.amount, it.currency, base, today).let { amount -> if (it.kind.received) amount else amount.negate() }
+            } - posted[counterpartyId].orEmpty().sumOf {
+                convert(it.initialMargin + (it.cashBalance ?: BigDecimal.ZERO).max(BigDecimal.ZERO), it.currency, base, today)
             }
             val pfe = pfeByCounterparty[counterpartyId] ?: BigDecimal.ZERO
             repository.upsertExposure(
