@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Added
+- **Release workflow:** releases a version from GitHub's Actions tab without a clone: it checks the version, tags
+  the commit and runs CI for it, which publishes the image tags and the GitHub release.
+
 ## [0.9.0] - 2026-10-12
 
 Housekeeping (increment 9).

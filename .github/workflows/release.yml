@@ -1,0 +1,65 @@
+name: Release
+
+# Releases a version from GitHub's Actions tab, without a local clone (docs/operations/releases.md):
+# tags the commit vX.Y.Z, then runs CI on it, which publishes the image tags and creates the GitHub release.
+# Pushing a vX.Y.Z tag from a clone does the same.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, X.Y.Z (gradle.properties, the web package, the chart and CHANGELOG.md must say so)
+        required: true
+        type: string
+      ref:
+        description: Commit or branch to release
+        required: false
+        default: main
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Tag the release
+        id: tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          ops/release/check-version.sh "$VERSION"
+          sha=$(git rev-parse HEAD)
+          if existing=$(git rev-parse -q --verify "refs/tags/v$VERSION^{commit}"); then
+            [[ "$existing" == "$sha" ]] || { echo "::error::v$VERSION already tags $existing, not $sha"; exit 1; }
+            echo "v$VERSION already tags $sha"
+          else
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              tag -a "v$VERSION" -m "Provena $VERSION" "$sha"
+            git push origin "refs/tags/v$VERSION"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  # A tag pushed with the workflow token starts no workflow, so CI is called here for the tagged commit.
+  ci:
+    needs: tag
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: write
+      packages: write
+    with:
+      release_version: ${{ inputs.version }}
+      ref: ${{ needs.tag.outputs.sha }}

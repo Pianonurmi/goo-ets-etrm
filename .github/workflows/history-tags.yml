@@ -1,0 +1,37 @@
+name: History tags (one-off)
+
+# Tags the commits that closed increments 1 to 8 as v0.1.0 to v0.8.0 (CHANGELOG.md). Tags only: no image, no
+# GitHub release. Tags that exist are left alone. Remove this workflow once it has run.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tags:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Tag increments 1 to 8
+        run: |
+          while read -r version sha title; do
+            if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then echo "v$version exists"; continue; fi
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              tag -a "v$version" "$sha" -m "Provena $version: $title"
+            git push origin "refs/tags/v$version"
+          done <<'TAGS'
+          0.1.0 d355efb4ba3517903b8eb3b62bce4a7a7c7e413f increment 1, foundation
+          0.2.0 129767aa1dc9b9b63c2e64ffe17773eef03033a3 increment 2, registries, settlement and workflow
+          0.3.0 5876278b6d662bfa564084e6fcab7e3ff141160f increment 3, valuation, risk and finance
+          0.4.0 ad1791cc7ccbfa2328255c332902c7bb4c36d594 increment 4, web UI
+          0.5.0 efd3282f21697c0fec4bcfd1fdcc320daf1bd85a increment 5, operations screens
+          0.6.0 716667583a45e36ae3a44b7a6a982a4ff456f745 increment 6, scale and operations
+          0.7.0 44528bd94a6a7963de8f6dd5c8dc3c22e6658d6d increment 7, public showcase demo
+          0.8.0 d6440088979c0878d6bfe1db921f5222258b8657 increment 8, GoO portfolio management
+          TAGS

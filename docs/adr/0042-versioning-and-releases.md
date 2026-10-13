@@ -24,7 +24,9 @@ An enterprise deployment needs to answer three questions:
   the Helm chart and `CHANGELOG.md` are set to the release version when it is cut.
 - **A check against drift:** on a tag, `ops/release/check-version.sh` fails the build when any of them disagrees
   with the tag.
-- **A release is a tag `vX.Y.Z`.** The same CI workflow as `main` builds it, tests it and scans the image, then:
+- **A release is a tag `vX.Y.Z`.** It is pushed from a clone, or created by the **Release** workflow from the
+  Actions tab, which needs no clone and calls CI itself (a tag pushed with the workflow token starts no workflow).
+  The same CI workflow as `main` builds it, tests it and scans the image, then:
   - **Publishes floating image tags.** `X.Y.Z`, `X.Y`, `latest` and the sha; from 1.0 also `X`. A pre-release
     (`-rc.N`) gets only its own tag and the sha.
   - **Creates the GitHub release** from the changelog section, with the jar and the SBOMs attached.

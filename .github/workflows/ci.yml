@@ -6,9 +6,20 @@ on:
     # A release: vX.Y.Z publishes the image under its version and creates the GitHub release (docs/operations/releases.md).
     tags: ["v*"]
   pull_request:
+  # The Release workflow (release.yml) runs this one for the commit it has tagged.
+  workflow_call:
+    inputs:
+      release_version:
+        description: The version being released (X.Y.Z)
+        type: string
+        required: true
+      ref:
+        description: The commit to build
+        type: string
+        required: true
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ inputs.release_version && format('-release-{0}', inputs.release_version) || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -17,6 +28,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: azure/setup-helm@v5
         with:
           version: v3.16.2
@@ -50,6 +63,9 @@ jobs:
       contents: read
       # Publishes the image to GHCR from main and from release tags (docs/operations/releases.md).
       packages: write
+    outputs:
+      release-version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
     services:
       postgres:
         image: postgres:17-alpine
@@ -78,9 +94,19 @@ jobs:
             echo "ETRM_TEST_DB_URL=jdbc:postgresql://localhost:$port/etrm_test"
           } >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
-      - name: Release version matches the tag (release tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: ops/release/check-version.sh "${GITHUB_REF_NAME#v}"
+        with:
+          ref: ${{ inputs.ref }}
+      # A release is a vX.Y.Z tag push or a call from the Release workflow; its version must match the files.
+      - name: Release context
+        id: release
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          version="$RELEASE_VERSION"
+          if [[ -z "$version" && "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [[ -n "$version" ]]; then ops/release/check-version.sh "$version"; fi
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
       - uses: actions/setup-java@v6
         with:
@@ -145,7 +171,7 @@ jobs:
           version=$(sed -n 's/^version=//p' gradle.properties)
           docker build -t "goo-ets-etrm:${{ github.sha }}" -f ops/Dockerfile \
             --label org.opencontainers.image.version="$version" \
-            --label org.opencontainers.image.revision="${{ github.sha }}" \
+            --label org.opencontainers.image.revision="${{ steps.release.outputs.sha }}" \
             --label org.opencontainers.image.created="$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
       - name: Image vulnerabilities (report critical and high)
         uses: aquasecurity/trivy-action@v0.36.0
@@ -166,19 +192,21 @@ jobs:
           trivyignores: .trivyignore
           skip-setup-trivy: true
       - name: Publish the image (main and release tags)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        if: steps.release.outputs.version != '' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           # main: main and the commit; vX.Y.Z: X.Y.Z, X.Y, latest and the commit (ops/release/image-tags.sh).
-          for tag in $(ops/release/image-tags.sh "$GITHUB_REF" "$GITHUB_SHA"); do
+          ref="$GITHUB_REF"
+          [[ -n "${{ steps.release.outputs.version }}" ]] && ref="refs/tags/v${{ steps.release.outputs.version }}"
+          for tag in $(ops/release/image-tags.sh "$ref" "${{ steps.release.outputs.sha }}"); do
             docker tag "goo-ets-etrm:${{ github.sha }}" "$image:$tag"
             docker push "$image:$tag"
           done
-      - name: Upload the jar (release tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload the jar (releases only)
+        if: steps.release.outputs.version != ''
         uses: actions/upload-artifact@v7
         with:
           name: jar
@@ -207,13 +235,15 @@ jobs:
   # A release tag: the GitHub release with the changelog section, the jar and the SBOMs, once the build is green.
   release:
     needs: [chart, build]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.release-version != ''
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.build.outputs.release-version }}
       - uses: actions/download-artifact@v8
         with:
           name: sbom
@@ -225,8 +255,11 @@ jobs:
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.release-version }}
+          SHA: ${{ needs.build.outputs.sha }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="$VERSION"
+          tag="v$version"
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           {
             ops/release/release-notes.sh "$version"
@@ -238,14 +271,20 @@ jobs:
             echo "\`\`\`"
             echo
             if [[ "$version" == *-* ]]; then
-              echo "A pre-release: also tagged with the commit \`$GITHUB_SHA\`; no floating tag moves."
+              echo "A pre-release: also tagged with the commit \`$SHA\`; no floating tag moves."
             else
-              echo "Also tagged \`${version%.*}\` (follows the patch releases of ${version%.*}), \`latest\` and the commit \`$GITHUB_SHA\`."
+              echo "Also tagged \`${version%.*}\` (follows the patch releases of ${version%.*}), \`latest\` and the commit \`$SHA\`."
             fi
           } > notes.md
           mv dist/jar/api.jar "dist/provena-$version.jar"
           mapfile -t sboms < <(find dist/sbom -name '*.cdx.json')
           flags=()
           [[ "$version" == *-* ]] && flags+=(--prerelease)
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Provena $version" --notes-file notes.md "${flags[@]}" \
-            "dist/provena-$version.jar" "${sboms[@]}"
+          assets=("dist/provena-$version.jar" "${sboms[@]}")
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # Made by hand in the GitHub UI first: keep it, fill in the notes and the assets.
+            gh release edit "$tag" --title "Provena $version" --notes-file notes.md "${flags[@]}"
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" --verify-tag --title "Provena $version" --notes-file notes.md "${flags[@]}" "${assets[@]}"
+          fi

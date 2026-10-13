@@ -71,8 +71,11 @@ gate pass (`ops/release/image-tags.sh`):
    - turn `## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <today>` and add the compare link;
    - run `ops/release/check-version.sh X.Y.Z`.
 2. Commit "Release X.Y.Z". `main` follows once CI is green.
-3. Tag the commit and push the tag:
-   `git tag -a vX.Y.Z -m "Provena X.Y.Z" && git push origin vX.Y.Z`.
+3. Tag the commit. Either way works:
+   - **Without a clone:** run the **Release** workflow from GitHub's Actions tab with the version `X.Y.Z` (and `ref`,
+     default `main`; give the release commit's sha once `main` has moved on). It checks the version, tags the commit
+     `vX.Y.Z` as the Actions bot, and calls CI for it.
+   - **From a clone:** `git tag -a vX.Y.Z -m "Provena X.Y.Z" && git push origin vX.Y.Z`. The pushed tag starts CI.
 4. **CI on the tag:**
    - checks the version, builds, tests and scans as on `main`;
    - publishes the image tags;
@@ -89,4 +92,7 @@ gate pass (`ops/release/image-tags.sh`):
 3. Carry the fix forward to `main`.
 
 **History:** releases have GitHub releases and images from 0.9.0 on. `v0.1.0` to `v0.8.0` are tags on the commits
-that closed increments 1 to 8.
+that closed increments 1 to 8, set once by the one-off **History tags** workflow.
+
+**A release made by hand in the GitHub UI** (a new tag on the release form) also starts CI. CI then fills that
+release's notes and attaches the assets, instead of creating a new one.
