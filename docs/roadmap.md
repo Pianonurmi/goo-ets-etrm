@@ -14,7 +14,7 @@
 | 10 | Portfolio follow-ups: the portfolio figures prepared in about 3 s and patched in about 0.3 s at 100 000 lots, available-to-sell checks fast on realistic books, GoO limits by vintage and a pre-trade basis check for sales, a give-away report; device caps measured and kept outside the flow ([plan](plans/increment-10-portfolio-follow-ups.md)) | done (0.10.0) |
 | 11 | Valuation depth: discount curves and discounted MtM, TIME and RATES in the P&L explain, carry interpolation of allowance forwards, cash flow hedge accounting (designation under four eyes, effectiveness, the hedging reserve at period end, reclassification) ([plan](plans/increment-11-valuation-depth.md)) | done (0.11.0) |
 | 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | done (0.12.0) |
-| 13 | Options on EUA futures: option terms on trades (call or put, strike, expiry, underlying future), a volatility curve signed off like other curves, Black-76 valuation with delta and vega and a VOL component in the explain, premiums in the ledger, exercise into the future or abandonment at expiry, delta-equivalent positions and exposure ([plan](plans/increment-13-eua-options.md)) | in progress |
+| 13 | Options on EUA futures: option terms on trades (call or put, strike, expiry, underlying future), a volatility curve signed off like other curves, Black-76 valuation with delta and vega and a VOL component in the explain, premiums in the ledger, exercise into the future or abandonment at expiry, delta-equivalent positions and exposure ([plan](plans/increment-13-eua-options.md)) | done (0.13.0) |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -182,4 +182,4 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M2 | Volatility quotes and curve, Black-76 valuation with greeks, VOL in the explain | done |
 | M3 | Premiums in the ledger; exercise into the future or abandonment at expiry | done |
 | M4 | Delta-equivalent positions, PFE and pre-trade checks; option greeks report | done |
-| M5 | Screens, demo, documentation, release 0.13.0 | |
+| M5 | Screens, demo, documentation, release 0.13.0 | done |

@@ -1,6 +1,6 @@
 # Increment 13: options on EUA futures
 
-**Status: in progress.** The decisions go into ADR 0047.
+**Status: delivered** (M0–M5, release 0.13.0). What differs from the plan is under [Delivered](#delivered); the decisions are in ADR 0047.
 
 ## Context
 
@@ -46,3 +46,20 @@ futures-style option margining.
 Black-76 against reference values, put-call parity and finite differences; integration tests for capture rules,
 valuation and explain, expiry with the created future and its first margin, ledger postings and period end, risk;
 the demo seeding test, web checks, the full Playwright suite, CI and the release run.
+
+## Delivered
+
+- **Option legs carry their outcome.** The exercise or abandonment is kept on the leg (settlement price, the future
+  created) rather than in a table of its own; the trade closes once every leg is decided, and a decided option can no
+  longer be amended or cancelled.
+- **The explain revalues options step by step** (terms, time, underlying, volatility, rates, FX), so nothing is left
+  unexplained but rounding; time decay is reported under `TIME` with the discount curve's roll.
+- **Premiums follow confirmations.** A reconfirmation after an amendment posts the change from the version confirmed
+  before, and a cancellation reverses what was posted.
+- **Risk values options on the fly** for positions, PFE and the pre-trade check; an option that cannot be valued counts
+  its full quantity. Positions on the positions screen are unchanged: an option has no delivery to show there.
+- **Theta is not stored:** time decay shows in the explain instead. Gamma is stored and in the `OPTION_GREEKS` report
+  but not in the results grid.
+- **The demo** books a collar on the nearest December future, with strikes and premiums set from the forward on the
+  trade date; no expired option is in the demo history, so exercise and abandonment are covered by tests.
+

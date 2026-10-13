@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-13
+
+Options on EUA futures (increment 13).
+
 ### Added
 - **Options on EUA futures:** a trade with instrument Option names its call or put, strike, expiry and underlying
   futures contract; the price is the premium per tonne and the option has no delivery schedule. Validated like
@@ -239,7 +243,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.0
 [0.12.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.12.0
 [0.11.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.11.0
 [0.10.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.10.0
