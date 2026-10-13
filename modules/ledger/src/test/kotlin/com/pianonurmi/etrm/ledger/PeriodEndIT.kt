@@ -332,12 +332,13 @@ class PeriodEndIT {
     }
 
     /** A bought EUA forward of 1 000 t, open, delivering in December. */
-    private fun forwardPurchase(entity: UUID, number: String, side: Side = Side.BUY): TradeView {
+    private fun forwardPurchase(entity: UUID, number: String, side: Side = Side.BUY, future: String? = null): TradeView {
         val schedule = mockk<DeliveryScheduleView> {
             every { remainingQuantity } returns BigDecimal(1000)
             every { deliveryDate } returns LocalDate.of(2026, 12, 14)
         }
         val leg = mockk<TradeLegView> {
+            every { futuresContractCode } returns future
             every { priceType } returns PriceType.FIXED
             every { this@mockk.side } returns side
             every { allowanceProductCode } returns "EUA"
@@ -530,6 +531,9 @@ class PeriodEndIT {
         shouldThrow<ValidationException> {
             hedges.requestDesignation(RequestHedgeDesignation(e, item, listOf(HedgeInstrument(forwardPurchase(e, "T-HEDGE-SOLD", Side.SELL).id)), "x"))
         }.message!! shouldContain "hedged by buying"
+        shouldThrow<ValidationException> {
+            hedges.requestDesignation(RequestHedgeDesignation(e, item, listOf(HedgeInstrument(forwardPurchase(e, "T-HEDGE-FUT", future = "EUAZ26").id)), "x"))
+        }.message!! shouldContain "settled daily by variation margin"
         val proposed = hedges.requestDesignation(
             RequestHedgeDesignation(e, item, listOf(HedgeInstrument(forward.id)), "Fix the price of the allowances bought for 2026 compliance"),
         )

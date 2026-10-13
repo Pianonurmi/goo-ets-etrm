@@ -136,13 +136,19 @@ class HedgeService(
         )
     }
 
-    /** Hedging instruments are open fixed-price trades of the entity, bought for a forecast purchase and sold for a sale. */
+    /**
+     * Hedging instruments are open fixed-price forwards of the entity, bought for a forecast purchase and sold for a sale.
+     * Futures are not: their result is realised every day by the variation margin (ADR 0046).
+     */
     private fun validInstrument(trade: TradeView, item: HedgedItem, legalEntityId: UUID) {
         if (trade.legalEntityId != legalEntityId) throw ValidationException("${trade.tradeNumber} belongs to another legal entity")
         if (trade.status !in DESIGNABLE) throw ValidationException("${trade.tradeNumber} is ${trade.status}; only open trades hedge")
         if (trade.productFamily != item.productFamily) throw ValidationException("${trade.tradeNumber} is not a ${item.productFamily} trade")
         val side = if (item.direction == HedgeDirection.PURCHASE) Side.BUY else Side.SELL
         trade.legs.forEach { leg ->
+            if (leg.futuresContractCode != null) {
+                throw ValidationException("${trade.tradeNumber} is a future, settled daily by variation margin; designate forwards")
+            }
             if (leg.priceType != PriceType.FIXED) {
                 throw ValidationException(
                     "${trade.tradeNumber} is not fixed-price; only fixed-price trades hedge a forecast price",
