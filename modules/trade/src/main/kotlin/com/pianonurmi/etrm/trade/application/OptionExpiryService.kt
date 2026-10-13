@@ -92,7 +92,7 @@ class OptionExpiryService(
     private fun exercise(option: TradeView, leg: TradeLegView): CaptureTrade {
         val terms = leg.option!!
         val contract = futures.futuresContract(terms.underlyingContractCode)
-            ?: throw IllegalStateException("Underlying ${terms.underlyingContractCode} of ${option.tradeNumber} not found")
+            ?: error("Underlying ${terms.underlyingContractCode} of ${option.tradeNumber} not found")
         val side = when {
             terms.optionType == OptionType.CALL -> leg.side
             leg.side == Side.BUY -> Side.SELL
