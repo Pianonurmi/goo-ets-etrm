@@ -1,5 +1,6 @@
 # Caddy in front of the showcase (docs/deploy/vps.md). ETRM_SITE_ADDRESS is ":80" for plain HTTP on the server's
-# address, or a domain name such as demo.example.com for automatic HTTPS.
+# address, or a domain name such as demo.example.com for automatic HTTPS. Behind a Cloudflare Tunnel,
+# docker-compose.tunnel.yml uses Caddyfile.tunnel instead.
 {
 	# The client address the application sees (sign-in throttle, logs) is the real peer; client-sent
 	# X-Forwarded-For is not trusted, because no trusted_proxies are configured.
@@ -9,43 +10,5 @@
 }
 
 {$ETRM_SITE_ADDRESS::80} {
-	encode zstd gzip
-
-	header {
-		# A demo, not a product site: keep it out of search engines.
-		X-Robots-Tag "noindex, nofollow"
-		-Server
-	}
-
-	# Requests larger than the biggest upload the demo needs (CSV files) are refused here.
-	request_body {
-		max_size 2MB
-	}
-
-	respond /robots.txt "User-agent: *
-Disallow: /
-" 200
-
-	# Operational endpoints stay inside the server.
-	@internal path /actuator* /v3/api-docs* /swagger-ui*
-	respond @internal 404
-
-	reverse_proxy app:8080 {
-		health_uri /actuator/health/readiness
-		health_interval 10s
-		health_timeout 3s
-		fail_duration 30s
-	}
-
-	# While the application starts or reseeds (nightly reset), show the maintenance page.
-	handle_errors 502 503 504 {
-		root * /srv/maintenance
-		rewrite * /index.html
-		file_server {
-			status 503
-		}
-		header Retry-After 60
-		header Cache-Control no-store
-		header X-Robots-Tag "noindex, nofollow"
-	}
+	import site.caddy
 }

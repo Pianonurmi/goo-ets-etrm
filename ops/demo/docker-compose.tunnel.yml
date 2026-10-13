@@ -1,0 +1,45 @@
+# The showcase behind a Cloudflare Tunnel (docs/deploy/vps.md, "Invite-only behind a Cloudflare Tunnel").
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+# or set COMPOSE_FILE=docker-compose.yml:docker-compose.tunnel.yml in .env. The server publishes no port: visitors come
+# in through the tunnel, after Cloudflare Access has let them in.
+services:
+  app:
+    environment:
+      # The edge is HTTPS only, so the session cookie is always Secure.
+      SERVER_SERVLET_SESSION_COOKIE_SECURE: "true"
+
+  caddy:
+    # Nothing on the host's ports; only the connector on the edge network reaches Caddy.
+    ports: !reset []
+    environment:
+      ETRM_EDGE_SUBNET: ${ETRM_EDGE_SUBNET:-172.30.53.0/24}
+    volumes:
+      - ./Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
+      - ./site.caddy:/etc/caddy/site.caddy:ro
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.3
+    restart: unless-stopped
+    depends_on:
+      - caddy
+    # The tunnel is managed in the Cloudflare dashboard; its public hostname points at http://caddy:80.
+    command: tunnel --no-autoupdate --metrics 127.0.0.1:2000 run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    networks: [edge]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:2000", "ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 256m
+    pids_limit: 100

@@ -1,11 +1,25 @@
 # The public showcase on one server (docs/deploy/vps.md): PostgreSQL, the application in the showcase profile, and
 # Caddy in front. Only Caddy publishes ports. Configure with .env (see .env.example), then: docker compose up -d
+# Behind a Cloudflare Tunnel, add docker-compose.tunnel.yml: nothing is published then (docs/deploy/vps.md).
 name: provena-demo
+
+# Every container: no privilege gain through setuid or file capabilities, rotated logs, a process ceiling.
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
 
 services:
   postgres:
+    <<: *hardening
     image: postgres:17-alpine
     restart: unless-stopped
+    # Its entrypoint changes ownership of the data directory as root, so it keeps the default capabilities.
+    networks: [backend]
     environment:
       POSTGRES_USER: etrm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -22,8 +36,10 @@ services:
       timeout: 5s
       retries: 30
     mem_limit: 768m
+    pids_limit: 200
 
   app:
+    <<: *hardening
     image: ${ETRM_IMAGE:-ghcr.io/pianonurmi/goo-ets-etrm:main}
     # A reset ends the process (exit code 75); the restart policy brings it back, the start wipes and seeds again.
     restart: unless-stopped
@@ -42,10 +58,14 @@ services:
       ETRM_ENVIRONMENT: DEMO
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70 -XX:+UseZGC -Djava.security.egd=file:/dev/./urandom
     read_only: true
+    # The image runs as an unprivileged user (ops/Dockerfile) that needs no capabilities.
+    cap_drop: [ALL]
+    networks: [backend]
     tmpfs:
       # OR-Tools unpacks its native library to /tmp, which must allow exec.
       - /tmp:exec,size=256m
     mem_limit: 2560m
+    pids_limit: 1000
     expose:
       - "8080"
     healthcheck:
@@ -57,6 +77,7 @@ services:
       retries: 3
 
   caddy:
+    <<: *hardening
     image: caddy:2.10-alpine
     restart: unless-stopped
     depends_on:
@@ -69,12 +90,26 @@ services:
       - "${ETRM_HTTP_PORT:-80}:80"
       - "${ETRM_HTTPS_PORT:-443}:443"
       - "${ETRM_HTTPS_PORT:-443}:443/udp"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    # The application on one side; the edge (a Cloudflare Tunnel connector, when there is one) on the other.
+    networks: [backend, edge]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site.caddy:/etc/caddy/site.caddy:ro
       - ./maintenance:/srv/maintenance:ro
       - caddy-data:/data
       - caddy-config:/config
     mem_limit: 256m
+    pids_limit: 200
+
+networks:
+  backend:
+  # A fixed range, so that Caddy can trust exactly the tunnel connector in it (Caddyfile.tunnel).
+  edge:
+    ipam:
+      config:
+        - subnet: ${ETRM_EDGE_SUBNET:-172.30.53.0/24}
 
 volumes:
   postgres-data:

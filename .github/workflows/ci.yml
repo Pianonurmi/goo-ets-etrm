@@ -55,6 +55,20 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             default.yaml full.yaml ops/k8s/postgres-cluster.yaml
+      # The public demo stack (docs/deploy/vps.md): both compose variants resolve, the tunnel variant publishes no
+      # port, and both Caddyfiles parse.
+      - name: Validate the demo stack
+        working-directory: ops/demo
+        env:
+          POSTGRES_PASSWORD: ci
+          CLOUDFLARE_TUNNEL_TOKEN: ci
+        run: |
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.tunnel.yml config > tunnel.yaml
+          if grep -q 'published:' tunnel.yaml; then echo "The tunnel variant publishes a port" >&2; exit 1; fi
+          for f in Caddyfile Caddyfile.tunnel; do
+            docker run --rm -v "$PWD:/etc/caddy:ro" caddy:2.10-alpine caddy validate --adapter caddyfile --config "/etc/caddy/$f"
+          done
 
   build:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}

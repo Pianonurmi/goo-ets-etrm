@@ -1,0 +1,19 @@
+# Caddy behind a Cloudflare Tunnel (docker-compose.tunnel.yml, docs/deploy/vps.md). The connector (cloudflared) is
+# the only client: Caddy publishes no port, and the edge network holds nothing else. Cloudflare terminates HTTPS and
+# sets CF-Connecting-IP to the visitor's address, which Caddy takes only from that network.
+{
+	servers {
+		protocols h1 h2
+		trusted_proxies static {$ETRM_EDGE_SUBNET:172.30.53.0/24}
+		trusted_proxies_strict
+		client_ip_headers CF-Connecting-IP
+	}
+	# No certificates to manage: the edge holds them.
+	auto_https off
+}
+
+:80 {
+	# Visitors only ever reach the demo over HTTPS at Cloudflare's edge.
+	header Strict-Transport-Security "max-age=31536000"
+	import site.caddy
+}

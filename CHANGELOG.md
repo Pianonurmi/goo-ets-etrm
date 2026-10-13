@@ -7,6 +7,20 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Added
+- **Invite-only demo behind a Cloudflare Tunnel:** `ops/demo/docker-compose.tunnel.yml` runs the showcase with a
+  tunnel connector and publishes no port on the server; Cloudflare Access admits only the e-mail addresses you list,
+  then everyone signs in with the demo password. Caddy takes each visitor's address from Cloudflare, so a wrong
+  password locks out only that visitor; the session cookie is always Secure and HSTS is sent. The VPS guide has the
+  steps (tunnel, Access policy, zone settings, inviting and removing people).
+
+### Changed
+- **Demo stack hardened:** no new privileges in any container, capabilities dropped, process limits and rotated
+  logs; the database and the application sit on a network the edge cannot reach. CI validates both compose
+  variants and the Caddyfiles.
+- **Web:** when an access proxy's session expires, the page reloads once so the proxy can sign in again, instead of
+  showing network errors.
+
 ## [0.10.0] - 2026-10-13
 
 Portfolio follow-ups (increment 10).

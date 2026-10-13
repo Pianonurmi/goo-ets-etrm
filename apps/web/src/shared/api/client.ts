@@ -1,5 +1,6 @@
 import createFetchClient, { type Middleware } from 'openapi-fetch';
 import createQueryClient from 'openapi-react-query';
+import { edgeSignInError, isEdgeRedirect } from './edge';
 import { problemFromResponse } from './problem';
 import type { paths } from './schema';
 
@@ -21,6 +22,7 @@ const auth: Middleware = {
   },
   async onResponse({ response }) {
     if (response.ok) return response;
+    if (isEdgeRedirect(response)) throw edgeSignInError();
     if (response.status === 401) onUnauthorized();
     throw await problemFromResponse(response);
   },
@@ -29,8 +31,8 @@ const auth: Middleware = {
 /** Typed fetch client for the API; failures throw `ProblemError`. */
 export const api = createFetchClient<paths>({
   baseUrl: window.location.origin,
-  // Resolved per call, so test doubles installed later are picked up.
-  fetch: (request) => globalThis.fetch(request),
+  // Resolved per call, so test doubles installed later are picked up. Redirects are not followed (`edge.ts`).
+  fetch: (request) => globalThis.fetch(request, { redirect: 'manual' }),
 });
 api.use(auth);
 
@@ -41,8 +43,9 @@ export const $api = createQueryClient(api);
 export async function authorisedFetch(input: string, init?: RequestInit): Promise<Response> {
   const request = new Request(new URL(input, window.location.origin), init);
   await authenticate(request);
-  const response = await fetch(request);
+  const response = await fetch(request, { redirect: 'manual' });
   if (!response.ok) {
+    if (isEdgeRedirect(response)) throw edgeSignInError();
     if (response.status === 401) onUnauthorized();
     throw await problemFromResponse(response);
   }

@@ -1,0 +1,43 @@
+# The site itself, shared by Caddyfile (direct) and Caddyfile.tunnel (behind a Cloudflare Tunnel).
+encode zstd gzip
+
+header {
+	# A demo, not a product site: keep it out of search engines.
+	X-Robots-Tag "noindex, nofollow"
+	-Server
+}
+
+# Requests larger than the biggest upload the demo needs (CSV files) are refused here.
+request_body {
+	max_size 2MB
+}
+
+respond /robots.txt "User-agent: *
+Disallow: /
+" 200
+
+# Operational endpoints stay inside the server.
+@internal path /actuator* /v3/api-docs* /swagger-ui*
+respond @internal 404
+
+reverse_proxy app:8080 {
+	# Exactly one address for the application's sign-in throttle and logs: the peer, or behind the tunnel the
+	# visitor's address that Cloudflare put in CF-Connecting-IP (only trusted from the edge network).
+	header_up X-Forwarded-For {client_ip}
+	health_uri /actuator/health/readiness
+	health_interval 10s
+	health_timeout 3s
+	fail_duration 30s
+}
+
+# While the application starts or reseeds (nightly reset), show the maintenance page.
+handle_errors 502 503 504 {
+	root * /srv/maintenance
+	rewrite * /index.html
+	file_server {
+		status 503
+	}
+	header Retry-After 60
+	header Cache-Control no-store
+	header X-Robots-Tag "noindex, nofollow"
+}
