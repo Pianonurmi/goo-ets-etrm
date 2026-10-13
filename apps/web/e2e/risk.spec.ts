@@ -32,17 +32,20 @@ test.describe('risk and EU ETS compliance', () => {
     await expect(page.getByText('Decided by risk2', { exact: false })).toBeVisible();
   });
 
-  test('a GoO concentration limit is requested for a product bucket', async ({ page }) => {
+  test('a GoO concentration limit is requested for a product bucket and a vintage', async ({ page }) => {
     await actAs(page, 'risk');
     await page.goto('/risk');
     await expect(page.getByRole('gridcell', { name: 'GoO concentration' }).first()).toBeVisible();
     await page.getByTestId('request-limit').click();
     await choose(page, 'limit-type', /GoO concentration/);
     await choose(page, 'limit-bucket', /NORDIC_HYDRO/);
+    await page.getByTestId('limit-vintage').fill('2025');
     await page.getByTestId('limit-amount').fill('50000');
-    await page.getByTestId('limit-reason').fill('Cap unsold Nordic hydro certificates');
+    await page.getByTestId('limit-reason').fill('Cap unsold Nordic hydro certificates of 2025');
     await page.getByTestId('request-limit-submit').click();
     await expect(page.getByText('Limit sent for approval')).toBeVisible();
+    // The vintage is part of the limit's scope.
+    await expect(page.getByRole('gridcell', { name: 'NORDIC_HYDRO · vintage 2025' }).first()).toBeVisible();
   });
 
   test('measures limits and shows exposures and PFE add-ons', async ({ page }) => {

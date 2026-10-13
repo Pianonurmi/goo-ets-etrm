@@ -24,6 +24,8 @@ export interface LimitFields {
   bucket: 'hidden' | 'required' | 'optional';
   /** Days ahead a GoO expiry limit looks. */
   horizon: 'hidden' | 'required';
+  /** Whether a GoO limit can be narrowed to one vintage (production year). */
+  vintage: boolean;
   /** Whether the limit can be set on one book; GoO limits apply to the whole entity. */
   book: boolean;
   /** `required`: always a money amount; `optional`: MWh, or EUR when chosen; `hidden`: no currency. */
@@ -32,6 +34,9 @@ export interface LimitFields {
 
 export const HORIZON_DAYS = { min: 1, max: 730, initial: 90 };
 
+/** The years a GoO limit's vintage may name (mirrors the service's validation). */
+export const VINTAGE_YEARS = { min: 2000, max: 2100 };
+
 /** Which scope fields and amount unit a limit type uses (mirrors the service's validation). */
 export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
   CREDIT_EXPOSURE: {
@@ -39,6 +44,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'hidden',
     bucket: 'hidden',
     horizon: 'hidden',
+    vintage: false,
     book: false,
     currency: 'required',
   },
@@ -47,6 +53,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'required',
     bucket: 'hidden',
     horizon: 'hidden',
+    vintage: false,
     book: true,
     currency: 'hidden',
   },
@@ -55,6 +62,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'optional',
     bucket: 'hidden',
     horizon: 'hidden',
+    vintage: false,
     book: true,
     currency: 'hidden',
   },
@@ -63,6 +71,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'optional',
     bucket: 'hidden',
     horizon: 'hidden',
+    vintage: false,
     book: true,
     currency: 'required',
   },
@@ -71,6 +80,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'hidden',
     bucket: 'hidden',
     horizon: 'hidden',
+    vintage: false,
     book: false,
     currency: 'hidden',
   },
@@ -79,6 +89,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'hidden',
     bucket: 'required',
     horizon: 'hidden',
+    vintage: true,
     book: false,
     currency: 'optional',
   },
@@ -87,6 +98,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'hidden',
     bucket: 'optional',
     horizon: 'required',
+    vintage: true,
     book: false,
     currency: 'hidden',
   },
@@ -95,6 +107,7 @@ export const LIMIT_FIELDS: Record<LimitType, LimitFields> = {
     productFamily: 'hidden',
     bucket: 'hidden',
     horizon: 'hidden',
+    vintage: true,
     book: false,
     currency: 'optional',
   },
@@ -105,14 +118,17 @@ export interface ScopeNames {
   book: (id: string) => string | undefined;
   /** The wording for an expiry horizon, e.g. "expiring within 90 days". */
   horizon: (days: number) => string;
+  /** The wording for a vintage, e.g. "vintage 2025". */
+  vintage: (year: number) => string;
 }
 
-/** A short human description of what a limit applies to, e.g. "Nordvind · book DEMO-FI-TRD · EUA 2026" or "NORDIC_HYDRO · expiring within 90 days". */
+/** A short human description of what a limit applies to, e.g. "Nordvind · book DEMO-FI-TRD · EUA 2026" or "NORDIC_HYDRO · vintage 2025 · expiring within 90 days". */
 export function scopeLabel(scope: LimitScope, names: ScopeNames): string {
   const parts: string[] = [];
   if (scope.counterpartyId) parts.push(names.counterparty(scope.counterpartyId) ?? scope.counterpartyId);
   if (scope.bookId) parts.push(names.book(scope.bookId) ?? scope.bookId);
   if (scope.bucketCode) parts.push(scope.bucketCode);
+  if (scope.productionYear != null) parts.push(names.vintage(scope.productionYear));
   if (scope.horizonDays != null) parts.push(names.horizon(scope.horizonDays));
   if (scope.productFamily) parts.push(scope.productFamily === 'GUARANTEE_OF_ORIGIN' ? 'GoO' : 'EUA');
   const allowance = [scope.allowanceProductCode, scope.complianceYear].filter((part) => part != null).join(' ');

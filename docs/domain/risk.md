@@ -43,7 +43,8 @@ Run on every captured or amended trade; findings are on the trade and in the app
 | POSITION_LIMIT | REQUIRES_RISK_APPROVAL | the net position after the trade over a position limit |
 | TENOR_LIMIT | REQUIRES_RISK_APPROVAL | the trade delivers beyond a tenor limit |
 | LIMIT_IN_BREACH | WARN | a stop loss on the trade's book, the compliance short limit (allowances) or a GoO limit (GoO trades) is in breach |
-| GOO_CONCENTRATION | REQUIRES_RISK_APPROVAL / WARN | a GoO purchase of a concentration limit's bucket would take its free certificates over the limit / the warning level |
+| GOO_CONCENTRATION | REQUIRES_RISK_APPROVAL / WARN | a GoO purchase of a concentration limit's bucket (and vintage, when the limit has one) would take its free certificates over the limit / the warning level |
+| GOO_BASIS | REQUIRES_RISK_APPROVAL / WARN / INFO | a GoO sale served from the free certificates, cheapest first, would hand over premium that takes a basis limit over the limit / the warning level; INFO "not checked" while the figures are prepared (ADR 0040, amended) |
 | GOO_HEADROOM | WARN / INFO | (allocation, ADR 0036) a GoO sale's delivery, or its deliveries together, exceed what held certificates can still serve; INFO "not checked" while the figures are prepared |
 
 A trade with a REQUIRES_RISK_APPROVAL finding needs approval regardless of the threshold, and only RISK may give it.

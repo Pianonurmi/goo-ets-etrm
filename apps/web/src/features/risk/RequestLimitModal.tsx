@@ -8,13 +8,20 @@ import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { useBucketCodes } from '@/features/marketdata/InstrumentActions';
 import { useBooks, useCounterparties } from '@/features/trades/hooks';
-import { HORIZON_DAYS, LIMIT_FIELDS, LIMIT_TYPES, type Limit, type LimitType } from './model/limits';
+import { HORIZON_DAYS, LIMIT_FIELDS, LIMIT_TYPES, VINTAGE_YEARS, type Limit, type LimitType } from './model/limits';
 
 type Family = NonNullable<Limit['scope']['productFamily']>;
 
 function validHorizon(value: number | string): boolean {
   const days = Number(value);
   return value !== '' && Number.isInteger(days) && days >= HORIZON_DAYS.min && days <= HORIZON_DAYS.max;
+}
+
+/** Empty (all vintages) or a whole year in range. */
+function validVintage(value: number | string): boolean {
+  if (value === '') return true;
+  const year = Number(value);
+  return Number.isInteger(year) && year >= VINTAGE_YEARS.min && year <= VINTAGE_YEARS.max;
 }
 
 /** The currency to send: always for money limits, only when EUR is chosen for GoO limits, never otherwise. */
@@ -61,6 +68,7 @@ export function RequestLimitModal({
   const [currency, setCurrency] = useState(replaces?.currency ?? 'EUR');
   const [bucketCode, setBucketCode] = useState<string | null>(replaces?.scope.bucketCode ?? null);
   const [horizonDays, setHorizonDays] = useState<number | string>(replaces?.scope.horizonDays ?? HORIZON_DAYS.initial);
+  const [vintage, setVintage] = useState<number | string>(replaces?.scope.productionYear ?? '');
   const [gooUnit, setGooUnit] = useState<'MWH' | 'EUR'>(replaces?.currency === 'EUR' ? 'EUR' : 'MWH');
   const [warningPct, setWarningPct] = useState<number>(replaces?.warningPct ?? 80);
   const [validFrom, setValidFrom] = useState('');
@@ -80,7 +88,8 @@ export function RequestLimitModal({
     (fields.counterparty !== 'required' || counterpartyId !== null) &&
     (fields.productFamily !== 'required' || family !== null) &&
     (fields.bucket !== 'required' || bucketCode !== null) &&
-    (fields.horizon !== 'required' || validHorizon(horizonDays));
+    (fields.horizon !== 'required' || validHorizon(horizonDays)) &&
+    (!fields.vintage || validVintage(vintage));
   const submit = () =>
     request.mutate({
       body: {
@@ -94,6 +103,7 @@ export function RequestLimitModal({
           complianceYear: type === 'COMPLIANCE_SHORT' ? year : undefined,
           bucketCode: fields.bucket === 'hidden' ? undefined : (bucketCode ?? undefined),
           horizonDays: fields.horizon === 'hidden' ? undefined : Number(horizonDays),
+          productionYear: fields.vintage && vintage !== '' ? Number(vintage) : undefined,
         },
         amount: decimal(amount),
         currency: requestCurrency(fields.currency, currency, gooUnit),
@@ -173,6 +183,20 @@ export function RequestLimitModal({
             allowNegative={false}
             required
             data-testid="limit-horizon"
+          />
+        )}
+        {fields.vintage && (
+          <NumberInput
+            label={t('risk.vintage')}
+            description={t('risk.vintageHint')}
+            placeholder={t('risk.allVintages')}
+            value={vintage}
+            onChange={setVintage}
+            min={VINTAGE_YEARS.min}
+            max={VINTAGE_YEARS.max}
+            allowDecimal={false}
+            allowNegative={false}
+            data-testid="limit-vintage"
           />
         )}
         {fields.book && (

@@ -65,6 +65,7 @@ export function useScopeNames(entityId: string | undefined): ScopeNames {
       counterparty: (id: string) => counterparties.byId.get(id)?.name,
       book: (id: string) => books.byId.get(id)?.code,
       horizon: (days: number) => t('risk.horizonScope', { days }),
+      vintage: (year: number) => t('risk.vintageScope', { year }),
     }),
     [counterparties.byId, books.byId, t],
   );

@@ -16,6 +16,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   sell, the product view and the GoO limit measures are patched from what changed (about 0.3 s at 100 000 lots)
   instead of rebuilt. A pre-trade check after a change is now answered instead of reading "not checked".
 
+- **GoO limits by vintage:** concentration, expiry and basis limits can be narrowed to one production year, on the
+  limit form too.
+- **Sales checked against the basis limit:** a GoO sale is served from the cheapest free certificates that qualify,
+  and the premium it would hand over is checked against the entity's basis limits before capture (`GOO_BASIS`).
+
 ### Changed
 - **Preparing the portfolio figures:** a full build at 100 000 lots and 5 000 sales takes about 3 s instead of about
   28 s. Eligibility is computed once per criterion, the scarcity index only for plans, and the flow is compressed by

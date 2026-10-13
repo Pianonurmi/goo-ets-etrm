@@ -13,6 +13,7 @@ const names = {
   counterparty: (id: string) => (id === 'cp-1' ? 'Nordvind' : undefined),
   book: (id: string) => (id === 'b-1' ? 'DEMO-FI-TRD' : undefined),
   horizon: (days: number) => `expiring within ${days} days`,
+  vintage: (year: number) => `vintage ${year}`,
 };
 
 describe('limits', () => {
@@ -27,6 +28,9 @@ describe('limits', () => {
       'NORDIC_HYDRO · expiring within 90 days',
     );
     expect(scopeLabel({ horizonDays: 30 }, names)).toBe('expiring within 30 days');
+    expect(scopeLabel({ bucketCode: 'NORDIC_HYDRO', productionYear: 2025, horizonDays: 90 }, names)).toBe(
+      'NORDIC_HYDRO · vintage 2025 · expiring within 90 days',
+    );
   });
 
   it('gives the unit of each limit type', () => {
@@ -53,7 +57,13 @@ describe('limits', () => {
 
   it('scopes GoO limits to the whole entity, with a bucket and a horizon where they apply', () => {
     expect(LIMIT_TYPES).toEqual(expect.arrayContaining(['GOO_CONCENTRATION', 'GOO_EXPIRY', 'GOO_BASIS']));
-    expect(LIMIT_FIELDS.GOO_CONCENTRATION).toMatchObject({ bucket: 'required', horizon: 'hidden', book: false });
+    expect(LIMIT_FIELDS.GOO_CONCENTRATION).toMatchObject({
+      bucket: 'required',
+      horizon: 'hidden',
+      book: false,
+      vintage: true,
+    });
+    expect(LIMIT_FIELDS.CREDIT_EXPOSURE.vintage).toBe(false);
     expect(LIMIT_FIELDS.GOO_CONCENTRATION.currency).toBe('optional');
     expect(LIMIT_FIELDS.GOO_EXPIRY).toMatchObject({ bucket: 'optional', horizon: 'required', currency: 'hidden' });
     expect(LIMIT_FIELDS.GOO_BASIS).toMatchObject({ bucket: 'hidden', horizon: 'hidden', currency: 'optional' });

@@ -5491,6 +5491,10 @@
           "productFamily" : {
             "enum" : [ "GUARANTEE_OF_ORIGIN", "EMISSION_ALLOWANCE" ],
             "type" : [ "string", "null" ]
+          },
+          "productionYear" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
           }
         },
         "type" : "object"

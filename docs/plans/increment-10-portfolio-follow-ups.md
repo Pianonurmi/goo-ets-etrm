@@ -97,6 +97,29 @@ registries, one registry without outgoing routes, and future supply. At design s
     step.
   - `AllocationServiceIT` checks the patch against a fresh cache on the database.
 
+### M2: GoO limits by vintage, and sales against the basis limit (ADR 0040 amended)
+- **Vintage scope.** `LimitScope.productionYear` on any GoO limit:
+  - concentration and expiry count only that year's certificates;
+  - an EUR concentration uses that vintage's mark;
+  - basis counts only the sales marked at that vintage, from the new `giveAwayMwh` per sale.
+
+  It is stored in the JSON scope column (no migration) and is additive in `LimitBreached` and in the OpenAPI
+  document.
+- **Purchases.** A limit with a vintage counts only the purchase's deliveries marked at it. Allocation reads the
+  vintage from the criteria (`GooRiskQuery.vintages`).
+- **Sales.** `GooRiskQuery.projectSale` serves a GoO sale from the free certificates, cheapest first, and returns the
+  premium per delivery. Risk adds it to each basis limit, giving `GOO_BASIS`: risk approval over the limit, a warning
+  past the warning level, and INFO "not checked" while the figures are prepared.
+- **Web and demo.**
+  - The limit form has a **Vintage** field for GoO limits, and the scope column shows *vintage 2025*.
+  - The demo adds an expiry limit on last year's vintage.
+- **Tests:**
+  - `RiskServiceIT` covers the scope rules, a vintage measure, the event JSON, purchases by vintage, and sale findings
+    including "not checked".
+  - `AllocationServiceIT` checks concentration by vintage and a projected sale: wind first, then hydro with 1.50
+    EUR/MWh of premium.
+  - The risk journey requests a vintage-scoped limit.
+
 ## Conventions that apply
 
 - **Module boundaries.** Allocation must not depend on risk, valuation or reporting. Risk reaches allocation through

@@ -19,10 +19,12 @@ import com.pianonurmi.etrm.allocation.application.AllocationHeadroomSettings
 import com.pianonurmi.etrm.allocation.application.AllocationService
 import com.pianonurmi.etrm.allocation.application.FutureSupplyProvider
 import com.pianonurmi.etrm.allocation.application.FutureSupplyService
+import com.pianonurmi.etrm.allocation.application.GooRiskService
 import com.pianonurmi.etrm.allocation.application.HeadroomService
 import com.pianonurmi.etrm.allocation.application.ObligationService
 import com.pianonurmi.etrm.allocation.application.PortfolioFlowCache
 import com.pianonurmi.etrm.allocation.application.PortfolioService
+import com.pianonurmi.etrm.allocation.application.PortfolioValueService
 import com.pianonurmi.etrm.allocation.application.PreparedFlow
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
@@ -84,10 +86,13 @@ import com.pianonurmi.etrm.trade.adapter.jooq.JooqTradeRepository
 import com.pianonurmi.etrm.trade.api.DeliveryObligationChanged
 import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
 import com.pianonurmi.etrm.trade.api.DeliveryObligationView
+import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
+import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -128,6 +133,7 @@ class AllocationServiceIT {
     private val purchases = mutableListOf<DeliveryObligationView>()
     private lateinit var portfolio: PortfolioService
     private lateinit var flows: PortfolioFlowCache
+    private lateinit var gooRisk: GooRiskService
     private lateinit var newFlows: () -> PortfolioFlowCache
     private lateinit var referenceData: ReferenceDataService
     private lateinit var entityId: UUID
@@ -206,6 +212,15 @@ class AllocationServiceIT {
             )
         }
         flows = newFlows()
+        gooRisk = GooRiskService(
+            flows,
+            problemBuilder,
+            buckets,
+            criteria,
+            GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) },
+            PortfolioValueService(flows, planRepository, actor, clock),
+            clock,
+        )
         headroom = HeadroomService(flows, problemBuilder, buckets, criteria, actor, clock)
         futureView = FutureSupplyService(flows, actor, clock)
         portfolio = PortfolioService(flows, problemBuilder, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
@@ -369,6 +384,49 @@ class AllocationServiceIT {
             it.headroomMwh.toSet() shouldBe setOf(1_900L)
         }
         table.rows.filter { it.bucketCode == "NORDIC_HYDRO" }.single().headroomMwh.toSet() shouldBe setOf(700L)
+    }
+
+    @Test
+    fun `GoO risk measures one vintage and projects the give-away of a sale on the free certificates, cheapest first`() {
+        val holder = referenceData.createLegalEntity(CreateLegalEntity("BASIS-CO", "Basis Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        val account = referenceData.createRegistryAccount(
+            CreateRegistryAccount("SIMULATOR", "SIM-BASIS", "Basis account", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, holder),
+        ).id
+        receive("643000000000000016", "BS-H-1", 1_000, holder = holder, account = account)
+        receive("643000000000000023", "BS-W-1", 1_000, holder = holder, account = account)
+
+        gooRisk.concentration(holder, "NORDIC_HYDRO", 2026)!!.freeMwh shouldBe 1_000
+        gooRisk.concentration(holder, "NORDIC_HYDRO", 2025)!!.freeMwh shouldBe 0
+        gooRisk.unusedExpiringMwh(holder, 730, productionYear = 2026) shouldBe 2_000
+
+        // 1 500 MWh of EU renewable (0.50): the wind (worth 0.50) first, then 500 of hydro worth 2.00 hand over 1.50 each.
+        val delivery = mockk<DeliveryScheduleView> {
+            every { id } returns UUID.randomUUID()
+            every { scheduleNo } returns 1
+            every { deliveryDate } returns LocalDate.of(2026, 12, 15)
+            every { remainingQuantity } returns BigDecimal(1_500)
+        }
+        val leg = mockk<TradeLegView> {
+            every { legNo } returns 1
+            every { side } returns Side.SELL
+            every { criterion } returns Criterion.energySource("RENEWABLE")
+            every { bucketCode } returns "EU_RENEWABLE"
+            every { counterpartyAccountRef } returns "SIMULATOR:SIM-CP-BASIS"
+            every { deliveries } returns listOf(delivery)
+        }
+        val trade = mockk<TradeView> {
+            every { productFamily } returns ProductFamily.GUARANTEE_OF_ORIGIN
+            every { legalEntityId } returns holder
+            every { legs } returns listOf(leg)
+        }
+        gooRisk.vintages(trade) shouldBe mapOf(delivery.id to 2026)
+        flows.prepare(holder)
+        gooRisk.projectSale(trade).shouldNotBeNull().deliveries.single().let {
+            it.coveredMwh shouldBe 1_500
+            it.giveAwayMwh shouldBe 500
+            it.giveAwayEur shouldBe BigDecimal("750.00")
+            it.vintageYear shouldBe 2026
+        }
     }
 
     private fun freeByKey(prepared: PreparedFlow): Map<String, Long> =

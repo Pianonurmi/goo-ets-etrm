@@ -1,8 +1,10 @@
 package com.pianonurmi.etrm.risk
 
+import com.pianonurmi.etrm.allocation.api.DeliveryGiveAway
 import com.pianonurmi.etrm.allocation.api.GooBasis
 import com.pianonurmi.etrm.allocation.api.GooConcentration
 import com.pianonurmi.etrm.allocation.api.GooRiskQuery
+import com.pianonurmi.etrm.allocation.api.SaleProjection
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.json.Json
@@ -373,8 +375,85 @@ class RiskServiceIT {
         }
     }
 
+    @Test
+    fun `GoO limits by vintage count one production year, and sales are checked against the basis limit`() {
+        var markedAt = 2025
+        var ready = true
+        val goo = mockk<GooRiskQuery> {
+            every { concentration(entity, "NORDIC_HYDRO", 2025) } returns GooConcentration("NORDIC_HYDRO", 400, BigDecimal("1.50"))
+            every { basis(entity, null) } returns GooBasis(300, BigDecimal("450.00"))
+            every { basis(entity, 2025) } returns GooBasis(100, BigDecimal("150.00"))
+            every { vintages(any()) } answers { firstArg<TradeView>().legs.flatMap { it.deliveries }.associate { it.id to markedAt } }
+            every { projectSale(any()) } answers {
+                val delivery = firstArg<TradeView>().legs.single().deliveries.single()
+                val premium = DeliveryGiveAway(delivery.id, delivery.deliveryDate, markedAt, "EU_RENEWABLE", 200, 200, 200, BigDecimal("700.00"))
+                if (!ready) null else SaleProjection(listOf(premium))
+            }
+        }
+        val buckets = mockk<ProductBucketQuery> {
+            every { buckets(true) } returns listOf(mockk { every { code } returns "NORDIC_HYDRO" })
+        }
+        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, buckets)
+
+        fun approved(request: RequestLimit) = gooRisk.approveLimit(gooRisk.requestLimit(request).id, "risk2")
+
+        // A vintage scopes GoO limits only, and is a plausible year.
+        shouldThrow<ValidationException> {
+            gooRisk.requestLimit(
+                RequestLimit(
+                    entity,
+                    LimitType.POSITION_NET,
+                    LimitScope(productFamily = ProductFamily.GUARANTEE_OF_ORIGIN, productionYear = 2025),
+                    BigDecimal(10),
+                    reason = "x",
+                ),
+            )
+        }
+        shouldThrow<ValidationException> {
+            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(productionYear = 1990), BigDecimal(10), reason = "x"))
+        }
+
+        val vintage = approved(
+            RequestLimit(
+                entity,
+                LimitType.GOO_CONCENTRATION,
+                LimitScope(bucketCode = "NORDIC_HYDRO", productionYear = 2025),
+                BigDecimal(300),
+                reason = "hydro 2025",
+            ),
+        )
+        gooRisk.evaluate(vintage).let {
+            it.value.compareTo(BigDecimal(400)) shouldBe 0
+            it.status shouldBe UtilisationStatus.BREACH
+            it.detail shouldContain "vintage 2025"
+        }
+        // The vintage travels in the LimitBreached JSON (ADR 0029), additive.
+        Json.mapper.writeValueAsString(published.filterIsInstance<LimitBreached>().single { it.limit.id == vintage.id }) shouldContain "\"productionYear\":2025"
+
+        // A purchase counts against a vintage limit only when its deliveries are marked at that vintage.
+        gooRisk.preTradeFindings(gooTrade(Side.BUY, "NORDIC_HYDRO", 200)).filter { it.code == "GOO_CONCENTRATION" }.map { it.severity } shouldContain
+            FindingSeverity.REQUIRES_RISK_APPROVAL
+        markedAt = 2026
+        gooRisk.preTradeFindings(gooTrade(Side.BUY, "NORDIC_HYDRO", 200)).map { it.code } shouldNotContain "GOO_CONCENTRATION"
+        markedAt = 2025
+
+        // A sale that would hand over 700 EUR of premium: 450 + 700 is over the entity's 1 000, 150 + 700 is a warning for 2025.
+        val basis = approved(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis"))
+        val basis2025 =
+            approved(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(productionYear = 2025), BigDecimal(1000), currency = "EUR", reason = "basis 2025"))
+        gooRisk.evaluate(basis)
+        gooRisk.evaluate(basis2025).value.compareTo(BigDecimal("150")) shouldBe 0
+        val sale = gooTrade(Side.SELL, "EU_RENEWABLE", 200)
+        gooRisk.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity }.toSet() shouldBe
+            setOf(FindingSeverity.REQUIRES_RISK_APPROVAL, FindingSeverity.WARN)
+        // While the figures are being prepared the check says so, and does not block.
+        ready = false
+        gooRisk.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity } shouldBe listOf(FindingSeverity.INFO)
+    }
+
     private fun gooTrade(side: Side, bucket: String, quantity: Int): TradeView {
         val schedule = mockk<DeliveryScheduleView> {
+            every { id } returns UUID.randomUUID()
             every { this@mockk.quantity } returns BigDecimal(quantity)
             every { deliveredQuantity } returns BigDecimal.ZERO
             every { remainingQuantity } returns BigDecimal(quantity)
@@ -391,6 +470,7 @@ class RiskServiceIT {
         }
         return mockk {
             every { id } returns UUID.randomUUID()
+            every { tradeNumber } returns "T-GOO"
             every { legalEntityId } returns entity
             every { bookId } returns book
             every { counterpartyId } returns counterparty

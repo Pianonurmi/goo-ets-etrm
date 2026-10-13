@@ -51,6 +51,8 @@ data class LimitScope(
     val bucketCode: String? = null,
     /** GoO expiry: certificates expiring within this many days. */
     val horizonDays: Int? = null,
+    /** GoO limits: one vintage only (certificates produced in that year, sales marked at it). */
+    val productionYear: Int? = null,
 )
 
 enum class LimitStatus { PENDING_APPROVAL, ACTIVE, REJECTED, RETIRED }

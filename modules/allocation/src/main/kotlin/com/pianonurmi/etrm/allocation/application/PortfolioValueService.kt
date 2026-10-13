@@ -73,6 +73,7 @@ class PortfolioValueService(
                 saleMarkEur = saleMark?.setScale(PRICE, RoundingMode.HALF_UP),
                 giveAwayEur = saleMark?.let { money(mine.sumOf { (it.score.giveAwayPerMwh ?: BigDecimal.ZERO) * BigDecimal(it.quantityMwh) }) },
                 transferFeesEur = money(mine.sumOf { it.score.transferCost * BigDecimal(it.quantityMwh) }),
+                giveAwayMwh = mine.filter { (it.score.giveAwayPerMwh ?: BigDecimal.ZERO).signum() > 0 }.sumOf { it.quantityMwh },
             )
         }
 

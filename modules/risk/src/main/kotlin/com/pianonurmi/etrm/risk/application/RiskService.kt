@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.risk.application
 
 import com.pianonurmi.etrm.allocation.api.GooRiskQuery
+import com.pianonurmi.etrm.allocation.api.SaleProjection
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingQuery
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotQuery
@@ -278,6 +279,10 @@ class RiskService(
             }
             LimitType.GOO_BASIS -> requireEurOrMwh(command)
         }
+        command.scope.productionYear?.let { year ->
+            if (command.type !in GOO_LIMITS) throw ValidationException("Only GoO limits are set per vintage")
+            if (year !in MIN_VINTAGE..MAX_VINTAGE) throw ValidationException("The vintage is a year from $MIN_VINTAGE to $MAX_VINTAGE")
+        }
         if (command.type in GOO_LIMITS && command.scope.bookId != null) {
             // Certificates serve obligations across books: the flow nets the whole entity, it cannot be split by book.
             throw ValidationException("GoO limits apply to the whole legal entity, not to a book")
@@ -326,34 +331,36 @@ class RiskService(
         val query = goo?.ifAvailable ?: return BigDecimal.ZERO to "GoO measures are not available"
         val entity = limit.legalEntityId!!
         val inEur = limit.currency == EUR
+        val year = limit.scope.productionYear
+        val vintage = year?.let { " (vintage $it)" }.orEmpty()
         return try {
             savepoints.attempt {
                 when (limit.type) {
                     LimitType.GOO_CONCENTRATION -> {
                         val code = limit.scope.bucketCode!!
-                        val measured = query.concentration(entity, code) ?: return@attempt BigDecimal.ZERO to "no active bucket $code"
+                        val measured = query.concentration(entity, code, year) ?: return@attempt BigDecimal.ZERO to "no active bucket $code"
                         if (inEur) {
-                            (measured.valueEur ?: BigDecimal.ZERO) to "${measured.freeMwh} MWh of $code free" + (
+                            (measured.valueEur ?: BigDecimal.ZERO) to "${measured.freeMwh} MWh of $code$vintage free" + (
                                 measured.markEur?.let {
                                     " at $it EUR"
                                 } ?: ", no mark"
                             )
                         } else {
-                            BigDecimal(measured.freeMwh) to "$code certificates no obligation uses"
+                            BigDecimal(measured.freeMwh) to "$code$vintage certificates no obligation uses"
                         }
                     }
                     LimitType.GOO_EXPIRY -> {
                         val days = limit.scope.horizonDays!!
-                        BigDecimal(query.unusedExpiringMwh(entity, days, limit.scope.bucketCode)) to "unused, expiring within $days days"
+                        BigDecimal(query.unusedExpiringMwh(entity, days, limit.scope.bucketCode, year)) to "unused$vintage, expiring within $days days"
                     }
                     else -> {
-                        val basis = query.basis(entity) ?: return@attempt BigDecimal.ZERO to "the allocation cannot be solved here"
+                        val basis = query.basis(entity, year) ?: return@attempt BigDecimal.ZERO to "the allocation cannot be solved here"
                         if (inEur) {
-                            basis.giveAwayEur to "${basis.mwh} MWh delivered above their product"
+                            basis.giveAwayEur to "${basis.mwh} MWh$vintage delivered above their product"
                         } else {
                             BigDecimal(
                                 basis.mwh,
-                            ) to "give-away ${basis.giveAwayEur} EUR"
+                            ) to "give-away$vintage ${basis.giveAwayEur} EUR"
                         }
                     }
                 }
@@ -525,6 +532,7 @@ class RiskService(
             limits.filter { it.type == LimitType.TENOR_MAX_MONTHS && inScope(trade, it.scope) }.mapNotNull { tenorFinding(trade, it, today) } +
             limits.filter { it.type == LimitType.GOO_CONCENTRATION && trade.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN }
                 .mapNotNull { concentrationFinding(trade, it) } +
+            basisFindings(trade, limits.filter { it.type == LimitType.GOO_BASIS }) +
             limits.filter { (it.type == LimitType.STOP_LOSS_MTD && inScope(trade, it.scope)) || it.type == LimitType.COMPLIANCE_SHORT || it.type in GOO_LIMITS }
                 .filter { repository.utilisation(it.id)?.status == UtilisationStatus.BREACH && relevant(trade, it) }
                 .map { ApprovalFinding("LIMIT_IN_BREACH", FindingSeverity.WARN, "${it.type} limit ${it.id} is in breach") }
@@ -548,17 +556,64 @@ class RiskService(
     }
 
     /**
+     * A GoO sale would hand over the premium of the certificates it takes (ADR 0040, increment 10): the deliveries are
+     * projected on the entity's free certificates, cheapest first, and the give-away added to each basis limit's last
+     * measure (only deliveries of the limit's vintage when it has one). While the figures are being prepared the check
+     * says so and never blocks.
+     */
+    private fun basisFindings(trade: TradeView, limits: List<RiskLimitView>): List<ApprovalFinding> {
+        if (limits.isEmpty() || trade.productFamily != ProductFamily.GUARANTEE_OF_ORIGIN || trade.legs.none { it.side == Side.SELL }) return emptyList()
+        val projection = projectSale(trade)
+            ?: return listOf(ApprovalFinding("GOO_BASIS", FindingSeverity.INFO, "Give-away not checked: the figures for this entity are being prepared"))
+        return limits.mapNotNull { basisFinding(it, projection) }
+    }
+
+    /** Null while allocation prepares the figures; empty when allocation is not there or the projection fails. */
+    private fun projectSale(trade: TradeView): SaleProjection? {
+        val query = goo?.ifAvailable ?: return SaleProjection(emptyList())
+        return try {
+            savepoints.attempt { query.projectSale(trade) }
+        } catch (e: RuntimeException) {
+            log.warn("GoO basis of trade {} could not be projected", trade.tradeNumber, e)
+            SaleProjection(emptyList())
+        }
+    }
+
+    private fun basisFinding(limit: RiskLimitView, projection: SaleProjection): ApprovalFinding? {
+        val deliveries = projection.deliveries.filter { limit.scope.productionYear == null || it.vintageYear == limit.scope.productionYear }
+        val added = if (limit.currency == EUR) {
+            deliveries.mapNotNull { it.giveAwayEur }.fold(BigDecimal.ZERO, BigDecimal::add)
+        } else {
+            BigDecimal(deliveries.sumOf { it.giveAwayMwh })
+        }
+        if (added.signum() <= 0) return null
+        val projected = (repository.utilisation(limit.id)?.value ?: BigDecimal.ZERO) + added
+        val unit = if (limit.currency == EUR) "EUR" else "MWh"
+        val vintage = limit.scope.productionYear?.let { " (vintage $it)" }.orEmpty()
+        val text = "the sale would hand over ${added.setScale(0, RoundingMode.HALF_UP)} $unit$vintage of premium; give-away would be " +
+            "${projected.setScale(0, RoundingMode.HALF_UP)} of ${limit.amount}"
+        return when {
+            projected > limit.amount -> ApprovalFinding("GOO_BASIS", FindingSeverity.REQUIRES_RISK_APPROVAL, "Over the limit: $text")
+            projected * BigDecimal(PERCENT) >= limit.amount * BigDecimal(limit.warningPct) -> ApprovalFinding("GOO_BASIS", FindingSeverity.WARN, text)
+            else -> null
+        }
+    }
+
+    /**
      * A GoO purchase of the limit's bucket adds to its free certificates once delivered; a sale does not add to it.
-     * Projected on the last measured value, in MWh (or at the bucket's mark for a limit in EUR).
+     * With a vintage, only its deliveries marked at it count. Projected on the last measured value, in MWh (or at the bucket's mark for a limit in EUR).
      */
     private fun concentrationFinding(trade: TradeView, limit: RiskLimitView): ApprovalFinding? {
+        val year = limit.scope.productionYear
+        // A limit on one vintage counts only the deliveries marked at it.
+        val vintages = if (year == null) emptyMap() else goo?.ifAvailable?.let { q -> runCatching { q.vintages(trade) }.getOrNull() } ?: return null
         val bought = trade.legs.filter { it.side == Side.BUY && it.bucketCode == limit.scope.bucketCode }
-            .sumOf { leg -> leg.deliveries.sumOf { it.quantity - it.deliveredQuantity } }
+            .sumOf { leg -> leg.deliveries.filter { year == null || vintages[it.id] == year }.sumOf { it.quantity - it.deliveredQuantity } }
         if (bought.signum() <= 0) return null
         val current = repository.utilisation(limit.id)?.value ?: BigDecimal.ZERO
         val added = if (limit.currency == EUR) {
             val mark = goo?.ifAvailable?.let { q ->
-                runCatching { savepoints.attempt { q.concentration(limit.legalEntityId!!, limit.scope.bucketCode!!) } }.getOrNull()
+                runCatching { savepoints.attempt { q.concentration(limit.legalEntityId!!, limit.scope.bucketCode!!, year) } }.getOrNull()
             }?.markEur
                 ?: return null
             bought * mark
@@ -690,6 +745,8 @@ class RiskService(
         const val PERCENT = 100
         const val EUR = "EUR"
         const val MAX_HORIZON_DAYS = 730
+        const val MIN_VINTAGE = 2000
+        const val MAX_VINTAGE = 2100
         val GOO_LIMITS = setOf(LimitType.GOO_CONCENTRATION, LimitType.GOO_EXPIRY, LimitType.GOO_BASIS)
     }
 }

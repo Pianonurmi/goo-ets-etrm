@@ -47,10 +47,30 @@ Three limit types, each on one legal entity as a whole:
   against.
 - **Basis is a desk choice:** a book that keeps selling generic with specific certificates shows a growing basis
   figure, so that choice becomes a limit.
-- **Concentration is all vintages together.** A limit on one vintage, or on future supply (ADR 0038), is not built;
-  the scope can grow.
+- **Vintages:** concentration was all vintages together when this ADR was written. Increment 10 added a vintage
+  scope (see the amendment below). A limit on future supply (ADR 0038) is still not built.
 - **Measured only as often as limits are:** on the events and schedule of ADR 0022. The figures are those of the
   prepared flow at that moment.
 - **Known issue, pre-existing:** measurements triggered by another person's event (a back office delivery, say) run
   as that person. Valuation's role check can refuse them, and the limit keeps its last figure until the next
   scheduled or explicit measurement.
+
+## Amendment (increment 10): vintages and sales
+- **Vintage scope.** `LimitScope.productionYear` narrows any GoO limit to one vintage:
+  - concentration and expiry count certificates produced in that year, and an EUR concentration uses that vintage's
+    mark;
+  - basis counts the sales marked at it (`ObligationDeliveryValue.giveAwayMwh` carries the MWh per sale).
+
+  The scope is stored in the existing JSON column (no migration) and travels additively in `LimitBreached`.
+- **Purchases by vintage.** For a limit with a vintage, a purchase counts only its deliveries marked at that vintage.
+  Allocation reads the vintage from the delivery's criteria (`GooRiskQuery.vintages`, the rule obligations use), so
+  risk does not bind criteria itself.
+- **Sales against the basis limit.** `GooRiskQuery.projectSale` serves the sale's deliveries from the entity's free
+  certificates, cheapest first, on the prepared held figures. The premium over the sale's own mark is its projected
+  give-away. Added to a basis limit's last measure, it gives `GOO_BASIS`:
+  - REQUIRES_RISK_APPROVAL over the limit;
+  - WARN past the warning level;
+  - INFO "not checked" while the figures are being prepared, which never blocks.
+
+  A projection from free certificates is an upper bound: an allocation that reroutes existing sales could hand over
+  less.

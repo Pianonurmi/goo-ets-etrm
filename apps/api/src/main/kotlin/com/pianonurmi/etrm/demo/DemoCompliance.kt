@@ -47,7 +47,8 @@ class DemoCompliance(private val api: DemoClient, private val calendar: DemoCale
 
     /**
      * GoO limits (ADR 0040) on the book as it stands at the end of the seed: a Nordic hydro concentration limit set
-     * just above today's free certificates, so it shows in warning; an expiry limit; a basis limit in EUR.
+     * just above today's free certificates, so it shows in warning; an expiry limit; a basis limit in EUR; and an
+     * expiry limit on last year's vintage alone (increment 10).
      */
     fun gooLimits(entity: DemoEntity) {
         @Suppress("UNCHECKED_CAST")
@@ -71,6 +72,10 @@ class DemoCompliance(private val api: DemoClient, private val calendar: DemoCale
         approvedLimit(
             """{"legalEntityId":"${entity.id}","type":"GOO_BASIS","scope":{},"amount":5000,"currency":"EUR",
                "reason":"Give-away on generic sales"}""",
+        )
+        approvedLimit(
+            """{"legalEntityId":"${entity.id}","type":"GOO_EXPIRY","scope":{"horizonDays":180,"productionYear":${calendar.today.year - 1}},
+               "amount":2000,"reason":"Last year's vintage expiring unsold within half a year"}""",
         )
         api.post(DemoUser.RISK, "/api/v1/risk/measure?legalEntityId=${entity.id}")
     }

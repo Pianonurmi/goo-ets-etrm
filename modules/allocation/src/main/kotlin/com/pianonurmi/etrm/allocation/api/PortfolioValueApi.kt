@@ -66,6 +66,8 @@ data class ObligationDeliveryValue(
     val saleMarkEur: BigDecimal?,
     val giveAwayEur: BigDecimal?,
     val transferFeesEur: BigDecimal,
+    /** MWh delivered with certificates worth more than the sale's own product (0 in values kept before it was added). */
+    val giveAwayMwh: Long = 0,
 )
 
 /** Give-away handed over by plans approved in a period: the realised side of the give-away above. */
