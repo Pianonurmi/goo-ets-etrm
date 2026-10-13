@@ -84,7 +84,7 @@ Open `http://<vm-ip>/` (or `http://<vm-ip>:<ETRM_HTTP_PORT>/`) from any machine 
 - **Plain HTTP.** The password travels unencrypted. That is fine inside your own network, but do not forward the port
   to the internet that way. For outside access use the [VPS guide](vps.md): a domain in `ETRM_SITE_ADDRESS` turns on
   HTTPS with Let's Encrypt (it needs ports 80 and 443 reachable from the internet).
-- **Update:** to stay on a release, set `ETRM_IMAGE=ghcr.io/pianonurmi/goo-ets-etrm:0.9.0` (or `:0.9` for its patch
+- **Update:** to stay on a release, set `ETRM_IMAGE=ghcr.io/pianonurmi/goo-ets-etrm:0.10.0` (or `:0.10` for its patch
   releases) in `.env`; see [releases](../operations/releases.md) for the tags. Then
   `docker compose pull app && docker compose up -d app` with the registry image; with a self-built image,
   build again and `docker compose up -d --pull never`.

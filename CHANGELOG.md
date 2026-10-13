@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-13
+
+Portfolio follow-ups (increment 10).
+
 ### Added
 - **Release workflow:** releases a version from GitHub's Actions tab without a clone: it checks the version, tags
   the commit and runs CI for it, which publishes the image tags and the GitHub release.
@@ -15,12 +19,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - **Portfolio figures patched in place (ADR 0043):** after a change to an entity's lots or obligations, available to
   sell, the product view and the GoO limit measures are patched from what changed (about 0.3 s at 100 000 lots)
   instead of rebuilt. A pre-trade check after a change is now answered instead of reading "not checked".
-
 - **GoO limits by vintage:** concentration, expiry and basis limits can be narrowed to one production year, on the
   limit form too.
 - **Sales checked against the basis limit:** a GoO sale is served from the cheapest free certificates that qualify,
   and the premium it would hand over is checked against the entity's basis limits before capture (`GOO_BASIS`).
-
 - **GoO give-away report** (`GOO_GIVE_AWAY`): every sale of the plans approved in a period with its delivered value,
   its product's mark and the give-away, logged like every report.
 
@@ -157,5 +159,6 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.10.0
 [0.9.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.9.0

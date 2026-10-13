@@ -55,7 +55,7 @@ gate pass (`ops/release/image-tags.sh`):
 ## Updating a deployment
 
 - **Docker Compose** (`ops/demo`, [VPS](../deploy/vps.md), [homelab](../deploy/homelab.md)):
-  1. Set `ETRM_IMAGE=ghcr.io/pianonurmi/goo-ets-etrm:0.9.0` (or `:0.9`) in `.env`.
+  1. Set `ETRM_IMAGE=ghcr.io/pianonurmi/goo-ets-etrm:0.10.0` (or `:0.10`) in `.env`.
   2. Run `docker compose pull app && docker compose up -d app`.
   3. To roll back, set the previous version and restore the database backup taken before the upgrade.
 - **Helm** ([Kubernetes](kubernetes.md)):
