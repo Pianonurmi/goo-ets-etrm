@@ -7328,6 +7328,30 @@
         "required" : [ "criterion", "deliveryDate", "deliveryWindow", "holderEntityId", "kind", "quantityMwh" ],
         "type" : "object"
       },
+      "OptionExpiryView" : {
+        "properties" : {
+          "decidedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "futureTradeId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "futureTradeNumber" : {
+            "type" : [ "string", "null" ]
+          },
+          "outcome" : {
+            "enum" : [ "EXERCISED", "ABANDONED" ],
+            "type" : "string"
+          },
+          "settlementPrice" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "decidedOn", "outcome", "settlementPrice" ],
+        "type" : "object"
+      },
       "OptionTerms" : {
         "properties" : {
           "expiryDate" : {
@@ -10860,6 +10884,13 @@
           "energyCarrier" : {
             "enum" : [ "ELECTRICITY", "GAS", "HYDROGEN", "HEAT_COOLING" ],
             "type" : [ "string", "null" ]
+          },
+          "expiry" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/OptionExpiryView"
+            }, {
+              "type" : "null"
+            } ]
           },
           "futuresContractCode" : {
             "type" : [ "string", "null" ]

@@ -25,6 +25,9 @@ interface TradeRepository {
 
     fun list(filter: TradeFilter): List<TradeView>
 
+    /** Confirmed trades with an option leg expiring on or before [date] (ADR 0047). */
+    fun optionsExpiringBy(date: LocalDate): List<UUID>
+
     /** Blotter rows in one query, keyset-paged on trade date and trade number. */
     fun search(search: TradeSearch): TradePage
 

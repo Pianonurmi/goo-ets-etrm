@@ -56,6 +56,7 @@ import com.pianonurmi.etrm.settlement.api.SettlementReports
 import com.pianonurmi.etrm.trade.api.ApprovalFinding
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.FindingSeverity
+import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeApprovalCheck
@@ -64,6 +65,7 @@ import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
+import com.pianonurmi.etrm.valuation.api.OptionValuation
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
 import org.slf4j.LoggerFactory
@@ -466,8 +468,16 @@ class RiskService(
 
     private fun parentMap(): Map<UUID, UUID?> = referenceData.counterparties().associate { it.id to it.parentCounterpartyId }
 
-    /** Potential future exposure of a trade's remaining deliveries, in [currency]. */
+    /** Potential future exposure of a trade's remaining deliveries (an option's delta-equivalent), in [currency]. */
     private fun pfe(trade: TradeView, addOns: List<PfeAddOnView>, currency: String, today: LocalDate): BigDecimal = trade.legs.sumOf { leg ->
+        leg.option?.let { terms ->
+            val greeks = optionValuation(trade, leg, today) ?: return@sumOf BigDecimal.ZERO
+            val notional = convert((leg.quantity * greeks.delta * greeks.underlyingPrice).abs(), leg.priceCurrency.currencyCode, currency, today)
+            return@sumOf PotentialFutureExposure.addOn(
+                notional,
+                PotentialFutureExposure.pct(addOns, trade.productFamily, Tenor.months(today, terms.expiryDate)),
+            )
+        }
         leg.deliveries.filter { it.remainingQuantity.signum() > 0 }.sumOf { schedule ->
             val price = unitPrice(trade, leg, schedule, today) ?: return@sumOf BigDecimal.ZERO
             val notional = convert(schedule.remainingQuantity * price, leg.priceCurrency.currencyCode, currency, today)
@@ -497,10 +507,29 @@ class RiskService(
     private fun legsInScope(trade: TradeView, scope: LimitScope): List<TradeLegView> =
         trade.legs.filter { scope.allowanceProductCode == null || it.allowanceProductCode == scope.allowanceProductCode }
 
-    /** Signed quantity still to deliver: purchases positive, sales negative. */
+    /**
+     * Signed quantity still to deliver: purchases positive, sales negative. An option leg counts its delta-equivalent
+     * (ADR 0047): quantity × delta, the full quantity when it cannot be valued, nothing once decided at expiry.
+     */
     private fun netDeliveries(trade: TradeView, scope: LimitScope): BigDecimal = legsInScope(trade, scope).sumOf { leg ->
-        leg.deliveries.sumOf { it.remainingQuantity }.let { if (leg.side == Side.BUY) it else it.negate() }
+        val quantity = when {
+            leg.option == null -> leg.deliveries.sumOf { it.remainingQuantity }
+            leg.expiry != null -> BigDecimal.ZERO
+            else -> deltaEquivalent(trade, leg)
+        }
+        if (leg.side == Side.BUY) quantity else quantity.negate()
     }
+
+    /** A call's tonnes times its delta (a put's delta is negative); without a value, the full quantity. */
+    private fun deltaEquivalent(trade: TradeView, leg: TradeLegView): BigDecimal {
+        val delta = optionValuation(trade, leg, LocalDate.now(clock))?.delta
+            ?: if (leg.option!!.optionType == OptionType.CALL) BigDecimal.ONE else BigDecimal.ONE.negate()
+        return leg.quantity * delta
+    }
+
+    /** Valued in a savepoint: a missing price or a role the valuation refuses must not fail the measuring transaction. */
+    private fun optionValuation(trade: TradeView, leg: TradeLegView, today: LocalDate): OptionValuation? =
+        runCatching { savepoints.attempt { valuations.optionValuation(trade.legalEntityId, today, leg) } }.getOrNull()
 
     /** Net position: open trades plus inventory on accounts that belong to the book (or to the entity, without a book). */
     private fun positionNet(legalEntityId: UUID, scope: LimitScope, exclude: UUID?): BigDecimal {
@@ -519,8 +548,12 @@ class RiskService(
     }
 
     private fun maxTenor(trades: List<TradeView>, scope: LimitScope, today: LocalDate): Long = trades.flatMap { legsInScope(it, scope) }
-        .flatMap { leg -> leg.deliveries.filter { it.remainingQuantity.signum() > 0 } }
-        .maxOfOrNull { Tenor.months(today, it.deliveryDate) } ?: 0
+        .flatMap { leg ->
+            // An option runs to its expiry; exercise creates the future, which has its own delivery.
+            leg.option?.takeIf { leg.expiry == null }?.let { listOf(it.expiryDate) }
+                ?: leg.deliveries.filter { it.remainingQuantity.signum() > 0 }.map { it.deliveryDate }
+        }
+        .maxOfOrNull { Tenor.months(today, it) } ?: 0
 
     /** Loss of MtM since the end of last month (in the book, if the limit names one), in the limit's currency. */
     private fun stopLoss(limit: RiskLimitView, today: LocalDate): Pair<BigDecimal, String?> {

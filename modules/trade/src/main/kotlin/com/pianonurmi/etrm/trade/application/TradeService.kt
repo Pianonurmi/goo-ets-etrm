@@ -33,6 +33,8 @@ import com.pianonurmi.etrm.trade.api.DeliveryObligationView
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
+import com.pianonurmi.etrm.trade.api.OptionExpired
+import com.pianonurmi.etrm.trade.api.OptionExpiryView
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
@@ -523,6 +525,28 @@ class TradeService(
         return next
     }
 
+    /**
+     * Captures, approves and confirms a trade the system makes on another's behalf: the future an option is exercised
+     * into (ADR 0047). No pre-trade checks or approval: the exercise is not a decision.
+     */
+    fun captureConfirmed(command: CaptureTrade, reason: String, confirmationRef: String): TradeView {
+        val trade = build(command, SYSTEM_USER)
+        repository.insert(trade, SYSTEM_USER, reason)
+        val approved = TradeAggregate(trade).submitForApproval(requiresApproval = false)
+        repository.saveVersion(approved, SYSTEM_USER, "approved: $reason")
+        events.publishEvent(TradeCaptured(approved))
+        openObligationsIfDue(approved)
+        return confirmAs(approved.id, ConfirmTrade(confirmationRef, "SYSTEM", clock.instant()), SYSTEM_USER)
+    }
+
+    /** Records an option leg's outcome at expiry; the trade closes once every leg is decided. */
+    fun recordExpiry(tradeId: UUID, legNo: Int, expiry: OptionExpiryView, future: TradeView?): TradeView {
+        val next = TradeAggregate(locked(tradeId)).expire(legNo, expiry)
+        save(next, SYSTEM_USER, "leg $legNo ${expiry.outcome.name.lowercase()} at ${expiry.settlementPrice.toPlainString()}")
+        events.publishEvent(OptionExpired(next, legNo, expiry, future))
+        return next
+    }
+
     override fun markSettled(tradeId: UUID): TradeView {
         val next = TradeAggregate(locked(tradeId)).markSettled()
         save(next, actorProvider.current().userId, "settled")
@@ -636,5 +660,6 @@ class TradeService(
 
     private companion object {
         const val UTI_LENGTH = 52
+        const val SYSTEM_USER = "system"
     }
 }

@@ -25,6 +25,7 @@ import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.valuation.api.RunStatus
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
+import com.pianonurmi.etrm.valuation.api.ValuationResultView
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -115,6 +116,33 @@ class ReportCatalogue(
                     "status" to it.status,
                 )
             }
+        },
+        Definition(
+            "OPTION_GREEKS",
+            "Option greeks",
+            "Options of the official valuation by underlying future and expiry: delta in tonnes, gamma, and vega per volatility point (ADR 0047)",
+            RISK + FINANCE,
+            listOf(ENTITY, DATE),
+            listOf("underlyingContractCode", "expiryDate", "quantity", "deltaTonnes", "gamma", "vega", "mtm", "currency"),
+        ) { p ->
+            val run = valuations.official(p.uuid("legalEntityId"), p.date("date", today()), orEarlier = true)
+            run?.let { valuations.results(it.id) }.orEmpty()
+                .filter { it.option != null }
+                .groupBy { Triple(it.option!!.underlyingContractCode, it.deliveryDate, it.contractCurrency) }
+                .toSortedMap(compareBy({ it.second }, { it.first }, { it.third }))
+                .map { (key, rows) ->
+                    fun total(of: (ValuationResultView) -> BigDecimal) = rows.fold(BigDecimal.ZERO) { sum, r -> sum + of(r) }
+                    mapOf(
+                        "underlyingContractCode" to key.first,
+                        "expiryDate" to key.second,
+                        "quantity" to total { it.quantity },
+                        "deltaTonnes" to total { it.quantity * it.option!!.delta }.setScale(2, RoundingMode.HALF_EVEN),
+                        "gamma" to total { it.quantity * it.option!!.gamma }.setScale(6, RoundingMode.HALF_EVEN),
+                        "vega" to total { it.quantity * it.option!!.vega }.setScale(2, RoundingMode.HALF_EVEN),
+                        "mtm" to total { it.mtm ?: BigDecimal.ZERO },
+                        "currency" to key.third,
+                    )
+                }
         },
         Definition(
             "PNL_DAILY",

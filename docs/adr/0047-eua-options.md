@@ -72,9 +72,18 @@
 - Options are exercised automatically only; giving up an in-the-money option or exercising one at the money is not
   modelled.
 
+### Risk
+- **Delta-equivalent positions:** an undecided option leg counts `q × delta` tonnes (a put's delta is negative, a sold
+  option the opposite sign) in position limits and the pre-trade check, valued on the fly as a run would value it.
+  An option that cannot be valued (no volatility curve) counts its full quantity, the cautious side. A decided leg
+  counts nothing: the future it created counts instead.
+- **PFE** of an option is the add-on on its delta-equivalent notional (`|q × delta| × forward`) by months to expiry;
+  its positive MtM counts as exposure to the clearing house like any MtM (options are not margined). The tenor limit
+  runs an option to its expiry.
+- **Report `OPTION_GREEKS`:** the official run's options by underlying and expiry: quantity, delta in tonnes, gamma,
+  vega per volatility point and MtM.
+
 ## Consequences
-- Options are valued and explained from M2; risk counts them only once delta-equivalents exist (M4).
 - The volatility curve has no smile: a deep in- or out-of-the-money option is valued at the at-the-money volatility of
   its expiry.
-- A later section of this ADR records the risk treatment (M4).
 - The clearing member's statement has no premium record: premiums move the cash balance it reports.

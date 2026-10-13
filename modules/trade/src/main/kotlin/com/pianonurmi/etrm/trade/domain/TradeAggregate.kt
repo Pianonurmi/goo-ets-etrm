@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
+import com.pianonurmi.etrm.trade.api.OptionExpiryView
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import java.math.BigDecimal
@@ -53,6 +54,7 @@ class TradeAggregate(state: TradeView) {
     /** Amendments re-open approval; a firm trade that is amended falls back to pending approval. */
     fun amend(amended: TradeView): TradeView {
         requireStatus(TradeStatus.DRAFT, TradeStatus.PENDING_APPROVAL, TradeStatus.APPROVED, TradeStatus.CONFIRMED)
+        if (state.legs.any { it.expiry != null }) throw ValidationException("Trade ${state.tradeNumber} has an option leg decided at expiry")
         if (state.legs.flatMap { it.deliveries }.any { it.deliveredQuantity.signum() > 0 }) {
             throw ValidationException("Trade ${state.tradeNumber} has deliveries recorded; amend by a new trade and a cancellation of the remainder")
         }
@@ -64,6 +66,7 @@ class TradeAggregate(state: TradeView) {
         if (state.status in setOf(TradeStatus.DELIVERED, TradeStatus.SETTLED, TradeStatus.CLOSED, TradeStatus.CANCELLED)) {
             throw IllegalStateTransitionException("Trade ${state.tradeNumber}", state.status.name, TradeStatus.CANCELLED.name)
         }
+        if (state.legs.any { it.expiry != null }) throw ValidationException("Trade ${state.tradeNumber} has an option leg decided at expiry")
         val legs = state.legs.map { leg ->
             leg.copy(deliveries = leg.deliveries.map { d -> if (d.status == DeliveryStatus.DELIVERED) d else d.copy(status = DeliveryStatus.CANCELLED) })
         }
@@ -104,6 +107,17 @@ class TradeAggregate(state: TradeView) {
             else -> TradeStatus.PARTIALLY_DELIVERED
         }
         return transition(state.copy(status = status, legs = legs)) to schedule
+    }
+
+    /** An option leg decided at expiry (ADR 0047); the trade closes once every leg is decided. */
+    fun expire(legNo: Int, expiry: OptionExpiryView): TradeView {
+        requireStatus(TradeStatus.CONFIRMED)
+        val leg = state.legs.firstOrNull { it.legNo == legNo } ?: throw ValidationException("Trade ${state.tradeNumber} has no leg $legNo")
+        if (leg.option == null) throw ValidationException("Leg $legNo of ${state.tradeNumber} is not an option")
+        if (leg.expiry != null) throw IllegalStateTransitionException("Leg $legNo of ${state.tradeNumber}", leg.expiry.outcome.name, "decided again")
+        val legs = state.legs.map { if (it.legNo == legNo) it.copy(expiry = expiry) else it }
+        val status = if (legs.all { it.expiry != null }) TradeStatus.CLOSED else state.status
+        return transition(state.copy(status = status, legs = legs))
     }
 
     fun markSettled(): TradeView {

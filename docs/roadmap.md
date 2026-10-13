@@ -180,6 +180,6 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M0 | Plan and ADR 0047 | done |
 | M1 | Option terms on trades: capture, validation, no delivery schedule, kept out of futures logic, EMIR fields, capture form | done |
 | M2 | Volatility quotes and curve, Black-76 valuation with greeks, VOL in the explain | done |
-| M3 | Premiums in the ledger; exercise into the future or abandonment at expiry | |
-| M4 | Delta-equivalent positions, PFE and pre-trade checks; option greeks report | |
+| M3 | Premiums in the ledger; exercise into the future or abandonment at expiry | done |
+| M4 | Delta-equivalent positions, PFE and pre-trade checks; option greeks report | done |
 | M5 | Screens, demo, documentation, release 0.13.0 | |

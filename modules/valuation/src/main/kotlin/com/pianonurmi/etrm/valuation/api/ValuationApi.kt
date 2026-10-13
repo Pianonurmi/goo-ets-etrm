@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.EventMetadata
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.BookType
+import com.pianonurmi.etrm.trade.api.TradeLegView
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -260,6 +261,12 @@ interface ValuationQuery {
 
     /** [terms] valued on [date] with the official curves, rates and discount factors a run would use; null when unpriced. */
     fun forwardValue(legalEntityId: UUID, date: LocalDate, terms: ForwardTerms): ForwardValue?
+
+    /**
+     * An option leg of the entity valued on [date] by Black-76 as a run would value it, without storing anything (risk
+     * and pre-trade checks, ADR 0047): its greeks per tonne; null when it is not an option or cannot be priced.
+     */
+    fun optionValuation(legalEntityId: UUID, date: LocalDate, leg: TradeLegView): OptionValuation?
 }
 
 interface ValuationCommand {

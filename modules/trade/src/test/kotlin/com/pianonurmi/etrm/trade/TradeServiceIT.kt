@@ -2,6 +2,9 @@ package com.pianonurmi.etrm.trade
 
 import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FxRates
+import com.pianonurmi.etrm.marketdata.api.InstrumentKind
+import com.pianonurmi.etrm.marketdata.api.MarketDataQuery
+import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
@@ -55,6 +58,8 @@ import com.pianonurmi.etrm.trade.api.DeliveryObligationOpened
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
 import com.pianonurmi.etrm.trade.api.DeliveryStatus
 import com.pianonurmi.etrm.trade.api.FindingSeverity
+import com.pianonurmi.etrm.trade.api.OptionExpired
+import com.pianonurmi.etrm.trade.api.OptionOutcome
 import com.pianonurmi.etrm.trade.api.OptionTerms
 import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.RecordDelivery
@@ -63,7 +68,9 @@ import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeApprovalCheck
 import com.pianonurmi.etrm.trade.api.TradeConfirmed
 import com.pianonurmi.etrm.trade.api.TradeStatus
+import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.trade.api.UtiSource
+import com.pianonurmi.etrm.trade.application.OptionExpiryService
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
@@ -525,6 +532,92 @@ class TradeServiceIT {
         shouldThrow<ValidationException> {
             trades.capture(option(call, 5_000, InstrumentType.OPTION).copy(counterpartyId = external))
         }.message!! shouldContain "exchange or clearing house"
+    }
+
+    @Test
+    fun `options at expiry are exercised into the future at the strike when in the money and abandoned otherwise`() {
+        currentUser = "trader1"
+        val entity = referenceDataService.createLegalEntity(CreateLegalEntity("OPT-CO", "Opt Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
+        val book = referenceDataService.createBook(CreateBook(entity, "EUA-O", "EUA options", BookType.HEDGING)).id
+        val ccp = referenceDataService.createCounterparty(
+            CreateCounterparty("ECC-OPT", "European Commodity Clearing", "DE", counterpartyType = CounterpartyType.CLEARING_HOUSE),
+        ).id
+        override = Actor("mo", "MO", setOf(Role.MIDDLE_OFFICE), allEntities = true)
+        val dec27 = LocalDate.of(2027, 12, 20)
+        futures.create(CreateFuturesContract("TST_EUA_DEC27", "EUA", "XEEE", YearMonth.of(2027, 12), dec27, dec27, BigDecimal(1000)))
+        override = null
+        val expiry = LocalDate.of(2027, 12, 15)
+        val settlement = mutableMapOf<LocalDate, BigDecimal>()
+        val marketData = mockk<MarketDataQuery> {
+            every { instruments(InstrumentKind.EUA_FUTURE, any()) } returns listOf(
+                mockk {
+                    every { code } returns "TST_DEC27"
+                    every { futuresContractCode } returns "TST_EUA_DEC27"
+                },
+            )
+            every { latestQuote("TST_DEC27", QuoteType.SETTLEMENT, any(), any()) } answers {
+                val date = thirdArg<LocalDate>()
+                settlement[date]?.let { price ->
+                    mockk {
+                        every { quoteDate } returns date
+                        every { value } returns price
+                    }
+                }
+            }
+        }
+        val expiries = OptionExpiryService(JooqTradeRepository(TestDatabase.dsl), trades, marketData, futures)
+
+        fun confirmed(side: Side, terms: OptionTerms): TradeView {
+            currentUser = "trader1"
+            val captured = trades.capture(
+                euaTrade(entity, book, ccp, InstrumentType.OPTION, dec27).let { c ->
+                    c.copy(legs = c.legs.map { it.copy(side = side, deliveries = emptyList(), price = BigDecimal("4.20"), option = terms) })
+                },
+            )
+            currentUser = "middle-office"
+            trades.approve(captured.id)
+            return trades.confirm(captured.id, ConfirmTrade("EEX-${captured.tradeNumber}"))
+        }
+        val boughtCall = confirmed(Side.BUY, OptionTerms(OptionType.CALL, BigDecimal("80"), expiry, "TST_EUA_DEC27"))
+        val soldPut = confirmed(Side.SELL, OptionTerms(OptionType.PUT, BigDecimal("70"), expiry, "TST_EUA_DEC27"))
+        expiries.due(expiry.minusDays(1)).filter { it == boughtCall.id || it == soldPut.id } shouldBe emptyList()
+
+        // Without the settlement price of the expiry date nothing is decided.
+        expiries.expire(boughtCall.id, expiry)!!.status shouldBe TradeStatus.CONFIRMED
+        settlement[expiry] = BigDecimal("85.40")
+        expiries.due(expiry).filter { it == boughtCall.id || it == soldPut.id }.toSet() shouldBe setOf(boughtCall.id, soldPut.id)
+
+        // The call is in the money: the system buys the future at the strike, confirmed and cleared, and closes the option.
+        val exercised = expiries.expire(boughtCall.id, expiry)!!
+        exercised.status shouldBe TradeStatus.CLOSED
+        val outcome = exercised.legs.single().expiry!!
+        outcome.outcome shouldBe OptionOutcome.EXERCISED
+        outcome.settlementPrice shouldBe BigDecimal("85.40")
+        val future = trades.requireTrade(outcome.futureTradeId!!)
+        future.instrumentType shouldBe InstrumentType.FUTURE
+        future.status shouldBe TradeStatus.CONFIRMED
+        future.tradeDate shouldBe expiry
+        future.externalRef shouldBe "exercise:${boughtCall.tradeNumber}"
+        future.regulatory.ccpCounterpartyId shouldBe ccp
+        future.legs.single().let {
+            it.side shouldBe Side.BUY
+            it.price.compareTo(BigDecimal("80")) shouldBe 0
+            it.quantity.compareTo(BigDecimal(5_000)) shouldBe 0
+            it.futuresContractCode shouldBe "TST_EUA_DEC27"
+            it.deliveries.single().deliveryDate shouldBe dec27
+        }
+        published.filterIsInstance<OptionExpired>().single { it.trade.id == boughtCall.id }.future!!.id shouldBe future.id
+
+        // The sold put is out of the money: abandoned, no future.
+        expiries.expire(soldPut.id, expiry)!!.legs.single().expiry!!.let {
+            it.outcome shouldBe OptionOutcome.ABANDONED
+            it.futureTradeId shouldBe null
+        }
+        expiries.expire(soldPut.id, expiry) shouldBe null
+        expiries.due(expiry).filter { it == boughtCall.id || it == soldPut.id } shouldBe emptyList()
+        // A decided option can be neither amended nor cancelled.
+        currentUser = "trader1"
+        shouldThrow<IllegalStateTransitionException> { trades.cancel(boughtCall.id, "too late") }
     }
 
     @Test

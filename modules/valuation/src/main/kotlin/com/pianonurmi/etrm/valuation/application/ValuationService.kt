@@ -287,8 +287,8 @@ class ValuationService(
             val sign = if (leg.side == Side.BUY) BigDecimal.ONE else BigDecimal.ONE.negate()
             val option = leg.option
             if (option != null) {
-                // An option is valued until it expires; on its expiry date it is worth its payoff.
-                return@flatMap if (option.expiryDate.isBefore(date)) {
+                // An option is valued until it expires, on its expiry date at its payoff, and no longer once decided.
+                return@flatMap if (option.expiryDate.isBefore(date) || leg.expiry != null) {
                     emptyList()
                 } else {
                     val draft = draft(runId, trade, leg, leg.id, option.expiryDate, leg.quantity * sign, option.expiryDate, bookType)
@@ -574,6 +574,48 @@ class ValuationService(
         val df = discounting.discountFactor(terms.currency, terms.payDate, date)
         val value = Mtm.value(terms.quantity, marketContract, terms.price, df.value)
         return ForwardValue(marketContract, df.value, Mtm.money(value), Mtm.money(value * toBase), base)
+    }
+
+    @Transactional(readOnly = true)
+    override fun optionValuation(legalEntityId: UUID, date: LocalDate, leg: TradeLegView): OptionValuation? {
+        readable(legalEntityId)
+        val terms = leg.option?.takeIf { !it.expiryDate.isBefore(date) && leg.expiry == null } ?: return null
+        val currency = leg.priceCurrency.currencyCode
+        val draft = ValuationResultView(
+            runId = UUID(0, 0),
+            scheduleId = leg.id,
+            tradeId = UUID(0, 0),
+            tradeNumber = "",
+            tradeVersion = 0,
+            legNo = leg.legNo,
+            bookId = UUID(0, 0),
+            bookType = BookType.TRADING,
+            counterpartyId = UUID(0, 0),
+            productFamily = ProductFamily.EMISSION_ALLOWANCE,
+            productKey = leg.allowanceProductCode,
+            productionYear = null,
+            deliveryDate = terms.expiryDate,
+            quantity = leg.quantity,
+            contractPrice = null,
+            contractCurrency = currency,
+            marketPrice = null,
+            marketCurrency = null,
+            priceOrigin = null,
+            curveCode = null,
+            snapshotId = null,
+            curveDate = null,
+            marketPriceContract = null,
+            fxToBase = null,
+            mtm = null,
+            mtmBase = null,
+            status = ResultStatus.OK,
+            note = null,
+        )
+        return try {
+            pricedOption(draft, leg, terms, date, currency, discounter(date)).option
+        } catch (_: Unpriced) {
+            null
+        }
     }
 
     @Transactional(readOnly = true)

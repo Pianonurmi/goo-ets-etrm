@@ -39,11 +39,14 @@ import com.pianonurmi.etrm.settlement.api.SettlementDirection
 import com.pianonurmi.etrm.settlement.api.SettlementReports
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
 import com.pianonurmi.etrm.trade.api.FindingSeverity
+import com.pianonurmi.etrm.trade.api.OptionTerms
+import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeView
+import com.pianonurmi.etrm.valuation.api.OptionValuation
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
 import com.pianonurmi.etrm.valuation.api.ValuationResultView
@@ -105,6 +108,7 @@ class RiskServiceIT {
             every { deliveryDate } returns delivery
         }
         val leg = mockk<TradeLegView> {
+            every { option } returns null
             every { side } returns Side.BUY
             every { priceType } returns PriceType.FIXED
             every { price } returns BigDecimal("70")
@@ -117,6 +121,26 @@ class RiskServiceIT {
             every { legalEntityId } returns entity
             every { bookId } returns book
             every { counterpartyId } returns cp
+            every { productFamily } returns ProductFamily.EMISSION_ALLOWANCE
+            every { legs } returns listOf(leg)
+        }
+    }
+
+    /** An open EUA option bought on the clearing house, [quantity] t of the underlying, expiring on [expiry]. */
+    private fun option(quantity: Int, type: OptionType, expiry: LocalDate): TradeView {
+        val leg = mockk<TradeLegView> {
+            every { option } returns OptionTerms(type, BigDecimal("75"), expiry, "EUAZ27")
+            every { this@mockk.expiry } returns null
+            every { side } returns Side.BUY
+            every { this@mockk.quantity } returns BigDecimal(quantity)
+            every { priceCurrency } returns Currency.getInstance("EUR")
+            every { allowanceProductCode } returns "EUA"
+        }
+        return mockk {
+            every { id } returns UUID.randomUUID()
+            every { legalEntityId } returns entity
+            every { bookId } returns book
+            every { counterpartyId } returns unlimited
             every { productFamily } returns ProductFamily.EMISSION_ALLOWANCE
             every { legs } returns listOf(leg)
         }
@@ -156,6 +180,24 @@ class RiskServiceIT {
         val valuations = mockk<ValuationQuery> {
             every { official(entity, any(), true) } returns mockk<ValuationRunView> { every { id } returns runId }
             every { results(runId, null) } returns listOf(mtm(existing.id, "300"), mtm(UUID.randomUUID(), "-100"))
+            // Calls are valued at a delta of 0.4; puts cannot be valued (no volatility curve).
+            every { optionValuation(entity, any(), any()) } answers {
+                thirdArg<TradeLegView>().option?.takeIf { it.optionType == OptionType.CALL }?.let {
+                    OptionValuation(
+                        "CALL",
+                        it.strike,
+                        "EUAZ27",
+                        BigDecimal("72"),
+                        BigDecimal("45"),
+                        BigDecimal("0.5"),
+                        BigDecimal("0.4"),
+                        BigDecimal("0.01"),
+                        BigDecimal("0.2"),
+                        "EUA_VOL",
+                        UUID(0, 1),
+                    )
+                }
+            }
         }
         openTrades += existing
         val settlement = mockk<SettlementReports> {
@@ -340,6 +382,14 @@ class RiskServiceIT {
         findings shouldContain "TENOR_LIMIT"
         findings shouldContain "POSITION_LIMIT" // 1000 open + 600
         risk.preTradeFindings(trade(400, LocalDate.of(2027, 3, 15))).map { it.code }.filter { it != "NO_CREDIT_LIMIT" } shouldBe emptyList()
+
+        // An option counts its delta-equivalent (ADR 0047): a call on 2 000 t at delta 0.4 is 800 t, so 1 800 in all.
+        val expiry = LocalDate.of(2027, 3, 10)
+        risk.preTradeFindings(option(2_000, OptionType.CALL, expiry)).map { it.code } shouldContain "POSITION_LIMIT"
+        risk.preTradeFindings(option(1_000, OptionType.CALL, expiry)).map { it.code } shouldNotContain "POSITION_LIMIT"
+        // A put that cannot be valued counts in full, as a sale: 1 000 − 400.
+        risk.preTradeFindings(option(400, OptionType.PUT, expiry)).map { it.code } shouldNotContain "POSITION_LIMIT"
+        risk.preTradeFindings(option(3_000, OptionType.PUT, expiry)).map { it.code } shouldContain "POSITION_LIMIT"
     }
 
     @Test
@@ -509,6 +559,7 @@ class RiskServiceIT {
             every { deliveryDate } returns LocalDate.of(2026, 12, 15)
         }
         val leg = mockk<TradeLegView> {
+            every { option } returns null
             every { this@mockk.side } returns side
             every { bucketCode } returns bucket
             every { priceType } returns PriceType.FIXED

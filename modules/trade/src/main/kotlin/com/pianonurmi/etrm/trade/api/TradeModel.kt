@@ -73,6 +73,18 @@ data class DeliveryScheduleView(
     val remainingQuantity: BigDecimal get() = quantity - deliveredQuantity
 }
 
+/** An option at expiry: exercised into the future when in the money against the settlement price, else abandoned. */
+enum class OptionOutcome { EXERCISED, ABANDONED }
+
+data class OptionExpiryView(
+    val outcome: OptionOutcome,
+    /** The underlying's official settlement price on the expiry date. */
+    val settlementPrice: BigDecimal,
+    val decidedOn: LocalDate,
+    val futureTradeId: UUID? = null,
+    val futureTradeNumber: String? = null,
+)
+
 data class TradeLegView(
     val id: UUID,
     val legNo: Int,
@@ -104,6 +116,8 @@ data class TradeLegView(
     val isin: String? = null,
     /** For options: the terms; the leg then has no delivery schedule, since exercise creates the future. */
     val option: OptionTerms? = null,
+    /** For options: what happened at expiry, once decided. */
+    val expiry: OptionExpiryView? = null,
 ) {
     val notional: BigDecimal get() = quantity * price
 }
@@ -390,6 +404,15 @@ data class DeliveryRecorded(
 ) : TradeEvent, DomainEvent by metadata
 
 data class TradeSettled(override val trade: TradeView, val metadata: EventMetadata = EventMetadata()) : TradeEvent, DomainEvent by metadata
+
+/** An option leg was decided at expiry (ADR 0047); [future] is the future an exercise created. */
+data class OptionExpired(
+    override val trade: TradeView,
+    val legNo: Int,
+    val expiry: OptionExpiryView,
+    val future: TradeView?,
+    val metadata: EventMetadata = EventMetadata(),
+) : TradeEvent, DomainEvent by metadata
 
 /** Obligations open when a trade is confirmed, change on amendment or partial delivery and close when fulfilled or cancelled. */
 data class DeliveryObligationOpened(val obligation: DeliveryObligationView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata

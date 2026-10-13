@@ -16,6 +16,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   read in total variance between expiries and signed off like every curve; the curve page looks it up by expiry.
 - **Option valuation:** options are valued by Black-76 on the underlying's forward, discounted to expiry, with delta,
   gamma and vega per result; the P&L explain revalues them step by step and shows volatility moves (`VOL`).
+- **Option premium and expiry:** the premium is booked through the clearing member's cash on confirmation (1810
+  premiums paid, 2810 premiums received). At expiry an option in the money against the underlying's settlement price
+  is exercised into a confirmed, cleared future at the strike, which the margin run then settles; one out of the money
+  is abandoned. The option closes and its premium is released to the realised result.
+- **Options in risk:** positions, the pre-trade check and PFE count an option's delta-equivalent; the tenor limit
+  runs to its expiry. New report `OPTION_GREEKS` (delta, gamma and vega by underlying and expiry).
 
 ## [0.12.0] - 2026-10-13
 

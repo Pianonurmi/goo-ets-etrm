@@ -52,6 +52,13 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
     override fun byNumber(tradeNumber: String): TradeView? =
         dsl.select(TRADE.ID).from(TRADE).where(TRADE.TRADE_NUMBER.eq(tradeNumber)).fetchOne(TRADE.ID)?.let { find(it) }
 
+    override fun optionsExpiringBy(date: LocalDate): List<UUID> = dsl.selectDistinct(TRADE.ID, TRADE.TRADE_NUMBER)
+        .from(TRADE)
+        .join(TRADE_LEG).on(TRADE_LEG.TRADE_ID.eq(TRADE.ID))
+        .where(TRADE.STATUS.eq(TradeStatus.CONFIRMED.name), TRADE_LEG.EXPIRY_DATE.le(date))
+        .orderBy(TRADE.TRADE_NUMBER)
+        .fetch(TRADE.ID)
+
     override fun list(filter: TradeFilter): List<TradeView> = dsl.select(TRADE.ID)
         .from(TRADE)
         .where(

@@ -113,6 +113,7 @@ class ValuationServiceIT {
         every { id } returns UUID.randomUUID()
         every { legNo } returns 1
         every { this@mockk.option } returns option
+        every { expiry } returns null
         every { this@mockk.quantity } returns BigDecimal(quantity)
         every { this@mockk.side } returns side
         every { this@mockk.price } returns BigDecimal(price)
