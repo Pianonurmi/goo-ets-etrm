@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 want="${1:?version}"
 awk -v v="$want" '
-  /^## \[/ { if (on) exit; on = index($0, "## [" v "]") == 1; next }
+  /^## / { if (on) exit; on = index($0, "## [" v "]") == 1; next }
   on && /^\[[^]]+\]: / { exit }
   on { print }
 ' CHANGELOG.md | sed -e '/./,$!d'

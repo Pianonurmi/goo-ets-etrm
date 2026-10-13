@@ -32,8 +32,8 @@ An enterprise deployment needs to answer three questions:
   - **Creates the GitHub release** from the changelog section, with the jar and the SBOMs attached.
 - **OCI labels:** images carry `version`, `revision`, `created`, `source` and `licenses`.
 - **Older lines get patches from a `release/X.Y` branch.**
-- **History:** `v0.1.0` to `v0.8.0` are tags on the commits that closed increments 1 to 8, without images or
-  GitHub releases.
+- **History:** tags start with `v0.9.0`. Increments 1 to 8 are recorded in the changelog as 0.1.0 to 0.8.0 without
+  tags (the workflow token may not create refs on commits whose workflow files differ from today's).
 
 ## Consequences
 - **Deployments choose their track:**

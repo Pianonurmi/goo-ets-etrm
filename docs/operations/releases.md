@@ -91,8 +91,9 @@ gate pass (`ops/release/image-tags.sh`):
 2. Fix and release `X.Y.Z+1` from that branch; `X.Y` then moves to the patch.
 3. Carry the fix forward to `main`.
 
-**History:** releases have GitHub releases and images from 0.9.0 on. `v0.1.0` to `v0.8.0` are tags on the commits
-that closed increments 1 to 8, set once by the one-off **History tags** workflow.
+**History:** tags, GitHub releases and images start with 0.9.0. Increments 1 to 8 are listed in the changelog as
+0.1.0 to 0.8.0 without tags: GitHub does not let the workflow token create a ref on those older commits, because their
+workflow files differ from today's, and tags from this repository's CI cannot be made another way.
 
 **A release made by hand in the GitHub UI** (a new tag on the release form) also starts CI. CI then fills that
 release's notes and attaches the assets, instead of creating a new one.

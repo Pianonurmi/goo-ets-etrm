@@ -3,7 +3,7 @@
 All notable changes to Provena. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as described in
 [releases](docs/operations/releases.md). Each minor version of the 0.x line is one increment of the
-[roadmap](docs/roadmap.md). Container images are published from 0.9.0 on; earlier versions are tags only.
+[roadmap](docs/roadmap.md). Tags, GitHub releases and container images start with 0.9.0; the earlier versions are recorded here only.
 
 ## [Unreleased]
 
@@ -20,7 +20,7 @@ Housekeeping (increment 9).
 ### Added
 - **Versioning and releases:** semantic versions in `gradle.properties`, checked against the web package, the Helm
   chart and this changelog. A `vX.Y.Z` tag publishes the image as `X.Y.Z`, `X.Y` and `latest`, and creates a GitHub
-  release with the SBOMs and the application jar. Earlier increments are tagged `v0.1.0` to `v0.8.0`.
+  release with the SBOMs and the application jar.
 - **OCI image labels:** version, revision and creation time.
 
 ### Changed
@@ -34,7 +34,7 @@ Housekeeping (increment 9).
   security, robustness, maintainability, roadmap), with fresh screenshots.
 - **Licence:** PolyForm Noncommercial 1.0.0.
 
-## [0.8.0] - 2026-10-12
+## 0.8.0 - 2026-10-12
 
 GoO portfolio management (increment 8).
 
@@ -50,7 +50,7 @@ GoO portfolio management (increment 8).
 ### Changed
 - **CI** runs on GitHub's hosted runners, with a self-hosted runner as a fallback for a private repository.
 
-## [0.7.0] - 2026-10-12
+## 0.7.0 - 2026-10-12
 
 Public showcase demo (increment 7).
 
@@ -62,7 +62,7 @@ Public showcase demo (increment 7).
 - **Manual and onboarding:** the help manual in the app, guided tours, the demo guide and screenshots.
 - **Public demo stack** (PostgreSQL, the image, Caddy) and the homelab guide.
 
-## [0.6.0] - 2026-10-11
+## 0.6.0 - 2026-10-11
 
 Scale and operations (increment 6).
 
@@ -78,7 +78,7 @@ Scale and operations (increment 6).
 ### Changed
 - **Runtime:** Java 25 with virtual threads.
 
-## [0.5.0] - 2026-10-11
+## 0.5.0 - 2026-10-11
 
 Operations screens (increment 5).
 
@@ -90,7 +90,7 @@ Operations screens (increment 5).
   - counterparty confirmations.
 - **Guards:** role and entity guards on the operations endpoints.
 
-## [0.4.0] - 2026-10-11
+## 0.4.0 - 2026-10-11
 
 Web UI (increment 4).
 
@@ -102,7 +102,7 @@ Web UI (increment 4).
   - the ledger, month end, reports and administration.
 - **OpenAPI contract:** a committed OpenAPI document with generated client types.
 
-## [0.3.0] - 2026-10-10
+## 0.3.0 - 2026-10-10
 
 Valuation, risk and finance (increment 3).
 
@@ -115,7 +115,7 @@ Valuation, risk and finance (increment 3).
 - **Reporting:** the report catalogue, EMIR events and MiFID II ancillary activity.
 - **GL interface:** exactly-once exports and reconciliation.
 
-## [0.2.0] - 2026-10-10
+## 0.2.0 - 2026-10-10
 
 Registries, settlement and workflow (increment 2).
 
@@ -127,7 +127,7 @@ Registries, settlement and workflow (increment 2).
 - **Confirmations:** trade confirmation matching.
 - **Settlement:** VAT rules, invoices, payments, credit notes and netting, posted to the ledger.
 
-## [0.1.0] - 2026-10-10
+## 0.1.0 - 2026-10-10
 
 Foundation (increment 1).
 
@@ -139,12 +139,4 @@ Foundation (increment 1).
 - **CI and documentation.**
 
 [Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.1.0
+[0.9.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.9.0
