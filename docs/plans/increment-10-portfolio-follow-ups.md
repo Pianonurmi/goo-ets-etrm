@@ -42,11 +42,35 @@ portfolio figures are ready for a production-size book:
 | Milestone | Content |
 |---|---|
 | M0 | Measure, then take the cheap wins. A `PortfolioPrepareBenchmark` runs `ProblemBuilder` and `CoverageAnalyser` at design size with in-memory ports and reports each phase. Prepare logs its phases at debug level. A flow-only build skips the scarcity index, and the scoring is built lazily when a solver asks. `prepare` gets a single-flight guard per key, so a second reader waits for the build already running. The plan records the before and after figures. |
-| M1 | Incremental prepare (ADR 0043). A stale entry is patched instead of rebuilt. Inventory gives the lots of a holder changed after a journal position (`LotQuery.changedSince`). Allocation gives the open obligations changed after a version stamp. The patch keeps class indexes stable: an emptied class stays as a tombstone, a new class key is appended and gets its eligibility for the cached keys only, and a new eligibility key evaluates every class once. Then the compressed graph and the flow are solved again (about 0.1 s), and the memos (eligibility, table) are cleared. The patched entry is checked against the database stamp. On a mismatch, too many tombstones, a catalogue change or a new day, a full build runs, so a missed change can only cost time. Risk's GoO measures and the pre-trade check read the patched entry. Targets at design size: under 200 ms for one changed lot or obligation, under 1 s for 1 000 changes. A property test compares patched and fully built entries over random change sequences: coverage, residuals, headroom and the table. |
+| M1 | Incremental prepare (ADR 0043). **Profiles:** held classes with the same criteria matches (one bit per distinct bound criterion), registry and expiry rank among the delivery dates are eligible for the same demands; compression refines profiles instead of classes. **Patch:** a stale entry diffs the entity's live lot versions (a narrow `(id, version)` query, exact even when transactions commit out of order) and the open obligations against what it holds, fetches only the changed lots, updates classes (an emptied class stays as a tombstone so indexes hold; a new class key is appended and gets its bits in the cached rows), adds rows for new eligibility keys, and solves the flow again. The previous entry is never mutated; readers keep it until the new one is published. A full build runs on a new day, a catalogue change, a route change, too many tombstones or more than a set share of changed lots. Targets at design size: under 300 ms for one changed lot or obligation, and the full build under 3 s. A property test compares patched and fully built entries over random change sequences: coverage, residuals, headroom and the table. |
 | M2 | GoO limits by vintage, and sale checks (amends ADR 0040). `LimitScope.productionYear` for concentration, expiry and basis, held in the existing JSONB scope (no migration; additive in the `LimitBreached` JSON). Measures filter classes and obligations by year, and an EUR concentration uses that vintage's mark. Pre-trade: purchases match bucket and year through allocation (the year comes from the obligation rules in `VintageYears`, so risk gains no dependency on product criteria). A GoO sale gets a projected `GOO_BASIS` finding: allocation takes the trade's deliveries as virtual demand on the prepared flow and returns the projected give-away of the cheapest eligible free supply. Over the limit needs risk approval; at warning it is a warning. While figures are being prepared the check is INFO "not checked" and never blocks. Web: a vintage picker on the limit form and the year in the scope label. The demo adds a vintage-scoped limit. |
 | M3 | Give-away report. `GOO_GIVE_AWAY` in the `ReportCatalogue`: per sale line of the plans realised in a period, with plan, trade, delivery date, sale bucket, vintage, MWh, delivered value, sale mark and give-away, plus a total row. Roles are RISK, MIDDLE_OFFICE, ACCOUNTANT and AUDITOR; allocation's read guard admits AUDITOR for this query. Logged with its content hash like every report. Reporting gains `allocation :: api`. `realisedGiveAway` gains the per-obligation lines, and valuation's explain keeps its totals. |
 | M4 | Side constraints in the flow (amends ADR 0007 and 0036). It starts with a spike gated on numbers at design size. **Device caps:** obligations with a cap form their own groups, and their edges come from atoms split by device, each capped at the obligation's share. Compression stays exact for the uncapped majority. **Minimum shares** are lower bounds, which a priority max-flow cannot hold exactly; available to sell checks them as a post-condition, and the finding names the quota a sale would put at risk. If the device split grows the graph past the check budget (p95 above 150 ms), caps stay outside the flow and the decision is recorded. Either way the UI text says exactly which bound the figure is. |
 | M5 | Close. ADR 0043 and amendments; architecture plan ("Status after increment 10"); arc42; the domain and user guides; glossary; screenshots for changed screens; k6 baseline if it moves; the deck's roadmap and "next" slides; `CHANGELOG.md`; release 0.10.0 with the Release workflow. |
+
+## Delivered
+
+### M0: measured, and the full build made cheap
+`PortfolioPrepareBenchmarkTest` runs `ProblemBuilder` and `CoverageAnalyser` the way `PortfolioFlowCache` prepares an
+entity, with in-memory ports (no database read). The book is realistic: expiry dates spread over a year, three target
+registries, one registry without outgoing routes, and future supply. At design size (100 000 lots, 5 000 obligations):
+
+| Phase | Before | After | Change |
+|---|---|---|---|
+| Eligibility rows | 8.2 s | 1.3 s | Criteria evaluated once per distinct bound criterion; expiry and routes as masks |
+| Scarcity index | 14.6 s | 0 s for the flow, 1.2 s for a solver | Computed only when a solver scores; summed per distinct row in exact millionths |
+| Compression | 4.2 s | 1.2 s | Supply atoms by partition refinement instead of a list of groups per unit |
+| Max-flow | 0.1 s | 0.1 s | |
+| **Prepared** | about 28 s | **about 3.5 s** | |
+
+- **The old "0.1 s" held only for a uniform book.** The uniform benchmark has 21 groups and 12 atoms. A realistic
+  book has 2 249 groups, 968 atoms and 344 000 edges, so compression, not the max-flow, is the cost after eligibility.
+- **Solvers also gain:** coverage analysis 2.3 s → 0.7 s, by sharing masks and supply sums per eligibility row.
+- **Single flight:** `prepare` builds once per key, and a second reader waits for that build without holding a
+  connection. A background warm-up joins the same build.
+- **Phase logging:** the cache logs read, problem and flow time with the graph size at debug level.
+- **Consequence for M1:** a full build is now seconds, not tens of seconds, so patching aims at the database read and
+  at sub-second answers after a change, measured against this baseline.
 
 ## Conventions that apply
 

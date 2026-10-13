@@ -36,6 +36,8 @@ class CoverageAnalyser(private val bucketOf: (LotClass) -> String?) {
             if (cls.future == null) SupplyUnit.Held(cls.index, cls.quantity) else SupplyUnit.Future(cls.index, cls.quantity, cls.tier)
         }
         val allowed = tierMask(problem, maxTier)
+        // Obligations share their eligibility rows: mask each row once, so equal rows stay one instance.
+        val masked = java.util.IdentityHashMap<BitSet, BitSet>()
         val demands = problem.obligations
             .sortedWith(compareBy<ObligationModel> { it.priority }.thenBy { it.obligation.deliveryDate }.thenBy { it.id })
             .map { FlowDemand(it.index, it.priority, it.demand) }
@@ -43,7 +45,10 @@ class CoverageAnalyser(private val bucketOf: (LotClass) -> String?) {
             units = units,
             demands = demands,
             obligationCount = problem.obligations.size,
-            eligibleUnits = { o -> if (allowed == null) problem.eligible[o] else (problem.eligible[o].clone() as BitSet).apply { and(allowed) } },
+            eligibleUnits = { o ->
+                val row = problem.eligible[o]
+                if (allowed == null) row else masked.getOrPut(row) { (row.clone() as BitSet).apply { and(allowed) } }
+            },
             // Surplus is reported per (bucket, year), so supply of different buckets or years never merges.
             atomKey = { u -> problem.classes[u].let { cls -> (bucketOf(cls) ?: UNBUCKETED) to cls.productionYear } },
         )
@@ -67,14 +72,20 @@ class CoverageAnalyser(private val bucketOf: (LotClass) -> String?) {
         val withContracted = if (future) solve(problem, SupplyTier.CONTRACTED).obligationCoverage(problem.obligations.size) else null
         val withExpected = if (future) solve(problem, SupplyTier.EXPECTED).obligationCoverage(problem.obligations.size) else null
         val held = tierMask(problem, SupplyTier.HELD)
-        val heldEligible = { o: Int -> if (held == null) problem.eligible[o] else (problem.eligible[o].clone() as BitSet).apply { and(held) } }
+        // Per shared eligibility row, not per obligation: the held part and its supply.
+        val heldRows = java.util.IdentityHashMap<BitSet, BitSet>()
+        val heldEligible = { o: Int ->
+            val row = problem.eligible[o]
+            if (held == null) row else heldRows.getOrPut(row) { (row.clone() as BitSet).apply { and(held) } }
+        }
+        val supplyOf = java.util.IdentityHashMap<BitSet, Long>()
         val coverage = problem.obligations.map { obl ->
             val eligible = heldEligible(obl.index)
             ObligationCoverage(
                 obligationId = obl.id,
                 demandMwh = obl.demand,
                 coveredMwh = covered[obl.index],
-                eligibleSupplyMwh = eligible.stream().mapToLong { problem.classes[it].quantity }.sum(),
+                eligibleSupplyMwh = supplyOf.getOrPut(eligible) { eligible.stream().mapToLong { problem.classes[it].quantity }.sum() },
                 eligibleClassCount = eligible.cardinality(),
                 coveredWithContractedMwh = withContracted?.get(obl.index),
                 coveredWithExpectedMwh = withExpected?.get(obl.index),

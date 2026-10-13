@@ -66,7 +66,12 @@ class AllocationProblem(
 
     fun eligibleClasses(obl: ObligationModel): List<LotClass> = eligible[obl.index].stream().mapToObj { classes[it] }.toList()
 
-    fun eligibleSupply(obl: ObligationModel): Long = eligible[obl.index].stream().mapToLong { classes[it].quantity }.sum()
+    /** Obligations share eligibility rows, so the supply of a row is summed once (classes and rows never change). */
+    private val supplyOfRow: MutableMap<BitSet, Long> = java.util.Collections.synchronizedMap(java.util.IdentityHashMap())
+
+    fun eligibleSupply(obl: ObligationModel): Long = eligible[obl.index].let { row ->
+        supplyOfRow.getOrPut(row) { row.stream().mapToLong { classes[it].quantity }.sum() }
+    }
 
     fun isEligible(cls: LotClass, obl: ObligationModel): Boolean = eligible[obl.index].get(cls.index)
 

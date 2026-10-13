@@ -70,40 +70,81 @@ class CompressedFlowGraph private constructor(
                 DemandGroup(g, key.priority, members.map { it.obligationIndex }.toIntArray(), members.sumOf { it.demandMwh }, key.eligible)
             }
 
-            val unitGroups = Array(units.size) { IntList() }
-            groups.forEach { g ->
-                var u = g.eligibleUnits.nextSetBit(0)
-                while (u >= 0) {
-                    require(u < units.size) { "eligible unit $u outside ${units.size} units" }
-                    unitGroups[u].add(g.index)
-                    u = g.eligibleUnits.nextSetBit(u + 1)
-                }
-            }
-            val atomIndex = LinkedHashMap<AtomKey, MutableList<Int>>()
-            units.indices.forEach { u -> atomIndex.getOrPut(AtomKey(units[u].tier, atomKey(u), unitGroups[u].toList())) { mutableListOf() } += u }
+            val block = refine(units, groups, atomKey)
+            // Atoms in the order of their first unit, members ascending; each atom's groups ascending.
+            val atomOfBlock = HashMap<Int, Int>()
             val atomOfUnit = IntArray(units.size)
-            val atoms = atomIndex.entries.mapIndexed { a, (key, members) ->
-                members.forEach { atomOfUnit[it] = a }
-                SupplyAtom(a, key.tier, key.extra, members.toIntArray(), members.sumOf { units[it].quantityMwh }, key.groups.toIntArray())
+            val members = ArrayList<IntList>()
+            units.indices.forEach { u ->
+                val a = atomOfBlock.getOrPut(block[u]) { members.add(IntList()).let { members.size - 1 } }
+                atomOfUnit[u] = a
+                members[a].add(u)
+            }
+            val atomGroups = Array(members.size) { IntList() }
+            groups.forEach { g -> g.eligibleUnits.forEachSetBit { u -> atomGroups[atomOfUnit[u]].let { if (it.last != g.index) it.add(g.index) } } }
+            val atoms = members.mapIndexed { a, m ->
+                val unitIndexes = m.toIntArray()
+                val first = unitIndexes[0]
+                SupplyAtom(a, units[first].tier, atomKey(first), unitIndexes, unitIndexes.sumOf { units[it].quantityMwh }, atomGroups[a].toIntArray())
             }
             return CompressedFlowGraph(units, demands, groups, atoms, groupOfObligation, atomOfUnit)
         }
+
+        /**
+         * Units with the same tier, the same reporting key and exactly the same demand groups get the same block. By
+         * partition refinement: one block per (tier, key), then every block is split by membership of each group in
+         * turn. Exact, and linear in the eligible (unit, group) pairs, with no list of groups per unit.
+         */
+        private fun refine(units: List<SupplyUnit>, groups: List<DemandGroup>, atomKey: (Int) -> Any?): IntArray {
+            val initial = HashMap<Pair<SupplyTier, Any?>, Int>()
+            val block = IntArray(units.size) { u -> initial.getOrPut(units[u].tier to atomKey(u)) { initial.size } }
+            var blocks = initial.size
+            // For a block split in the current group's round: the block its members in the group move to.
+            var twin = IntArray(maxOf(INITIAL_BLOCKS, blocks))
+            var round = IntArray(twin.size) { -1 }
+            groups.forEach { g ->
+                g.eligibleUnits.forEachSetBit { u ->
+                    require(u < units.size) { "eligible unit $u outside ${units.size} units" }
+                    val b = block[u]
+                    if (round[b] != g.index) {
+                        if (blocks == twin.size) {
+                            twin = twin.copyOf(blocks * 2)
+                            round = round.copyOf(blocks * 2).also { it.fill(-1, blocks, blocks * 2) }
+                        }
+                        twin[b] = blocks++
+                        round[b] = g.index
+                    }
+                    block[u] = twin[b]
+                }
+            }
+            return block
+        }
+
+        private const val INITIAL_BLOCKS = 64
     }
 
     private data class GroupKey(val priority: Int, val eligible: BitSet)
 
-    private data class AtomKey(val tier: SupplyTier, val extra: Any?, val groups: List<Int>)
-
     private class IntList {
         private var items = IntArray(4)
         private var size = 0
+
+        val last: Int get() = if (size == 0) -1 else items[size - 1]
 
         fun add(value: Int) {
             if (size == items.size) items = items.copyOf(size * 2)
             items[size++] = value
         }
 
-        fun toList(): List<Int> = items.copyOf(size).asList()
+        fun toIntArray(): IntArray = items.copyOf(size)
+    }
+}
+
+private inline fun BitSet.forEachSetBit(action: (Int) -> Unit) {
+    var i = nextSetBit(0)
+    while (i >= 0) {
+        action(i)
+        i = nextSetBit(i + 1)
     }
 }
 

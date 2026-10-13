@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.registry.api.TransferRoute
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.temporal.ChronoUnit
+import java.util.BitSet
 
 /**
  * How allocation values certificates (ADR 0035). [liquidityHorizonDays]: a lot that expires within this many days of
@@ -40,14 +41,34 @@ class Scoring(
     private val valueCache = HashMap<Int, Pair<String?, BigDecimal?>>()
     private val saleMarkCache = HashMap<Int, BigDecimal?>()
 
+    /**
+     * Per class, the sum over the obligations it may serve of demand / eligible supply. Obligations with the same
+     * eligible classes (one row) add to the same classes, so each row's supply and total pressure are computed once
+     * and spread once: the same exact sum as per obligation, in rows × classes instead of obligations × classes.
+     */
     fun scarcityIndex(problem: ProblemShape): Map<Int, BigDecimal> {
-        val scarcity = HashMap<Int, BigDecimal>()
+        val supplyOf = HashMap<BitSet, Long>()
+        // Each pressure is rounded to six decimals, so millionths as longs add up exactly.
+        val pressureOf = LinkedHashMap<BitSet, Long>()
         problem.obligations.forEach { obl ->
-            val supply = problem.eligibleSupply(obl)
+            val row = problem.eligibleRow(obl)
+            val supply = supplyOf.getOrPut(row) { row.stream().mapToLong { problem.quantities[it] }.sum() }
             if (supply <= 0) return@forEach
-            val pressure = BigDecimal(obl.demand).divide(BigDecimal(supply), 6, RoundingMode.HALF_UP)
-            problem.eligibleClassIndexes(obl).forEach { c -> scarcity.merge(c, pressure, BigDecimal::add) }
+            val pressure = BigDecimal(obl.demand).divide(BigDecimal(supply), SCALE, RoundingMode.HALF_UP).unscaledValue().longValueExact()
+            pressureOf.merge(row, pressure, Math::addExact)
         }
+        val micros = LongArray(problem.quantities.size)
+        val touched = BitSet(micros.size)
+        pressureOf.forEach { (row, pressure) ->
+            touched.or(row)
+            var c = row.nextSetBit(0)
+            while (c >= 0) {
+                micros[c] = Math.addExact(micros[c], pressure)
+                c = row.nextSetBit(c + 1)
+            }
+        }
+        val scarcity = HashMap<Int, BigDecimal>(touched.cardinality() * 2)
+        touched.stream().forEach { c -> scarcity[c] = BigDecimal.valueOf(micros[c], SCALE) }
         return scarcity
     }
 
@@ -123,7 +144,9 @@ class Scoring(
 interface ProblemShape {
     val obligations: List<ObligationModel>
 
-    fun eligibleSupply(obl: ObligationModel): Long
+    /** Available MWh per class index. */
+    val quantities: LongArray
 
-    fun eligibleClassIndexes(obl: ObligationModel): List<Int>
+    /** The classes the obligation may take; obligations that share a row may return the same instance. */
+    fun eligibleRow(obl: ObligationModel): BitSet
 }

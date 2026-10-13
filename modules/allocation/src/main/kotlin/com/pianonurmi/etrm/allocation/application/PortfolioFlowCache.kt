@@ -24,6 +24,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.BitSet
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.locks.ReentrantLock
@@ -90,16 +91,14 @@ class PortfolioFlowCache(
     private class Stamped(val stamp: String, val future: List<ProblemBuilder.FutureLot>)
 
     private val cache = ConcurrentHashMap<Key, PreparedFlow>()
-    private val building: MutableSet<Key> = ConcurrentHashMap.newKeySet()
+    private val inFlight = ConcurrentHashMap<Key, CompletableFuture<PreparedFlow>>()
     private val background = Executors.newVirtualThreadPerTaskExecutor()
 
     /** The entity's prepared flow, built now when missing or out of date. */
-    fun prepare(holderEntityId: UUID, excludeSourceRefs: Set<UUID> = emptySet(), tier: SupplyTier = SupplyTier.HELD): PreparedFlow =
-        transactions.execute {
-            val key = key(holderEntityId, excludeSourceRefs, tier)
-            val stamped = stamp(key)
-            cache[key]?.takeIf { it.stamp == stamped.stamp } ?: build(key, stamped)
-        }
+    fun prepare(holderEntityId: UUID, excludeSourceRefs: Set<UUID> = emptySet(), tier: SupplyTier = SupplyTier.HELD): PreparedFlow {
+        val (key, stamped) = transactions.execute { key(holderEntityId, excludeSourceRefs, tier).let { it to stamp(it) } }
+        return cache[key]?.takeIf { it.stamp == stamped.stamp } ?: buildOnce(key, stamped)
+    }
 
     /** The prepared flow when it is up to date; otherwise null, and it is prepared in the background. */
     fun ifReady(holderEntityId: UUID, excludeSourceRefs: Set<UUID> = emptySet(), tier: SupplyTier = SupplyTier.HELD): PreparedFlow? {
@@ -147,11 +146,34 @@ class PortfolioFlowCache(
         return Stamped("$held|${key.tier}:$digest", future)
     }
 
+    /**
+     * Builds [key] unless a build of it is already running. A second reader then waits for that build (outside the
+     * cache's own transactions, so a reader without an outer one holds no connection) and takes its result when it
+     * carries the stamp the reader saw; otherwise (an older build, or one that failed) it builds itself.
+     */
+    private fun buildOnce(key: Key, stamped: Stamped): PreparedFlow {
+        val mine = CompletableFuture<PreparedFlow>()
+        val running = inFlight.putIfAbsent(key, mine)
+        if (running != null) {
+            val result = runCatching { running.join() }.getOrNull()
+            return result?.takeIf { it.stamp == stamped.stamp } ?: transactions.execute { build(key, stamped) }
+        }
+        try {
+            return transactions.execute { build(key, stamped) }.also { mine.complete(it) }
+        } finally {
+            // Whatever ended the build, nobody may wait for it forever.
+            if (!mine.isDone) mine.completeExceptionally(IllegalStateException("preparing the flow of ${key.holderEntityId} failed"))
+            inFlight.remove(key, mine)
+        }
+    }
+
     private fun build(key: Key, stamped: Stamped): PreparedFlow {
         val started = System.nanoTime()
         val snapshot = lotQuery.snapshot(key.holderEntityId)
         val open = withoutInFlight(key.holderEntityId, obligations.open(key.holderEntityId).filter { it.sourceRef !in key.excluded })
+        val read = System.nanoTime()
         val built = problemBuilder.build(snapshot, open, emptyMap(), LocalDate.now(clock), future = stamped.future)
+        val problemBuilt = System.nanoTime()
         val prepared = PreparedFlow(
             tier = key.tier,
             stamp = stamped.stamp,
@@ -163,13 +185,19 @@ class PortfolioFlowCache(
         )
         cache.merge(key, prepared) { old, new -> if (new.builtAt >= old.builtAt) new else old }
         evictVariants(key.holderEntityId)
+        val done = System.nanoTime()
         log.debug(
-            "Portfolio flow for {} ({}) prepared in {} ms: {} classes, {} obligations",
+            "Portfolio flow for {} ({}) prepared in {} ms (read {} ms, problem {} ms, flow {} ms): {} classes, {} obligations, {} groups, {} atoms",
             key.holderEntityId,
             key.tier,
-            (System.nanoTime() - started) / NANOS_PER_MILLI,
+            (done - started) / NANOS_PER_MILLI,
+            (read - started) / NANOS_PER_MILLI,
+            (problemBuilt - read) / NANOS_PER_MILLI,
+            (done - problemBuilt) / NANOS_PER_MILLI,
             built.problem.classes.size,
             built.problem.obligations.size,
+            prepared.state.graph.groups.size,
+            prepared.state.graph.atoms.size,
         )
         return prepared
     }
@@ -196,17 +224,13 @@ class PortfolioFlowCache(
     }
 
     private fun warmInBackground(key: Key) {
-        if (!settings.warmOnMiss || !building.add(key)) return
+        if (!settings.warmOnMiss || inFlight.containsKey(key)) return
         background.execute {
             try {
-                transactions.execute {
-                    val stamped = stamp(key)
-                    if (cache[key]?.stamp != stamped.stamp) build(key, stamped)
-                }
-            } catch (e: Exception) {
+                val stamped = transactions.execute { stamp(key) }
+                if (cache[key]?.stamp != stamped.stamp) buildOnce(key, stamped)
+            } catch (e: RuntimeException) {
                 log.warn("Portfolio flow for {} could not be prepared", key.holderEntityId, e)
-            } finally {
-                building.remove(key)
             }
         }
     }

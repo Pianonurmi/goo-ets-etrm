@@ -25,8 +25,12 @@ to be answered in milliseconds, sometimes while a trade is being captured.
     *supply atom*.
   - Merged nodes have identical neighbourhoods, so every max-flow value, every priority tier's share and the
     minimal minimum cut are unchanged. A property test checks this against the uncompressed graph.
-  - At design size the 230 million pairs compress to 21 groups and 12 atoms (120 edges). Solving the flow takes
-    about 0.1 s.
+  - At design size the 230 million pairs compress to 21 groups and 12 atoms (120 edges) when every lot outlives
+    every delivery, and solving takes about 0.1 s. With a year of expiry dates and several target registries they
+    compress to about 2 200 groups and 1 000 atoms (344 000 edges); building that graph takes about 1.2 s and
+    solving it 0.1 s (increment 10).
+  - Atoms are found by partition refinement: one block per tier and reporting key, split by membership of each
+    group in turn, linear in the eligible pairs.
 - **Within a group**, flow goes to obligations by delivery date, then id. The old graph distributed it without
   preference. Totals per priority tier and per shortage group are unchanged.
 - **Supply units** are a sealed type with a tier (`HELD`, `CONTRACTED`, `EXPECTED`). Only held classes exist in M0.
@@ -91,10 +95,10 @@ to be answered in milliseconds, sometimes while a trade is being captured.
 - Measured at design size (100 000 lots, 5 000 obligations): a warm check takes 0.5 ms at the 95th percentile
   (target 150 ms), a joint check of 12 deliveries 47 ms, and the table's 192 cells 51 ms (target 2 s).
 - The per-entity cache (M3) holds the problem and a few thousand flow nodes. **Preparing it is a full problem
-  build**, about 22 s at design size. It happens on the first read after a change, or in the background after a
-  pre-trade miss. Patching the prepared figures in place on each change (planned at under 200 ms) is not built yet.
-  Until it is, a busy book at design size often reads "not checked" before capture. The stamp will also take
-  purchase and forecast versions when the supply tiers arrive (M5).
+  build**: about 22 s at design size when this ADR was written, about 3.5 s since increment 10 (eligibility rows
+  share their parts, the scarcity index is left to solvers, atoms come from partition refinement). It happens on the
+  first read after a change, or in the background after a pre-trade miss, once per key: concurrent readers wait for
+  the build already running. Patching the prepared figures in place is increment 10 M1.
 - Device caps and minimum shares of existing obligations are not in the flow either, so available to sell is an
   upper bound, as coverage is.
 - Share constraints remain outside the flow, so coverage and headroom stay upper bounds for a plan.

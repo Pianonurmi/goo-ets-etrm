@@ -101,6 +101,54 @@ class ProblemBuilder(
             else -> criteria.evaluate(bucket, cls.representative)
         }
 
+    /**
+     * Eligibility rows of many demands over one list of classes. A held class is eligible when it satisfies the bound
+     * criterion, expires after the delivery date and has a feasible route to the target registry; the three parts are
+     * computed once and combined per row. The criteria are evaluated once per distinct bound criterion: a bound
+     * criterion is a value, and delivery dates change it only through delivery-relative vintage rules. Expiry is an
+     * integer comparison per class and routes are resolved per source registry. Future supply (ADR 0038) is a few
+     * classes and keeps the per-class rule of [satisfies].
+     */
+    private inner class EligibilityRows(private val classes: List<LotClass>, private val routeOf: (String, String) -> TransferRoute) {
+        private val held = classes.filter { it.future == null }
+        private val future = classes.filter { it.future != null }
+        private val expiryDay = LongArray(classes.size) { classes[it].expiryDate.toEpochDay() }
+        private val byRegistry: Map<String, BitSet> = held.groupBy { it.registryCode }
+            .mapValues { (_, members) -> BitSet(classes.size).apply { members.forEach { set(it.index) } } }
+        private val matches = HashMap<BoundCriterion, BitSet>()
+        private val reachable = HashMap<String?, BitSet>()
+
+        fun row(bound: BoundCriterion, deliveryDate: LocalDate, targetRegistryCode: String?): BitSet {
+            val bits = matches.getOrPut(bound) {
+                BitSet(classes.size).apply { held.forEach { if (criteria.evaluate(bound, it.representative)) set(it.index) } }
+            }.clone() as BitSet
+            bits.and(reachable.getOrPut(targetRegistryCode) { reachableFrom(targetRegistryCode) })
+            val day = deliveryDate.toEpochDay()
+            var c = bits.nextSetBit(0)
+            while (c >= 0) {
+                if (expiryDay[c] <= day) bits.clear(c)
+                c = bits.nextSetBit(c + 1)
+            }
+            if (future.isNotEmpty()) {
+                val context by lazy { criteria.contextFor(deliveryDate) }
+                future.forEach { cls ->
+                    if (cls.expiryDate > deliveryDate &&
+                        cls.sourceRegistry(targetRegistryCode).let { routeOf(it, targetRegistryCode ?: it).feasible } &&
+                        satisfies(cls, bound, deliveryDate) { context }
+                    ) {
+                        bits.set(cls.index)
+                    }
+                }
+            }
+            return bits
+        }
+
+        /** Held classes whose registry reaches the target (each class its own registry when there is no target). */
+        private fun reachableFrom(targetRegistryCode: String?): BitSet = BitSet(classes.size).apply {
+            byRegistry.forEach { (registry, members) -> if (routeOf(registry, targetRegistryCode ?: registry).feasible) or(members) }
+        }
+    }
+
     fun build(
         snapshot: LotSnapshot,
         obligations: List<ObligationView>,
@@ -128,11 +176,12 @@ class ProblemBuilder(
         val routeOf = cachedRoutes()
 
         // Eligibility depends only on the criterion, the delivery date and the target registry: obligations that share
-        // all three share one row (the criteria evaluation over every class is the dominant cost at scale).
+        // all three share one row, and the rows share their parts (see EligibilityRows).
+        val parts = EligibilityRows(classes, routeOf)
         val rows = HashMap<EligibilityKey, BitSet>()
         val eligible = models.map { obl ->
             val key = EligibilityKey(criteria.toJson(obl.obligation.criterion), obl.obligation.deliveryDate, obl.obligation.targetRegistryCode)
-            rows.getOrPut(key) { eligibleClasses(classes, obl.bound, obl.obligation.deliveryDate, obl.obligation.targetRegistryCode, routeOf) }
+            rows.getOrPut(key) { parts.row(obl.bound, obl.obligation.deliveryDate, obl.obligation.targetRegistryCode) }
         }
 
         val known = mutableMapOf<Pair<String, Int>, BigDecimal?>()
@@ -145,11 +194,12 @@ class ProblemBuilder(
         val shape = object : ProblemShape {
             override val obligations: List<ObligationModel> = models
 
-            override fun eligibleSupply(obl: ObligationModel): Long = eligible[obl.index].stream().mapToLong { classes[it].quantity }.sum()
+            override val quantities: LongArray = LongArray(classes.size) { classes[it].quantity }
 
-            override fun eligibleClassIndexes(obl: ObligationModel): List<Int> = eligible[obl.index].stream().toArray().toList()
+            override fun eligibleRow(obl: ObligationModel): BitSet = eligible[obl.index]
         }
-        val scarcity = scoring.scarcityIndex(shape)
+        // Only solvers score; portfolio questions (ADR 0036) read the flow alone and never pay for the scarcity index.
+        val scarcity by lazy { scoring.scarcityIndex(shape) }
         val problem = AllocationProblem(
             classes,
             models,

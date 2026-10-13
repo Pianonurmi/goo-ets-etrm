@@ -164,9 +164,11 @@ object EngineFixtures {
     private class Shape(val classes: List<LotClass>, val models: List<ObligationModel>, val eligible: List<BitSet>) : ProblemShape {
         override val obligations: List<ObligationModel> get() = models
 
-        override fun eligibleSupply(obl: ObligationModel): Long = eligible[obl.index].stream().mapToLong { classes[it].quantity }.sum()
+        override val quantities: LongArray = LongArray(classes.size) { classes[it].quantity }
 
-        override fun eligibleClassIndexes(obl: ObligationModel): List<Int> = eligible[obl.index].stream().toArray().toList()
+        override fun eligibleRow(obl: ObligationModel): BitSet = eligible[obl.index]
+
+        fun eligibleSupply(obl: ObligationModel): Long = eligible[obl.index].stream().mapToLong { classes[it].quantity }.sum()
     }
 
     private fun shape(lots: List<LotView>, obligations: List<ObligationView>): Shape {
