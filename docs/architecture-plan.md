@@ -73,7 +73,7 @@ These points differ from the plan or are still open:
 
 | Plan | Built | Why |
 |---|---|---|
-| Flow cache keyed by the inventory journal sequence, patched in place on events | Prepared per entity and tier, checked against a stamp of aggregates on every read; preparing is a full problem build (about 22 s at design size; about 3.5 s since increment 10), and patching in place is not built | A stamp is safe across pods without events and needs no per-holder lateral query. Until patching exists, a busy book can read "not checked" before capture |
+| Flow cache keyed by the inventory journal sequence, patched in place on events | Prepared per entity and tier and checked against a stamp of aggregates on every read. Since increment 10 the held figures are patched in place from a diff of live lot versions and the open obligations (ADR 0043): about 0.3 s at design size, a full build about 3 s | A stamp is safe across pods without events; a version diff is exact whatever order transactions commit in, which a journal position is not |
 | Unpriced supply takes the nearest priced ancestor's mark | Unpriced supply is valued at zero and flagged; the plan reports it as `unpricedMwh` | A borrowed price would hide the gap in the curves |
 | A `GiveAwayQuery` and a `ReportCatalogue` entry | Realised give-away is part of `PortfolioValueQuery`; no report entry | One query serves the explain and the run detail; the figures are a management view |
 | Limits with a production year scope, pre-trade checks for sales | Concentration covers all vintages together; the pre-trade check projects purchases only | A sale adds nothing to concentration; a vintage scope can be added later |

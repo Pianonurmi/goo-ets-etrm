@@ -104,6 +104,15 @@ class JooqLotRepository(private val dsl: DSLContext) : LotRepository {
         .where(CERTIFICATE_LOT.HOLDER_ENTITY_ID.eq(holderEntityId))
         .fetchOne { HoldingStamp(it.value1().toLong(), it.value2().toLong(), it.value3().toLong()) }!!
 
+    override fun liveVersions(holderEntityId: UUID): Map<UUID, Int> = dsl.select(CERTIFICATE_LOT.ID, CERTIFICATE_LOT.VERSION)
+        .from(CERTIFICATE_LOT)
+        .where(CERTIFICATE_LOT.HOLDER_ENTITY_ID.eq(holderEntityId), CERTIFICATE_LOT.STATUS.`in`(LotStatus.LIVE.map(LotStatus::name)))
+        .fetchMap(CERTIFICATE_LOT.ID, CERTIFICATE_LOT.VERSION)
+
+    override fun findAll(ids: Collection<UUID>): List<LotView> = ids.chunked(FETCH_CHUNK).flatMap { chunk ->
+        dsl.selectFrom(CERTIFICATE_LOT).where(CERTIFICATE_LOT.ID.`in`(chunk)).fetch(::toView)
+    }
+
     override fun asOf(lotId: UUID, effectiveAt: Instant, knownAt: Instant): Map<String, Any?>? = dsl.select(CERTIFICATE_LOT_VERSION.DATA)
         .from(CERTIFICATE_LOT_VERSION)
         .where(CERTIFICATE_LOT_VERSION.LOT_ID.eq(lotId))
@@ -221,5 +230,10 @@ class JooqLotRepository(private val dsl: DSLContext) : LotRepository {
             cancellation = r.cancellation?.let { Json.mapper.readValue(it.data(), CancellationDetails::class.java) },
             version = r.version,
         )
+    }
+
+    private companion object {
+        /** Ids per `IN` list when fetching lots by id. */
+        const val FETCH_CHUNK = 1_000
     }
 }

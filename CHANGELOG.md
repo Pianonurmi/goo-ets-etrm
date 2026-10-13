@@ -12,6 +12,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   the commit and runs CI for it, which publishes the image tags and the GitHub release.
 - **Presentation in the repository:** the 18-slide deck as a PDF and as a web page with speaker notes
   (`docs/presentation/`), built from one HTML source per slide.
+- **Portfolio figures patched in place (ADR 0043):** after a change to an entity's lots or obligations, available to
+  sell, the product view and the GoO limit measures are patched from what changed (about 0.3 s at 100 000 lots)
+  instead of rebuilt. A pre-trade check after a change is now answered instead of reading "not checked".
+
+### Changed
+- **Preparing the portfolio figures:** a full build at 100 000 lots and 5 000 sales takes about 3 s instead of about
+  28 s. Eligibility is computed once per criterion, the scarcity index only for plans, and the flow is compressed by
+  profile. Plan coverage is faster too (2.3 s to 0.7 s).
 
 ## [0.9.0] - 2026-10-12
 

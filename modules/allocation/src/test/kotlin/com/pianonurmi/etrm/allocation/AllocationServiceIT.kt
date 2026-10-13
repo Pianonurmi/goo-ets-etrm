@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.allocation.application.HeadroomService
 import com.pianonurmi.etrm.allocation.application.ObligationService
 import com.pianonurmi.etrm.allocation.application.PortfolioFlowCache
 import com.pianonurmi.etrm.allocation.application.PortfolioService
+import com.pianonurmi.etrm.allocation.application.PreparedFlow
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
@@ -126,6 +127,8 @@ class AllocationServiceIT {
     private lateinit var forecasts: ProductionForecastService
     private val purchases = mutableListOf<DeliveryObligationView>()
     private lateinit var portfolio: PortfolioService
+    private lateinit var flows: PortfolioFlowCache
+    private lateinit var newFlows: () -> PortfolioFlowCache
     private lateinit var referenceData: ReferenceDataService
     private lateinit var entityId: UUID
     private lateinit var simAccount: UUID
@@ -190,16 +193,19 @@ class AllocationServiceIT {
             every { openObligations(any(), Side.BUY, ProductFamily.GUARANTEE_OF_ORIGIN) } answers { purchases.filter { it.legalEntityId == firstArg() } }
         }
         val futureSupply = FutureSupplyProvider(purchaseQuery, referenceData, forecasts, lots, criteria, clock)
-        val flows = PortfolioFlowCache(
-            JooqObligationRepository(dsl),
-            planRepository,
-            problemBuilder,
-            buckets,
-            lots,
-            clock,
-            settings = AllocationHeadroomSettings(warmOnMiss = false),
-            futureSupply = futureSupply,
-        )
+        newFlows = {
+            PortfolioFlowCache(
+                JooqObligationRepository(dsl),
+                planRepository,
+                problemBuilder,
+                buckets,
+                lots,
+                clock,
+                settings = AllocationHeadroomSettings(warmOnMiss = false),
+                futureSupply = futureSupply,
+            )
+        }
+        flows = newFlows()
         headroom = HeadroomService(flows, problemBuilder, buckets, criteria, actor, clock)
         futureView = FutureSupplyService(flows, actor, clock)
         portfolio = PortfolioService(flows, problemBuilder, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
@@ -345,15 +351,29 @@ class AllocationServiceIT {
             it.fits shouldBe true
             it.binding.shouldBeEmpty()
         }
+        // The new lot was patched into the prepared figures (ADR 0043); they are the figures a fresh build makes.
+        val patched = flows.prepare(holder)
+        patched.patched shouldBe true
+        val fresh = newFlows().prepare(holder)
+        fresh.patched shouldBe false
+        patched.state.totalFlow shouldBe fresh.state.totalFlow
+        freeByKey(patched) shouldBe freeByKey(fresh)
+        // A pre-trade check after the next change patches at once instead of reporting "not checked".
+        receive("643000000000000023", "HR-W-2", 200, holder = holder, account = account)
+        headroom.checkIfReady(HeadroomCheck(holder, listOf(renewable))).shouldNotBeNull().demands.single().headroomMwh shouldBe 1_900
 
         val table = headroom.table(holder)
         table.deliveryDates.size shouldBe 6
         table.rows.single { it.bucketCode == "ANY_GOO" && it.vintageYear == 2026 }.let {
-            it.heldMwh shouldBe 2_300
-            it.headroomMwh.toSet() shouldBe setOf(1_700L)
+            it.heldMwh shouldBe 2_500
+            it.headroomMwh.toSet() shouldBe setOf(1_900L)
         }
         table.rows.filter { it.bucketCode == "NORDIC_HYDRO" }.single().headroomMwh.toSet() shouldBe setOf(700L)
     }
+
+    private fun freeByKey(prepared: PreparedFlow): Map<String, Long> =
+        prepared.state.unitResidual().withIndex().filter { prepared.problem.classes[it.index].quantity > 0 }
+            .associate { prepared.problem.classes[it.index].key to it.value }
 
     @Test
     fun `the portfolio nets long and short only where certificates qualify`() {

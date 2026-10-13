@@ -98,7 +98,8 @@ to be answered in milliseconds, sometimes while a trade is being captured.
   build**: about 22 s at design size when this ADR was written, about 3.5 s since increment 10 (eligibility rows
   share their parts, the scarcity index is left to solvers, atoms come from partition refinement). It happens on the
   first read after a change, or in the background after a pre-trade miss, once per key: concurrent readers wait for
-  the build already running. Patching the prepared figures in place is increment 10 M1.
+  the build already running. Since increment 10 the held figures are patched in place instead (ADR 0043), about
+  0.3 s at design size.
 - Device caps and minimum shares of existing obligations are not in the flow either, so available to sell is an
   upper bound, as coverage is.
 - Share constraints remain outside the flow, so coverage and headroom stay upper bounds for a plan.

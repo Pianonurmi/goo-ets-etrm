@@ -51,6 +51,8 @@ class CoverageAnalyser(private val bucketOf: (LotClass) -> String?) {
             },
             // Surplus is reported per (bucket, year), so supply of different buckets or years never merges.
             atomKey = { u -> problem.classes[u].let { cls -> (bucketOf(cls) ?: UNBUCKETED) to cls.productionYear } },
+            unitProfile = problem.profiles,
+            unitOrder = problem.unitOrder,
         )
         return FlowState(graph)
     }

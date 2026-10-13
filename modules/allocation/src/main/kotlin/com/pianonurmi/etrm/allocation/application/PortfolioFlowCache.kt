@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.AllocationProblem
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
+import com.pianonurmi.etrm.allocation.domain.LotClass
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.allocation.domain.Scoring
 import com.pianonurmi.etrm.allocation.domain.flow.FlowState
@@ -20,6 +21,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionOperations
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.util.BitSet
@@ -28,6 +30,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * ```yaml
@@ -35,10 +38,18 @@ import java.util.concurrent.locks.ReentrantLock
  *   months: 6             # month-ends in the available-to-sell table
  *   warm-on-miss: true    # a pre-trade check that finds no prepared figures starts preparing them
  *   max-variants: 16      # prepared figures kept per entity for amendments (their own schedules left out)
+ *   patch: true           # held figures are patched from the changed lots and obligations (ADR 0043)
+ *   full-build-after: 1h  # a patched index is built afresh at least this often (it does not see route changes)
  * ```
  */
 @ConfigurationProperties(prefix = "etrm.allocation.headroom")
-data class AllocationHeadroomSettings(val months: Int = 6, val warmOnMiss: Boolean = true, val maxVariants: Int = 16)
+data class AllocationHeadroomSettings(
+    val months: Int = 6,
+    val warmOnMiss: Boolean = true,
+    val maxVariants: Int = 16,
+    val patch: Boolean = true,
+    val fullBuildAfter: Duration = Duration.ofHours(1),
+)
 
 /**
  * One entity's supply up to [tier], prepared for portfolio questions (ADR 0036, 0038): the problem (live lots, open
@@ -54,6 +65,8 @@ class PreparedFlow(
     val scoring: Scoring,
     val state: FlowState,
     val routeOf: (String, String) -> TransferRoute,
+    /** Whether the figures were patched from the previous ones (ADR 0043) rather than built afresh. */
+    val patched: Boolean = false,
 ) {
     val lock = ReentrantLock()
 
@@ -87,10 +100,27 @@ class PortfolioFlowCache(
 
     private data class Key(val holderEntityId: UUID, val excluded: Set<UUID>, val tier: SupplyTier)
 
-    /** What a build reads besides the database: the stamp, and the future supply it was computed from. */
-    private class Stamped(val stamp: String, val future: List<ProblemBuilder.FutureLot>)
+    /** What a build reads besides the database: the stamp, its day and catalogue, and the future supply. */
+    private class Stamped(val stamp: String, val day: LocalDate, val catalogue: Int, val future: List<ProblemBuilder.FutureLot>)
+
+    /**
+     * The index behind an entity's held figures, kept to be patched (ADR 0043). Only the build of the entity's base key
+     * changes it (single flight); [lock] covers its in-memory changes and its publications, never I/O. [stamp] is the
+     * stamp of what it holds; [bucketOf] remembers each class key's best bucket (a catalogue change builds afresh).
+     */
+    private class HeldIndex(
+        val index: ProblemIndex,
+        val day: LocalDate,
+        val catalogue: Int,
+        val builtAt: Instant,
+        @Volatile var stamp: String,
+    ) {
+        val lock = ReentrantLock()
+        val bucketOf = ConcurrentHashMap<String, String>()
+    }
 
     private val cache = ConcurrentHashMap<Key, PreparedFlow>()
+    private val heldIndexes = ConcurrentHashMap<UUID, HeldIndex>()
     private val inFlight = ConcurrentHashMap<Key, CompletableFuture<PreparedFlow>>()
     private val background = Executors.newVirtualThreadPerTaskExecutor()
 
@@ -100,14 +130,16 @@ class PortfolioFlowCache(
         return cache[key]?.takeIf { it.stamp == stamped.stamp } ?: buildOnce(key, stamped)
     }
 
-    /** The prepared flow when it is up to date; otherwise null, and it is prepared in the background. */
+    /**
+     * The prepared flow when it is up to date, or when it can be patched now (held figures of an entity already
+     * prepared, ADR 0043); otherwise null, and it is prepared in the background.
+     */
     fun ifReady(holderEntityId: UUID, excludeSourceRefs: Set<UUID> = emptySet(), tier: SupplyTier = SupplyTier.HELD): PreparedFlow? {
-        val key = transactions.execute { key(holderEntityId, excludeSourceRefs, tier) }
-        val stamp = transactions.execute { stamp(key) }.stamp
-        return cache[key]?.takeIf { it.stamp == stamp } ?: run {
-            warmInBackground(key)
-            null
-        }
+        val (key, stamped) = transactions.execute { key(holderEntityId, excludeSourceRefs, tier).let { it to stamp(it) } }
+        cache[key]?.takeIf { it.stamp == stamped.stamp }?.let { return it }
+        if (key.tier == SupplyTier.HELD && patchable(heldIndexes[holderEntityId], stamped)) return buildOnce(key, stamped)
+        warmInBackground(key)
+        return null
     }
 
     /**
@@ -138,12 +170,13 @@ class PortfolioFlowCache(
     private fun stamp(key: Key): Stamped {
         val holderEntityId = key.holderEntityId
         val catalogue = buckets.buckets(true).joinToString(",") { "${it.code}@${it.version}" }.hashCode()
-        val held = "${lotQuery.holdingStamp(holderEntityId)}|${obligations.openStamp(holderEntityId)}|$catalogue|${LocalDate.now(clock)}"
-        if (key.tier == SupplyTier.HELD || futureSupply == null) return Stamped(held, emptyList())
+        val day = LocalDate.now(clock)
+        val held = "${lotQuery.holdingStamp(holderEntityId)}|${obligations.openStamp(holderEntityId)}|$catalogue|$day"
+        if (key.tier == SupplyTier.HELD || futureSupply == null) return Stamped(held, day, catalogue, emptyList())
         // Purchases and forecasts have no stamp of their own here; the supply they amount to is the stamp.
         val future = futureSupply.supply(holderEntityId, Quantile.P50).filter { it.future.tier <= key.tier }
         val digest = future.joinToString(",") { "${it.future.ref}=${it.quantityMwh}@${it.future.availableFrom}" }.hashCode()
-        return Stamped("$held|${key.tier}:$digest", future)
+        return Stamped("$held|${key.tier}:$digest", day, catalogue, future)
     }
 
     /**
@@ -167,33 +200,104 @@ class PortfolioFlowCache(
         }
     }
 
-    private fun build(key: Key, stamped: Stamped): PreparedFlow {
+    private fun build(key: Key, stamped: Stamped): PreparedFlow = when {
+        key.tier != SupplyTier.HELD -> buildFull(key, stamped)
+        key.excluded.isNotEmpty() -> buildVariant(key, stamped)
+        else -> patch(stamped, key) ?: buildHeld(key, stamped)
+    }
+
+    /** Beyond the held tier: built afresh every time (the future supply is read on every stamp anyway). */
+    private fun buildFull(key: Key, stamped: Stamped): PreparedFlow {
         val started = System.nanoTime()
         val snapshot = lotQuery.snapshot(key.holderEntityId)
         val open = withoutInFlight(key.holderEntityId, obligations.open(key.holderEntityId).filter { it.sourceRef !in key.excluded })
         val read = System.nanoTime()
-        val built = problemBuilder.build(snapshot, open, emptyMap(), LocalDate.now(clock), future = stamped.future)
-        val problemBuilt = System.nanoTime()
+        val built = problemBuilder.build(snapshot, open, emptyMap(), stamped.day, future = stamped.future)
+        return solved(key, stamped.stamp, built, built.scoring::bestBucketCode, patched = false, Timing(started, read, System.nanoTime()))
+    }
+
+    /** The held figures built afresh, keeping their index to patch later. */
+    private fun buildHeld(key: Key, stamped: Stamped): PreparedFlow {
+        val started = System.nanoTime()
+        val snapshot = lotQuery.snapshot(key.holderEntityId)
+        val open = withoutInFlight(key.holderEntityId, obligations.open(key.holderEntityId))
+        val read = System.nanoTime()
+        val held = HeldIndex(problemBuilder.index(snapshot.lots, open), stamped.day, stamped.catalogue, clock.instant(), stamped.stamp)
+        heldIndexes[key.holderEntityId] = held
+        return publish(key, held, stamped.stamp, patched = false, started, read)
+    }
+
+    /**
+     * The held figures patched from the lots and obligations that changed since the index was last brought up to date
+     * (ADR 0043), or null when a full build is due: no index, a new day, a catalogue change, the index too old, too
+     * many changed lots or too many emptied classes.
+     */
+    private fun patch(stamped: Stamped, key: Key): PreparedFlow? {
+        val held = heldIndexes[key.holderEntityId]?.takeIf { patchable(it, stamped) } ?: return null
+        val started = System.nanoTime()
+        val (changed, removed) = held.index.diff(lotQuery.liveVersions(key.holderEntityId))
+        if (changed.size + removed.size > maxOf(MIN_PATCH_LOTS, held.index.lotCount / PATCH_SHARE)) return null
+        val lots = lotQuery.lotsById(changed)
+        val gone = removed + (changed - lots.mapTo(HashSet()) { it.id })
+        val open = withoutInFlight(key.holderEntityId, obligations.open(key.holderEntityId))
+        val read = System.nanoTime()
+        val worn = held.lock.withLock {
+            held.index.applyLots(lots, gone)
+            held.index.setObligations(open)
+            held.stamp = stamped.stamp
+            held.index.tombstones > held.index.classCount / TOMBSTONE_SHARE
+        }
+        if (worn) return null
+        log.debug("Portfolio flow for {}: {} lots changed, {} gone", key.holderEntityId, lots.size, gone.size)
+        return publish(key, held, stamped.stamp, patched = true, started, read)
+    }
+
+    /** An amendment's figures: the entity's held index, brought up to date, without the amendment's own obligations. */
+    private fun buildVariant(key: Key, stamped: Stamped): PreparedFlow {
+        val base = Key(key.holderEntityId, emptySet(), SupplyTier.HELD)
+        cache[base]?.takeIf { it.stamp == stamped.stamp } ?: buildOnce(base, stamped)
+        val held = heldIndexes.getValue(key.holderEntityId)
+        val started = System.nanoTime()
+        return publish(key, held, held.stamp, patched = true, started, started)
+    }
+
+    private fun patchable(held: HeldIndex?, stamped: Stamped): Boolean =
+        settings.patch && held != null && held.day == stamped.day && held.catalogue == stamped.catalogue &&
+            Duration.between(held.builtAt, clock.instant()) < settings.fullBuildAfter
+
+    private fun publish(key: Key, held: HeldIndex, stamp: String, patched: Boolean, started: Long, read: Long): PreparedFlow {
+        val published = held.lock.withLock { held.index.publish(key.excluded) }
+        val built = problemBuilder.problem(published, held.index.routeOf, held.day)
+        val bucketOf = { cls: LotClass -> held.bucketOf.getOrPut(cls.key) { built.scoring.bestBucketCode(cls) ?: NO_BUCKET }.takeIf { it != NO_BUCKET } }
+        return solved(key, stamp, built, bucketOf, patched, Timing(started, read, System.nanoTime()))
+    }
+
+    private class Timing(val started: Long, val read: Long, val problem: Long)
+
+    private fun solved(key: Key, stamp: String, built: ProblemBuilder.Built, bucketOf: (LotClass) -> String?, patched: Boolean, timing: Timing): PreparedFlow {
         val prepared = PreparedFlow(
             tier = key.tier,
-            stamp = stamped.stamp,
+            stamp = stamp,
             builtAt = clock.instant(),
             problem = built.problem,
             scoring = built.scoring,
-            state = CoverageAnalyser(built.scoring::bestBucketCode).solve(built.problem),
+            state = CoverageAnalyser(bucketOf).solve(built.problem),
             routeOf = problemBuilder.cachedRoutes(),
+            patched = patched,
         )
         cache.merge(key, prepared) { old, new -> if (new.builtAt >= old.builtAt) new else old }
         evictVariants(key.holderEntityId)
         val done = System.nanoTime()
         log.debug(
-            "Portfolio flow for {} ({}) prepared in {} ms (read {} ms, problem {} ms, flow {} ms): {} classes, {} obligations, {} groups, {} atoms",
+            "Portfolio flow for {} ({}{}) {} in {} ms (read {} ms, problem {} ms, flow {} ms): {} classes, {} obligations, {} groups, {} atoms",
             key.holderEntityId,
             key.tier,
-            (done - started) / NANOS_PER_MILLI,
-            (read - started) / NANOS_PER_MILLI,
-            (problemBuilt - read) / NANOS_PER_MILLI,
-            (done - problemBuilt) / NANOS_PER_MILLI,
+            if (key.excluded.isEmpty()) "" else ", ${key.excluded.size} left out",
+            if (patched) "patched" else "built",
+            (done - timing.started) / NANOS_PER_MILLI,
+            (timing.read - timing.started) / NANOS_PER_MILLI,
+            (timing.problem - timing.read) / NANOS_PER_MILLI,
+            (done - timing.problem) / NANOS_PER_MILLI,
             built.problem.classes.size,
             built.problem.obligations.size,
             prepared.state.graph.groups.size,
@@ -237,5 +341,15 @@ class PortfolioFlowCache(
 
     private companion object {
         const val NANOS_PER_MILLI = 1_000_000
+
+        /** A patch reads at most this share of the live lots (one in ten), or [MIN_PATCH_LOTS]; more is a full build. */
+        const val PATCH_SHARE = 10
+        const val MIN_PATCH_LOTS = 100
+
+        /** Emptied classes beyond this share (one in five) make a full build, which drops them. */
+        const val TOMBSTONE_SHARE = 5
+
+        /** [HeldIndex.bucketOf] of a class with no bucket (the map takes no nulls). */
+        const val NO_BUCKET = ""
     }
 }

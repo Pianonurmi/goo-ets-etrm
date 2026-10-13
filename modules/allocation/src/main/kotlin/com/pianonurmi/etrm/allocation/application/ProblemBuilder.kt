@@ -2,10 +2,8 @@ package com.pianonurmi.etrm.allocation.application
 
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.domain.AllocationProblem
-import com.pianonurmi.etrm.allocation.domain.AvailableLot
 import com.pianonurmi.etrm.allocation.domain.FutureSupply
 import com.pianonurmi.etrm.allocation.domain.LotClass
-import com.pianonurmi.etrm.allocation.domain.LotClassifier
 import com.pianonurmi.etrm.allocation.domain.ObligationModel
 import com.pianonurmi.etrm.allocation.domain.ProblemShape
 import com.pianonurmi.etrm.allocation.domain.Scoring
@@ -41,8 +39,6 @@ class ProblemBuilder(
 
     /** Supply still to come (ADR 0038) with its stand-in lot and the quantity a plan may count on. */
     data class FutureLot(val future: FutureSupply, val lot: LotView, val quantityMwh: Long)
-
-    private data class EligibilityKey(val criterion: String, val deliveryDate: LocalDate, val targetRegistryCode: String?)
 
     /**
      * The classes a demand may take, by the same rule as an obligation's: it expires after the delivery date, a
@@ -102,51 +98,17 @@ class ProblemBuilder(
         }
 
     /**
-     * Eligibility rows of many demands over one list of classes. A held class is eligible when it satisfies the bound
-     * criterion, expires after the delivery date and has a feasible route to the target registry; the three parts are
-     * computed once and combined per row. The criteria are evaluated once per distinct bound criterion: a bound
-     * criterion is a value, and delivery dates change it only through delivery-relative vintage rules. Expiry is an
-     * integer comparison per class and routes are resolved per source registry. Future supply (ADR 0038) is a few
-     * classes and keeps the per-class rule of [satisfies].
+     * An index of one holder's live [lots] and its [obligations] (ADR 0043): published once for a full build, or kept
+     * and patched by the portfolio cache.
      */
-    private inner class EligibilityRows(private val classes: List<LotClass>, private val routeOf: (String, String) -> TransferRoute) {
-        private val held = classes.filter { it.future == null }
-        private val future = classes.filter { it.future != null }
-        private val expiryDay = LongArray(classes.size) { classes[it].expiryDate.toEpochDay() }
-        private val byRegistry: Map<String, BitSet> = held.groupBy { it.registryCode }
-            .mapValues { (_, members) -> BitSet(classes.size).apply { members.forEach { set(it.index) } } }
-        private val matches = HashMap<BoundCriterion, BitSet>()
-        private val reachable = HashMap<String?, BitSet>()
-
-        fun row(bound: BoundCriterion, deliveryDate: LocalDate, targetRegistryCode: String?): BitSet {
-            val bits = matches.getOrPut(bound) {
-                BitSet(classes.size).apply { held.forEach { if (criteria.evaluate(bound, it.representative)) set(it.index) } }
-            }.clone() as BitSet
-            bits.and(reachable.getOrPut(targetRegistryCode) { reachableFrom(targetRegistryCode) })
-            val day = deliveryDate.toEpochDay()
-            var c = bits.nextSetBit(0)
-            while (c >= 0) {
-                if (expiryDay[c] <= day) bits.clear(c)
-                c = bits.nextSetBit(c + 1)
-            }
-            if (future.isNotEmpty()) {
-                val context by lazy { criteria.contextFor(deliveryDate) }
-                future.forEach { cls ->
-                    if (cls.expiryDate > deliveryDate &&
-                        cls.sourceRegistry(targetRegistryCode).let { routeOf(it, targetRegistryCode ?: it).feasible } &&
-                        satisfies(cls, bound, deliveryDate) { context }
-                    ) {
-                        bits.set(cls.index)
-                    }
-                }
-            }
-            return bits
-        }
-
-        /** Held classes whose registry reaches the target (each class its own registry when there is no target). */
-        private fun reachableFrom(targetRegistryCode: String?): BitSet = BitSet(classes.size).apply {
-            byRegistry.forEach { (registry, members) -> if (routeOf(registry, targetRegistryCode ?: registry).feasible) or(members) }
-        }
+    fun index(
+        lots: List<LotView>,
+        obligations: List<ObligationView>,
+        softReserved: Map<UUID, Long> = emptyMap(),
+        future: List<FutureLot> = emptyList(),
+    ): ProblemIndex = ProblemIndex(criteria, this, cachedRoutes()).apply {
+        load(lots, softReserved, future)
+        setObligations(obligations)
     }
 
     fun build(
@@ -156,34 +118,27 @@ class ProblemBuilder(
         asOf: LocalDate,
         policy: ValuePolicy = valueSettings.toDomain(),
         future: List<FutureLot> = emptyList(),
+    ): Built = problem(index(snapshot.lots, obligations, softReserved, future), asOf, policy)
+
+    /**
+     * The problem [index] stands for now, scored with the marks of [asOf]; obligations whose source is in
+     * [excludedSources] are left out.
+     */
+    fun problem(
+        index: ProblemIndex,
+        asOf: LocalDate,
+        policy: ValuePolicy = valueSettings.toDomain(),
+        excludedSources: Set<UUID> = emptySet(),
+    ): Built = problem(index.publish(excludedSources), index.routeOf, asOf, policy)
+
+    /** The problem of a publication of an index; only the publication must be taken under the index's lock. */
+    fun problem(
+        published: ProblemIndex.Published,
+        routeOf: (String, String) -> TransferRoute,
+        asOf: LocalDate,
+        policy: ValuePolicy = valueSettings.toDomain(),
     ): Built {
-        val held = LotClassifier.classify(snapshot.lots, softReserved)
-        val classes = held + future.filter { it.quantityMwh > 0 }.mapIndexed { i, f ->
-            LotClass(held.size + i, "future:${f.future.ref}", listOf(AvailableLot(f.lot, f.quantityMwh)), f.future)
-        }
-        val models = obligations.filter { it.remainingMwh > 0 }.mapIndexed { index, obligation ->
-            val ctx = criteria.contextFor(obligation.deliveryDate)
-            val (minShares, maxShare) = AllocationProblem.constraintsOf(obligation)
-            ObligationModel(
-                index = index,
-                obligation = obligation,
-                bound = criteria.bind(obligation.criterion, ctx),
-                minShares = minShares.map { criteria.bind(it.criterion, ctx) to it.percent },
-                maxSharePerDevice = maxShare,
-                specificity = criteria.specificity(obligation.criterion),
-            )
-        }
-        val routeOf = cachedRoutes()
-
-        // Eligibility depends only on the criterion, the delivery date and the target registry: obligations that share
-        // all three share one row, and the rows share their parts (see EligibilityRows).
-        val parts = EligibilityRows(classes, routeOf)
-        val rows = HashMap<EligibilityKey, BitSet>()
-        val eligible = models.map { obl ->
-            val key = EligibilityKey(criteria.toJson(obl.obligation.criterion), obl.obligation.deliveryDate, obl.obligation.targetRegistryCode)
-            rows.getOrPut(key) { parts.row(obl.bound, obl.obligation.deliveryDate, obl.obligation.targetRegistryCode) }
-        }
-
+        val classes = published.classes
         val known = mutableMapOf<Pair<String, Int>, BigDecimal?>()
         val scoring = Scoring(
             buckets = buckets.bind(criteria.contextFor(asOf)),
@@ -192,22 +147,34 @@ class ProblemBuilder(
             policy = policy,
         )
         val shape = object : ProblemShape {
-            override val obligations: List<ObligationModel> = models
+            override val obligations: List<ObligationModel> = published.obligations
 
             override val quantities: LongArray = LongArray(classes.size) { classes[it].quantity }
 
-            override fun eligibleRow(obl: ObligationModel): BitSet = eligible[obl.index]
+            override fun eligibleRow(obl: ObligationModel): BitSet = published.eligible[obl.index]
         }
         // Only solvers score; portfolio questions (ADR 0036) read the flow alone and never pay for the scarcity index.
         val scarcity by lazy { scoring.scarcityIndex(shape) }
         val problem = AllocationProblem(
             classes,
-            models,
-            eligible,
+            published.obligations,
+            published.eligible,
             scoring = { cls: LotClass, obl: ObligationModel -> scoring.score(cls, obl, scarcity) },
             // A score depends on the class, the delivery date (urgency) and the target registry (transfer fee) only.
             scoreKey = { obl -> obl.obligation.deliveryDate to obl.obligation.targetRegistryCode },
+            profiles = published.profiles,
+            unitOrder = published.unitOrder,
         )
         return Built(problem, scoring)
+    }
+
+    /** Binds an obligation's criteria once; the model takes the obligation as it is at each publication. */
+    internal fun modelFactory(obligation: ObligationView): (Int, ObligationView) -> ObligationModel {
+        val ctx = criteria.contextFor(obligation.deliveryDate)
+        val (minShares, maxShare) = AllocationProblem.constraintsOf(obligation)
+        val bound = criteria.bind(obligation.criterion, ctx)
+        val shares = minShares.map { criteria.bind(it.criterion, ctx) to it.percent }
+        val specificity = criteria.specificity(obligation.criterion)
+        return { index, view -> ObligationModel(index, view, bound, shares, maxShare, specificity) }
     }
 }

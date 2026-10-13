@@ -61,6 +61,8 @@ class CompressedFlowGraph private constructor(
             obligationCount: Int,
             eligibleUnits: (Int) -> BitSet,
             atomKey: (Int) -> Any? = { null },
+            unitProfile: IntArray? = null,
+            unitOrder: IntArray? = null,
         ): CompressedFlowGraph {
             val groupIndex = LinkedHashMap<GroupKey, MutableList<FlowDemand>>()
             demands.forEach { d -> groupIndex.getOrPut(GroupKey(d.priority, eligibleUnits(d.obligationIndex))) { mutableListOf() } += d }
@@ -70,22 +72,74 @@ class CompressedFlowGraph private constructor(
                 DemandGroup(g, key.priority, members.map { it.obligationIndex }.toIntArray(), members.sumOf { it.demandMwh }, key.eligible)
             }
 
+            // Units enter atoms in this order (atoms by their first unit, members in order); units without supply join none.
+            val order = (unitOrder ?: IntArray(units.size) { it }).filter { units[it].quantityMwh > 0 }
+            if (unitProfile != null) return byProfile(units, demands, groups, groupOfObligation, atomKey, unitProfile, order)
             val block = refine(units, groups, atomKey)
-            // Atoms in the order of their first unit, members ascending; each atom's groups ascending.
             val atomOfBlock = HashMap<Int, Int>()
-            val atomOfUnit = IntArray(units.size)
+            val atomOfUnit = IntArray(units.size) { NO_ATOM }
             val members = ArrayList<IntList>()
-            units.indices.forEach { u ->
+            order.forEach { u ->
                 val a = atomOfBlock.getOrPut(block[u]) { members.add(IntList()).let { members.size - 1 } }
                 atomOfUnit[u] = a
                 members[a].add(u)
             }
             val atomGroups = Array(members.size) { IntList() }
-            groups.forEach { g -> g.eligibleUnits.forEachSetBit { u -> atomGroups[atomOfUnit[u]].let { if (it.last != g.index) it.add(g.index) } } }
+            groups.forEach { g ->
+                g.eligibleUnits.forEachSetBit { u ->
+                    atomOfUnit[u].takeIf { it != NO_ATOM }?.let { a -> atomGroups[a].let { if (it.last != g.index) it.add(g.index) } }
+                }
+            }
             val atoms = members.mapIndexed { a, m ->
                 val unitIndexes = m.toIntArray()
                 val first = unitIndexes[0]
                 SupplyAtom(a, units[first].tier, atomKey(first), unitIndexes, unitIndexes.sumOf { units[it].quantityMwh }, atomGroups[a].toIntArray())
+            }
+            return CompressedFlowGraph(units, demands, groups, atoms, groupOfObligation, atomOfUnit)
+        }
+
+        /**
+         * Atoms when units come with profiles (ADR 0043): units of one profile are eligible for exactly the same groups,
+         * so the groups are refined over one representative per profile, and a unit's atom is its tier, its reporting
+         * key and its profile's block. Linear in the units plus groups × profiles; the eligible pairs are never
+         * walked. Same atoms, in the same order, as without profiles.
+         */
+        private fun byProfile(
+            units: List<SupplyUnit>,
+            demands: List<FlowDemand>,
+            groups: List<DemandGroup>,
+            groupOfObligation: IntArray,
+            atomKey: (Int) -> Any?,
+            unitProfile: IntArray,
+            order: List<Int>,
+        ): CompressedFlowGraph {
+            require(unitProfile.size == units.size) { "one profile per unit" }
+            groups.forEach { g ->
+                require(g.eligibleUnits.length() <= units.size) { "eligible unit ${g.eligibleUnits.length() - 1} outside ${units.size} units" }
+            }
+            val profiles = (unitProfile.maxOrNull() ?: -1) + 1
+            val representative = IntArray(profiles) { -1 }
+            unitProfile.forEachIndexed { u, p -> if (representative[p] < 0) representative[p] = u }
+            // Groups served per profile, as a sorted list: equal lists mean equal blocks.
+            val served = Array(profiles) { IntList() }
+            groups.forEach { g ->
+                for (p in 0 until profiles) {
+                    val r = representative[p]
+                    if (r >= 0 && g.eligibleUnits.get(r)) served[p].add(g.index)
+                }
+            }
+            val servedBlock = HashMap<List<Int>, Int>()
+            val blockOfProfile = IntArray(profiles) { p -> servedBlock.getOrPut(served[p].toIntArray().asList()) { servedBlock.size } }
+            val atomIndex = LinkedHashMap<Triple<SupplyTier, Any?, Int>, IntList>()
+            order.forEach { u ->
+                atomIndex.getOrPut(Triple(units[u].tier, atomKey(u), blockOfProfile[unitProfile[u]])) { IntList() }.add(u)
+            }
+            val atomOfUnit = IntArray(units.size) { NO_ATOM }
+            val atoms = atomIndex.entries.mapIndexed { a, (key, members) ->
+                val unitIndexes = members.toIntArray()
+                unitIndexes.forEach { atomOfUnit[it] = a }
+                val groupIndexes = served[unitProfile[unitIndexes[0]]].toIntArray()
+                SupplyAtom(a, key.first, key.second, unitIndexes, unitIndexes.sumOf { units[it].quantityMwh }, groupIndexes)
             }
             return CompressedFlowGraph(units, demands, groups, atoms, groupOfObligation, atomOfUnit)
         }
@@ -121,6 +175,9 @@ class CompressedFlowGraph private constructor(
         }
 
         private const val INITIAL_BLOCKS = 64
+
+        /** [atomOfUnit] of a unit without supply (a class emptied in place, ADR 0043). */
+        const val NO_ATOM = -1
     }
 
     private data class GroupKey(val priority: Int, val eligible: BitSet)
@@ -273,7 +330,8 @@ class FlowState(val graph: CompressedFlowGraph) {
                 graph.units.indices.forEach { u ->
                     var signature = 0L
                     demands.forEachIndexed { i, (eligible, _) -> if (eligible[u]) signature = signature or (1L shl i) }
-                    if (signature != 0L) parts.merge(graph.atomOfUnit[u] to signature, graph.units[u].quantityMwh, Long::plus)
+                    val atom = graph.atomOfUnit[u]
+                    if (signature != 0L && atom != CompressedFlowGraph.NO_ATOM) parts.merge(atom to signature, graph.units[u].quantityMwh, Long::plus)
                 }
                 parts.forEach { (key, quantity) ->
                     val part = network.addVertex()
@@ -291,7 +349,8 @@ class FlowState(val graph: CompressedFlowGraph) {
         val byAtom = LongArray(atomCount)
         var u = eligibleUnits.nextSetBit(0)
         while (u >= 0) {
-            byAtom[graph.atomOfUnit[u]] += graph.units[u].quantityMwh
+            val atom = graph.atomOfUnit[u]
+            if (atom != CompressedFlowGraph.NO_ATOM) byAtom[atom] += graph.units[u].quantityMwh
             u = eligibleUnits.nextSetBit(u + 1)
         }
         return byAtom

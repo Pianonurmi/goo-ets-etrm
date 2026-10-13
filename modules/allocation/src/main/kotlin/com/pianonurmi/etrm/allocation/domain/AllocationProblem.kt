@@ -45,6 +45,9 @@ class ObligationModel(
     val id get() = obligation.id
     val demand: Long get() = obligation.remainingMwh
     val priority: Int get() = obligation.priorityClass
+
+    /** The same obligation at another position (a problem that leaves some obligations out). */
+    fun reindexed(index: Int): ObligationModel = ObligationModel(index, obligation, bound, minShares, maxSharePerDevice, specificity)
 }
 
 /** Everything a solver needs: classes, obligations, eligibility bitmaps and pairwise scores. */
@@ -60,6 +63,16 @@ class AllocationProblem(
      * every obligation is scored on its own.
      */
     val scoreKey: ((ObligationModel) -> Any)? = null,
+    /**
+     * Per class, a profile id such that classes with the same profile are eligible for exactly the same obligations
+     * (ADR 0043); the flow then compresses profiles instead of classes. Null when unknown.
+     */
+    val profiles: IntArray? = null,
+    /**
+     * The order classes enter the flow in, so equal problems give the same graph however their indexes were assigned
+     * (a patched index appends classes; ADR 0043). Null: index order.
+     */
+    val unitOrder: IntArray? = null,
 ) {
     /** Scores are not cached here: classes x obligations can reach tens of millions of pairs. Callers score per obligation. */
     fun score(cls: LotClass, obl: ObligationModel): ScoreBreakdown = scoring(cls, obl)

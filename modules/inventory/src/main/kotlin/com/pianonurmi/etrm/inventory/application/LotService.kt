@@ -303,6 +303,12 @@ class LotService(
     override fun holdingStamp(holderEntityId: UUID): HoldingStamp = lots.holdingStamp(holderEntityId)
 
     @Transactional(readOnly = true)
+    override fun liveVersions(holderEntityId: UUID): Map<UUID, Int> = lots.liveVersions(holderEntityId)
+
+    @Transactional(readOnly = true)
+    override fun lotsById(ids: Collection<UUID>): List<LotView> = lots.findAll(ids)
+
+    @Transactional(readOnly = true)
     override fun verifyJournal(): List<UUID> = journal.brokenChains()
 
     @Transactional(readOnly = true)

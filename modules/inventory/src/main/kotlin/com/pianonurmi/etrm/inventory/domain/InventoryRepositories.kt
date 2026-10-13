@@ -30,6 +30,10 @@ interface LotRepository {
 
     fun holdingStamp(holderEntityId: UUID): HoldingStamp
 
+    fun liveVersions(holderEntityId: UUID): Map<UUID, Int>
+
+    fun findAll(ids: Collection<UUID>): List<LotView>
+
     /** Optimistic update: the stored version must equal `lot.version - 1`. */
     fun update(lot: LotView, change: LotChange): Boolean
 

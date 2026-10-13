@@ -123,6 +123,15 @@ interface LotQuery {
     /** A cheap fingerprint of everything [holderEntityId] holds; it changes whenever one of its lots does. */
     fun holdingStamp(holderEntityId: UUID): HoldingStamp
 
+    /**
+     * The live lots of [holderEntityId] by id and version: the cheap way for a cache of derived figures to see which
+     * lots changed (ADR 0043). Exact whatever order transactions commit in, unlike a journal position.
+     */
+    fun liveVersions(holderEntityId: UUID): Map<UUID, Int>
+
+    /** The given lots as they are now, in any status; ids that do not exist are left out. */
+    fun lotsById(ids: Collection<UUID>): List<LotView>
+
     /** Verifies the per-lot hash chains; returns the lot ids whose chain is broken. */
     fun verifyJournal(): List<UUID>
 

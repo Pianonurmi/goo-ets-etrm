@@ -72,6 +72,31 @@ registries, one registry without outgoing routes, and future supply. At design s
 - **Consequence for M1:** a full build is now seconds, not tens of seconds, so patching aims at the database read and
   at sub-second answers after a change, measured against this baseline.
 
+### M1: the held figures patched in place (ADR 0043)
+- **One code path.** `ProblemIndex` holds classes, eligibility parts and obligations; a full build loads it and
+  publishes once, and the portfolio cache keeps it and patches it. A patched problem is therefore the problem a full
+  build makes.
+- **Profiles.** Held classes with the same criteria matches, registry and expiry rank compress as one. At design size
+  1 468 profiles stand for 100 000 classes, and building the flow drops from 2.0 s to 0.7 s. The benchmark checks
+  that the graph is the one built class by class.
+- **Patch.** `LotQuery.liveVersions` (id and version of every live lot) and `lotsById` find and read the changed
+  lots. Classes keep their index, emptied ones stay as tombstones, and supply enters the flow in class-key order, so
+  the graph does not depend on when a class was added.
+- **Full build instead:**
+  - a new day;
+  - a catalogue change;
+  - an index older than `full-build-after` (1 h);
+  - more than a tenth of the lots changed;
+  - more than a fifth of the classes emptied.
+- **Amendments** publish from the entity's index without their own obligations.
+- **Pre-trade checks** patch at once instead of answering "not checked".
+- **Figures at design size:** a full build about 3 s, and a patch about 0.3 s whether one lot changed or a thousand.
+- **Tests:**
+  - `IncrementalFlowTest` compares patched and full builds over 40 random sequences of 30 lot and obligation changes:
+    classes, eligibility, groups and atoms, coverage, residuals and headroom. A planted bug fails it at the first
+    step.
+  - `AllocationServiceIT` checks the patch against a fresh cache on the database.
+
 ## Conventions that apply
 
 - **Module boundaries.** Allocation must not depend on risk, valuation or reporting. Risk reaches allocation through

@@ -6,11 +6,13 @@ import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
 import com.pianonurmi.etrm.allocation.domain.FutureSupply
+import com.pianonurmi.etrm.allocation.domain.ObligationModel
 import com.pianonurmi.etrm.allocation.domain.flow.CompressedFlowGraph
 import com.pianonurmi.etrm.allocation.domain.flow.FlowDemand
 import com.pianonurmi.etrm.allocation.domain.flow.FlowState
 import com.pianonurmi.etrm.allocation.domain.flow.SupplyUnit
 import com.pianonurmi.etrm.inventory.api.LotSnapshot
+import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -58,7 +60,7 @@ class PortfolioPrepareBenchmarkTest {
         val lots = lots(lotCount, random)
         val obligations = obligations(obligationCount, random)
         val future = futureLots()
-        val builder = ProblemBuilder(FixtureCriteria, buckets(), routes(), GooMarks { _, _, _ -> BigDecimal("1.50") })
+        val builder = ProblemBuilder(FixturePorts.Criteria, FixturePorts.buckets(asOf), FixturePorts.routes(), GooMarks { _, _, _ -> BigDecimal("1.50") })
         val snapshot = LotSnapshot(EngineFixtures.entity, 0, lots)
 
         lateinit var built: ProblemBuilder.Built
@@ -67,21 +69,48 @@ class PortfolioPrepareBenchmarkTest {
         lateinit var state: FlowState
         val flowMs = measureTimeMillis { state = CoverageAnalyser(built.scoring::bestBucketCode).solve(problem) }
         val graph = state.graph
+        // The same graph without profiles: every class refined on its own (the slower exact path).
+        lateinit var plain: CompressedFlowGraph
+        val bucketOf = built.scoring::bestBucketCode
         val compressMs = measureTimeMillis {
-            CompressedFlowGraph.build(
-                units = problem.classes.map { SupplyUnit.Held(it.index, it.quantity) },
-                demands = problem.obligations.sortedBy { it.priority }.map { FlowDemand(it.index, it.priority, it.demand) },
+            plain = CompressedFlowGraph.build(
+                units = problem.classes.map {
+                    if (it.future == null) SupplyUnit.Held(it.index, it.quantity) else SupplyUnit.Future(it.index, it.quantity, it.tier)
+                },
+                demands = problem.obligations
+                    .sortedWith(compareBy<ObligationModel> { it.priority }.thenBy { it.obligation.deliveryDate }.thenBy { it.id })
+                    .map { FlowDemand(it.index, it.priority, it.demand) },
                 obligationCount = problem.obligations.size,
                 eligibleUnits = { problem.eligible[it] },
-                atomKey = { u -> problem.classes[u].productionYear },
+                atomKey = { u -> problem.classes[u].let { (bucketOf(it) ?: "UNBUCKETED") to it.productionYear } },
             )
+        }
+        graph.atoms.size shouldBe plain.atoms.size
+        graph.atoms.zip(plain.atoms).forEach { (a, b) ->
+            a.unitIndexes.toList() shouldBe b.unitIndexes.toList()
+            a.groupIndexes.toList() shouldBe b.groupIndexes.toList()
         }
         val scoreMs = measureTimeMillis { problem.score(problem.classes.first(), problem.obligations.first()) }
         println("benchmark prepare lots=$lotCount classes=${problem.classes.size} obligations=$obligationCount build=${buildMs}ms flow=${flowMs}ms")
         println(
             "benchmark prepare graph: groups=${graph.groups.size} atoms=${graph.atoms.size} edges=${graph.edgeCount} " +
-                "compression=${compressMs}ms; solver scoring (first score)=${scoreMs}ms",
+                "profiles=${(problem.profiles?.maxOrNull() ?: -1) + 1} without profiles=${compressMs}ms; solver scoring (first score)=${scoreMs}ms",
         )
+
+        // A patch (ADR 0043) of the held figures: one lot reserved, then a thousand lots changed.
+        val index = builder.index(lots, obligations)
+        val bucketMemo = HashMap<String, String?>()
+
+        fun patchMs(changed: List<LotView>): Long = measureTimeMillis {
+            index.applyLots(changed, emptyList())
+            index.setObligations(obligations)
+            val patched = builder.problem(index, asOf)
+            CoverageAnalyser { cls -> bucketMemo.getOrPut(cls.key) { patched.scoring.bestBucketCode(cls) } }.solve(patched.problem)
+        }
+        val firstMs = patchMs(emptyList())
+        val oneMs = patchMs(listOf(lots[0].copy(status = LotStatus.RESERVED, version = 2)))
+        val thousandMs = patchMs(lots.subList(1, PATCHED + 1).map { it.copy(quantityMwh = it.quantityMwh - 1, version = 2) })
+        println("benchmark patch: first publication=${firstMs}ms one lot=${oneMs}ms $PATCHED lots=${thousandMs}ms")
 
         val sample = problem.obligations
             .distinctBy { Triple(it.obligation.criterion, it.obligation.deliveryDate, it.obligation.targetRegistryCode) }
@@ -95,6 +124,7 @@ class PortfolioPrepareBenchmarkTest {
 
     private companion object {
         const val SAMPLE = 40
+        const val PATCHED = 1_000
     }
 
     /** Lots spread over sources, countries, registries (one without outgoing routes) and a year of expiry dates. */
@@ -149,56 +179,5 @@ class PortfolioPrepareBenchmarkTest {
             FutureSupply.Contracted(Ids.newId(), "T-$i", nordicHydro, null, LocalDate.of(2026, 12, 10 + i))
         }
         ProblemBuilder.FutureLot(supply, stand, 800L)
-    }
-
-    private fun buckets(): ProductBucketQuery {
-        val views = listOf(
-            EngineFixtures.bucket("NORDIC_HYDRO", Criterion.all(Criterion.region("NORDIC"), Criterion.energySource("HYDRO")), 3),
-            EngineFixtures.bucket("EU_WIND", Criterion.all(Criterion.region("EEA"), Criterion.energySource("WIND")), 2),
-            EngineFixtures.bucket("EU_RENEWABLE", Criterion.energySource("RENEWABLE"), 1),
-        )
-        return mockk {
-            every { bind(any(), any()) } answers {
-                BoundBuckets(views.map { it to CriteriaBinder.bind(it.criterion, EngineFixtures.ctx(asOf)) }, CriteriaEvaluator::matches)
-            }
-        }
-    }
-
-    /** Every registry reaches every other, except that nothing leaves ISLAND. */
-    private fun routes(): TransferRouteQuery = mockk {
-        every { route(any(), any()) } answers {
-            val from = firstArg<String>()
-            val to = secondArg<String>()
-            TransferRoute(from, to, from == to || from != "ISLAND", BigDecimal.ZERO, 0)
-        }
-    }
-
-    /** The criteria language without a database: the fixture taxonomy and regions. */
-    private object FixtureCriteria : CriteriaService {
-        override fun parse(json: String): Criterion = error("not used")
-
-        override fun toJson(criterion: Criterion): String = criterion.toString()
-
-        override fun bind(criterion: Criterion, context: BindContext): BoundCriterion = CriteriaBinder.bind(criterion, context)
-
-        override fun contextFor(deliveryDate: LocalDate): BindContext = EngineFixtures.ctx(deliveryDate)
-
-        override fun evaluate(bound: BoundCriterion, subject: CriteriaSubject): Boolean = CriteriaEvaluator.matches(bound, subject)
-
-        override fun compile(bound: BoundCriterion, columns: CriteriaColumns): org.jooq.Condition = error("not used")
-
-        override fun implies(narrow: BoundCriterion, broad: BoundCriterion): Boolean = CriteriaImplication.implies(narrow, broad)
-
-        override fun specificity(criterion: Criterion): BigDecimal = BigDecimal.ONE
-
-        override fun describe(criterion: Criterion): String = criterion.toString()
-
-        override fun catalogue(): CriteriaCatalogue = error("not used")
-
-        override fun store(criterion: Criterion, createdBy: String?): CriteriaRef = error("not used")
-
-        override fun load(id: UUID): Criterion = error("not used")
-
-        override fun ref(id: UUID): CriteriaRef = error("not used")
     }
 }
