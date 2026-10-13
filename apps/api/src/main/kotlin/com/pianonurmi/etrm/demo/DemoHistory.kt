@@ -246,6 +246,29 @@ class DemoDesk(private val api: DemoClient, private val calendar: DemoCalendar) 
         )
     }
 
+    /** An EUA option on [future] (ADR 0047): [lots] of the future at [strike], for [premium] a tonne, expiring on [expiry]. */
+    fun euaOption(
+        entity: DemoEntity,
+        clearingId: String,
+        side: String,
+        type: String,
+        lots: Int,
+        future: DemoFuture,
+        strike: String,
+        premium: String,
+        expiry: LocalDate,
+        tradeDate: LocalDate,
+    ): String = capture(
+        entity,
+        clearingId,
+        "EMISSION_ALLOWANCE",
+        "OPTION",
+        tradeDate,
+        """{"side":"$side","allowanceProductCode":"EUA","quantity":${lots * FUTURES_LOT},"unit":"TCO2E","price":$premium,"priceCurrency":"EUR",
+           "option":{"optionType":"$type","strike":$strike,"expiryDate":"$expiry","underlyingContractCode":"${future.code}"},"deliveries":[]}""",
+        regulatory = """{"executionTimestamp":"${tradeDate}T13:40:00Z","venueMic":"XEEE"}""",
+    )
+
     /** A sale from the Finnish to the Swedish entity; the mirror trade is created and confirmed with it. */
     fun intercompany(finland: DemoEntity, sweden: DemoEntity, counterpartyId: String, quantity: Int, price: String, tradeDate: LocalDate): String =
         capture(

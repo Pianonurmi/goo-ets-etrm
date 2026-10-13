@@ -90,6 +90,7 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
             DemoStep("Month $month") { history.month(month, it.get(FINLAND), it.get(SWEDEN), it.parties()) }
         } + listOf(
             DemoStep("Trades") { DemoTrades(api, calendar).book(it.get(FINLAND), it.get(SWEDEN), it.counterparties()) },
+            DemoStep("EUA options") { options(it.get(FINLAND), it.parties(), market, desk) },
             DemoStep("Last month and recent days") { lastMonth(it.get(FINLAND), it.get(SWEDEN), market, desk, history) },
             DemoStep("Risk limits and ETS") { DemoCompliance(api, calendar).seed(it.get(FINLAND), it.counterparties()) },
             DemoStep("Operations") {
@@ -144,6 +145,27 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
                        "linkedLegalEntityId":"${entity.id}"}""",
                 ).id()
             }
+
+    /**
+     * A collar on the nearest December future whose options expire after today (ADR 0047): a bought call capping the
+     * price of next year's compliance purchases, financed in part by a sold put. Booked before last month's close, so
+     * the month-end valuation, the period end and the recent explains show it.
+     */
+    private fun options(finland: DemoEntity, parties: DemoParties, market: DemoMarket, desk: DemoDesk) {
+        val (future, expiry) = market.futures
+            .map { it to DemoCalendar.weekdayOnOrBefore(it.lastTradingDay.minusDays(OPTION_EXPIRY_DAYS)) }
+            .first { (_, expiry) -> expiry.isAfter(calendar.today) }
+        val clearing = parties.getValue("CP-CLEARING")
+        val tradeDate = calendar.dayBeforeMonthEnd
+        listOf(
+            desk.euaOption(finland, clearing, "BUY", "CALL", OPTION_LOTS, future, "80.00", "3.40", expiry, tradeDate),
+            desk.euaOption(finland, clearing, "SELL", "PUT", OPTION_LOTS, future, "62.00", "2.20", expiry, tradeDate),
+        ).forEach { tradeId ->
+            // Only these two: other trades wait in the inbox on purpose.
+            api.approveTask(DemoUser.MIDDLE, "TRADE_APPROVAL", tradeId)
+            desk.confirm(tradeId)
+        }
+    }
 
     /** Last month closes softly with its export not yet acknowledged; the last five days get official curves and valuations. */
     private fun lastMonth(finland: DemoEntity, sweden: DemoEntity, market: DemoMarket, desk: DemoDesk, history: DemoHistory) {
@@ -214,6 +236,8 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
     companion object {
         private const val PARTIES = "parties"
         private const val STATEMENT_DAYS = 15
+        private const val OPTION_EXPIRY_DAYS = 5L
+        private const val OPTION_LOTS = 10
 
         /** All fictitious; the first three are the ones the e2e journeys and older steps use. */
         private val COUNTERPARTIES = listOf(

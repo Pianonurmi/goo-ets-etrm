@@ -9,7 +9,8 @@ import kotlin.random.Random
 
 /**
  * Market data with history: instruments, two EUA December futures, GoO vintages for four buckets (and two generic
- * ones, [genericCurves]), a GoO price index, EUR and SEK discount curves from rates by tenor (ADR 0044),
+ * ones, [genericCurves]), a GoO price index, EUR and SEK discount curves from rates by tenor (ADR 0044), an option
+ * volatility curve from the futures' implied volatility (ADR 0047),
  * and seven months of daily prices, rates and FX rates, loaded the way a desk would, as file imports. Prices are random
  * walks from a fixed seed, so every seed run produces the same history relative to its date.
  */
@@ -74,6 +75,19 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
                 """{"code":"${bucket.curve}","kind":"GOO_VINTAGE","description":"${bucket.label} vintages","bucketCode":"${bucket.code}","currency":"EUR"}""",
             )
         }
+        if (VOL_CURVE !in curves) {
+            api.post(
+                DemoUser.RISK,
+                "/api/v1/market-data/curves",
+                """{"code":"$VOL_CURVE","kind":"EUA_VOLATILITY","description":"EUA option volatility","allowanceProductCode":"EUA","currency":"EUR"}""",
+            )
+        }
+        api.put(
+            DemoUser.RISK,
+            "/api/v1/market-data/import-formats",
+            """{"code":"DEMO_EUA_VOL_CSV","kind":"QUOTES_LONG_CSV","description":"Exchange implied volatility of EUA options: date, future, percent",
+               "source":"EXCHANGE","columnMapping":{"date":"Date","instrument":"Future","value":"Volatility"},"constants":{"quoteType":"VOLATILITY"}}""",
+        )
         rateCurves(curves)
     }
 
@@ -151,6 +165,22 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
         import("GENERIC_SETTLEMENT_CSV", "eex-settlements.csv", settlements.toString())
         import("GENERIC_BROKER_GOO_CSV", "broker-goo-mids.csv", broker.toString())
         rates()
+        volatility(days)
+    }
+
+    /** Implied volatility of the options on each future, around 50 % for the nearer one; a stream of its own. */
+    private fun volatility(days: List<LocalDate>) {
+        val random = Random(SEED + 3)
+        val level = futures.mapIndexed { index, future -> future.instrument to BigDecimal(VOL_START - VOL_STEP * index) }.toMap().toMutableMap()
+        val file = StringBuilder("Date,Future,Volatility\n")
+        days.forEach { day ->
+            futures.forEach { future ->
+                val vol = walk(level.getValue(future.instrument), random, BigDecimal("0.015"), 2).max(VOL_FLOOR).min(VOL_CAP)
+                level[future.instrument] = vol
+                file.append("$day,${future.instrument},$vol\n")
+            }
+        }
+        import("DEMO_EUA_VOL_CSV", "eex-eua-option-vols.csv", file.toString())
     }
 
     /** Swap rates by tenor in percent, moving a few basis points a day; a stream of their own, so prices stay as they were. */
@@ -227,7 +257,7 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
         import("GENERIC_BROKER_GOO_CSV", "broker-goo-generic-mids.csv", broker.toString())
     }
 
-    fun curveCodes(): List<String> = listOf(EUA_CURVE) + (BUCKETS + GENERIC).map { it.curve } + RATE_CURVES.map { it.code }
+    fun curveCodes(): List<String> = listOf(EUA_CURVE, VOL_CURVE) + (BUCKETS + GENERIC).map { it.curve } + RATE_CURVES.map { it.code }
 
     private fun vintages() = listOf(year - 1, year)
 
@@ -259,6 +289,11 @@ class DemoMarket(private val api: DemoClient, private val calendar: DemoCalendar
         const val SEED = 42
         const val INDEX = "GOO_NORDIC_HYDRO_IDX"
         const val EUA_CURVE = "EUA_FWD"
+        const val VOL_CURVE = "EUA_VOL"
+        private const val VOL_START = 52
+        private const val VOL_STEP = 6
+        private val VOL_FLOOR = BigDecimal("30.00")
+        private val VOL_CAP = BigDecimal("80.00")
         private const val SUSPECT_DAYS_AGO = 15
         private val VINTAGE_DISCOUNT = BigDecimal("0.040")
 
