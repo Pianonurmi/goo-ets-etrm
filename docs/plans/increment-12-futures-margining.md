@@ -1,6 +1,6 @@
 # Increment 12: EUA futures margining
 
-**Status: in progress.** The decisions go into ADR 0046.
+**Status: delivered** (M0–M5, release 0.12.0). What differs from the plan is under [Delivered](#delivered); the decisions are in ADR 0046, with amendments to ADRs 0021, 0022 and 0044.
 
 ## Context
 
@@ -37,6 +37,20 @@ clearing house, and is forced to `CLEARED` with its CCP. Nothing models what cle
 | M3 | Margin calls when the cash at the clearer falls short, paid under four eyes; risk counts initial margin as collateral posted and no longer treats margined futures as bilateral exposure |
 | M4 | Expiry: delivery of a future settles at the final settlement price (the variation margin paid the rest) |
 | M5 | Screens, demo statements, help, ADR, deck; release 0.12.0 |
+
+## Delivered
+
+- **Margin limits live in risk.** The liquidity figure is a limit type, `MARGIN_LIQUIDITY` (initial margin held plus
+  open calls), approved like every limit, rather than a separate figure on the clearing screens.
+- **Accepting a break posts nothing.** The margin booked stays as computed; a real difference is corrected at its
+  source (the trade or the price), and the corrected run posts the change.
+- **One open margin call per account.** A later statement replaces an unpaid call, since its shortfall already
+  includes it. Returning excess cash to the bank is not modelled; the demo's statements show the member sweeping it.
+- **Futures leave hedge accounting.** Margined futures cannot be designated as cash flow hedging instruments; their
+  result is realised daily.
+- **Purchases received on a bought future** are costed by their registry movement like any receipt; back office
+  enters the final settlement price there.
+- **Options stay out**, as planned.
 
 ## Verification
 

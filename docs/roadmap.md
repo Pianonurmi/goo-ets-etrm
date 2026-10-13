@@ -13,7 +13,7 @@
 | 9 | Housekeeping before the next feature increment: CI actions off the retired Node 20, backend and web dependency majors (Gradle 9, Kotlin 2.4, Flyway 13, react-router 8, ESLint 10) with the held-back ones recorded, versioned releases with tagged images, README and presentation for an enterprise audience | done (0.9.0) |
 | 10 | Portfolio follow-ups: the portfolio figures prepared in about 3 s and patched in about 0.3 s at 100 000 lots, available-to-sell checks fast on realistic books, GoO limits by vintage and a pre-trade basis check for sales, a give-away report; device caps measured and kept outside the flow ([plan](plans/increment-10-portfolio-follow-ups.md)) | done (0.10.0) |
 | 11 | Valuation depth: discount curves and discounted MtM, TIME and RATES in the P&L explain, carry interpolation of allowance forwards, cash flow hedge accounting (designation under four eyes, effectiveness, the hedging reserve at period end, reclassification) ([plan](plans/increment-11-valuation-depth.md)) | done (0.11.0) |
-| 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | in progress |
+| 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | done (0.12.0) |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -170,4 +170,4 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M2 | Clearing statements: import, initial margin and fees, reconciliation breaks | done |
 | M3 | Margin calls under four eyes; CCP exposure as margin posted | done |
 | M4 | Delivery of futures at the final settlement price | done |
-| M5 | Screens, demo, documentation, release 0.12.0 | |
+| M5 | Screens, demo, documentation, release 0.12.0 | done |
