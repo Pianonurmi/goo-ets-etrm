@@ -1,6 +1,6 @@
 # Increment 11: valuation depth
 
-**Status: in progress.** The decisions go into ADR 0044 (discounting) and ADR 0045 (hedge accounting).
+**Status: delivered** (M0–M6, release 0.11.0). What differs from the plan is under [Delivered](#delivered); the decisions are in ADR 0044 (discounting) and ADR 0045 (hedge accounting), with amendments to ADRs 0019 and 0021.
 
 ## Context
 
@@ -40,6 +40,22 @@ hedge, measures its effectiveness or recycles the reserve.
 | M4 | Hedge designation and effectiveness (ADR 0045): cash flow hedges of forecast purchases and sales, designated under four eyes with hedge documentation issued as a PDF, measured on every official run with a hypothetical derivative (lower-of test, dollar offset) |
 | M5 | Hedge accounting at period end: effective portion to the hedging reserve, ineffective to P&L, reclassification when the forecast transaction occurs, discontinuation under four eyes |
 | M6 | Screens, demo, help, documentation; release 0.11.0 |
+
+## Delivered
+
+- **Seasonality is left out.** GoO curves are per production year and allowances have no seasonal shape; there is no
+  monthly-delivery data to shape them with (ADR 0044, addendum).
+- **Carry only beyond the last future.** Between pillars, linear in days already is a constant carry rate under simple
+  compounding, so `CARRY` changes only the extrapolation.
+- **Reclassification by construction.** Hedging instruments are physically settled fixed-price forwards: on delivery
+  the allowances are booked at the hedged contract price, and the reserve, reversed each month like all unrealised
+  MtM, leaves nothing to recycle. Cash-settled instruments are not designable (ADR 0045).
+- **No backdating.** A hedge is measured from its approval date on. The demo therefore has one active hedge with its
+  documentation and one designation in the inbox, and shows measurements once a visitor signs off a new valuation.
+- **Hedge period end** posts the designated part of each hedging trade through its hedge (event `PeriodEndHedge`) and
+  leaves the rest of the trade to its book type.
+- **Open, small:** no guided-tour step for hedges; the hedge form offers a production year only for GoO; its
+  instrument picker filters trades by product family and side, and the server's PRODUCT check compares the code.
 
 ## Conventions that apply
 

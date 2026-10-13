@@ -7,6 +7,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-13
+
 Valuation depth (increment 11).
 
 ### Added
