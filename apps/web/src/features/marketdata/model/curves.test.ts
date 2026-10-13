@@ -159,6 +159,14 @@ describe('price lookup', () => {
     expect(priceLookup({ ...base, kind: 'discount', currency: 'EU' })).toBeNull();
   });
 
+  it('builds a volatility lookup for an expiry', () => {
+    expect(priceLookup({ ...base, kind: 'volatility', delivery: '2026-12-14' })).toEqual({
+      kind: 'volatility',
+      query: { product: 'EUA', expiry: '2026-12-14', asOf: '2026-10-09' },
+    });
+    expect(priceLookup({ ...base, kind: 'volatility', delivery: '' })).toBeNull();
+  });
+
   it('waits for the date', () => {
     expect(priceLookup({ ...base, asOf: '' })).toBeNull();
   });
@@ -171,11 +179,13 @@ describe('price lookup', () => {
       curve('GOO_C', 'GOO_VINTAGE', { bucketCode: 'EU_SOLAR' }),
       curve('SEK_OIS', 'DISCOUNT', { currency: 'SEK' }),
       curve('EUR_OIS', 'DISCOUNT'),
+      curve('EUA_VOL', 'EUA_VOLATILITY', { allowanceProductCode: 'EUA' }),
     ];
     expect(lookupOptions(curves)).toEqual({
       products: ['EUA'],
       buckets: ['EU_SOLAR', 'NORDIC_WIND'],
       currencies: ['EUR', 'SEK'],
+      volatilityProducts: ['EUA'],
     });
   });
 });

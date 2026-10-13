@@ -43,6 +43,36 @@ object CurveMath {
         return last.price.multiply(factor, MC).setScale(6, RoundingMode.HALF_EVEN)
     }
 
+    /**
+     * Volatility in percent a year for an option expiring on [expiry] seen from [from] (ADR 0047): linear in total
+     * variance `σ² t` between the pillars still ahead of [from] (t in years, ACT/365), flat in volatility before the
+     * first and beyond the last. An expiry on or before [from] takes the first pillar's volatility.
+     */
+    fun volatility(snapshot: CurveSnapshotView, from: LocalDate, expiry: LocalDate): CurvePrice? {
+        require(snapshot.kind == CurveKind.EUA_VOLATILITY) { "${snapshot.curveCode} is not a volatility curve" }
+        val points = snapshot.points.filter { it.pillarDate != null && it.pillarDate.isAfter(from) }.sortedBy { it.pillarDate }
+        if (points.isEmpty()) return null
+        val exact = points.firstOrNull { it.pillarDate == expiry }
+        val (value, origin) = when {
+            exact != null -> exact.price to PriceOrigin.POINT
+            !expiry.isAfter(points.first().pillarDate) -> points.first().price to PriceOrigin.EXTRAPOLATED
+            expiry.isAfter(points.last().pillarDate) -> points.last().price to PriceOrigin.EXTRAPOLATED
+            else -> {
+                val before = points.last { it.pillarDate!!.isBefore(expiry) }
+                val after = points.first { it.pillarDate!!.isAfter(expiry) }
+                val t0 = BigDecimal(ChronoUnit.DAYS.between(from, before.pillarDate))
+                val t1 = BigDecimal(ChronoUnit.DAYS.between(from, after.pillarDate))
+                val t = BigDecimal(ChronoUnit.DAYS.between(from, expiry))
+                val w0 = before.price.multiply(before.price, MC).multiply(t0, MC)
+                val w1 = after.price.multiply(after.price, MC).multiply(t1, MC)
+                val w = w0 + (w1 - w0).multiply(t - t0, MC).divide(t1 - t0, MC)
+                // σ = √(w / t); the day basis cancels out of the ratio.
+                w.divide(t, MC).sqrt(MC).setScale(6, RoundingMode.HALF_EVEN) to PriceOrigin.INTERPOLATED
+            }
+        }
+        return CurvePrice(value, snapshot.currency, origin, snapshot.curveCode, snapshot.id, snapshot.asOfDate)
+    }
+
     /** The vintage's own point, else the nearest earlier vintage (GoO of an older year are no dearer, a cautious mark). */
     fun priceFor(snapshot: CurveSnapshotView, productionYear: Int): CurvePrice? {
         require(snapshot.kind == CurveKind.GOO_VINTAGE) { "${snapshot.curveCode} is not a vintage curve" }

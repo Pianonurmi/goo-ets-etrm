@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.records.Portf
 import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.records.ValuationResultRecord
 import com.pianonurmi.etrm.valuation.adapter.jooq.generated.tables.records.ValuationRunRecord
 import com.pianonurmi.etrm.valuation.api.ExplainRow
+import com.pianonurmi.etrm.valuation.api.OptionValuation
 import com.pianonurmi.etrm.valuation.api.PortfolioBridgeView
 import com.pianonurmi.etrm.valuation.api.PortfolioBucketRow
 import com.pianonurmi.etrm.valuation.api.PortfolioCause
@@ -93,6 +94,17 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
                     .set(VALUATION_RESULT.DISCOUNT_CURVE_CODE, r.discountCurveCode)
                     .set(VALUATION_RESULT.DISCOUNT_SNAPSHOT_ID, r.discountSnapshotId)
                     .set(VALUATION_RESULT.MTM_UNDISCOUNTED, r.mtmUndiscounted)
+                    .set(VALUATION_RESULT.OPTION_TYPE, r.option?.optionType)
+                    .set(VALUATION_RESULT.STRIKE, r.option?.strike)
+                    .set(VALUATION_RESULT.UNDERLYING_CONTRACT_CODE, r.option?.underlyingContractCode)
+                    .set(VALUATION_RESULT.UNDERLYING_PRICE, r.option?.underlyingPrice)
+                    .set(VALUATION_RESULT.VOLATILITY, r.option?.volatility)
+                    .set(VALUATION_RESULT.TIME_TO_EXPIRY, r.option?.timeToExpiry)
+                    .set(VALUATION_RESULT.DELTA, r.option?.delta)
+                    .set(VALUATION_RESULT.GAMMA, r.option?.gamma)
+                    .set(VALUATION_RESULT.VEGA, r.option?.vega)
+                    .set(VALUATION_RESULT.VOL_CURVE_CODE, r.option?.volCurveCode)
+                    .set(VALUATION_RESULT.VOL_SNAPSHOT_ID, r.option?.volSnapshotId)
             },
         ).execute()
     }
@@ -299,5 +311,20 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
         r.discountCurveCode,
         r.discountSnapshotId,
         r.mtmUndiscounted,
+        r.optionType?.let {
+            OptionValuation(
+                it,
+                r.strike!!,
+                r.underlyingContractCode!!,
+                r.underlyingPrice!!,
+                r.volatility!!,
+                r.timeToExpiry!!,
+                r.delta!!,
+                r.gamma!!,
+                r.vega!!,
+                r.volCurveCode!!,
+                r.volSnapshotId!!,
+            )
+        },
     )
 }

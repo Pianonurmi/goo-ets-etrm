@@ -1347,7 +1347,8 @@
     "kinds": {
       "EUA_FORWARD": "EUA forward",
       "GOO_VINTAGE": "GoO vintage",
-      "DISCOUNT": "Discount"
+      "DISCOUNT": "Discount",
+      "EUA_VOLATILITY": "EUA option volatility"
     },
     "dayCount": "Day count",
     "dayCountHint": "How days between dates become years. Leave empty for the default.",
@@ -1380,6 +1381,8 @@
     "openSnapshot": "Open snapshot",
     "priceLookup": "Price lookup",
     "priceLookupHint": "The price valuation uses: the latest official curve on or before the date.",
+    "volatility": "Volatility (options)",
+    "expiry": "Option expiry",
     "forward": "Forward (EUA)",
     "vintage": "Vintage (GoO)",
     "discountFactor": "Discount factor",
@@ -1471,8 +1474,9 @@
       "AMENDED": "Amendments",
       "CANCELLED": "Cancellations",
       "DELIVERED": "Deliveries",
-      "TIME": "Time to payment",
+      "TIME": "Time to payment and expiry",
       "PRICE": "Price moves",
+      "VOL": "Volatility moves",
       "RATES": "Discount rate moves",
       "FX": "FX moves",
       "UNEXPLAINED": "Unexplained"

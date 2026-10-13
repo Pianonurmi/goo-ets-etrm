@@ -7,6 +7,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Added
+- **Options on EUA futures:** a trade with instrument Option names its call or put, strike, expiry and underlying
+  futures contract; the price is the premium per tonne and the option has no delivery schedule. Validated like
+  futures (exchange or clearing house, whole lots, cleared on the contract's venue), reported to EMIR with the option
+  fields, and captured and shown in the trade screens (ADR 0047).
+- **Option volatility:** volatility quotes on futures instruments and an `EUA_VOLATILITY` curve per allowance product,
+  read in total variance between expiries and signed off like every curve; the curve page looks it up by expiry.
+- **Option valuation:** options are valued by Black-76 on the underlying's forward, discounted to expiry, with delta,
+  gamma and vega per result; the P&L explain revalues them step by step and shows volatility moves (`VOL`).
+
 ## [0.12.0] - 2026-10-13
 
 EUA futures margining (increment 12).
@@ -223,6 +233,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.12.0
+[0.11.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.11.0
 [0.10.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.10.0
 [0.9.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.9.0

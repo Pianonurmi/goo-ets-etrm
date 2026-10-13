@@ -10,7 +10,17 @@ import java.util.UUID
 
 enum class InstrumentKind { EUA_SPOT, EUA_FUTURE, EUA_FORWARD, GOO_VINTAGE, INDEX, RATE }
 
-enum class QuoteType { SETTLEMENT, MID, BID, ASK, CLOSE, FIXING }
+enum class QuoteType {
+    SETTLEMENT,
+    MID,
+    BID,
+    ASK,
+    CLOSE,
+    FIXING,
+
+    /** Implied volatility of options on a future, in percent a year (ADR 0047); quoted on the futures instrument. */
+    VOLATILITY,
+}
 
 enum class QuoteQuality {
     OK,

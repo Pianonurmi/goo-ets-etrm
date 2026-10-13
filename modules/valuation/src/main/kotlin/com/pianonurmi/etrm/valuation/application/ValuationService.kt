@@ -14,11 +14,13 @@ import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.tx.Savepoints
+import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.VintageYears
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
+import com.pianonurmi.etrm.trade.api.OptionTerms
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeFilter
@@ -29,6 +31,7 @@ import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.valuation.api.ExplainComponent
 import com.pianonurmi.etrm.valuation.api.ForwardTerms
 import com.pianonurmi.etrm.valuation.api.ForwardValue
+import com.pianonurmi.etrm.valuation.api.OptionValuation
 import com.pianonurmi.etrm.valuation.api.PnlExplainView
 import com.pianonurmi.etrm.valuation.api.PortfolioBridgeView
 import com.pianonurmi.etrm.valuation.api.PortfolioBucketRow
@@ -45,7 +48,9 @@ import com.pianonurmi.etrm.valuation.api.ValuationRunRejected
 import com.pianonurmi.etrm.valuation.api.ValuationRunSignedOff
 import com.pianonurmi.etrm.valuation.api.ValuationRunSubmitted
 import com.pianonurmi.etrm.valuation.api.ValuationRunView
+import com.pianonurmi.etrm.valuation.domain.Black76
 import com.pianonurmi.etrm.valuation.domain.Mtm
+import com.pianonurmi.etrm.valuation.domain.OptionRight
 import com.pianonurmi.etrm.valuation.domain.PnlExplainer
 import com.pianonurmi.etrm.valuation.domain.PortfolioExplainer
 import com.pianonurmi.etrm.valuation.domain.ValuationRepository
@@ -58,6 +63,7 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Clock
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
@@ -65,7 +71,8 @@ import java.util.UUID
  * payment date (ADR 0044): MtM = q × (market − contract) × DF, q signed by side, the market price converted into the
  * contract currency and the result into the entity's base currency at the valuation date's rates. DF comes from the
  * contract currency's official discount curve (1 without one); futures are margined daily and not discounted. Index
- * legs not yet fixed are worth their spread; formula legs are left out.
+ * legs not yet fixed are worth their spread; formula legs are left out. Options are valued by Black-76 until they
+ * expire (ADR 0047).
  */
 @Service
 @Transactional
@@ -83,6 +90,8 @@ class ValuationService(
     private val clock: Clock,
     private val portfolioValues: ObjectProvider<PortfolioValueQuery>? = null,
     private val savepoints: Savepoints = Savepoints.NONE,
+    /** Underlying futures of options; without it options are left unpriced. */
+    private val futures: FuturesContractQuery? = null,
 ) : ValuationQuery, ValuationCommand {
     private val log = LoggerFactory.getLogger(ValuationService::class.java)
 
@@ -110,7 +119,8 @@ class ValuationService(
             totalMtmBase = results.mapNotNull { it.mtmBase }.fold(BigDecimal.ZERO, BigDecimal::add).setScale(2),
             exceptions = results.count { it.status != ResultStatus.OK && it.status != ResultStatus.EXCLUDED },
             inputs = results.filter { it.curveCode != null }.associate { it.curveCode!! to it.snapshotId.toString() } +
-                results.filter { it.discountCurveCode != null }.associate { it.discountCurveCode!! to it.discountSnapshotId.toString() },
+                results.filter { it.discountCurveCode != null }.associate { it.discountCurveCode!! to it.discountSnapshotId.toString() } +
+                results.mapNotNull { it.option }.associate { it.volCurveCode to it.volSnapshotId.toString() },
             note = note,
             createdBy = actor.userId,
             createdAt = clock.instant(),
@@ -274,42 +284,65 @@ class ValuationService(
         bookType: (UUID) -> BookType,
     ): List<ValuationResultView> =
         trade.legs.flatMap { leg ->
+            val sign = if (leg.side == Side.BUY) BigDecimal.ONE else BigDecimal.ONE.negate()
+            val option = leg.option
+            if (option != null) {
+                // An option is valued until it expires; on its expiry date it is worth its payoff.
+                return@flatMap if (option.expiryDate.isBefore(date)) {
+                    emptyList()
+                } else {
+                    val draft = draft(runId, trade, leg, leg.id, option.expiryDate, leg.quantity * sign, option.expiryDate, bookType)
+                    listOf(price(draft, trade, leg, date, base, discount))
+                }
+            }
             leg.deliveries.filter { it.remainingQuantity.signum() > 0 }.map { schedule ->
-                val sign = if (leg.side == Side.BUY) BigDecimal.ONE else BigDecimal.ONE.negate()
-                val draft = ValuationResultView(
-                    runId = runId,
-                    scheduleId = schedule.id,
-                    tradeId = trade.id,
-                    tradeNumber = trade.tradeNumber,
-                    tradeVersion = trade.version,
-                    legNo = leg.legNo,
-                    bookId = trade.bookId,
-                    bookType = bookType(trade.bookId),
-                    counterpartyId = trade.counterpartyId,
-                    productFamily = trade.productFamily,
-                    productKey = leg.allowanceProductCode ?: leg.bucketCode,
-                    productionYear = null,
-                    deliveryDate = schedule.deliveryDate,
-                    quantity = schedule.remainingQuantity * sign,
-                    contractPrice = null,
-                    contractCurrency = leg.priceCurrency.currencyCode,
-                    marketPrice = null,
-                    marketCurrency = null,
-                    priceOrigin = null,
-                    curveCode = null,
-                    snapshotId = null,
-                    curveDate = null,
-                    marketPriceContract = null,
-                    fxToBase = null,
-                    mtm = null,
-                    mtmBase = null,
-                    status = ResultStatus.OK,
-                    note = null,
-                    payDate = schedule.paymentDate ?: schedule.deliveryDate,
-                )
+                val payDate = schedule.paymentDate ?: schedule.deliveryDate
+                val draft = draft(runId, trade, leg, schedule.id, schedule.deliveryDate, schedule.remainingQuantity * sign, payDate, bookType)
                 price(draft, trade, leg, date, base, discount)
             }
         }
+
+    @Suppress("LongParameterList")
+    private fun draft(
+        runId: UUID,
+        trade: TradeView,
+        leg: TradeLegView,
+        scheduleId: UUID,
+        deliveryDate: LocalDate,
+        quantity: BigDecimal,
+        payDate: LocalDate,
+        bookType: (UUID) -> BookType,
+    ) = ValuationResultView(
+        runId = runId,
+        scheduleId = scheduleId,
+        tradeId = trade.id,
+        tradeNumber = trade.tradeNumber,
+        tradeVersion = trade.version,
+        legNo = leg.legNo,
+        bookId = trade.bookId,
+        bookType = bookType(trade.bookId),
+        counterpartyId = trade.counterpartyId,
+        productFamily = trade.productFamily,
+        productKey = leg.allowanceProductCode ?: leg.bucketCode,
+        productionYear = null,
+        deliveryDate = deliveryDate,
+        quantity = quantity,
+        contractPrice = null,
+        contractCurrency = leg.priceCurrency.currencyCode,
+        marketPrice = null,
+        marketCurrency = null,
+        priceOrigin = null,
+        curveCode = null,
+        snapshotId = null,
+        curveDate = null,
+        marketPriceContract = null,
+        fxToBase = null,
+        mtm = null,
+        mtmBase = null,
+        status = ResultStatus.OK,
+        note = null,
+        payDate = payDate,
+    )
 
     /** A schedule that cannot be valued, with the reason. */
     private class Unpriced(val status: ResultStatus, val year: Int?, reason: String) : RuntimeException(reason)
@@ -322,7 +355,7 @@ class ValuationService(
         base: String,
         discount: (String, LocalDate) -> DiscountFactor,
     ): ValuationResultView = try {
-        priced(draft, trade, leg, date, base, discount)
+        leg.option?.let { pricedOption(draft, leg, it, date, base, discount) } ?: priced(draft, trade, leg, date, base, discount)
     } catch (e: Unpriced) {
         draft.copy(productionYear = e.year, status = e.status, note = e.message)
     }
@@ -381,6 +414,74 @@ class ValuationService(
             discountCurveCode = df.curveCode,
             discountSnapshotId = df.snapshotId,
             mtmUndiscounted = Mtm.money(undiscounted),
+        )
+    }
+
+    /**
+     * An option leg by Black-76 (ADR 0047): the underlying future's forward price from the allowance curve, the
+     * volatility for the expiry, the years to expiry (ACT/365) and the discount factor to expiry. Its market price is
+     * the option's value per tonne, its contract price the premium paid: MtM = q × (value − premium).
+     */
+    private fun pricedOption(
+        draft: ValuationResultView,
+        leg: TradeLegView,
+        terms: OptionTerms,
+        date: LocalDate,
+        base: String,
+        discount: (String, LocalDate) -> DiscountFactor,
+    ): ValuationResultView {
+        val product = leg.allowanceProductCode!!
+        val underlying = futures?.futuresContract(terms.underlyingContractCode)
+            ?: throw Unpriced(ResultStatus.MISSING_PRICE, null, "Underlying contract ${terms.underlyingContractCode} not found")
+        val forward = curves.forwardPrice(product, underlying.deliveryDate, date)
+            ?: throw Unpriced(ResultStatus.MISSING_PRICE, null, "No official curve for $product on or before $date")
+        val vol = curves.volatility(product, terms.expiryDate, date)
+            ?: throw Unpriced(ResultStatus.MISSING_PRICE, null, "No official volatility curve for $product on or before $date")
+        val toContract = fx.rate(date, forward.currency, draft.contractCurrency)?.rate
+            ?: throw Unpriced(ResultStatus.MISSING_FX, null, "No ${forward.currency}/${draft.contractCurrency} rate on $date")
+        val toBase = fx.rate(date, draft.contractCurrency, base)?.rate
+            ?: throw Unpriced(ResultStatus.MISSING_FX, null, "No ${draft.contractCurrency}/$base rate on $date")
+        val underlyingPrice = (forward.value * toContract).setScale(6, RoundingMode.HALF_EVEN)
+        val years = BigDecimal(ChronoUnit.DAYS.between(date, terms.expiryDate)).divide(DAYS_A_YEAR, YEAR_SCALE, RoundingMode.HALF_EVEN)
+        val df = discount(draft.contractCurrency, terms.expiryDate)
+        val right = OptionRight.valueOf(terms.optionType.name)
+        val value = Black76.value(right, underlyingPrice, terms.strike, vol.value.movePointLeft(2), years, df.value)
+        val undiscounted = Black76.value(right, underlyingPrice, terms.strike, vol.value.movePointLeft(2), years, BigDecimal.ONE)
+        val mtm = Mtm.value(draft.quantity, value.price, leg.price)
+        val curveNote = listOfNotNull(
+            forward.curveDate.takeIf { it != date }?.let { "Curve of $it" },
+            vol.curveDate.takeIf { it != date }?.let { "Volatility of $it" },
+        ).joinToString("; ").ifEmpty { null }
+        return draft.copy(
+            contractPrice = leg.price,
+            marketPrice = value.price,
+            marketCurrency = draft.contractCurrency,
+            priceOrigin = forward.origin.name,
+            curveCode = forward.curveCode,
+            snapshotId = forward.snapshotId,
+            curveDate = forward.curveDate,
+            marketPriceContract = value.price,
+            fxToBase = toBase,
+            mtm = Mtm.money(mtm),
+            mtmBase = Mtm.money(mtm * toBase),
+            note = curveNote,
+            discountFactor = df.value,
+            discountCurveCode = df.curveCode,
+            discountSnapshotId = df.snapshotId,
+            mtmUndiscounted = Mtm.money(Mtm.value(draft.quantity, undiscounted.price, leg.price)),
+            option = OptionValuation(
+                optionType = terms.optionType.name,
+                strike = terms.strike,
+                underlyingContractCode = underlying.code,
+                underlyingPrice = underlyingPrice,
+                volatility = vol.value,
+                timeToExpiry = years,
+                delta = value.delta,
+                gamma = value.gamma,
+                vega = value.vega,
+                volCurveCode = vol.curveCode,
+                volSnapshotId = vol.snapshotId,
+            ),
         )
     }
 
@@ -488,5 +589,7 @@ class ValuationService(
         const val EUR = "EUR"
         val VALUED = setOf(TradeStatus.APPROVED, TradeStatus.CONFIRMED, TradeStatus.PARTIALLY_DELIVERED)
         const val MAX_TRADES = 100_000
+        val DAYS_A_YEAR = BigDecimal(365)
+        const val YEAR_SCALE = 8
     }
 }

@@ -18,6 +18,7 @@ import com.pianonurmi.etrm.marketdata.api.GooMarks
 import com.pianonurmi.etrm.marketdata.api.InstrumentKind
 import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.marketdata.api.PointOrigin
+import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.marketdata.api.SnapshotStatus
 import com.pianonurmi.etrm.marketdata.domain.CurveBuilder
 import com.pianonurmi.etrm.marketdata.domain.CurveMath
@@ -72,9 +73,11 @@ class CurveService(
         if (!code.matches(Regex("[A-Z0-9_]+"))) throw ValidationException("Curve codes use letters, digits and underscores: $code")
         if (curves.curve(code) != null) throw ConflictException("Curve $code already exists")
         if (command.quoteTypes.isEmpty()) throw ValidationException("A curve needs at least one quote type")
+        val volatility = command.kind == CurveKind.EUA_VOLATILITY
+        if (!volatility && QuoteType.VOLATILITY in command.quoteTypes) throw ValidationException("Only volatility curves use volatility quotes")
         when (command.kind) {
-            CurveKind.EUA_FORWARD -> {
-                val product = command.allowanceProductCode ?: throw ValidationException("A forward curve needs allowanceProductCode")
+            CurveKind.EUA_FORWARD, CurveKind.EUA_VOLATILITY -> {
+                val product = command.allowanceProductCode ?: throw ValidationException("A ${command.kind} curve needs allowanceProductCode")
                 catalogue.allowanceProduct(product) ?: throw NotFoundException("AllowanceProduct", product)
             }
             CurveKind.GOO_VINTAGE -> buckets.requireBucket(command.bucketCode ?: throw ValidationException("A vintage curve needs bucketCode"))
@@ -90,6 +93,10 @@ class CurveService(
         if (command.kind == CurveKind.DISCOUNT && curves.curves(true).any { it.kind == CurveKind.DISCOUNT && it.currency == currency }) {
             throw ConflictException("$currency already has a discount curve")
         }
+        val product = command.allowanceProductCode?.uppercase()
+        if (volatility && curves.curves(true).any { it.kind == CurveKind.EUA_VOLATILITY && it.allowanceProductCode == product }) {
+            throw ConflictException("$product already has a volatility curve")
+        }
         command.proxyCurveCode?.let { proxy ->
             val p = curves.curve(proxy.uppercase()) ?: throw NotFoundException("Curve", proxy)
             if (p.kind != command.kind) throw ValidationException("A proxy curve must be of the same kind")
@@ -98,10 +105,11 @@ class CurveService(
             code = code,
             kind = command.kind,
             description = command.description,
-            allowanceProductCode = command.allowanceProductCode?.uppercase().takeIf { command.kind == CurveKind.EUA_FORWARD },
+            allowanceProductCode = product.takeIf { command.kind == CurveKind.EUA_FORWARD || volatility },
             bucketCode = command.bucketCode?.uppercase().takeIf { command.kind == CurveKind.GOO_VINTAGE },
             currency = currency,
-            quoteTypes = command.quoteTypes,
+            // A volatility curve reads volatility quotes only, whatever the command's default.
+            quoteTypes = if (volatility) listOf(QuoteType.VOLATILITY) else command.quoteTypes,
             stalenessDays = command.stalenessDays,
             proxyCurveCode = command.proxyCurveCode?.uppercase(),
             proxySpread = command.proxySpread,
@@ -132,8 +140,9 @@ class CurveService(
     }
 
     /**
-     * Futures of the product still to deliver (by delivery date) plus spot two working days out; the bucket's
-     * vintages; or the currency's rate instruments by tenor, each ending its tenor after the snapshot date.
+     * Futures of the product still to deliver (by delivery date) plus spot two working days out; the futures still
+     * trading, at their last trading day (volatility); the bucket's vintages; or the currency's rate instruments by
+     * tenor, each ending its tenor after the snapshot date.
      */
     private fun pillars(curve: CurveView, asOf: LocalDate): List<PillarInput> = when (curve.kind) {
         CurveKind.EUA_FORWARD -> {
@@ -145,6 +154,13 @@ class CurveService(
             val spot = instruments.all(InstrumentKind.EUA_SPOT, true).firstOrNull { it.allowanceProductCode == product && it.currency == curve.currency }
                 ?.let { PillarInput("SPOT", workingDaysAfter(asOf, 2), null, it.code) }
             listOfNotNull(spot) + forwards
+        }
+        CurveKind.EUA_VOLATILITY -> {
+            val byContract = instruments.all(InstrumentKind.EUA_FUTURE, true).associateBy { it.futuresContractCode }
+            futures.futuresContracts(curve.allowanceProductCode!!, activeOnly = true)
+                .filter { it.lastTradingDay.isAfter(asOf) && it.currency == curve.currency }
+                .mapNotNull { c -> byContract[c.code]?.let { PillarInput(c.code, c.lastTradingDay, null, it.code) } }
+                .sortedBy { it.pillarDate }
         }
         CurveKind.GOO_VINTAGE -> instruments.all(InstrumentKind.GOO_VINTAGE, true)
             .filter { it.bucketCode == curve.bucketCode && it.currency == curve.currency }
@@ -287,6 +303,14 @@ class CurveService(
     override fun vintagePrice(bucketCode: String, productionYear: Int, asOf: LocalDate, knownAt: Instant?): CurvePrice? {
         val curve = curves.curves(true).firstOrNull { it.kind == CurveKind.GOO_VINTAGE && it.bucketCode == bucketCode.uppercase() } ?: return null
         return latestOfficial(curve.code, asOf, knownAt)?.let { CurveMath.priceFor(it, productionYear) }
+    }
+
+    @Transactional(readOnly = true)
+    override fun volatility(allowanceProductCode: String, expiryDate: LocalDate, asOfDate: LocalDate, knownAt: Instant?): CurvePrice? {
+        val curve = curves.curves(true).firstOrNull {
+            it.kind == CurveKind.EUA_VOLATILITY && it.allowanceProductCode == allowanceProductCode.uppercase()
+        } ?: return null
+        return latestOfficial(curve.code, asOfDate, knownAt)?.let { CurveMath.volatility(it, asOfDate, expiryDate) }
     }
 
     @Transactional(readOnly = true)

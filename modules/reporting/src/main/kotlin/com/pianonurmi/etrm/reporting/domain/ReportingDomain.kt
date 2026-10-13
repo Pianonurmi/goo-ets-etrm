@@ -7,8 +7,8 @@ import com.pianonurmi.etrm.reporting.api.EmirEventView
 import com.pianonurmi.etrm.reporting.api.EmirFieldRule
 import com.pianonurmi.etrm.reporting.api.ReportExportView
 import com.pianonurmi.etrm.reporting.api.ReportResult
-import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.ClearingStatus
+import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeView
 import java.math.BigDecimal

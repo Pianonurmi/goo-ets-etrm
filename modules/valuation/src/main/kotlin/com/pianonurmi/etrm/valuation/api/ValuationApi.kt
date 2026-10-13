@@ -30,12 +30,36 @@ enum class ResultStatus {
 }
 
 /**
- * Why MtM moved between two runs (ADR 0019, ADR 0044). TIME is the old discount curve a day closer to payment;
- * RATES the move of the discount curve itself.
+ * Why MtM moved between two runs (ADR 0019, ADR 0044, ADR 0047). TIME is the old discount curve a day closer to
+ * payment (and an option's time decay); RATES the move of the discount curve itself; VOL an option's move with its
+ * volatility.
  */
-enum class ExplainComponent { NEW, CANCELLED, DELIVERED, AMENDED, TIME, PRICE, RATES, FX, UNEXPLAINED }
+enum class ExplainComponent { NEW, CANCELLED, DELIVERED, AMENDED, TIME, PRICE, VOL, RATES, FX, UNEXPLAINED }
 
-/** One delivery schedule valued: quantity signed (+ bought, − sold), prices per unit, MtM in contract and base currency. */
+/**
+ * How an option leg was valued (ADR 0047, Black-76): the underlying future's forward price in the contract currency,
+ * the implied volatility in percent a year, the years to expiry (ACT/365), and the sensitivities per tonne including
+ * the discount factor: delta, gamma, and vega per volatility point.
+ */
+data class OptionValuation(
+    val optionType: String,
+    val strike: BigDecimal,
+    val underlyingContractCode: String,
+    val underlyingPrice: BigDecimal,
+    val volatility: BigDecimal,
+    val timeToExpiry: BigDecimal,
+    val delta: BigDecimal,
+    val gamma: BigDecimal,
+    val vega: BigDecimal,
+    val volCurveCode: String,
+    val volSnapshotId: UUID,
+)
+
+/**
+ * One delivery schedule valued: quantity signed (+ bought, − sold), prices per unit, MtM in contract and base currency.
+ * An option leg has no schedule: its one result is keyed by the leg's id and dated at expiry, its market price is the
+ * option's value per tonne (discounted) and its contract price the premium (ADR 0047).
+ */
 data class ValuationResultView(
     val runId: UUID,
     val scheduleId: UUID,
@@ -81,6 +105,8 @@ data class ValuationResultView(
     val discountCurveCode: String? = null,
     val discountSnapshotId: UUID? = null,
     val mtmUndiscounted: BigDecimal? = null,
+    /** Option legs only. */
+    val option: OptionValuation? = null,
 )
 
 data class ValuationRunView(

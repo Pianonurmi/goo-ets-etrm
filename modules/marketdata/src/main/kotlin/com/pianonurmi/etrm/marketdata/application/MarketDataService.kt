@@ -202,6 +202,9 @@ class MarketDataService(
     ): QuoteView? {
         val ccy = currency?.uppercase() ?: instrument.currency
         if (ccy != instrument.currency) throw ValidationException("${instrument.code} is quoted in ${instrument.currency}, not $ccy")
+        if (type == QuoteType.VOLATILITY && instrument.kind != InstrumentKind.EUA_FUTURE) {
+            throw ValidationException("Volatility is quoted on futures instruments, not on ${instrument.code}")
+        }
         // Interest rates may be zero or negative; prices may not.
         if (instrument.kind != InstrumentKind.RATE && value.signum() <= 0) throw ValidationException("A price must be positive")
         val current = quotes.current(instrument.code, date, type, source)
@@ -378,6 +381,7 @@ class MarketDataService(
         val code = command.code.trim().uppercase()
         if (indices.byCode(code) != null) throw ConflictException("Price index $code already exists")
         val instrument = instruments.byCode(command.instrumentCode.uppercase()) ?: throw NotFoundException("Instrument", command.instrumentCode)
+        if (command.quoteType == QuoteType.VOLATILITY) throw ValidationException("A price index fixes on prices, not on volatility")
         val index = PriceIndexView(code, command.description, instrument.code, command.quoteType, command.fixingRule, true)
         indices.insert(index)
         return index

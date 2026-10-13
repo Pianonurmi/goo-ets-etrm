@@ -17,10 +17,13 @@ import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
+import com.pianonurmi.etrm.trade.api.OptionTerms
+import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeLegView
@@ -66,6 +69,7 @@ class ValuationServiceIT {
     private val d0 = LocalDate.of(2026, 10, 8)
     private val d1 = LocalDate.of(2026, 10, 9)
     private val forward = mutableMapOf(d0 to BigDecimal("72.00"), d1 to BigDecimal("74.00"))
+    private val vols = mutableMapOf<LocalDate, BigDecimal>()
     private var euaRemaining = BigDecimal(1000)
     private lateinit var valuations: ValuationService
 
@@ -103,8 +107,13 @@ class ValuationServiceIT {
         schedules: List<DeliveryScheduleView>,
         product: String? = "EUA",
         futures: String? = null,
+        option: OptionTerms? = null,
+        quantity: String = "0",
     ) = mockk<TradeLegView> {
+        every { id } returns UUID.randomUUID()
         every { legNo } returns 1
+        every { this@mockk.option } returns option
+        every { this@mockk.quantity } returns BigDecimal(quantity)
         every { this@mockk.side } returns side
         every { this@mockk.price } returns BigDecimal(price)
         every { priceType } returns type
@@ -213,6 +222,10 @@ class ValuationServiceIT {
             every { forwardPrice("EUA", any(), any(), any()) } answers {
                 val asOf = thirdArg<LocalDate>()
                 CurvePrice(forward.getValue(asOf), "EUR", PriceOrigin.INTERPOLATED, "EUA_FWD", UUID.nameUUIDFromBytes(asOf.toString().toByteArray()), asOf)
+            }
+            every { volatility("EUA", any(), any(), any()) } answers {
+                val asOf = thirdArg<LocalDate>()
+                vols[asOf]?.let { CurvePrice(it, "EUR", PriceOrigin.INTERPOLATED, "EUA_VOL", UUID.nameUUIDFromBytes("vol-$asOf".toByteArray()), asOf) }
             }
         }
         val fx = mockk<FxRates> {
@@ -475,6 +488,114 @@ class ValuationServiceIT {
         explain.components.getValue(ExplainComponent.TIME) shouldBe BigDecimal("0.16")
         explain.components.getValue(ExplainComponent.PRICE) shouldBe BigDecimal("1003.21")
         explain.components.getValue(ExplainComponent.RATES) shouldBe BigDecimal("-3.37")
+        explain.mtmTo - explain.mtmFrom shouldBe explain.components.values.fold(BigDecimal.ZERO, BigDecimal::add)
+    }
+
+    @Test
+    fun `an option is valued by Black-76 until it expires and its move is explained by price, volatility and time`() {
+        user = "risk1"
+        val first = LocalDate.of(2026, 10, 12)
+        val second = LocalDate.of(2026, 10, 13)
+        forward[first] = BigDecimal("72.00")
+        forward[second] = BigDecimal("74.00")
+        vols[first] = BigDecimal("50.00")
+        vols[second] = BigDecimal("45.00")
+        discountRates[first] = BigDecimal("3.00")
+        discountRates[second] = BigDecimal("3.50")
+        val expiry = LocalDate.of(2026, 12, 14)
+        val call = trade(
+            "T-OPT-CALL",
+            ProductFamily.EMISSION_ALLOWANCE,
+            listOf(
+                leg(
+                    Side.BUY,
+                    "6.00",
+                    PriceType.FIXED,
+                    "EUR",
+                    emptyList(),
+                    option = OptionTerms(OptionType.CALL, BigDecimal("75.00"), expiry, "EUAZ26"),
+                    quantity = "10000",
+                ),
+            ),
+        )
+        val expired = trade(
+            "T-OPT-OLD",
+            ProductFamily.EMISSION_ALLOWANCE,
+            listOf(
+                leg(
+                    Side.SELL,
+                    "2.00",
+                    PriceType.FIXED,
+                    "EUR",
+                    emptyList(),
+                    option = OptionTerms(OptionType.PUT, BigDecimal("60.00"), LocalDate.of(2026, 10, 9), "EUAZ26"),
+                    quantity = "1000",
+                ),
+            ),
+        )
+        val book = mockk<TradeQuery> {
+            every { trades(any()) } returns listOf(call, expired)
+            every { trade(any()) } returns null
+        }
+        val futures = mockk<FuturesContractQuery> {
+            every { futuresContract("EUAZ26") } returns mockk {
+                every { code } returns "EUAZ26"
+                every { deliveryDate } returns LocalDate.of(2026, 12, 21)
+            }
+        }
+        val options = ValuationService(
+            JooqValuationRepository(TestDatabase.dsl),
+            book,
+            curves,
+            fx,
+            { _, _ -> null },
+            discounting,
+            mockk(),
+            referenceData,
+            ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
+            ApplicationEventPublisher { },
+            Clock.fixed(Instant.parse("2026-10-13T18:00:00Z"), ZoneOffset.UTC),
+            futures = futures,
+        )
+        val run0 = options.run(entity, first, RunKind.EOD)
+        val result = options.results(run0.id).single()
+        result.tradeNumber shouldBe "T-OPT-CALL"
+        result.scheduleId shouldBe call.legs.single().id
+        result.deliveryDate shouldBe expiry
+        result.payDate shouldBe expiry
+        result.contractPrice shouldBe BigDecimal("6.000000")
+        result.status shouldBe ResultStatus.OK
+        val option = result.option!!
+        option.underlyingPrice shouldBe BigDecimal("72.000000")
+        option.volatility shouldBe BigDecimal("50.000000")
+        // 63 days to expiry, ACT/365.
+        option.timeToExpiry shouldBe BigDecimal("0.17260274")
+        option.volCurveCode shouldBe "EUA_VOL"
+        // Out of the money but with two months at 50 %: worth less than the premium paid, delta under a half.
+        (result.marketPriceContract!! > BigDecimal.ZERO && result.marketPriceContract < BigDecimal("6.00")) shouldBe true
+        (option.delta > BigDecimal("0.3") && option.delta < BigDecimal("0.5")) shouldBe true
+        (option.vega > BigDecimal.ZERO && option.gamma > BigDecimal.ZERO) shouldBe true
+        result.mtm shouldBe (BigDecimal(10000) * (result.marketPriceContract - BigDecimal("6.00"))).setScale(2, java.math.RoundingMode.HALF_EVEN)
+        result.discountCurveCode shouldBe "EUR_DISC"
+        (result.mtmUndiscounted!! > result.mtm!!) shouldBe true
+        run0.inputs.keys shouldBe setOf("EUA_FWD", "EUR_DISC", "EUA_VOL")
+        options.submit(run0.id)
+        options.signOff(run0.id, "risk2", null)
+
+        // Without an official volatility the option is an exception, not a linear value.
+        vols.remove(second)
+        options.results(options.run(entity, second, RunKind.ADHOC).id).single().status shouldBe ResultStatus.MISSING_PRICE
+        vols[second] = BigDecimal("45.00")
+        val run1 = options.submit(options.run(entity, second, RunKind.EOD).id)
+        options.signOff(run1.id, "risk2", null)
+        val explain = options.explain(entity, first, second)!!
+        // The future rose by 2 (gain), volatility fell by 5 points (loss), a day passed (decay), rates rose.
+        (explain.components.getValue(ExplainComponent.PRICE) > BigDecimal.ZERO) shouldBe true
+        (explain.components.getValue(ExplainComponent.VOL) < BigDecimal.ZERO) shouldBe true
+        (explain.components.getValue(ExplainComponent.TIME) < BigDecimal.ZERO) shouldBe true
+        (explain.components.getValue(ExplainComponent.RATES) < BigDecimal.ZERO) shouldBe true
+        // Revalued step by step, so nothing is left unexplained but rounding.
+        (explain.components[ExplainComponent.UNEXPLAINED]?.abs() ?: BigDecimal.ZERO) shouldBe BigDecimal.ZERO
         explain.mtmTo - explain.mtmFrom shouldBe explain.components.values.fold(BigDecimal.ZERO, BigDecimal::add)
     }
 }

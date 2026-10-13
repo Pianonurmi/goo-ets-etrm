@@ -39,6 +39,7 @@ import {
   emptyCurve,
   lookupOptions,
   priceLookup,
+  forProduct,
   proxyCandidates,
   toCreateCurve,
   validateCurve,
@@ -117,7 +118,7 @@ export function CreateCurveModal({
             {...form.getInputProps('description')}
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            {kind === 'EUA_FORWARD' && (
+            {forProduct(kind) && (
               <Select
                 label={t('curves.product')}
                 data={allowances.map((product) => ({
@@ -162,12 +163,14 @@ export function CreateCurveModal({
               />
             )}
           </SimpleGrid>
-          <MultiSelect
-            label={t('curves.quoteTypes')}
-            data={QUOTE_TYPES}
-            data-testid="curve-quote-types"
-            {...form.getInputProps('quoteTypes')}
-          />
+          {kind !== 'EUA_VOLATILITY' && (
+            <MultiSelect
+              label={t('curves.quoteTypes')}
+              data={QUOTE_TYPES}
+              data-testid="curve-quote-types"
+              {...form.getInputProps('quoteTypes')}
+            />
+          )}
           <SimpleGrid cols={{ base: 1, sm: 3 }}>
             <TextInput
               label={t('curves.stalenessDays')}
@@ -274,13 +277,13 @@ export function OfficialCurve({ code, asOf }: { code: string; asOf: string }) {
   );
 }
 
-function PriceResult({ price }: { price: Schema<'CurvePrice'> }) {
+function PriceResult({ price, percent = false }: { price: Schema<'CurvePrice'>; percent?: boolean }) {
   const { t } = useTranslation();
   return (
     <Stack gap={4} data-testid="price-result">
       <Group gap="xs">
         <Text size="xl" fw={700} className="etrm-figure" data-testid="price-value">
-          {formatDecimal(price.value, 2, 6)} {price.currency}
+          {formatDecimal(price.value, 2, 6)} {percent ? '%' : price.currency}
         </Text>
         <Badge variant="outline" color="gray" data-testid="price-origin">
           {t(`curves.origins.${price.origin}`)}
@@ -365,6 +368,12 @@ function LookupOutcome({ lookup }: { lookup: PriceLookup }) {
     { params: { query: lookup.kind === 'discount' ? lookup.query : { currency: '', payDate: '', asOf: '' } } },
     { enabled: lookup.kind === 'discount', retry: false },
   );
+  const volatility = $api.useQuery(
+    'get',
+    '/api/v1/market-data/curves/volatility',
+    { params: { query: lookup.kind === 'volatility' ? lookup.query : { product: '', expiry: '', asOf: '' } } },
+    { enabled: lookup.kind === 'volatility', retry: false },
+  );
   if (lookup.kind === 'discount') {
     return (
       <QueryState isPending={discount.isPending} error={discount.error}>
@@ -372,18 +381,21 @@ function LookupOutcome({ lookup }: { lookup: PriceLookup }) {
       </QueryState>
     );
   }
-  const result = lookup.kind === 'forward' ? forward : vintage;
+  const result = lookup.kind === 'forward' ? forward : lookup.kind === 'volatility' ? volatility : vintage;
   if (isNotFound(result.error)) {
     return <EmptyState title={t('curves.noPrice')} description={t('curves.noPriceHint')} testId="price-none" />;
   }
   return (
     <QueryState isPending={result.isPending} error={result.error}>
-      {result.data && <PriceResult price={result.data} />}
+      {result.data && <PriceResult price={result.data} percent={lookup.kind === 'volatility'} />}
     </QueryState>
   );
 }
 
-/** The price valuation would read: an EUA forward for a delivery date, a GoO vintage, or a discount factor to a payment date, as of a date. */
+/**
+ * The price valuation would read: an EUA forward for a delivery date, a GoO vintage, a discount factor to a payment
+ * date, or an option volatility for an expiry, as of a date.
+ */
 export function PriceLookupPanel({ curves, asOf }: { curves: readonly Curve[]; asOf: string }) {
   const { t } = useTranslation();
   const options = lookupOptions(curves);
@@ -414,15 +426,16 @@ export function PriceLookupPanel({ curves, asOf }: { curves: readonly Curve[]; a
             { value: 'forward', label: t('curves.forward') },
             { value: 'vintage', label: t('curves.vintage') },
             { value: 'discount', label: t('curves.discountFactor') },
+            { value: 'volatility', label: t('curves.volatility') },
           ]}
           data-testid="price-kind"
         />
         <Group align="flex-end">
-          {form.kind === 'forward' ? (
+          {form.kind === 'forward' || form.kind === 'volatility' ? (
             <>
               <Select
                 label={t('curves.product')}
-                data={options.products}
+                data={form.kind === 'volatility' ? options.volatilityProducts : options.products}
                 value={form.product || null}
                 onChange={(product) => set({ product: product ?? '' })}
                 w={140}
@@ -430,7 +443,7 @@ export function PriceLookupPanel({ curves, asOf }: { curves: readonly Curve[]; a
               />
               <TextInput
                 type="date"
-                label={t('curves.delivery')}
+                label={form.kind === 'volatility' ? t('curves.expiry') : t('curves.delivery')}
                 value={form.delivery}
                 onChange={(e) => set({ delivery: e.currentTarget.value })}
                 data-testid="price-delivery"

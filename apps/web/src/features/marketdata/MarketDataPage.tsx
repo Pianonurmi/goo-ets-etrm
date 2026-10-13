@@ -37,7 +37,8 @@ import { AliasModal, CreateInstrumentModal } from './InstrumentActions';
 type Instrument = Schema<'InstrumentView'>;
 type Quote = Schema<'QuoteView'>;
 type QuoteType = Schema<'RecordQuote'>['quoteType'];
-const QUOTE_TYPES: QuoteType[] = ['SETTLEMENT', 'MID', 'BID', 'ASK', 'CLOSE', 'FIXING'];
+// VOLATILITY is the implied volatility of options on a future, in percent a year.
+const QUOTE_TYPES: QuoteType[] = ['SETTLEMENT', 'MID', 'BID', 'ASK', 'CLOSE', 'FIXING', 'VOLATILITY'];
 
 function useRefreshMarketData() {
   const queryClient = useQueryClient();

@@ -92,6 +92,13 @@ class CurveController(private val query: CurveQuery, private val command: CurveC
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) asOf: LocalDate,
     ): CurvePrice = query.forwardPrice(product, delivery, asOf) ?: throw NotFoundException("Forward price", "$product for $delivery on $asOf")
 
+    @GetMapping("/volatility")
+    fun volatility(
+        @RequestParam product: String,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) expiry: LocalDate,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) asOf: LocalDate,
+    ): CurvePrice = query.volatility(product, expiry, asOf) ?: throw NotFoundException("Volatility", "$product for $expiry on $asOf")
+
     @GetMapping("/vintage-price")
     fun vintagePrice(
         @RequestParam bucket: String,

@@ -37,10 +37,26 @@ Two causes in the **P&L explain** come from discounting:
 
 | Cause | What moved |
 |---|---|
-| Time to payment | The value of the earlier discount curve as the payment gets a day closer |
+| Time to payment and expiry | The value of the earlier discount curve as the payment gets a day closer, and an option's time decay |
 | Discount rate moves | The move of the discount curve itself between the two runs |
 
 Time to payment is a steady drift from run to run; discount rate moves are the part that depends on the market.
+
+## Options
+
+An option is valued with **Black-76** (see [Trading: Options](trading.md#options)): from the forward price of its
+underlying future, the volatility for its expiry (see [Volatility curves](market-data.md#volatility-curves)), the time
+to expiry and the discount factor to expiry.
+
+- An option has one result per leg, dated at its expiry. Its **market price** is the option's value per tonne, its
+  **contract price** the premium paid, so the mark to market is the quantity times the value less the premium.
+- Each option result also keeps the forward of the underlying, the volatility and the **delta**, **gamma** and
+  **vega** (per volatility point) per tonne.
+- Without an official volatility curve an option is an exception (missing price), never valued as a forward.
+- On its expiry date an option is worth its payoff; after that it is no longer valued.
+- In the **P&L explain** an option is valued again one input at a time: time, the underlying's price, the
+  volatility (**Volatility moves**), the discount rate and FX. Each step is the change from the step before, so the
+  causes add up.
 
 ## Portfolio value
 

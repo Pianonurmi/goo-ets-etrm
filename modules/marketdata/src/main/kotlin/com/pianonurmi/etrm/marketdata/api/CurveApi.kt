@@ -16,6 +16,9 @@ enum class CurveKind {
 
     /** Zero rates (percent a year) of one currency by tenor, for discounting (ADR 0044). */
     DISCOUNT,
+
+    /** Implied volatility (percent a year) of options on an allowance product's futures by expiry (ADR 0047). */
+    EUA_VOLATILITY,
 }
 
 /** How a discount curve turns days into years: actual days over 360 (EUR money markets) or over 365. */
@@ -147,6 +150,12 @@ interface CurveQuery {
 
     /** Price of a GoO bucket's vintage from the latest official vintage curve on or before [asOf]. */
     fun vintagePrice(bucketCode: String, productionYear: Int, asOf: LocalDate, knownAt: Instant? = null): CurvePrice?
+
+    /**
+     * Implied volatility in percent a year for an option on the allowance product expiring on [expiryDate], seen from
+     * [asOfDate], from the latest official volatility curve on or before it; null without one.
+     */
+    fun volatility(allowanceProductCode: String, expiryDate: LocalDate, asOfDate: LocalDate, knownAt: Instant? = null): CurvePrice?
 }
 
 /**

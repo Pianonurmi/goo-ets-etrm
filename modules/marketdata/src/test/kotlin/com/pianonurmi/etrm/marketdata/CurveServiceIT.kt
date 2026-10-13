@@ -179,6 +179,43 @@ class CurveServiceIT {
     }
 
     @Test
+    fun `a volatility curve is built from volatility quotes on futures and read in total variance`() {
+        user = "builder"
+        shouldThrow<ValidationException> { marketData.recordQuote(RecordQuote("CRV_EUA_SPOT", asOf, QuoteType.VOLATILITY, BigDecimal("50"))) }
+        shouldThrow<ValidationException> {
+            curves.createCurve(CreateCurve("EUA_BAD", CurveKind.EUA_FORWARD, "bad", allowanceProductCode = "EUA", quoteTypes = listOf(QuoteType.VOLATILITY)))
+        }
+        listOf("DEC26" to "50", "DEC27" to "40").forEach { (code, vol) ->
+            marketData.recordQuote(RecordQuote("CRV_$code", asOf, QuoteType.VOLATILITY, BigDecimal(vol), source = "EXCHANGE"))
+        }
+        // Whatever the command says, a volatility curve reads volatility quotes.
+        val curve = curves.createCurve(CreateCurve("EUA_VOL", CurveKind.EUA_VOLATILITY, "EUA option volatility", allowanceProductCode = "EUA"))
+        curve.quoteTypes shouldBe listOf(QuoteType.VOLATILITY)
+        shouldThrow<ConflictException> { curves.createCurve(CreateCurve("EUA_VOL2", CurveKind.EUA_VOLATILITY, "again", allowanceProductCode = "EUA")) }
+        curves.volatility("EUA", LocalDate.of(2026, 12, 21), asOf) shouldBe null
+
+        val draft = curves.build("EUA_VOL", asOf)
+        draft.points.map { Triple(it.pillar, it.pillarDate, it.price) } shouldBe listOf(
+            Triple("CRV_EUA_DEC26", LocalDate.of(2026, 12, 21), BigDecimal("50.000000")),
+            Triple("CRV_EUA_DEC27", LocalDate.of(2027, 12, 20), BigDecimal("40.000000")),
+        )
+        curves.submit(draft.id)
+        signOff(draft.id, "checker")
+        curves.volatility("EUA", LocalDate.of(2026, 12, 21), asOf)!!.let {
+            it.value shouldBe BigDecimal("50.000000")
+            it.origin shouldBe PriceOrigin.POINT
+        }
+        // Total variance 50² × 73 and 40² × 437 days, linear in days to 255: √(440 850 / 255).
+        curves.volatility("EUA", LocalDate.of(2027, 6, 21), asOf)!!.let {
+            it.value shouldBe BigDecimal("41.579124")
+            it.origin shouldBe PriceOrigin.INTERPOLATED
+        }
+        curves.volatility("EUA", LocalDate.of(2026, 11, 20), asOf)!!.value shouldBe BigDecimal("50.000000")
+        curves.volatility("EUA", LocalDate.of(2028, 6, 1), asOf)!!.origin shouldBe PriceOrigin.EXTRAPOLATED
+        curves.forwardPrice("EUA", LocalDate.of(2026, 12, 21), asOf)!!.curveCode shouldBe "EUA_FWD"
+    }
+
+    @Test
     fun `a discount curve is built from rate instruments by tenor and gives discount factors once official`() {
         user = "builder"
         shouldThrow<ValidationException> {

@@ -29,6 +29,10 @@ object Mtm {
  * - FX: the later value's change from the exchange rate to base;
  * - UNEXPLAINED: rounding, and schedules that could not be valued in one of the runs.
  *
+ * An option is not linear in its inputs, so it is revalued by Black-76 one input at a time, in the order terms, time
+ * (years to expiry and the rolled discount factor), price (the underlying), VOL, rates and FX (ADR 0047); each step is
+ * the change of value from the previous one, so the steps add up by construction.
+ *
  * [rolled] gives the earlier run's discount factor for the later result's payment, seen from the later date (1 when
  * the earlier result was not discounted).
  */
@@ -54,6 +58,7 @@ object PnlExplainer {
                 r0 == null -> listOf(ExplainComponent.NEW to v1)
                 r1 == null -> listOf((if (cancelled(r0.tradeId)) ExplainComponent.CANCELLED else ExplainComponent.DELIVERED) to v0.negate())
                 !valued(r0) || !valued(r1) -> emptyList()
+                r0.option != null && r1.option != null -> decomposeOption(r0, r1, rolled(r0, r1))
                 else -> decompose(r0, r1, rolled(r0, r1))
             }
             val rounded = parts.map { (c, a) -> c to a.setScale(2, RoundingMode.HALF_EVEN) }
@@ -85,6 +90,32 @@ object PnlExplainer {
             ExplainComponent.PRICE to (newMarket - oldMarket) * d0r,
             ExplainComponent.RATES to newMarket * (d1 - d0r),
             ExplainComponent.FX to q1 * (f1 - k1) * (x1 - x0) * d1,
+        )
+    }
+
+    private fun decomposeOption(r0: ValuationResultView, r1: ValuationResultView, d0r: BigDecimal): List<Pair<ExplainComponent, BigDecimal>> {
+        val o0 = r0.option!!
+        val o1 = r1.option!!
+        val right = OptionRight.valueOf(o1.optionType)
+
+        // The later terms valued at the given market, less the later premium, in the earlier exchange rate.
+        fun at(forward: BigDecimal, vol: BigDecimal, years: BigDecimal, df: BigDecimal): BigDecimal =
+            r1.quantity * (Black76.value(right, forward, o1.strike, vol.movePointLeft(2), years, df).price - r1.contractPrice!!) * r0.fxToBase!!
+        val d0 = r0.discountFactor ?: BigDecimal.ONE
+        val v0 = r0.quantity * (r0.marketPriceContract!! - r0.contractPrice!!) * r0.fxToBase!!
+        val terms = at(o0.underlyingPrice, o0.volatility, o0.timeToExpiry, d0)
+        val time = at(o0.underlyingPrice, o0.volatility, o1.timeToExpiry, d0r)
+        val price = at(o1.underlyingPrice, o0.volatility, o1.timeToExpiry, d0r)
+        val vol = at(o1.underlyingPrice, o1.volatility, o1.timeToExpiry, d0r)
+        val rates = r1.quantity * (r1.marketPriceContract!! - r1.contractPrice!!) * r0.fxToBase
+        val fx = r1.quantity * (r1.marketPriceContract - r1.contractPrice) * r1.fxToBase!!
+        return listOf(
+            (if (r0.tradeVersion != r1.tradeVersion) ExplainComponent.AMENDED else ExplainComponent.DELIVERED) to terms - v0,
+            ExplainComponent.TIME to time - terms,
+            ExplainComponent.PRICE to price - time,
+            ExplainComponent.VOL to vol - price,
+            ExplainComponent.RATES to rates - vol,
+            ExplainComponent.FX to fx - rates,
         )
     }
 

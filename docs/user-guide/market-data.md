@@ -59,3 +59,19 @@ and the kind **Discount**; it takes a currency and a **Day count** instead of a 
   a currency, a **Payment date** and the **As of** date, and **Look up** shows the factor, the zero rate, the days to
   payment, the curve and its date. Between two tenors the rate is interpolated by calendar days; beyond the last one it
   stays flat. If the currency has no official discount curve, the page says so and the factor is 1.
+
+## Volatility curves
+
+A **volatility curve** gives the implied volatility of options on an allowance product's futures, by expiry. Option
+valuation reads it (see [Trading: Options](trading.md#options)). Create one with **New curve** and the kind **EUA option
+volatility**; it takes a product and reads only volatility quotes.
+
+- **Volatility quotes.** Record a quote of type **VOLATILITY** on a futures instrument, in percent a year (for example
+  `48.5`). Quotes of other instruments are refused. Like prices, a large move from the previous quote is flagged.
+- **Pillars.** Each futures contract still trading is a pillar, dated at its last trading day.
+- **Between expiries** the curve is linear in total variance (volatility squared times time), so a later expiry never
+  gets less variance than an earlier one would suggest; before the first and beyond the last pillar it stays flat.
+  There is no smile: every strike of an expiry gets the same volatility.
+- **Sign-off and lookup.** Snapshots are signed off by a second person like other curves. The **Price lookup** card
+  has the choice **Volatility (options)**: pick the product and an **Option expiry** to see the volatility valuation
+  would use.

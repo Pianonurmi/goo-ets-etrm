@@ -2224,7 +2224,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
+            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT", "EUA_VOLATILITY" ],
             "type" : "string"
           },
           "proxyCurveCode" : {
@@ -2235,7 +2235,7 @@
           },
           "quoteTypes" : {
             "items" : {
-              "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING" ],
+              "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING", "VOLATILITY" ],
               "type" : "string"
             },
             "type" : "array"
@@ -2411,7 +2411,7 @@
             "type" : "string"
           },
           "quoteType" : {
-            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING" ],
+            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING", "VOLATILITY" ],
             "type" : "string"
           }
         },
@@ -2876,7 +2876,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
+            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT", "EUA_VOLATILITY" ],
             "type" : "string"
           },
           "note" : {
@@ -2940,7 +2940,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT" ],
+            "enum" : [ "EUA_FORWARD", "GOO_VINTAGE", "DISCOUNT", "EUA_VOLATILITY" ],
             "type" : "string"
           },
           "proxyCurveCode" : {
@@ -2951,7 +2951,7 @@
           },
           "quoteTypes" : {
             "items" : {
-              "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING" ],
+              "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING", "VOLATILITY" ],
               "type" : "string"
             },
             "type" : "array"
@@ -3746,7 +3746,7 @@
             "type" : "string"
           },
           "component" : {
-            "enum" : [ "NEW", "CANCELLED", "DELIVERED", "AMENDED", "TIME", "PRICE", "RATES", "FX", "UNEXPLAINED" ],
+            "enum" : [ "NEW", "CANCELLED", "DELIVERED", "AMENDED", "TIME", "PRICE", "VOL", "RATES", "FX", "UNEXPLAINED" ],
             "type" : "string"
           },
           "scheduleId" : {
@@ -7348,6 +7348,46 @@
         "required" : [ "expiryDate", "optionType", "strike", "underlyingContractCode" ],
         "type" : "object"
       },
+      "OptionValuation" : {
+        "properties" : {
+          "delta" : {
+            "type" : "number"
+          },
+          "gamma" : {
+            "type" : "number"
+          },
+          "optionType" : {
+            "type" : "string"
+          },
+          "strike" : {
+            "type" : "number"
+          },
+          "timeToExpiry" : {
+            "type" : "number"
+          },
+          "underlyingContractCode" : {
+            "type" : "string"
+          },
+          "underlyingPrice" : {
+            "type" : "number"
+          },
+          "vega" : {
+            "type" : "number"
+          },
+          "volCurveCode" : {
+            "type" : "string"
+          },
+          "volSnapshotId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "volatility" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "delta", "gamma", "optionType", "strike", "timeToExpiry", "underlyingContractCode", "underlyingPrice", "vega", "volCurveCode", "volSnapshotId", "volatility" ],
+        "type" : "object"
+      },
       "OverrideRequest" : {
         "properties" : {
           "note" : {
@@ -8221,7 +8261,7 @@
             "type" : "string"
           },
           "quoteType" : {
-            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING" ],
+            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING", "VOLATILITY" ],
             "type" : "string"
           }
         },
@@ -8609,7 +8649,7 @@
             "type" : "string"
           },
           "quoteType" : {
-            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING" ],
+            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING", "VOLATILITY" ],
             "type" : "string"
           },
           "recordedAt" : {
@@ -9079,7 +9119,7 @@
             "type" : "string"
           },
           "quoteType" : {
-            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING" ],
+            "enum" : [ "SETTLEMENT", "MID", "BID", "ASK", "CLOSE", "FIXING", "VOLATILITY" ],
             "type" : "string"
           },
           "source" : {
@@ -11754,6 +11794,13 @@
           },
           "note" : {
             "type" : [ "string", "null" ]
+          },
+          "option" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/OptionValuation"
+            }, {
+              "type" : "null"
+            } ]
           },
           "payDate" : {
             "format" : "date",
@@ -17563,6 +17610,58 @@
           "schema" : {
             "format" : "int32",
             "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "asOf",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CurvePrice"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Curves" ]
+      }
+    },
+    "/api/v1/market-data/curves/volatility" : {
+      "get" : {
+        "operationId" : "curve_volatility",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "product",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "expiry",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
           }
         }, {
           "in" : "query",
