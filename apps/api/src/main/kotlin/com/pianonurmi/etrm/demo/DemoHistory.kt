@@ -65,7 +65,6 @@ class DemoHistory(
         val runs = api.getList(DemoUser.BACKOFFICE, "/api/v1/clearing/accounts/${account["id"]}/margin?from=$from&to=$to")
             .sortedBy { it["businessDate"].toString() }
         val code = account["code"]
-        var cash = BigDecimal("250000.00")
         val records = runs.mapIndexed { index, run ->
             val date = LocalDate.parse(run["businessDate"].toString())
             val day = StringBuilder()
@@ -76,16 +75,15 @@ class DemoHistory(
                 val vm = BigDecimal(line["variationMargin"].toString()).setScale(2) + if (date == disputed) DISPUTED_DIFFERENCE else BigDecimal.ZERO
                 day.append("$date,$code,VM,${line["contractCode"]},${position.toPlainString()},${line["settlementPrice"]},${vm.toPlainString()},EUR\n")
                 exposure += position.abs()
-                cash += vm
             }
             val fee = if (date.dayOfMonth <= DemoCalendar.weekdayOnOrAfter(date.withDayOfMonth(1)).dayOfMonth) MONTHLY_FEE else BigDecimal.ZERO
             if (fee.signum() > 0) day.append("$date,$code,FEE,,,,${fee.toPlainString()},EUR\n")
             val initialMargin = (exposure * INITIAL_MARGIN_PER_TONNE).setScale(2)
             day.append("$date,$code,IM,,,,${initialMargin.toPlainString()},EUR\n")
-            cash -= fee
-            // The last two days: the member has used the cash for the margin of other clients' trades in the demo story.
+            // The member sweeps cash above the initial margin and a buffer back to the bank each day; on the last two
+            // days the margin rose faster than the cash, so it calls for the shortfall.
             val shortfall = SHORTFALLS.getOrNull(runs.size - 1 - index)
-            if (shortfall != null) cash = initialMargin - shortfall
+            val cash = if (shortfall != null) initialMargin - shortfall else initialMargin + CASH_BUFFER
             day.append("$date,$code,CASH,,,,${cash.toPlainString()},EUR\n")
             day.toString()
         }
@@ -164,6 +162,7 @@ class DemoHistory(
     companion object {
         private val DISPUTED_DIFFERENCE = BigDecimal("12.40")
         private val MONTHLY_FEE = BigDecimal("25.00")
+        private val CASH_BUFFER = BigDecimal("2500.00")
 
         /** Cash short of the initial margin on the last day (first) and the day before. */
         private val SHORTFALLS = listOf(BigDecimal("1250.00"), BigDecimal("3500.00"))

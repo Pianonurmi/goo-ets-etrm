@@ -26,13 +26,18 @@ EUA futures margining (increment 12).
 - **Futures delivery:** a margined future is invoiced and delivered at the final settlement price (the
   settlement price of its last trading day), since the margin has paid the rest; the settlement item waits for that
   price when it is not stored yet.
+- **Clearing screens:** a Clearing page (accounts, daily margin with each run's lines, statement import and
+  statements, breaks with a detail page, margin calls) with key figures for the margin held, the cash at the member
+  and what is open; inbox tasks link to the break or call. A clearing tour in the demo guide, and a manual page.
 - **Variation margin in the ledger:** realised result on futures (3600) against cash at the clearing member (1960),
   posted daily; a corrected day posts only the difference.
 
 ### Changed
 - **Period end:** futures margined through a clearing account are no longer in the period-end MtM, since their
   result is already realised by the margin.
-- **Hedge accounting:** futures cannot be designated as cash flow hedging instruments.
+- **Hedge accounting:** futures cannot be designated as cash flow hedging instruments; the instrument picker offers
+  only forwards of the hedged allowance product, and allowance hedges keep no production year. The month-end tour
+  shows the hedges.
 
 ## [0.11.0] - 2026-10-13
 
