@@ -51,7 +51,9 @@ to expiry and the discount factor to expiry.
 - An option has one result per leg, dated at its expiry. Its **market price** is the option's value per tonne, its
   **contract price** the premium paid, so the mark to market is the quantity times the value less the premium.
 - Each option result also keeps the forward of the underlying, the volatility and the **delta**, **gamma** and
-  **vega** (per volatility point) per tonne.
+  **vega** (per volatility point) per tonne. The results grid shows them in the columns **Option type**, **Strike**,
+  **Underlying price**, **Vol (%)**, **Delta** and **Vega**, empty on forwards and futures. A volatility snapshot
+  lists its points in **Volatility (%)**, not as prices.
 - Without an official volatility curve an option is an exception (missing price), never valued as a forward.
 - On its expiry date an option is worth its payoff; after that it is no longer valued.
 - In the **P&L explain** an option is valued again one input at a time: time, the underlying's price, the

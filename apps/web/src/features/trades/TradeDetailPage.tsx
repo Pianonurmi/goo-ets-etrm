@@ -38,6 +38,7 @@ import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime, formatDecimal, formatMoney } from '@/shared/format/format';
 import { useBooks, useCounterparties } from './hooks';
 import { diffVersions } from './model/diff';
+import { exercisedOptionNumber } from './model/exercise';
 import { tradeSteps } from './model/lifecycle';
 import type { TradeView } from './model/tradeForm';
 import { CheckLimitsButton, DeliveryActions, SettleButton, TradeDocuments } from './TradeOperations';
@@ -197,6 +198,67 @@ function TradeActions({ trade }: { trade: TradeView }) {
   );
 }
 
+/** How an option leg ended: exercised into a future (with a link to it) or abandoned at expiry. */
+function OptionOutcome({ expiry }: { expiry: NonNullable<TradeView['legs'][number]['expiry']> }) {
+  const { t } = useTranslation();
+  return (
+    <FactGrid
+      facts={[
+        {
+          label: t('trades.optionTerms.outcome'),
+          value: (
+            <StatusBadge
+              status={expiry.outcome}
+              label={t(`trades.optionTerms.outcomes.${expiry.outcome}`)}
+              data-testid="option-outcome"
+            />
+          ),
+        },
+        { label: t('trades.optionTerms.settlementPrice'), value: formatDecimal(expiry.settlementPrice, 2, 6) },
+        { label: t('trades.optionTerms.decidedOn'), value: formatDate(expiry.decidedOn) },
+        ...(expiry.futureTradeId
+          ? [
+              {
+                label: t('trades.optionTerms.future'),
+                value: (
+                  <Anchor component={Link} to={`/trades/${expiry.futureTradeId}`} data-testid="option-future-link">
+                    {expiry.futureTradeNumber ?? expiry.futureTradeId.slice(-8)}
+                  </Anchor>
+                ),
+              },
+            ]
+          : []),
+      ]}
+    />
+  );
+}
+
+/** On a future created by exercise (`externalRef` is `exercise:<option number>`): where it came from. */
+function ExerciseNote({ trade }: { trade: TradeView }) {
+  const { t } = useTranslation();
+  const number = exercisedOptionNumber(trade.externalRef);
+  const search = $api.useQuery(
+    'get',
+    '/api/v1/trades/search',
+    { params: { query: { q: number ?? '', legalEntityId: trade.legalEntityId, limit: 5 } } },
+    { enabled: number !== null },
+  );
+  if (number === null) return null;
+  const option = search.data?.items.find((item) => item.tradeNumber === number);
+  return (
+    <Alert color="blue" variant="light" data-testid="trade-exercise-note">
+      {t('trades.optionTerms.createdByExercise')}{' '}
+      {option ? (
+        <Anchor component={Link} to={`/trades/${option.id}`} data-testid="trade-exercise-link">
+          {number}
+        </Anchor>
+      ) : (
+        number
+      )}
+    </Alert>
+  );
+}
+
 function Legs({ trade }: { trade: TradeView }) {
   const { t } = useTranslation();
   return (
@@ -257,6 +319,7 @@ function Legs({ trade }: { trade: TradeView }) {
                   { label: t('trades.optionTerms.underlying'), value: leg.option.underlyingContractCode },
                 ]}
               />
+              {leg.expiry && <OptionOutcome expiry={leg.expiry} />}
             </div>
           )}
           {leg.option ? (
@@ -625,6 +688,7 @@ function TradeBody({ trade }: { trade: TradeView }) {
         aside={<LifecycleTimeline title={t('trades.lifecycle.title')} steps={steps} testId="trade-lifecycle" />}
       >
         <Findings trade={trade} />
+        <ExerciseNote trade={trade} />
         <Tabs defaultValue="legs" keepMounted={false}>
           <Tabs.List>
             <Tabs.Tab value="legs">{t('trades.tabs.legs')}</Tabs.Tab>

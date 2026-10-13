@@ -295,7 +295,12 @@ export function SnapshotPage() {
   }
   const signOffTask = task.data?.items[0];
   const isDiscount = data.kind === 'DISCOUNT';
-  const valueLabel = isDiscount ? t('curves.ratePercent') : t('trades.columns.price');
+  const isVolatility = data.kind === 'EUA_VOLATILITY';
+  const valueLabel = isDiscount
+    ? t('curves.ratePercent')
+    : isVolatility
+      ? t('curves.volatilityPercent')
+      : t('trades.columns.price');
   return (
     <Stack gap={0}>
       <PageHeader
@@ -387,7 +392,15 @@ export function SnapshotPage() {
               data={data.points.map((point) => ({ pillar: point.pillar, price: point.price }))}
               dataKey="pillar"
               series={[
-                { name: 'price', label: isDiscount ? t('curves.ratePercentShort') : data.currency, color: 'brand.6' },
+                {
+                  name: 'price',
+                  label: isDiscount
+                    ? t('curves.ratePercentShort')
+                    : isVolatility
+                      ? t('curves.volatilityPercent')
+                      : data.currency,
+                  color: 'brand.6',
+                },
               ]}
               curveType="monotone"
               yAxisProps={{ domain: ['auto', 'auto'] }}

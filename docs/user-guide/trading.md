@@ -60,7 +60,9 @@ Each leg has **Option terms**:
 
 The price of an option leg is the **premium per tonne**, and the quantity is the tonnes of the underlying in whole lots
 of the contract size. An option has no delivery schedule: exercise at expiry creates the future, which delivers. On the
-trade page the option terms are listed on each leg in place of the deliveries table.
+trade page the option terms are listed on each leg in place of the deliveries table. After expiry the leg also shows
+the **outcome** (exercised or abandoned), the settlement price and the date, and for an exercised option a link to
+the future; that future carries a note "Created by exercise of" the option trade.
 
 ### Index pricing
 

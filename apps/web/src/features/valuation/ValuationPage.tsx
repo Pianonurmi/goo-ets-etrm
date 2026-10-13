@@ -2,7 +2,8 @@ import { BarChart } from '@mantine/charts';
 import { Alert, Button, Group, Paper, Select, SimpleGrid, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { IconChartBar, IconInbox, IconPlayerPlay, IconSend } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ColDef, ICellRendererParams } from 'ag-grid-community';
+import type { ColDef, ICellRendererParams, ValueFormatterParams } from 'ag-grid-community';
+import type { TFunction } from 'i18next';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -344,6 +345,42 @@ export function ValuationPage() {
   );
 }
 
+const optionNumber = (digits: number) => (p: ValueFormatterParams<Result>) =>
+  p.value === null || p.value === undefined ? '' : formatDecimal(p.value as number, digits, digits);
+
+/** The option block of a result; empty for forwards and futures. */
+function optionColumns(t: TFunction): ColDef<Result>[] {
+  const column = (
+    id: string,
+    headerName: string,
+    value: (option: NonNullable<Result['option']>) => number | string,
+    width: number,
+    format?: (p: ValueFormatterParams<Result>) => string,
+  ): ColDef<Result> => ({
+    colId: `option-${id}`,
+    headerName,
+    width,
+    type: format ? 'rightAligned' : undefined,
+    valueGetter: (p) => (p.data?.option ? value(p.data.option) : null),
+    valueFormatter: format,
+  });
+  const vega = column('vega', t('valuation.option.vega'), (o) => o.vega, 100, optionNumber(4));
+  return [
+    column(
+      'type',
+      t('valuation.option.type'),
+      (o) =>
+        o.optionType === 'CALL' || o.optionType === 'PUT' ? t(`trades.optionTypes.${o.optionType}`) : o.optionType,
+      110,
+    ),
+    column('strike', t('valuation.option.strike'), (o) => o.strike, 110, optionNumber(2)),
+    column('underlying', t('valuation.option.underlyingPrice'), (o) => o.underlyingPrice, 150, optionNumber(2)),
+    column('vol', t('valuation.option.volatility'), (o) => o.volatility, 100, optionNumber(2)),
+    column('delta', t('valuation.option.delta'), (o) => o.delta, 100, optionNumber(4)),
+    { ...vega, headerTooltip: t('valuation.option.vegaHint') },
+  ];
+}
+
 /** One valuation run: its total and exceptions, the results per delivery, sign-off and its lifecycle. */
 export function RunDetailPage() {
   const { t } = useTranslation();
@@ -450,6 +487,7 @@ export function RunDetailPage() {
             <MtmCell value={p.data.ctdMtmBase} currency={currency} />
           ),
       },
+      ...optionColumns(t),
       {
         field: 'status',
         headerName: t('allocation.status'),

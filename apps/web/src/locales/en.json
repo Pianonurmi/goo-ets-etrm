@@ -716,6 +716,15 @@
       "expiry": "Expiry",
       "underlying": "Underlying",
       "premiumSuffix": "premium per tonne",
+      "outcome": "Outcome",
+      "outcomes": {
+        "EXERCISED": "Exercised",
+        "ABANDONED": "Abandoned"
+      },
+      "settlementPrice": "Settlement price",
+      "decidedOn": "Decided on",
+      "future": "Future",
+      "createdByExercise": "Created by exercise of",
       "noDeliveries": "An option has no delivery schedule: exercise at expiry creates the future, which delivers."
     },
     "instruments": {
@@ -1367,6 +1376,7 @@
     "interpolationChanged": "Curve method changed",
     "ratePercent": "Rate (% a year)",
     "ratePercentShort": "Rate (%)",
+    "volatilityPercent": "Volatility (%)",
     "tenor": "Tenor",
     "pillarDate": "Date",
     "quoteTypes": "Quote types",
@@ -1488,6 +1498,15 @@
     "discountHint": "MtM is the undiscounted amount times the discount factor of the discount curve to the pay date. Futures are not discounted.",
     "ctdPrice": "CTD (EUR/MWh)",
     "ctdMtm": "MtM at CTD",
+    "option": {
+      "type": "Option type",
+      "strike": "Strike",
+      "underlyingPrice": "Underlying price",
+      "volatility": "Vol (%)",
+      "delta": "Delta",
+      "vega": "Vega",
+      "vegaHint": "Option value change per volatility point, per tonne. Option rows are keyed by the leg; the delivery date is the expiry."
+    },
     "ctdHint": "Cheapest to deliver: the average value per MWh of the certificates that would deliver the sale. Shown only; the official MtM stays on the bucket curve.",
     "portfolio": {
       "tab": "Portfolio",
