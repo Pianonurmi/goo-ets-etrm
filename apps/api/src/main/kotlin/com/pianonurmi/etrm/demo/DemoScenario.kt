@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.demo
 
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -157,9 +159,17 @@ class DemoScenario(private val api: DemoClient, private val calendar: DemoCalend
             .first { (_, expiry) -> expiry.isAfter(calendar.today) }
         val clearing = parties.getValue("CP-CLEARING")
         val tradeDate = calendar.dayBeforeMonthEnd
+        // Strikes about 15 % above and 12 % below the future's forward on the trade date, premiums a few percent of it.
+        val forward = api.get(
+            DemoUser.TRADER,
+            "/api/v1/market-data/curves/forward-price?product=EUA&delivery=${future.deliveryDate}&asOf=$tradeDate",
+        ) as Map<*, *>
+        val price = BigDecimal(forward["value"].toString())
+
+        fun of(share: String, scale: Int = 0) = (price * BigDecimal(share)).setScale(scale, RoundingMode.HALF_UP).toPlainString()
         listOf(
-            desk.euaOption(finland, clearing, "BUY", "CALL", OPTION_LOTS, future, "80.00", "3.40", expiry, tradeDate),
-            desk.euaOption(finland, clearing, "SELL", "PUT", OPTION_LOTS, future, "62.00", "2.20", expiry, tradeDate),
+            desk.euaOption(finland, clearing, "BUY", "CALL", OPTION_LOTS, future, of("1.15"), of("0.035", 2), expiry, tradeDate),
+            desk.euaOption(finland, clearing, "SELL", "PUT", OPTION_LOTS, future, of("0.88"), of("0.03", 2), expiry, tradeDate),
         ).forEach { tradeId ->
             // Only these two: other trades wait in the inbox on purpose.
             api.approveTask(DemoUser.MIDDLE, "TRADE_APPROVAL", tradeId)

@@ -828,6 +828,7 @@
       "confirmed": "Confirmed",
       "delivered": "Delivered",
       "settled": "Settled",
+      "expired": "Exercised or abandoned",
       "cancelled": "Cancelled",
       "disputed": "Disputed",
       "partlyDelivered": "Partly delivered"
@@ -1331,7 +1332,7 @@
   },
   "curves": {
     "title": "Curves",
-    "description": "Snapshots of forward, vintage and discount curves; official ones are signed off by a second person.",
+    "description": "Snapshots of forward, vintage, discount and volatility curves; official ones are signed off by a second person.",
     "curve": "Curve",
     "asOf": "As of",
     "build": "Build snapshot",

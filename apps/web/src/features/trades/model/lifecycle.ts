@@ -7,10 +7,13 @@ type Version = Pick<Schema<'TradeVersionView'>, 'version' | 'status' | 'recorded
 type Status = Trade['status'];
 type Obligation = Pick<Schema<'DeliveryObligationView'>, 'deliveryDate'>;
 
-export type TradeStepKey = 'captured' | 'approved' | 'confirmed' | 'delivered' | 'settled' | 'cancelled' | 'disputed';
+export type TradeStepKey =
+  'captured' | 'approved' | 'confirmed' | 'delivered' | 'settled' | 'expired' | 'cancelled' | 'disputed';
 export type TradeStepLabel = TradeStepKey | 'partlyDelivered';
 
 const PATH: TradeStepKey[] = ['captured', 'approved', 'confirmed', 'delivered', 'settled'];
+/** An option delivers nothing: it ends when it is exercised or abandoned at expiry, and the trade closes (ADR 0047). */
+const OPTION_PATH: TradeStepKey[] = ['captured', 'approved', 'confirmed', 'expired'];
 
 /** How far along the path a status is; cancelled and disputed trades leave the path. */
 const RANK: Partial<Record<Status, number>> = {
@@ -34,14 +37,19 @@ function firstVersion(versions: Version[], statuses: Status[]): Version | undefi
  * failed step after the last step it reached.
  */
 export function tradeSteps(
-  trade: Pick<Trade, 'status' | 'createdBy' | 'approvedAt' | 'approvedBy' | 'confirmedAt' | 'confirmationRef'>,
+  trade: Pick<Trade, 'status' | 'createdBy' | 'approvedAt' | 'approvedBy' | 'confirmedAt' | 'confirmationRef'> & {
+    instrumentType?: Trade['instrumentType'];
+  },
   versions: Version[],
   label: (key: TradeStepLabel) => string,
 ): LifecycleStep[] {
   const ended = trade.status === 'CANCELLED' || trade.status === 'DISPUTED';
-  const fromVersions = Math.max(0, ...versions.map((version) => RANK[version.status] ?? 0));
+  const option = trade.instrumentType === 'OPTION';
+  const path = option ? OPTION_PATH : PATH;
+  const rank = (status: Status) => (option && status === 'CLOSED' ? OPTION_PATH.length - 1 : (RANK[status] ?? 0));
+  const fromVersions = Math.max(0, ...versions.map((version) => rank(version.status)));
   const fromTrade = trade.confirmedAt ? 2 : trade.approvedBy ? 1 : 0;
-  const reached = ended ? Math.max(fromVersions, fromTrade) : (RANK[trade.status] ?? 0);
+  const reached = ended ? Math.max(fromVersions, fromTrade) : rank(trade.status);
   const captured = [...versions].sort((a, b) => a.version - b.version)[0];
   const delivered = firstVersion(versions, ['DELIVERED']);
   const settled = firstVersion(versions, ['SETTLED', 'CLOSED']);
@@ -51,14 +59,15 @@ export function tradeSteps(
     confirmed: { at: trade.confirmedAt, detail: trade.confirmationRef },
     delivered: { at: delivered?.recordedAt, by: delivered?.recordedBy },
     settled: { at: settled?.recordedAt, by: settled?.recordedBy },
+    expired: { at: settled?.recordedAt, by: settled?.recordedBy },
     cancelled: {},
     disputed: {},
   };
   const partly = trade.status === 'PARTIALLY_DELIVERED';
   const steps: LifecycleStep[] = [];
-  PATH.forEach((key, index) => {
+  path.forEach((key, index) => {
     if (ended && index > reached) return;
-    if (index < reached || (index === reached && index === PATH.length - 1)) {
+    if (index < reached || (index === reached && index === path.length - 1)) {
       steps.push({ label: label(key), state: 'done', ...when[key] });
     } else if (index === reached) {
       steps.push({ label: label(key), state: ended || partly ? 'done' : 'current', ...when[key] });

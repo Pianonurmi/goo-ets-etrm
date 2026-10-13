@@ -43,7 +43,7 @@ Everything shown is the working system, running on fictitious data.
 
 ## 4. Trading
 
-- Forwards, spots and futures; fixed or index prices; brokers, master agreements, intercompany mirrors.
+- Forwards, spots, futures and options; fixed or index prices; brokers, master agreements, intercompany mirrors.
 - Pre-trade limit checks, approval in the inbox, confirmations matched field by field.
 - Pictures: `trades-new.png`, `trades-detail.png`.
 
@@ -153,13 +153,14 @@ run inside a database transaction.
 - Warnings are errors, static analysis, a coverage rule; `main` moves only on a green pipeline. Current stack: Java 25,
   Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript.
 
-## 16. Roadmap: twelve increments, each one shippable
+## 16. Roadmap: thirteen increments, each one shippable
 
 - 1 core domain; 2 registries, settlement, inbox; 3 market data, valuation, risk, ETS, period end; 4–5 the web UI;
   6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping, versioned releases (0.9.0) and this documentation; 10 portfolio
   follow-ups (0.10.0): figures patched in place, GoO limits by vintage, the give-away report; 11 valuation depth
   (0.11.0): discounted MtM, time and rates in the explain, cash flow hedge accounting; 12 futures margining (0.12.0):
-  daily variation margin, clearing statements and breaks, margin calls, delivery at the final settlement price.
+  daily variation margin, clearing statements and breaks, margin calls, delivery at the final settlement price; 13 options
+  on EUA futures (0.13.0): volatility curve, Black-76 with greeks, premiums, exercise at expiry, delta in risk.
 
 ## 17. Path to production
 
@@ -167,7 +168,7 @@ run inside a database transaction.
 - Specifications: registry APIs (G-REX, NECS) and AIB code lists, the GL file layout, the EMIR layout and trade
   repository, market data vendors.
 - Sign-offs: accounting policies, VAT rules, PFE add-ons.
-- Next to build: options on EUA futures, minimum shares checked against available to sell, fair value hedges.
+- Next to build: minimum shares checked against available to sell, fair value hedges, a volatility smile for options.
 
 *Notes:* Layouts not checked against their specification are marked unverified.
 

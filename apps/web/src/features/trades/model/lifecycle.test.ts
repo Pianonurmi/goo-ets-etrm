@@ -67,6 +67,37 @@ describe('tradeSteps', () => {
     ]);
     expect(steps[2]).toMatchObject({ by: 'middle' });
   });
+
+  it('ends an option at expiry instead of delivery and settlement', () => {
+    const option = { ...trade, instrumentType: 'OPTION' as const };
+    const confirmed = tradeSteps(
+      {
+        ...option,
+        status: 'CONFIRMED',
+        approvedBy: 'middle',
+        approvedAt: '2026-10-01T10:00:00Z',
+        confirmedAt: '2026-10-01T11:00:00Z',
+        confirmationRef: 'EEX-1',
+      },
+      [],
+      (key) => key,
+    );
+    expect(confirmed.map((step) => step.label)).toEqual(['captured', 'approved', 'confirmed', 'expired']);
+    expect(confirmed.at(-1)?.state).toBe('pending');
+    const closed = tradeSteps(
+      {
+        ...option,
+        status: 'CLOSED',
+        approvedBy: 'middle',
+        approvedAt: '2026-10-01T10:00:00Z',
+        confirmedAt: '2026-10-01T11:00:00Z',
+        confirmationRef: 'EEX-1',
+      },
+      [{ version: 5, status: 'CLOSED', recordedAt: '2026-12-04T18:00:00Z', recordedBy: 'system' }],
+      (key) => key,
+    );
+    expect(closed.at(-1)).toMatchObject({ label: 'expired', state: 'done', by: 'system' });
+  });
 });
 
 describe('dueWithin', () => {
