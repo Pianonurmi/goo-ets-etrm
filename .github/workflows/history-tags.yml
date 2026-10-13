@@ -18,13 +18,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # Through the REST API: a git push of a ref on these old commits is refused to the workflow token, because
+      # their workflow files differ from main's.
       - name: Tag increments 1 to 8
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           while read -r version sha title; do
             if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then echo "v$version exists"; continue; fi
-            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              tag -a "v$version" "$sha" -m "Provena $version: $title"
-            git push origin "refs/tags/v$version"
+            object=$(gh api "repos/$GITHUB_REPOSITORY/git/tags" -f tag="v$version" -f message="Provena $version: $title" \
+              -f object="$sha" -f type=commit -f "tagger[name]=github-actions[bot]" \
+              -f "tagger[email]=41898282+github-actions[bot]@users.noreply.github.com" --jq .sha)
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$version" -f sha="$object" --jq .ref
           done <<'TAGS'
           0.1.0 d355efb4ba3517903b8eb3b62bce4a7a7c7e413f increment 1, foundation
           0.2.0 129767aa1dc9b9b63c2e64ffe17773eef03033a3 increment 2, registries, settlement and workflow
