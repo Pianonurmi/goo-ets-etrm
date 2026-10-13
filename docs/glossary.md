@@ -17,6 +17,7 @@
 | EUA / EUAA | EU Allowance (general) / EU Aviation Allowance |
 | Expected issuance | Certificates an own device is expected to have issued for a production month: its forecast, or capacity × load factor, less what is already issued; P50 for views, P90 for plans (ADR 0038) |
 | Expiry haircut | Part of a certificate's value lost because it expires within 60 days of delivery; using such a lot costs less (ADR 0035) |
+| Final settlement price | A future's settlement price on its last trading day; a margined future delivers at it (ADR 0046) |
 | Give-away | The premium handed over when a certificate worth more than the sale's own product delivers it: value of the lot − mark of the sale's bucket |
 | GoO | Guarantee of Origin, 1 certificate = 1 MWh |
 | Hedging reserve | Equity account (2950) holding the effective portion of cash flow hedges until the hedged transaction happens (ADR 0045) |

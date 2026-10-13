@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.clearing.api
 
+import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.EventMetadata
 import java.math.BigDecimal
@@ -75,6 +76,19 @@ interface ClearingQuery {
 
     /** Futures trades of the entity cleared through one of its accounts: their value is settled daily, not carried as MtM. */
     fun marginedTradeIds(legalEntityId: UUID): Set<UUID>
+
+    /**
+     * The price a margined future delivers at: the contract's settlement price on its last trading day, since the
+     * variation margin has paid the difference to the trade price. Null when the trade is not a margined future.
+     */
+    fun finalSettlement(tradeId: UUID): FinalSettlement?
+}
+
+/** A margined future's final settlement; [price] is null until the last trading day's settlement price is stored. */
+data class FinalSettlement(val contractCode: String, val lastTradingDay: LocalDate, val price: BigDecimal?, val currency: String) {
+    /** The price, or a refusal naming what is missing. */
+    fun requirePrice(): BigDecimal = price
+        ?: throw ValidationException("No final settlement price of $contractCode on $lastTradingDay yet")
 }
 
 interface ClearingCommand {

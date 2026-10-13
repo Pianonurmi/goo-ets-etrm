@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.allocation.api.DeliveryCommand
 import com.pianonurmi.etrm.allocation.api.MatchReceipt
 import com.pianonurmi.etrm.allocation.api.ReceiptMatch
 import com.pianonurmi.etrm.allocation.api.ReceiptSource
+import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingQuery
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
@@ -56,6 +57,8 @@ class DeliveryService(
     private val lots: LotQuery,
     private val allowances: AllowanceHoldingQuery,
     private val savepoints: Savepoints,
+    /** Margined futures deliver at the final settlement price (ADR 0046). */
+    private val clearing: ClearingQuery? = null,
 ) : DeliveryCommand {
     private val log = LoggerFactory.getLogger(DeliveryService::class.java)
 
@@ -81,7 +84,7 @@ class DeliveryService(
                 toAccountId = to,
                 idempotencyKey = command.idempotencyKey ?: "delivery:${obligation.scheduleId}",
                 movementType = AllowanceMovementType.SALE,
-                unitPrice = obligation.price,
+                unitPrice = clearing?.finalSettlement(obligation.tradeId)?.requirePrice() ?: obligation.price,
                 priceCurrency = obligation.priceCurrency.currencyCode,
                 obligationRef = obligation.scheduleId,
             ),

@@ -11,7 +11,9 @@ items**, **Invoices**, **Payments**, **Netting**, **VAT rules** and **Reports**.
 
 The **Settlement items** tab starts with the items that need attention. Switch between **Needs attention**,
 **Open**, **Invoiced** and **All**; the eye opens an item with its price, VAT and source. An item of an index-priced
-trade waits until its price is fixed (**Fix price**).
+trade waits until its price is fixed (**Fix price**). An item of an exchange future margined through a clearing account is priced at the
+future's final settlement price (the settlement price of its last trading day): the daily margin has already paid
+the difference to the trade price. It waits until that price is stored.
 
 ![Settlement items](../images/settlement-items.png)
 

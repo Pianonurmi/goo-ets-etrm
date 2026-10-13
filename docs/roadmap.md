@@ -169,5 +169,5 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M1 | Clearing accounts, daily variation margin, ledger postings, cleared futures out of the period-end MtM | done |
 | M2 | Clearing statements: import, initial margin and fees, reconciliation breaks | done |
 | M3 | Margin calls under four eyes; CCP exposure as margin posted | done |
-| M4 | Delivery of futures at the final settlement price | |
+| M4 | Delivery of futures at the final settlement price | done |
 | M5 | Screens, demo, documentation, release 0.12.0 | |

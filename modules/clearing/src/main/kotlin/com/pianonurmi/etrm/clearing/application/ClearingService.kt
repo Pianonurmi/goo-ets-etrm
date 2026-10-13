@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.clearing.api.ClearingAccountView
 import com.pianonurmi.etrm.clearing.api.ClearingCommand
 import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.clearing.api.CreateClearingAccount
+import com.pianonurmi.etrm.clearing.api.FinalSettlement
 import com.pianonurmi.etrm.clearing.api.MarginLineView
 import com.pianonurmi.etrm.clearing.api.MarginRunView
 import com.pianonurmi.etrm.clearing.api.VariationMarginComputed
@@ -201,6 +202,19 @@ class ClearingService(
     @Transactional(readOnly = true)
     override fun marginedTradeIds(legalEntityId: UUID): Set<UUID> =
         repository.accounts(legalEntityId).filter { it.active }.flatMap { account -> clearedFutures(account).map { it.id } }.toSet()
+
+    @Transactional(readOnly = true)
+    override fun finalSettlement(tradeId: UUID): FinalSettlement? {
+        val trade = trades.trade(tradeId) ?: return null
+        val code = trade.legs.firstNotNullOfOrNull { it.futuresContractCode } ?: return null
+        val margined = repository.accounts(trade.legalEntityId).any { account -> account.active && clearedFutures(account).any { it.id == tradeId } }
+        if (!margined) return null
+        val contract = futures.futuresContract(code) ?: throw NotFoundException("FuturesContract", code)
+        val instrument = marketData.instruments(InstrumentKind.EUA_FUTURE, activeOnly = false).firstOrNull { it.futuresContractCode == code }
+        val price = instrument?.let { marketData.latestQuote(it.code, QuoteType.SETTLEMENT, contract.lastTradingDay) }
+            ?.takeIf { it.quoteDate == contract.lastTradingDay }?.value
+        return FinalSettlement(code, contract.lastTradingDay, price, contract.currency)
+    }
 
     private companion object {
         val NOT_MARGINED = setOf(TradeStatus.DRAFT, TradeStatus.PENDING_APPROVAL, TradeStatus.CANCELLED)

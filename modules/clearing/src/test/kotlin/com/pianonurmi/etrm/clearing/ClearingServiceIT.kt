@@ -96,7 +96,10 @@ class ClearingServiceIT {
     @BeforeAll
     fun setUp() {
         TestDatabase.migrate("clearing")
-        val trades = mockk<TradeQuery> { every { trades(any()) } answers { book.filter { it.legalEntityId == firstArg<TradeFilter>().legalEntityId } } }
+        val trades = mockk<TradeQuery> {
+            every { trades(any()) } answers { book.filter { it.legalEntityId == firstArg<TradeFilter>().legalEntityId } }
+            every { trade(any()) } answers { book.lastOrNull { it.id == firstArg() } }
+        }
         val futures = mockk<FuturesContractQuery> {
             every { futuresContract("EUAZ26") } returns mockk<FuturesContractView> {
                 every { lastTradingDay } returns LocalDate.of(2026, 12, 11)
@@ -208,6 +211,16 @@ class ClearingServiceIT {
         // After the last trading day the contract no longer margins.
         clearing.computeMargin(account.id, LocalDate.of(2026, 12, 14)).variationMargin shouldBe BigDecimal("0.00")
         clearing.marginedTradeIds(entity) shouldBe setOf(UUID.nameUUIDFromBytes("F-1".toByteArray()), UUID.nameUUIDFromBytes("F-2".toByteArray()))
+
+        // Delivery at the final settlement price: the settlement of the last trading day, once stored.
+        val bought = UUID.nameUUIDFromBytes("F-1".toByteArray())
+        clearing.finalSettlement(bought)!!.let {
+            it.price shouldBe null
+            shouldThrow<ValidationException> { it.requirePrice() }.message shouldBe "No final settlement price of EUAZ26 on 2026-12-11 yet"
+        }
+        settlement(LocalDate.of(2026, 12, 11), "74.20")
+        clearing.finalSettlement(bought)!!.requirePrice() shouldBe BigDecimal("74.20")
+        clearing.finalSettlement(UUID.randomUUID()) shouldBe null
     }
 
     private fun statementFile(vararg rows: String) = "Date,Account,Record,Contract,Position,SettlementPrice,Amount,Currency\n" + rows.joinToString("") {

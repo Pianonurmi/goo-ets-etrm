@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.settlement
 
+import com.pianonurmi.etrm.clearing.api.ClearingQuery
+import com.pianonurmi.etrm.clearing.api.FinalSettlement
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
@@ -93,7 +95,9 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -360,6 +364,54 @@ class SettlementIT {
             it.unitPrice!!.compareTo(BigDecimal("1.50")) shouldBe 0
         }
         fixings.clear()
+    }
+
+    @Test
+    fun `a margined future delivers at the final settlement price, waiting for it when not yet stored`() {
+        user = "trader"
+        val captured = trades.capture(
+            CaptureTrade(
+                legalEntityId = entity,
+                bookId = book,
+                counterpartyId = domestic,
+                productFamily = ProductFamily.GUARANTEE_OF_ORIGIN,
+                instrumentType = InstrumentType.SPOT,
+                tradeDate = LocalDate.of(2026, 10, 1),
+                legs = listOf(
+                    CaptureLeg(
+                        side = Side.SELL,
+                        criterion = Criterion.region("NORDIC"),
+                        quantity = BigDecimal(1000),
+                        unit = QuantityUnit.MWH,
+                        price = BigDecimal("2.00"),
+                        deliveries = listOf(
+                            CaptureDelivery(LocalDateRange.ofMonth(java.time.YearMonth.of(2026, 10)), LocalDate.of(2026, 10, 5), BigDecimal(1000)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        // Stands in for an exchange future: its leg names a contract, and clearing knows it as margined.
+        val trade = captured.copy(legs = captured.legs.map { it.copy(futuresContractCode = "EUAZ26") })
+        var published: BigDecimal? = null
+        val clearing = mockk<ClearingQuery> {
+            every { finalSettlement(any()) } returns null
+            every { finalSettlement(trade.id) } answers { FinalSettlement("EUAZ26", LocalDate.of(2026, 10, 2), published, "EUR") }
+        }
+        val futures =
+            SettlementItemService(JooqSettlementItemRepository(TestDatabase.dsl), vat, referenceData, parties, actor, bus, trades, { _, _ -> null }, clearing)
+        val obligation = trades.obligation(trade.legs.single().deliveries.single().id)!!
+        futures.on(DeliveryRecorded(trade, UUID.randomUUID(), obligation, BigDecimal(1000), LocalDate.of(2026, 10, 5), "TX-FUT"))
+        val parked = futures.items(SettlementItemFilter(tradeId = trade.id)).single()
+        parked.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
+        parked.problem shouldBe "No final settlement price of EUAZ26 on 2026-10-02 yet"
+        parked.description shouldContain "final settlement price of EUAZ26"
+        published = BigDecimal("2.30")
+        futures.reevaluate(parked.id).let {
+            it.status shouldBe SettlementItemStatus.OPEN
+            it.unitPrice!!.compareTo(BigDecimal("2.30")) shouldBe 0
+            it.netAmount!!.compareTo(BigDecimal("2300.00")) shouldBe 0
+        }
     }
 
     @Test

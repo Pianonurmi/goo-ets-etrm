@@ -16,6 +16,7 @@ import org.springframework.modulith.PackageInfo
         "trade :: api",
         "registry :: api",
         "workflow :: api",
+        "clearing :: api",
     ],
 )
 class AllocationModule

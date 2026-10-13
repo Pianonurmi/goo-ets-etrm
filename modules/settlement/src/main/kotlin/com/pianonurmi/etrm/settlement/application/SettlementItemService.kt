@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.settlement.application
 
+import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.marketdata.api.QuotesImported
 import com.pianonurmi.etrm.platform.errors.ConflictException
@@ -147,6 +148,8 @@ class SettlementItemService(
     private val events: ApplicationEventPublisher,
     private val trades: TradeQuery,
     private val fixings: IndexFixings,
+    /** Margined futures deliver at the final settlement price (ADR 0046). */
+    private val clearing: ClearingQuery? = null,
 ) : SettlementItemCommand, SettlementItemQuery {
     private val log = LoggerFactory.getLogger(SettlementItemService::class.java)
 
@@ -155,6 +158,7 @@ class SettlementItemService(
         val o = event.obligation
         val leg = event.trade.legs.firstOrNull { it.id == o.legId }
         val product = o.allowanceProductCode ?: "Guarantees of origin (${o.energyCarrier?.name ?: "ELECTRICITY"})"
+        val future = leg?.futuresContractCode?.let { clearing?.finalSettlement(o.tradeId) }
         val draft = SettlementItemView(
             id = Ids.newId(),
             deliveryId = event.deliveryId,
@@ -165,10 +169,11 @@ class SettlementItemService(
             counterpartyId = o.counterpartyId,
             direction = if (o.side == Side.SELL) SettlementDirection.RECEIVABLE else SettlementDirection.PAYABLE,
             productFamily = o.productFamily,
-            description = "$product, trade ${o.tradeNumber}, delivered ${event.deliveredOn}",
+            description = "$product, trade ${o.tradeNumber}, delivered ${event.deliveredOn}" +
+                (future?.let { ", at the final settlement price of ${it.contractCode}" } ?: ""),
             quantity = event.quantity,
             unit = leg?.unit?.name ?: if (o.productFamily == ProductFamily.EMISSION_ALLOWANCE) "TCO2E" else "MWH",
-            unitPrice = if (o.priceType == PriceType.FIXED) o.price else null,
+            unitPrice = if (o.priceType == PriceType.FIXED && future == null) o.price else null,
             currency = o.priceCurrency.currencyCode,
             netAmount = null,
             deliveredOn = event.deliveredOn,
@@ -222,7 +227,7 @@ class SettlementItemService(
 
     /** Prices the item and determines its VAT; anything missing parks it with the reason. */
     private fun evaluate(item: SettlementItemView): SettlementItemView = try {
-        val price = item.unitPrice ?: repository.priceFixing(item.scheduleId)?.price ?: indexPrice(item)
+        val price = item.unitPrice ?: repository.priceFixing(item.scheduleId)?.price ?: futuresPrice(item) ?: indexPrice(item)
             ?: return item.needs("The price of trade ${item.tradeNumber} is not fixed yet")
         val net = Amounts.money(item.quantity * price)
         val supply = supplyOf(item)
@@ -244,6 +249,15 @@ class SettlementItemService(
         )
     } catch (e: DomainException) {
         item.needs(e.message ?: e.code)
+    }
+
+    /** A margined future at its final settlement price; refused (the item parked) until that price is stored. */
+    private fun futuresPrice(item: SettlementItemView): BigDecimal? {
+        val settlement = clearing?.finalSettlement(item.tradeId) ?: return null
+        if (settlement.currency != item.currency) {
+            throw ValidationException("${settlement.contractCode} settles in ${settlement.currency}; trade ${item.tradeNumber} is in ${item.currency}")
+        }
+        return settlement.requirePrice()
     }
 
     /** An INDEX leg is priced at the index fixing for its delivery date plus the leg's spread. */

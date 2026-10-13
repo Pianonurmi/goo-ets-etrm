@@ -23,6 +23,9 @@ EUA futures margining (increment 12).
   statement replaces an unpaid call.
 - **Risk for cleared futures:** margined futures no longer count as MtM or PFE towards the clearing house; the margin
   it holds counts as exposure instead. New limit type **Margin liquidity** (initial margin plus open calls).
+- **Futures delivery:** a margined future is invoiced and delivered at the final settlement price (the
+  settlement price of its last trading day), since the margin has paid the rest; the settlement item waits for that
+  price when it is not stored yet.
 - **Variation margin in the ledger:** realised result on futures (3600) against cash at the clearing member (1960),
   posted daily; a corrected day posts only the difference.
 

@@ -73,6 +73,17 @@
 - **`MARGIN_LIQUIDITY` limit**: initial margin held plus open margin calls over the entity's clearing accounts, in
   the limit's currency; four eyes like every limit.
 
+### Delivery
+- **A margined future delivers at the final settlement price**: the contract's settlement price on its last trading
+  day (`ClearingQuery.finalSettlement`). The variation margin has already paid the difference between the trade price
+  and that price, so trade price × quantity is paid exactly once over the life of the future.
+- **Settlement items** of a margined future take that price (a manual price fixing still wins); until it is stored
+  the item is parked `NEEDS_ATTENTION` with the reason, and a re-evaluation prices it. **Allowance sale
+  instructions** carry it as their unit price, so the registry movement and the cost of sale use it too. A
+  future that is not margined (no clearing account) still delivers at its trade price.
+- Allowances received on a bought future are costed by their registry movement like any receipt; back office
+  enters the final settlement price there.
+
 ### Accounting
 - **`VariationMarginComputed`** carries the run and the total of the version it supersedes. Ledger posts the
   difference (`FUTURES_VARIATION_MARGIN`, event `VariationMargin`, dimension `clearingAccount`): a gain debits 1960 cash
@@ -90,7 +101,6 @@
 ## Consequences
 - The ledger's futures result is realised P&L day by day; the realised total over a future's life equals the
   difference between the trade price and the final settlement price.
-- Delivery at the final settlement price follows in increment 12 M4.
 - Statement layouts of real clearing members differ; the CSV above is this system's own and is mapped to by hand.
 - Margin depends on official settlement prices of every business day; a gap stops that day's margin until a price is
   stored. Exchange holidays are treated as business days (no calendar yet); a run on a holiday is refused for want of

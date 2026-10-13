@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":modules:marketdata"))
     implementation(project(":modules:inventory"))
     implementation(project(":modules:trade"))
+    implementation(project(":modules:clearing"))
     implementation(project(":modules:registry"))
     implementation(libs.springdoc.openapi)
     implementation(libs.shedlock.spring)
