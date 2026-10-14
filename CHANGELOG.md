@@ -35,6 +35,17 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   append-only**, and allowance movements are hash-chained per holding (the journal check reports `brokenHoldings`).
   Every state of a registry instruction is kept in `registry_instruction_event`.
 
+### Changed
+- **Migrations run before an upgrade, not in the pods** (review finding O1). The Helm chart runs the image with
+  `--migrate-only` in a `pre-install,pre-upgrade` Job as the schema owner; a failed migration stops the upgrade while
+  the running version keeps serving. The pods start with migrations off (`migrations.job: false` restores the old
+  behaviour). CI starts the previous release on every build's schema (ADR 0048).
+- **Chart** (O5, O6): a node drain takes one pod at a time (`podDisruptionBudget.maxUnavailable`); a running
+  scheduled job finishes before shutdown; `/tmp` is bounded (`tmpSizeLimit`); Kafka with SASL and without topic
+  creation (`kafka.createTopics` now defaults to off: create the topics before enabling Kafka); `ecb.enabled`;
+  application settings such as registry adapters through `config`; an optional egress policy
+  (`networkPolicy.egress`). See [Kubernetes](docs/operations/kubernetes.md).
+
 ### Added
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
   refused; `TokenValidationIT` checks signature, expiry, issuer, audience and unsigned tokens with Spring Boot's own

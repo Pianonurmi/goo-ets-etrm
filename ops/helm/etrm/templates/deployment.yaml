@@ -22,6 +22,9 @@ spec:
       labels:
         {{- include "etrm.selectorLabels" . | nindent 8 }}
       annotations:
+        {{- if .Values.config }}
+        checksum/config: {{ toYaml .Values.config | sha256sum }}
+        {{- end }}
         prometheus.io/scrape: "true"
         prometheus.io/port: {{ .Values.service.managementPort | quote }}
         prometheus.io/path: /actuator/prometheus
@@ -78,46 +81,11 @@ spec:
               value: {{ .Values.environment | quote }}
             - name: ETRM_MANAGEMENT_PORT
               value: {{ .Values.service.managementPort | quote }}
-            {{- if .Values.database.runtimeSecret }}
-            # Requests run as the runtime role; the owner from existingSecret only migrates and creates partitions.
-            - name: ETRM_DB_URL
-              value: {{ required "database.url is required with database.runtimeSecret" .Values.database.url | quote }}
-            - name: ETRM_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.runtimeSecret }}
-                  key: {{ .Values.database.usernameKey }}
-            - name: ETRM_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.runtimeSecret }}
-                  key: {{ .Values.database.passwordKey }}
-            - name: ETRM_DB_MIGRATION_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.usernameKey }}
-            - name: ETRM_DB_MIGRATION_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.passwordKey }}
-            {{- else }}
-            - name: ETRM_DB_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.urlKey }}
-            - name: ETRM_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.usernameKey }}
-            - name: ETRM_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.passwordKey }}
+            {{- include "etrm.databaseEnv" . | nindent 12 }}
+            {{- if .Values.migrations.job }}
+            # Migrations ran in the pre-install/pre-upgrade Job (migrations-job.yaml).
+            - name: ETRM_MIGRATIONS_ENABLED
+              value: "false"
             {{- end }}
             - name: ETRM_OIDC_ISSUER
               value: {{ .Values.oidc.issuer | quote }}
@@ -136,6 +104,30 @@ spec:
               value: {{ required "kafka.bootstrapServers is required when kafka.enabled" .Values.kafka.bootstrapServers | quote }}
             - name: ETRM_EVENTS_REPLICAS
               value: {{ .Values.kafka.topicReplicas | quote }}
+            - name: ETRM_EVENTS_CREATE_TOPICS
+              value: {{ .Values.kafka.createTopics | quote }}
+            {{- with .Values.kafka.securityProtocol }}
+            - name: SPRING_KAFKA_SECURITY_PROTOCOL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.kafka.saslMechanism }}
+            - name: SPRING_KAFKA_PROPERTIES_SASL_MECHANISM
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.kafka.jaasSecret }}
+            - name: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.kafka.jaasKey }}
+            {{- end }}
+            {{- end }}
+            - name: ETRM_ECB_ENABLED
+              value: {{ .Values.ecb.enabled | quote }}
+            {{- if .Values.config }}
+            # Settings without an environment variable of their own (registry adapters, limits), from the config map.
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: optional:file:/etc/etrm/
             {{- end }}
             {{- with .Values.tracing.otlpEndpoint }}
             - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
@@ -178,9 +170,21 @@ spec:
               mountPath: /tmp
             - name: registry-outbox
               mountPath: /var/lib/etrm/registry-outbox
+            {{- if .Values.config }}
+            - name: config
+              mountPath: /etc/etrm
+              readOnly: true
+            {{- end }}
       volumes:
+        # The exact solver unpacks its native library (about 70 MB) here at each start of the container.
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.tmpSizeLimit }}
+        {{- if .Values.config }}
+        - name: config
+          configMap:
+            name: {{ include "etrm.fullname" . }}
+        {{- end }}
         - name: registry-outbox
           {{- if .Values.registryOutbox.persistence }}
           persistentVolumeClaim:

@@ -3,4 +3,12 @@ goo-ets-etrm {{ .Chart.AppVersion }} is deployed as {{ include "etrm.fullname" .
 UI and API: https://{{ .Values.ingress.host }}/
 {{- end }}
 Actuator (inside the cluster only): http://{{ include "etrm.fullname" . }}:{{ .Values.service.managementPort }}/actuator/health
+{{- if .Values.migrations.job }}
+Migrations ran in the Job {{ include "etrm.fullname" . }}-migrate before this release; the pods do not migrate.
+{{- else }}
 Migrations run at start-up; the first replica to start applies them (Flyway locks per schema).
+{{- end }}
+{{- if and (not .Values.registryOutbox.persistence) (or .Values.autoscaling.enabled (gt (int .Values.replicaCount) 1)) }}
+WARNING: registryOutbox.persistence is off. Files of the registry FILE channel live in the pod and are lost with it;
+use a ReadWriteMany claim when a registry uses the FILE channel.
+{{- end }}
