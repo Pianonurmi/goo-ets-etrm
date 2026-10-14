@@ -662,7 +662,7 @@ The review should not read as if nothing were right. These stood out, with the f
 
 ## Plan
 
-The order matters: close what exposes data first, then what an auditor or an operator would refuse, then the rest.
+The order matters: close what exposes data first, then what an auditor or an operator would refuse, then the rest. The plan is scheduled in [increment 14](../plans/increment-14-production-readiness.md).
 
 ### Now (days)
 
