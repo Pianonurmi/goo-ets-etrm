@@ -9,10 +9,12 @@ findings with their proposals, and a plan.
 
 **Not yet.** The architecture, the documentation and the breadth of what is built are well above what a system of
 this age usually has, and the build is green with high coverage. But the review found one confirmed authentication
-bypass, an audit trail that is weaker than the documents claim, a ledger whose immutability guard covers three columns,
-no process controls on changes (one author, no reviews, no branch protection, the whole code base written in five
-days), and an operations story that stops at "the pod has probes". Each of these is fixable in weeks; together they
-mean the system should not carry real money or real certificates until the plan at the end of this page is done.
+bypass, an audit trail that is weaker than the documents claim, a ledger whose immutability guard covers three
+columns, three accounting defects that put wrong figures in the books today (index-priced sales, FX revaluation,
+allowance corrections), no process controls on changes (one author, no reviews, no branch protection, the whole code
+base written in five days), and an operations story that stops at "the pod has probes". Each of these is fixable in
+weeks; together they mean the system should not carry real money or real certificates until the plan at the end of
+this page is done.
 
 The short form, by quality:
 
@@ -21,7 +23,8 @@ The short form, by quality:
 | Security | D | Good design, one confirmed critical bypass, hand-written authorisation with verified holes, tokens not checked for audience |
 | Robustness and data integrity | C | Excellent transaction and outbox discipline; the tamper-evidence story has gaps a determined insider walks through |
 | Reliability and operations | C | Hardened chart and HA database on paper; no alerts, no job-failure signal, migrations in pod start, DR drill on the wrong path |
-| Maintainability | B− | Consistent structure, strong conventions, thorough docs; large services, thin unit tests in places, one author |
+| Maintainability | B− | Consistent structure, strong conventions, thorough docs; six god services the linter is tuned not to see, contracts full of nullable fields, documents already drifting, one author |
+| Test confidence | C+ | 94 % line coverage and real property tests on the hard maths; but module tests bypass Spring, the money seams are the least tested, concurrency and the ledger invariant are examples, and the suite has a shelf life |
 | Stability | C+ | 366 backend and 367 web tests pass; but five days of life, no production exposure, no soak, performance targets missed under stress |
 
 Grades read: A meets enterprise expectations, B meets them with known small gaps, C has gaps that must close before
@@ -71,6 +74,11 @@ marked `verified = false` in the code and stay so).
 
 The Kover gate in `build-logic` is 70 %; the measured figure is 94 %, so the gate is far below what the code already
 has and does not protect it.
+
+Test code per line of main code, by module (lowest first): `position` 0.00 (no tests of its own), `inventory`
+0.13, `taxonomy` 0.15, `platform` 0.17, `settlement` 0.20, `audit` 0.20, `workflow` 0.21; highest `apps/api` 0.68,
+`allocation` 0.44, `valuation` 0.43. Of the 96 test classes, 60 are integration tests against PostgreSQL and 36 are
+unit tests; there are no parameterised tests and 11 property-based tests.
 
 ### Confirmed by execution
 
@@ -353,7 +361,112 @@ milestone, and the roadmap linking to them.
 jOOQ 3.21.9, Tomcat 11.0.26, PostgreSQL 42.7.14 pending), and eight were closed unmerged after manual bumps. Fix:
 merge or close them, and let Dependabot's PRs be the way versions move.
 
-<!-- CODE_QUALITY -->
+### Code quality, structure and tests
+
+Maintainability B−, test confidence C+. The structure is unusually consistent: every module follows
+`api / application / adapter`, Modulith verifies the boundaries and no cycle exists, the `api` packages hold
+Kotlin types only, there are no TODOs, no `lateinit` in main code, no `catch (Exception)`, no main function over 78
+lines, and warnings are errors. The coverage figure is real: 94 % of lines run under tests against a real
+PostgreSQL. What the review found underneath:
+
+**C1 [High] Six application services carry four or five responsibilities each, and the linter is tuned not to
+see them.** `RiskService` (805 lines, 19 constructor dependencies, 52 functions) holds the limit lifecycle, a
+measurement engine dispatching eight limit types in one `when`, the pre-trade check and the queries
+(`RiskService.kt:95-805`); `PeriodEndService` takes 22 dependencies and also owns policy change requests
+(`PeriodEndService.kt:72-95,511-583`); `TradeService.capture` authorises, builds, checks, submits, opens obligations
+and mirrors intercompany trades in one path; `ValuationService`, `AllocationService` and `RegistryInstructionService`
+are the same shape. `config/detekt/detekt.yml` exempts `@Service` from `LongParameterList`, sets `TooManyFunctions` to
+40 with private functions ignored, and switches off `MagicNumber`, `SwallowedException`, `TooGenericExceptionCaught`,
+`UnsafeCallOnNullableType`, `WildcardImport`, `SpreadOperator`, `LoopWithTooManyJumpStatements` and
+`MatchingDeclarationName`. Fix: split by responsibility (a `LimitMeasurer` per type, `PeriodEndStep`
+implementations, capture separate from query), then tighten the thresholds so the split holds.
+
+**C2 [High] Module integration tests bypass Spring.** None of the 32 module-level ITs uses a Spring context (no
+`@SpringBootTest` under `modules/`); they wire the module graph by hand (`AllocationServiceIT.kt:153-215` builds
+seven modules' services directly, the bus is a lambda, `Savepoints.NONE` is passed). So `@Transactional` proxies,
+rollback-only marking, savepoints and listener-failure isolation are exercised only through the `apps/api`
+scenarios, and exactly one test (`AllocationStaleIT`) covers the savepoint rule that D5 and F5 show is broken
+elsewhere. Optional ports default to `null` in production constructors to make this wiring possible
+(`RiskService.kt:110-117`, `PeriodEndService.kt:93-94`, `SettlementItemService.kt:150` and ten more), and a missing
+bean then silently changes behaviour (no bucket validation, no posted margin, no excluded margined trades). Fix: a
+Spring slice per module for every path that catches a `DomainException` from another service; non-null ports with
+fakes supplied by test factories; per-module wiring factories in `testFixtures` so that the nine hand-wired setups
+of 82–137 lines (each with `@Suppress("LongMethod")`) and the 22 hand-copied migration-order lists disappear.
+
+**C3 [High] Silent degradation.** A GoO limit that cannot be measured is stored as zero with a note
+(`RiskService.kt:385-388`); a concentration check whose figures fail returns no finding, so the trade passes
+(`RiskService.kt:662-671`); an option without a valuation counts at delta ±1 (`:525-527`); every nightly job
+catches everything and logs the message only (see O2). Fix: a `NOT_MEASURED` status that reports as a breach, a
+WARN finding when a check could not run, exceptions logged with their stack and counted.
+
+**C4 [High] The architecture documents are already drifting.** arc42 section 5 omits the `clearing` module and
+six dependency arrows the code declares, says "every module follows the same layout" (false for `audit` and
+`position`, which have no `domain`), and its narrative stops at increment 8; section 8 names a field that does not
+exist (`verified` for PFE add-ons; the field is `calibrated`, `RiskApi.kt:189`) and says every command states an
+expected version when five api files do. `docs/README.md` says arc42 covers increments 1 and 2. Fix: generate the
+module diagram from `ModularityTests` (it already renders to `build/spring-modulith-docs`) and a doc test that
+fails when the section names fewer modules than `ApplicationModules.of(...)`.
+
+**C5 [Medium] Nullability and primitives in the contracts.** 231 `!!` in main code (valuation 33, ledger 32,
+settlement 26, risk 23) because state-dependent fields are modelled as `Type?` (`RiskLimitView` carries entity,
+currency, bucket and horizon as nullable for every limit type; `SettlementItemView` amounts are null until OPEN);
+`currency: String` in 53 api fields against `Currency` in 2; `period: String` for `YearMonth`; `status: String` in
+the position model; 31 % of api view properties nullable. Fix: sealed scope types per limit type, an
+`OpenSettlementItem` type, value types in `api`, `UnsafeCallOnNullableType` on with a baseline.
+
+**C6 [Medium] Duplicated cross-cutting logic.** `SegregationOfDutiesException` thrown from 22 sites in 20 files
+with their own requester = approver comparison; `Role.MIDDLE_OFFICE, Role.BACK_OFFICE` written out 31 times; three
+keyset cursor codecs with two error contracts (400 against 422); `limit + 1` paging in three repositories; 16
+hard-coded GL account codes in `PeriodEndService` although ADR 0008 keeps posting rules as data. Fix: a
+`SecondPerson.require` helper, a `Roles.OPERATIONS` constant, one cursor codec and page helper in `platform`,
+accounts resolved by rule role.
+
+**C7 [Medium] The clock is bypassed where audit cares.** `Instant.now()` writes `updated_at`, `approved_at`,
+`fixed_at`, `agreed_at`, `settled_at` and `reconciled_at` in 20 repository sites; `LocalDate.now()` is a controller
+default in five places; `EventMetadata.occurredAt` stamps every domain event with wall time even under a fixed test
+clock (`platform/.../DomainEvent.kt:27`). Floating point survives in `product/domain/Specificity.kt` (weights and
+scores as `Double`) feeding bucket ordering, undocumented as an exception. Fix: column defaults or clock injection
+in repositories, the instant from the caller for events, scaled integer weights.
+
+**C8 [Medium] Test design.** The suite is example-based and written in the same hour as the code by the same
+author. The plan's ledger invariant ("every entry balances per currency, period totals reconcile to the export")
+exists as examples, not as a property; 8 of 11 property tests carry fixed seeds, so they never explore new inputs;
+`CriteriaSqlEquivalenceIT` generates depth-3 trees (the plan said five). Concurrency is tested for liveness and
+invoice numbering only: no test for two approvers on one plan, two deliveries on one schedule, two re-evaluations of
+one item, or two readers of the portfolio flow cache. Contract tests for the `verified = false` layouts assert the
+project's own implementation (`GlInterfaceIT.kt:143`, `ApiRegistryGatewayTest`). 650 hard-coded 2025–2029 dates
+sit next to ten wall-clock reads and two `Thread.sleep`s, so parts of the suite will start failing on calendar
+time (`OperationsGuardsIT.kt:46-148`). `position` has no tests of its own (0 % own coverage, 89 % reached through
+`apps/api`). `GoldenPathIT` is six ordered tests and `MonthEndIT` one 127-line test. `KafkaExternalizationIT` fails
+rather than skips without Docker. Fix: the ledger property, unseeded nightly property runs, two-thread tests around
+each `forUpdate` lock, golden files from the specifications when they arrive, one `TestClock` per scenario with a
+detekt ban on `now()` in tests, `@Testcontainers(disabledWithoutDocker = true)`.
+
+**C9 [Medium] The quality gate does not protect what exists.** Kover requires 70 % lines; the code has 94 %, with
+branch coverage at 69 % overall and 32–37 % in `document` and `inventory`. No mutation testing, no `@Timeout`, no
+dependency locking or verification (also S8). The stack is at the newest release on every axis (Kotlin 2.4.21,
+Spring Boot 4.1.1, Java 25, jOOQ 3.21.9, Jackson 3, kotest 6) with a compatibility workaround already present
+(detekt analysing as JVM 21), which over a ten-year life is an upgrade tax and needs a written version policy. Fix:
+`minBound(90)` lines and a branch rule, a pitest trial on the domain packages of allocation, ledger and valuation,
+locking, and an ADR on the version policy (for example N−1 majors for Spring Boot and Kotlin).
+
+**C10 [Medium] Build ergonomics.** `generateJooq` is never up to date, so every Gradle invocation migrates 19
+codegen schemas and regenerates about 83 000 lines; the configuration cache is off with no recorded reason; all test
+tasks serialise on one database; CI takes a median of about 19 minutes. The demo seeder (2 400 lines, 13 of the 16
+unchecked-cast suppressions) ships inside the production jar behind a profile. Fix: declare inputs and outputs on
+`generateJooq`, try the configuration cache, one test database per module, the seeder as a separate source set or
+module.
+
+**C11 [Low] Smaller items.** Jackson annotations inside inter-module contracts (`allocation/api`, `product/api`)
+bind the contract to a serialiser; boolean-wrapped assertions in property tests lose their operands on failure;
+`Thread.sleep` of up to a second in three HTTP retry tests; missing ADRs for the test strategy, the time source,
+virtual threads, the coverage level, api nullability and cursor encoding; CLAUDE.md is the de-facto handbook but is
+written for an assistant, repeats itself and is not referenced from `docs/`.
+
+Module dependency shape, for the record: `referencedata`, `product` and `workflow` are the hubs (13, 13 and 11
+dependants); `ledger` depends on 13 modules, `risk` on 11, `reporting` on 10; `allocation` and `settlement` depend
+on `clearing` (futures margining reaching into GoO allocation and invoicing) and `position` on `etscompliance`.
+These are not wrong, but each is a cost when a module is to be extracted, and ADR 0001 promises extraction.
 
 ### Web UI
 
@@ -557,37 +670,57 @@ The order matters: close what exposes data first, then what an auditor or an ope
    are exposed) but assume the public showcase was readable without login and say so in the changelog.
 2. S2, S3: audience validation and role parsing; a real-decoder `SecuredChainIT`.
 3. S4: the expiry job, audit read, bank accounts, history and the six scope gaps.
-4. P1: protect `main`, add CODEOWNERS and a PR template, and route every further change through a reviewed pull
+4. F1, F2, F3: the index-priced revenue, the FX revaluation and the allowance corrections, each with the test
+   named under financial correctness; then a review of every entity's books for the three patterns before any
+   figure is reported.
+5. P1: protect `main`, add CODEOWNERS and a PR template, and route every further change through a reviewed pull
    request, including the fixes above.
 
 ### Production-readiness increment (weeks; proposed as increment 14)
 
-5. S5: the generated authorisation test over every OpenAPI operation.
-6. D1, D2, D3, D4, D8: owner and runtime roles, pre-upgrade migration job, the ledger trigger and chain payload,
+6. S5: the generated authorisation test over every OpenAPI operation.
+7. D1, D2, D3, D4, D8: owner and runtime roles, pre-upgrade migration job, the ledger trigger and chain payload,
    the allowance journal, the reversal race, period and balance guards, chain heads anchored outside the database,
    a nightly chain verification job with a gauge.
-7. D5, D6, D7: savepoints, per-lot expiry, one rounding rule and base-currency balancing, with their tests.
-8. O2, O3: job-failure counter, `PrometheusRule` and dashboard, metrics catalogue, readiness without `db`, a
-   bulkhead, pool and probe timeouts.
-9. O1, D10: expand/contract ADR, N−1 compatibility job in CI, migrations out of pod start.
-10. O4: the CNPG recovery drill, measured RPO/RTO, the post-restore reconciliation list.
-11. S6, S7: chained audit trail, actor and correlation id populated, sensitive reads recorded; beneficiary data out
+8. D5, D6, D7, F4, F5: savepoints at every site, per-lot expiry, one rounding rule and base-currency balancing,
+   the unposted-event record with its attention task and replay, ledger listeners that cannot fail a registry
+   fact, with their tests.
+9. F6–F10: later-day margin recomputation, the settlement seams (credit-note refunds, netting against current
+   amounts, FX on netting and credit notes, month-average fixings, remittance matching), risk with missing rates
+   flagged, intercompany propagation, whole-unit cost layers; the ten tests listed under financial correctness.
+10. O2, O3: job-failure counter, `PrometheusRule` and dashboard, metrics catalogue, readiness without `db`, a
+    bulkhead, pool and probe timeouts.
+11. O1, D10: expand/contract ADR, N−1 compatibility job in CI, migrations out of pod start.
+12. O4: the CNPG recovery drill, measured RPO/RTO, the post-restore reconciliation list.
+13. S6, S7: chained audit trail, actor and correlation id populated, sensitive reads recorded; beneficiary data out
     of chained rows and out of externalised events; Kafka security values; a written retention and erasure
     procedure.
-12. O5–O9: the chart values, egress policy, ingress timeouts, async long operations, runbooks, a load test on a
+14. O5–O9: the chart values, egress policy, ingress timeouts, async long operations, runbooks, a load test on a
     dedicated environment against the NFR table.
-13. S8: dependency verification and locking, digest pins, stricter scan gates.
-14. Raise the Kover gate to what the code has (90 % line, and a branch rule), so the figure cannot drift down.
+15. S8: dependency verification and locking, digest pins, stricter scan gates.
+16. Raise the Kover gate to what the code has (90 % line, and a branch rule), so the figure cannot drift down.
 
 ### Before a production decision
 
-15. P2: a UAT period with real users; the external penetration test and retest (the brief exists); the accounting,
+17. P2: a UAT period with real users; the external penetration test and retest (the brief exists); the accounting,
     VAT and PFE sign-offs and the registry, GL and EMIR specifications the roadmap already lists, each as a tracked
     issue with an owner (P3).
-16. A second maintainer who has read the code, and a documented support model (who is paged, for what, with which
+18. A second maintainer who has read the code, and a documented support model (who is paged, for what, with which
     runbook).
 
-<!-- MAINTAINABILITY_PLAN -->
+### Maintainability, alongside the above
+
+19. C2 first, because it unlocks the rest: Spring slices per module, non-null ports, wiring factories in
+    `testFixtures`, one migration order. Then C1: split the six services and tighten detekt so the split holds.
+20. C8 and C9: the ledger balance property, unseeded property runs, concurrency tests around every lock, a
+    `TestClock` per scenario, the coverage gate at what the code has, a mutation-testing trial.
+21. C4: generated module diagrams and a doc test; the arc42 sections brought to increment 13; the four missing ADRs;
+    `docs/contributing.md` with CLAUDE.md pointing at it.
+22. C5, C6, C7, C10: contracts without `!!` and strings, shared four-eyes and paging helpers, the clock everywhere,
+    accounts by rule role, build inputs declared, the demo seeder out of the jar.
+23. W1–W9 in the web UI: the silent-renew path, the token store decision, keyboard access to grids, honest
+    coverage, conflict recovery, paging and truncation notices, locale and time zones, roles published in the
+    contract, pages split with telemetry.
 
 ## Appendix A: scheduled jobs
 
