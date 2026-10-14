@@ -8,6 +8,7 @@ import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.DiscountFactors
+import com.pianonurmi.etrm.marketdata.api.FixingView
 import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
@@ -109,6 +110,7 @@ class ValuationServiceIT {
         futures: String? = null,
         option: OptionTerms? = null,
         quantity: String = "0",
+        index: String? = null,
     ) = mockk<TradeLegView> {
         every { id } returns UUID.randomUUID()
         every { legNo } returns 1
@@ -122,7 +124,7 @@ class ValuationServiceIT {
         every { allowanceProductCode } returns product
         every { bucketCode } returns null
         every { criterion } returns null
-        every { priceIndex } returns null
+        every { priceIndex } returns index
         every { deliveries } returns schedules
         every { futuresContractCode } returns futures
     }
@@ -398,6 +400,73 @@ class ValuationServiceIT {
     }
 
     /** A forward paid two days after delivery and an exchange future, valued with [discounting]. */
+    @Test
+    fun `an index leg past its delivery without a fixing is MISSING_PRICE, not valued at the forward`() {
+        user = "risk1"
+        val valuationDate = LocalDate.of(2026, 10, 12)
+        forward[valuationDate] = BigDecimal("74.00")
+        val indexEntity = entity
+
+        fun indexSale(number: String, delivery: LocalDate) = trade(
+            number,
+            ProductFamily.EMISSION_ALLOWANCE,
+            listOf(
+                leg(
+                    Side.SELL,
+                    "-1.50", // a spread below the index
+                    PriceType.INDEX,
+                    "EUR",
+                    listOf(schedule({ BigDecimal(100) }, delivery, UUID.randomUUID(), payment = delivery)),
+                    index = "EUA_SPOT",
+                ),
+            ),
+        )
+
+        val fixings = mutableMapOf<LocalDate, BigDecimal>()
+        val book = mockk<TradeQuery> {
+            every { trades(any()) } returns listOf(
+                indexSale("T-IDX-DUE", LocalDate.of(2026, 10, 1)),
+                indexSale("T-IDX-TODAY", valuationDate),
+                indexSale("T-IDX-LATER", LocalDate.of(2026, 12, 21)),
+            )
+            every { trade(any()) } returns null
+        }
+
+        fun service() = ValuationService(
+            JooqValuationRepository(TestDatabase.dsl),
+            book,
+            curves,
+            fx,
+            { code, date -> fixings[date]?.let { FixingView(code, date, it, "EUR", emptyList()) } },
+            discounting,
+            mockk(),
+            referenceData,
+            ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
+            ApplicationEventPublisher { },
+            Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+        )
+
+        // Delivered on 1 October and the fixing is overdue: no value, rather than the forward standing in for it.
+        val without = service().let { s -> s.results(s.run(indexEntity, valuationDate, RunKind.EOD).id).associateBy { it.tradeNumber } }
+        without.getValue("T-IDX-DUE").let {
+            it.status shouldBe ResultStatus.MISSING_PRICE
+            it.mtm shouldBe null
+            it.note shouldBe "No fixing of EUA_SPOT for 2026-10-01"
+        }
+        // A fixing not yet published on the delivery day, or a delivery still ahead, is valued at the forward.
+        without.getValue("T-IDX-TODAY").status shouldBe ResultStatus.OK
+        without.getValue("T-IDX-LATER").status shouldBe ResultStatus.OK
+
+        // Once the fixing is there the leg is valued at fixing plus spread: sold at 71 - 1.50 against a forward of 74.
+        fixings[LocalDate.of(2026, 10, 1)] = BigDecimal("71.00")
+        val with = service().let { s -> s.results(s.run(indexEntity, valuationDate, RunKind.ADHOC).id).associateBy { it.tradeNumber } }
+        with.getValue("T-IDX-DUE").let {
+            it.status shouldBe ResultStatus.OK
+            it.contractPrice!!.compareTo(BigDecimal("69.50")) shouldBe 0
+            it.mtm!!.compareTo(BigDecimal("-450.00")) shouldBe 0 // 100 x (69.50 - 74.00): sold below the forward
+        }
+    }
+
     private fun discountedBook(): ValuationService {
         val forwardBuy = trade(
             "T-DISC-FWD",

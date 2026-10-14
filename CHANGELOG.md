@@ -63,6 +63,27 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   on kind and checks the rows; the production cluster archives WAL at least every five minutes
   (`archive_timeout`). [Disaster recovery](docs/operations/disaster-recovery.md) lists what to reconcile per
   integration after a recovery.
+- **Stricter gates.** Every GitHub Action is pinned to a commit and the base images to a digest, kept current by
+  Dependabot; the image scan fails on high as well as critical vulnerabilities that have a fix; the weekly
+  dependency check fails when its NVD key is missing and on a CVSS score of 7 or more; coverage must stay at 90 % of
+  lines and 65 % of branches.
+- **Browser tokens stay in memory only**, no longer in session storage; a reload signs in again silently, and the
+  silent renewal of a session works without a refresh token (its page may now be framed by the application itself,
+  and only by it). See the amendment to ADR 0026.
+- Grids open the focused row with Enter or Space, as a click does, so every detail page can be reached by keyboard.
+- **A save refused because the record changed no longer repeats itself.** On a trade amendment and on editing a legal
+  entity, counterparty or production device, the form fetches the record again, lists the fields that changed on the
+  server, and **Reload, keep my edits** continues from the current version with your edits on top.
+- **Long lists say so.** Lots, criteria search results, received confirmations, registry statements and the lots
+  offered for a receipt show a notice when the answer came back exactly at its limit; a trade's version changes
+  beyond the first 40 are counted; the hedge designation loads further pages of trades on request.
+- **Numbers and dates follow the browser's language** (English UK remains the fallback), times of day show in the
+  selected legal entity's time zone with a short zone name, and the labels of states and types come from the
+  translation catalogue; a test fails when a text key is missing or the API gains a constant without a label.
+- The web UI retries network failures twice, refetches stale data when the window regains focus, and reloads
+  `/api/v1/me` on focus so a role change applies without a reload; tabs and filters read from the URL fall back to
+  their default for a value they do not know; decimal strings are formatted exactly instead of through a double; a
+  download keeps its object URL for ten seconds.
 
 ### Added
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
@@ -88,8 +109,27 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - The hard close's period-end gate refuses a run older than the last posting of the period, and the release of the
   free-allocation grant reads the deferred grant net of any debit. Period end warns when MtM booked under an earlier
   treatment stays booked after the policy changed to disclosure only.
-
-### Fixed
+- **Cancelling an allocation plan could fail after logging success.** A registry instruction that could not be
+  cancelled, or a lot that could not be released, marked the cancel transaction rollback-only and the command failed
+  at commit. Both run in a savepoint now, so the plan is cancelled and the problem is logged with its stack.
+- **One lot could stop every lot from expiring.** The nightly expiry ran in one transaction, so a lot the ledger could
+  not post (no exchange rate, no posting rule) rolled back all expiries every night. Each lot now expires in its own
+  transaction; a lot that fails stays as it was, is counted in `etrm.inventory.expiry.failures` and opens a
+  `LOT_EXPIRY_FAILED` task for back office and registry operators, which closes when the lot expires.
+- **Risk left out amounts without a rate and said nothing.** Receivables, collateral, PFE and group usage in a
+  currency with no exchange rate counted as zero. Exposures and limit measurements now carry `incomplete`, the
+  currencies left out and the reasons; a limit keeps its last value instead of falling to zero; the pre-trade check
+  says that the credit check is incomplete. An option without a value still counts at delta one, now marked.
+- **Risk limits and checks that could not run looked fine.** A GoO limit that could not be measured stood at zero; it
+  is now `NOT_MEASURED`, keeps its last value and counts as a breach (a breach task opens). A concentration check that
+  failed returned no finding; it now warns that the check could not run. Failures are logged with their stack.
+- **An intercompany mirror trade diverged from its original.** Amending or cancelling one side left the other with the
+  old price, obligation, exposure and position. An amendment or cancellation now reaches the mirror in the same
+  transaction; when the mirror cannot take it (deliveries recorded, a decided option leg) the change is refused for
+  both.
+- **Smaller trade and valuation defects.** An index leg may carry a negative spread (a fixed price still may not be
+  negative). A delivery date on the exclusive end of its window is refused. An index leg past its delivery with no
+  fixing is `MISSING_PRICE` in a valuation run instead of being valued at the forward.
 - **A settlement item that could not be evaluated failed the delivery's commit.** Parking an item whose counterparty
   or legal entity could not be found (or whose futures price lookup failed) marked the transaction rollback-only, so
   the delivery that created it failed at commit although the item had been parked. The lookups now run in a savepoint.
@@ -109,31 +149,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   (and so the idempotency of a re-run) no longer depends on the scale of the prices; the first re-run of a day after
   upgrading therefore gives a version 2 with the same margin and nothing to post.
 - The margin job dates its work in Europe/Berlin, where its cron runs, instead of UTC.
-
-### Changed
-- **Stricter gates.** Every GitHub Action is pinned to a commit and the base images to a digest, kept current by
-  Dependabot; the image scan fails on high as well as critical vulnerabilities that have a fix; the weekly
-  dependency check fails when its NVD key is missing and on a CVSS score of 7 or more; coverage must stay at 90 % of
-  lines and 65 % of branches.
-
-### Changed
-- **Browser tokens stay in memory only**, no longer in session storage; a reload signs in again silently, and the
-  silent renewal of a session works without a refresh token (its page may now be framed by the application itself,
-  and only by it). See the amendment to ADR 0026.
-- Grids open the focused row with Enter or Space, as a click does, so every detail page can be reached by keyboard.
-- **A save refused because the record changed no longer repeats itself.** On a trade amendment and on editing a legal
-  entity, counterparty or production device, the form fetches the record again, lists the fields that changed on the
-  server, and **Reload, keep my edits** continues from the current version with your edits on top.
-- **Long lists say so.** Lots, criteria search results, received confirmations, registry statements and the lots
-  offered for a receipt show a notice when the answer came back exactly at its limit; a trade's version changes
-  beyond the first 40 are counted; the hedge designation loads further pages of trades on request.
-- **Numbers and dates follow the browser's language** (English UK remains the fallback), times of day show in the
-  selected legal entity's time zone with a short zone name, and the labels of states and types come from the
-  translation catalogue; a test fails when a text key is missing or the API gains a constant without a label.
-- The web UI retries network failures twice, refetches stale data when the window regains focus, and reloads
-  `/api/v1/me` on focus so a role change applies without a reload; tabs and filters read from the URL fall back to
-  their default for a value they do not know; decimal strings are formatted exactly instead of through a double; a
-  download keeps its object URL for ten seconds.
 
 ## [0.13.2] - 2026-10-14
 
