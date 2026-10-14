@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.risk.application
 
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.risk.api.LimitActivated
@@ -66,7 +67,10 @@ class RiskTriggers(private val risk: RiskService, private val savepoints: Savepo
     @SchedulerLock(name = "risk-measure", lockAtMostFor = "PT30M")
     fun measureAll() {
         referenceData.legalEntities().filter { it.active }.forEach { entity ->
-            runCatching { risk.measureEntity(entity.id) }.onFailure { log.warn("Risk measurement of {} failed: {}", entity.code, it.message) }
+            runCatching { risk.measureEntity(entity.id) }.onFailure {
+                JobRun.subjectFailed()
+                log.warn("Risk measurement of {} failed: {}", entity.code, it.message, it)
+            }
         }
     }
 }

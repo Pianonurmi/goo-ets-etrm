@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.valuation.application
 
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.valuation.api.RunKind
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
@@ -20,7 +21,10 @@ class EodValuationJob(private val valuations: ValuationService, private val refe
         val today = LocalDate.now(clock)
         referenceData.legalEntities().filter { it.active }.forEach { entity ->
             runCatching { valuations.submit(valuations.run(entity.id, today, RunKind.EOD, "end-of-day run").id) }
-                .onFailure { log.warn("End-of-day valuation failed for {}: {}", entity.code, it.message) }
+                .onFailure {
+                    JobRun.subjectFailed()
+                    log.warn("End-of-day valuation failed for {}: {}", entity.code, it.message, it)
+                }
         }
     }
 }

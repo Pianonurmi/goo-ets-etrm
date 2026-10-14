@@ -5,8 +5,10 @@ management:
   endpoint:
     health:
       group:
+        # Not the database: when it is unreachable every pod would leave the service together and the ingress would
+        # answer with its own errors. Pods stay ready and answer 503 problems; the alert EtrmDatabaseDown reports it.
         readiness:
-          include: readinessState,db
+          include: readinessState
 server:
   # Behind the ingress: X-Forwarded-* headers set the scheme and host the browser used.
   forward-headers-strategy: framework

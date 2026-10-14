@@ -49,6 +49,9 @@ class ObservabilityIT {
         scrape.body!! shouldContain "jvm_memory_used_bytes"
         scrape.body!! shouldContain "http_server_requests_seconds_bucket"
         scrape.body!! shouldContain "application=\"goo-ets-etrm\""
+        // Every scheduled job has its yardstick and last success from the start (JobMetrics).
+        scrape.body!! shouldContain Regex("etrm_jobs_expected_interval_seconds\\{[^}]*job_name=\"partition-maintenance\"[^}]*} 86400")
+        scrape.body!! shouldContain Regex("etrm_jobs_last_success_seconds\\{[^}]*job_name=\"clearing-margin\"")
         client(managementPort).get().uri("/actuator/health/readiness").retrieve().toEntity(String::class.java)
             .statusCode.value() shouldBe 200
 

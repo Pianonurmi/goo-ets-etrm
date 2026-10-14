@@ -21,6 +21,8 @@ database:
   urlKey: jdbc-uri
   usernameKey: username
   passwordKey: password
+  # Connections per pod; keep poolMax times the maximum replicas below the database's max_connections.
+  poolMax: 20
   # Separate owner and runtime roles (recommended for production): requests run as the role in this secret (same
   # keys), with table rights only, and the owner in existingSecret runs migrations and creates partitions. Then the
   # URL is given without credentials, e.g. jdbc:postgresql://etrm-db-rw:5432/etrm (CloudNativePG's jdbc-uri embeds the
@@ -133,6 +135,17 @@ networkPolicy:
 serviceMonitor:
   enabled: false
   interval: 30s
+
+# Alert rules for the Prometheus Operator (docs/operations/observability.md#alerts). Each alert links its runbook.
+prometheusRule:
+  enabled: false
+  # Extra labels, e.g. the label your Prometheus selects rules by.
+  labels: {}
+  runbookBaseUrl: https://github.com/Pianonurmi/goo-ets-etrm/blob/main/docs/operations/runbooks
+  # Backup and WAL archive alerts for the CloudNativePG cluster (ops/k8s/postgres-cluster.yaml).
+  cnpg:
+    enabled: false
+    cluster: etrm-db
 
 podAnnotations: {}
 nodeSelector: {}

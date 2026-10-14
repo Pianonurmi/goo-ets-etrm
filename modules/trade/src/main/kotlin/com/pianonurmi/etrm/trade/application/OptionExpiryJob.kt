@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.trade.application
 
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -18,7 +19,10 @@ class OptionExpiryJob(private val expiry: OptionExpiryService, private val clock
         val today = LocalDate.now(clock)
         expiry.due(today).forEach { tradeId ->
             runCatching { expiry.expire(tradeId, today) }
-                .onFailure { log.warn("Option trade {} not decided on {}: {}", tradeId, today, it.message) }
+                .onFailure {
+                    JobRun.subjectFailed()
+                    log.warn("Option trade {} not decided on {}: {}", tradeId, today, it.message, it)
+                }
         }
     }
 }

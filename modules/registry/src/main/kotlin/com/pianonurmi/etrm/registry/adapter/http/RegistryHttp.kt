@@ -7,8 +7,10 @@ import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
+import java.net.ProxySelector
 import java.net.http.HttpClient
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Settings for registry API adapters, keyed by registry code:
@@ -57,10 +59,16 @@ data class AdapterSettings(
 
 enum class GrantType { CLIENT_CREDENTIALS, REFRESH_TOKEN }
 
-/** Builds HTTP clients for registry adapters with explicit timeouts, and retries idempotent reads. */
+/**
+ * HTTP clients for registry adapters with explicit timeouts, and retries of idempotent reads. One client per adapter
+ * setting, kept for the life of the application (review finding O7): a JDK client owns a connection pool and a
+ * selector thread, so building one per call leaked both. Clients use the JVM's proxy settings (`https.proxyHost`)
+ * and trust store (`javax.net.ssl.trustStore`).
+ */
 @Component
 class RegistryHttpClients(private val properties: RegistryAdapterProperties) {
     private val log = LoggerFactory.getLogger(RegistryHttpClients::class.java)
+    private val clients = ConcurrentHashMap<AdapterSettings, RestClient>()
 
     fun isEnabled(registryCode: String): Boolean = properties.settings(registryCode)?.let { it.enabled && it.baseUrl != null } ?: false
 
@@ -71,9 +79,11 @@ class RegistryHttpClients(private val properties: RegistryAdapterProperties) {
 
     fun client(settings: AdapterSettings): RestClient {
         val baseUrl = checkNotNull(settings.baseUrl) { "Adapter base-url is not configured" }
-        val http = HttpClient.newBuilder().connectTimeout(settings.connectTimeout).build()
-        val factory = JdkClientHttpRequestFactory(http).apply { setReadTimeout(settings.readTimeout) }
-        return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build()
+        return clients.computeIfAbsent(settings) {
+            val http = HttpClient.newBuilder().connectTimeout(settings.connectTimeout).proxy(ProxySelector.getDefault()).build()
+            val factory = JdkClientHttpRequestFactory(http).apply { setReadTimeout(settings.readTimeout) }
+            RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build()
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.database
 
 import com.pianonurmi.etrm.config.SchemaOwner
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
@@ -77,6 +78,7 @@ class PartitionMaintenance(
                     } catch (e: DataAccessException) {
                         log.error("Could not create partition {}.{}: {}", table.schema, name, e.mostSpecificCause.message)
                         failed += "${table.schema}.$name"
+                        JobRun.subjectFailed()
                     }
                 }
             }

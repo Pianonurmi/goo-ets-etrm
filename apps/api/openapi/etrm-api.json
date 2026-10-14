@@ -3747,6 +3747,37 @@
         "required" : [ "reason" ],
         "type" : "object"
       },
+      "EventPublicationView" : {
+        "properties" : {
+          "attempts" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "eventType" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "lastResubmittedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "listenerId" : {
+            "type" : "string"
+          },
+          "publishedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "attempts", "eventType", "id", "listenerId", "publishedAt" ],
+        "type" : "object"
+      },
       "ExpectedProduction" : {
         "properties" : {
           "deviceId" : {
@@ -12254,6 +12285,77 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/v1/admin/event-publications/parked" : {
+      "get" : {
+        "operationId" : "eventPublication_parked",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 100,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/EventPublicationView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "event-publication-controller" ]
+      }
+    },
+    "/api/v1/admin/event-publications/{id}/resubmit" : {
+      "post" : {
+        "operationId" : "eventPublication_resubmit",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "description" : "Accepted"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "event-publication-controller" ]
+      }
+    },
     "/api/v1/allocation/coverage" : {
       "get" : {
         "operationId" : "allocation_coverage",
