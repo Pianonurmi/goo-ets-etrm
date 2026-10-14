@@ -14,7 +14,7 @@ import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { limitSteps, limitUnit, scopeLabel, utilisationBar, utilisationColor } from './model/limits';
 import { RequestLimitModal } from './RequestLimitModal';
-import { LimitStatusBadge, useScopeNames } from './RiskPage';
+import { LimitStatusBadge, MeasurementFlags, useScopeNames } from './RiskPage';
 
 /** One limit: its amount and latest utilisation, terms, breaches, lifecycle, and the approval task or a change. */
 export function LimitDetailPage() {
@@ -103,9 +103,12 @@ export function LimitDetailPage() {
           {
             label: t('risk.utilisation'),
             value: current ? (
-              <Text component="span" fw={600} size="lg" c={utilisationColor(current.status)}>
-                {formatDecimal(current.utilisation, 0, 1)} %
-              </Text>
+              <Group gap="xs" component="span">
+                <Text component="span" fw={600} size="lg" c={utilisationColor(current.status)}>
+                  {formatDecimal(current.utilisation, 0, 1)} %
+                </Text>
+                <MeasurementFlags value={current} />
+              </Group>
             ) : (
               '—'
             ),

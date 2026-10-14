@@ -7,6 +7,6 @@ import org.springframework.modulith.PackageInfo
 @PackageInfo
 @ApplicationModule(
     displayName = "Inventory",
-    allowedDependencies = ["taxonomy :: api", "referencedata :: api", "product :: api", "product :: criteria"],
+    allowedDependencies = ["taxonomy :: api", "referencedata :: api", "product :: api", "product :: criteria", "workflow :: api"],
 )
 class InventoryModule

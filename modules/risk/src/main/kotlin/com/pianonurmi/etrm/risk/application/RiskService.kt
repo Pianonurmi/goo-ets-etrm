@@ -47,6 +47,7 @@ import com.pianonurmi.etrm.risk.api.RiskQuery
 import com.pianonurmi.etrm.risk.api.UtilisationStatus
 import com.pianonurmi.etrm.risk.domain.CounterpartyGroups
 import com.pianonurmi.etrm.risk.domain.CreditExposure
+import com.pianonurmi.etrm.risk.domain.MeasurementGaps
 import com.pianonurmi.etrm.risk.domain.PotentialFutureExposure
 import com.pianonurmi.etrm.risk.domain.RiskRepository
 import com.pianonurmi.etrm.risk.domain.Tenor
@@ -309,8 +310,16 @@ class RiskService(
     fun evaluate(limit: RiskLimitView): LimitUtilisationView = evaluate(limit, LocalDate.now(clock))
 
     fun evaluate(limit: RiskLimitView, today: LocalDate): LimitUtilisationView {
-        val (value, detail) = measureLimit(limit, today, null)
-        val utilisation = Utilisation.of(limit.id, value, limit, detail, clock.instant())
+        val measure = measureLimit(limit, today, null)
+        val last = repository.utilisation(limit.id)?.value ?: BigDecimal.ZERO
+        val now = clock.instant()
+        val utilisation = when {
+            measure.notMeasured -> Utilisation.notMeasured(limit.id, last, limit, measure.detail, now, measure.gaps)
+            // Something was left out, so the figure is a floor: the last value measured stays when it was higher.
+            measure.gaps.isFloor -> Utilisation.of(limit.id, measure.value.max(last), limit, measure.detail, now, measure.gaps)
+            // An assumption stands in for a figure (an option at delta one): the value is the conservative one, marked.
+            else -> Utilisation.of(limit.id, measure.value, limit, measure.detail, now, measure.gaps)
+        }
         repository.upsertUtilisation(utilisation)
         trackBreach(limit, utilisation)
         return utilisation
@@ -319,33 +328,41 @@ class RiskService(
     private fun activeLimits(legalEntityId: UUID?, today: LocalDate): List<RiskLimitView> =
         repository.limits(legalEntityId, includeGroupWide = true, statuses = setOf(LimitStatus.ACTIVE)).filter { it.validOn(today) }
 
-    private fun measureLimit(limit: RiskLimitView, today: LocalDate, exclude: UUID?): Pair<BigDecimal, String?> = when (limit.type) {
-        LimitType.CREDIT_EXPOSURE -> creditUsage(limit, today)
-        LimitType.POSITION_NET -> positionNet(limit.legalEntityId!!, limit.scope, exclude).abs() to null
-        LimitType.TENOR_MAX_MONTHS -> BigDecimal(maxTenor(openTrades(limit.legalEntityId!!, limit.scope, exclude), limit.scope, today)) to null
-        LimitType.STOP_LOSS_MTD -> stopLoss(limit, today)
-        LimitType.COMPLIANCE_SHORT -> {
-            val year = limit.scope.complianceYear ?: today.year
-            BigDecimal(maxOf(0L, -positions.complianceLadder(limit.legalEntityId!!, year).netPosition)) to "compliance year $year"
+    /** One limit's figure; [gaps] names what it left out, [notMeasured] that there is no figure at all (the last one stays). */
+    private class Measure(val value: BigDecimal, val detail: String?, val gaps: MeasurementGaps = MeasurementGaps(), val notMeasured: Boolean = false)
+
+    private fun measureLimit(limit: RiskLimitView, today: LocalDate, exclude: UUID?): Measure {
+        val gaps = MeasurementGaps()
+        return when (limit.type) {
+            LimitType.CREDIT_EXPOSURE -> creditUsage(limit, today, gaps).let { (value, detail) -> Measure(value, detail, gaps) }
+            LimitType.POSITION_NET -> Measure(positionNet(limit.legalEntityId!!, limit.scope, exclude, gaps).abs(), null, gaps)
+            LimitType.TENOR_MAX_MONTHS ->
+                Measure(BigDecimal(maxTenor(openTrades(limit.legalEntityId!!, limit.scope, exclude), limit.scope, today)), null)
+            LimitType.STOP_LOSS_MTD -> stopLoss(limit, today, gaps).let { (value, detail) -> Measure(value, detail, gaps) }
+            LimitType.COMPLIANCE_SHORT -> {
+                val year = limit.scope.complianceYear ?: today.year
+                Measure(BigDecimal(maxOf(0L, -positions.complianceLadder(limit.legalEntityId!!, year).netPosition)), "compliance year $year")
+            }
+            LimitType.GOO_CONCENTRATION, LimitType.GOO_EXPIRY, LimitType.GOO_BASIS -> gooMeasure(limit)
+            LimitType.MARGIN_LIQUIDITY -> marginLiquidity(limit, today, gaps).let { (value, detail) -> Measure(value, detail, gaps) }
         }
-        LimitType.GOO_CONCENTRATION, LimitType.GOO_EXPIRY, LimitType.GOO_BASIS -> gooMeasure(limit)
-        LimitType.MARGIN_LIQUIDITY -> marginLiquidity(limit, today)
     }
 
     /** Initial margin held plus open margin calls over the entity's clearing accounts, in the limit's currency. */
-    private fun marginLiquidity(limit: RiskLimitView, today: LocalDate): Pair<BigDecimal, String?> {
+    private fun marginLiquidity(limit: RiskLimitView, today: LocalDate, gaps: MeasurementGaps): Pair<BigDecimal, String?> {
         val posted = margin?.marginPosted(limit.legalEntityId!!).orEmpty()
-        val initial = posted.sumOf { convert(it.initialMargin, it.currency, limit.currency!!, today) }
-        val calls = posted.sumOf { convert(it.openCalls, it.currency, limit.currency!!, today) }
+        val initial = posted.sumOf { convert(it.initialMargin, it.currency, limit.currency!!, today, gaps) }
+        val calls = posted.sumOf { convert(it.openCalls, it.currency, limit.currency!!, today, gaps) }
         return money(initial + calls) to "initial margin ${money(initial)}, open calls ${money(calls)} over ${posted.size} clearing accounts"
     }
 
     /**
-     * GoO measures come from allocation's flow (ADR 0040). Measured in a savepoint: a failure leaves the limit at
-     * zero with a note rather than failing the measurement of every other limit.
+     * GoO measures come from allocation's flow (ADR 0040). Measured in a savepoint: a limit that cannot be measured is
+     * NOT_MEASURED (it keeps its last value and counts as a breach) rather than failing the measurement of every other
+     * limit, or standing at zero.
      */
-    private fun gooMeasure(limit: RiskLimitView): Pair<BigDecimal, String?> {
-        val query = goo?.ifAvailable ?: return BigDecimal.ZERO to "GoO measures are not available"
+    private fun gooMeasure(limit: RiskLimitView): Measure {
+        val query = goo?.ifAvailable ?: return notMeasured("GoO measures are not available")
         val entity = limit.legalEntityId!!
         val inEur = limit.currency == EUR
         val year = limit.scope.productionYear
@@ -355,50 +372,49 @@ class RiskService(
                 when (limit.type) {
                     LimitType.GOO_CONCENTRATION -> {
                         val code = limit.scope.bucketCode!!
-                        val measured = query.concentration(entity, code, year) ?: return@attempt BigDecimal.ZERO to "no active bucket $code"
+                        val measured = query.concentration(entity, code, year) ?: return@attempt notMeasured("no active bucket $code")
                         if (inEur) {
-                            (measured.valueEur ?: BigDecimal.ZERO) to "${measured.freeMwh} MWh of $code$vintage free" + (
-                                measured.markEur?.let {
-                                    " at $it EUR"
-                                } ?: ", no mark"
+                            Measure(
+                                measured.valueEur ?: BigDecimal.ZERO,
+                                "${measured.freeMwh} MWh of $code$vintage free" + (measured.markEur?.let { " at $it EUR" } ?: ", no mark"),
                             )
                         } else {
-                            BigDecimal(measured.freeMwh) to "$code$vintage certificates no obligation uses"
+                            Measure(BigDecimal(measured.freeMwh), "$code$vintage certificates no obligation uses")
                         }
                     }
                     LimitType.GOO_EXPIRY -> {
                         val days = limit.scope.horizonDays!!
-                        BigDecimal(query.unusedExpiringMwh(entity, days, limit.scope.bucketCode, year)) to "unused$vintage, expiring within $days days"
+                        Measure(BigDecimal(query.unusedExpiringMwh(entity, days, limit.scope.bucketCode, year)), "unused$vintage, expiring within $days days")
                     }
                     else -> {
-                        val basis = query.basis(entity, year) ?: return@attempt BigDecimal.ZERO to "the allocation cannot be solved here"
+                        val basis = query.basis(entity, year) ?: return@attempt notMeasured("the allocation cannot be solved here")
                         if (inEur) {
-                            basis.giveAwayEur to "${basis.mwh} MWh$vintage delivered above their product"
+                            Measure(basis.giveAwayEur, "${basis.mwh} MWh$vintage delivered above their product")
                         } else {
-                            BigDecimal(
-                                basis.mwh,
-                            ) to "give-away$vintage ${basis.giveAwayEur} EUR"
+                            Measure(BigDecimal(basis.mwh), "give-away$vintage ${basis.giveAwayEur} EUR")
                         }
                     }
                 }
             }
         } catch (e: RuntimeException) {
             log.warn("GoO limit {} could not be measured", limit.id, e)
-            BigDecimal.ZERO to "not measured: ${e.message}"
+            notMeasured(e.message ?: e.javaClass.simpleName)
         }
     }
+
+    private fun notMeasured(reason: String) = Measure(BigDecimal.ZERO, "not measured: $reason", notMeasured = true)
 
     private fun trackBreach(limit: RiskLimitView, utilisation: LimitUtilisationView) {
         val open = repository.openBreach(limit.id)
         when {
-            utilisation.status == UtilisationStatus.BREACH && open == null -> {
+            utilisation.status.breached && open == null -> {
                 val breach = LimitBreachView(Ids.newId(), limit.id, utilisation.measuredAt, utilisation.value, utilisation.value, null, BreachStatus.OPEN)
                 repository.insertBreach(breach)
                 events.publishEvent(LimitBreached(breach, limit, utilisation))
             }
-            utilisation.status == UtilisationStatus.BREACH && open != null && utilisation.value > open.peakValue ->
+            utilisation.status.breached && open != null && utilisation.value > open.peakValue ->
                 repository.updateBreach(open.copy(peakValue = utilisation.value))
-            utilisation.status != UtilisationStatus.BREACH && open != null -> {
+            !utilisation.status.breached && open != null -> {
                 val closed = open.copy(closedAt = utilisation.measuredAt, status = BreachStatus.CLOSED)
                 repository.updateBreach(closed)
                 events.publishEvent(LimitBreachResolved(closed, limit))
@@ -423,21 +439,26 @@ class RiskService(
             .mapValues { (_, rows) -> rows.groupBy { it.tradeId }.mapValues { (_, r) -> r.sumOf { it.mtmBase!! } } }
         val balances = settlement.counterpartyBalances(entity.id).groupBy { it.counterpartyId }
         val addOns = repository.pfeAddOns()
+        val gapsByCounterparty = mutableMapOf<UUID, MeasurementGaps>()
         val pfeByCounterparty = openTrades(entity.id, LimitScope(), null).filter { it.id !in margined }.groupBy { it.counterpartyId }
-            .mapValues { (_, list) -> list.sumOf { pfe(it, addOns, base, today) } }
+            .mapValues { (counterpartyId, list) ->
+                val gaps = gapsByCounterparty.getOrPut(counterpartyId) { MeasurementGaps() }
+                list.sumOf { pfe(it, addOns, base, today, gaps) }
+            }
         val support = repository.creditSupportFor(null).filter { it.validOn(today) && (it.legalEntityId == null || it.legalEntityId == entity.id) }
             .groupBy { it.counterpartyId }
         val known = repository.exposures(entity.id).map { it.counterpartyId }
         (mtmByCounterparty.keys + balances.keys + pfeByCounterparty.keys + support.keys + posted.keys + known).toSet().forEach { counterpartyId ->
             val netting = counterparties[counterpartyId]?.nettingAgreed == true
+            val gaps = gapsByCounterparty.getOrPut(counterpartyId) { MeasurementGaps() }
             val mtm = CreditExposure.positiveMtm(mtmByCounterparty[counterpartyId].orEmpty().values, netting)
             val rows = balances[counterpartyId].orEmpty()
-            val receivables = rows.filter { it.direction == SettlementDirection.RECEIVABLE }.sumOf { convert(it.total, it.currency, base, today) }
-            val payables = rows.filter { it.direction == SettlementDirection.PAYABLE }.sumOf { convert(it.total, it.currency, base, today) }
+            val receivables = rows.filter { it.direction == SettlementDirection.RECEIVABLE }.sumOf { convert(it.total, it.currency, base, today, gaps) }
+            val payables = rows.filter { it.direction == SettlementDirection.PAYABLE }.sumOf { convert(it.total, it.currency, base, today, gaps) }
             val collateral = support[counterpartyId].orEmpty().sumOf {
-                convert(it.amount, it.currency, base, today).let { amount -> if (it.kind.received) amount else amount.negate() }
+                convert(it.amount, it.currency, base, today, gaps).let { amount -> if (it.kind.received) amount else amount.negate() }
             } - posted[counterpartyId].orEmpty().sumOf {
-                convert(it.initialMargin + (it.cashBalance ?: BigDecimal.ZERO).max(BigDecimal.ZERO), it.currency, base, today)
+                convert(it.initialMargin + (it.cashBalance ?: BigDecimal.ZERO).max(BigDecimal.ZERO), it.currency, base, today, gaps)
             }
             val pfe = pfeByCounterparty[counterpartyId] ?: BigDecimal.ZERO
             repository.upsertExposure(
@@ -453,46 +474,65 @@ class RiskService(
                     CreditExposure.exposure(mtm, receivables, payables, netting, pfe, collateral),
                     run?.id,
                     clock.instant(),
+                    !gaps.isComplete,
+                    gaps.currencies,
+                    gaps.reasons,
                 ),
             )
         }
     }
 
     /** Exposure to the limit's counterparty and its group, over the limit's entity or all entities, in the limit's currency. */
-    private fun creditUsage(limit: RiskLimitView, today: LocalDate): Pair<BigDecimal, String?> {
+    private fun creditUsage(limit: RiskLimitView, today: LocalDate, gaps: MeasurementGaps): Pair<BigDecimal, String?> {
         val members = CounterpartyGroups.members(limit.scope.counterpartyId!!, parentMap())
         val exposures = repository.exposures(limit.legalEntityId).filter { it.counterpartyId in members }
-        val total = exposures.sumOf { convert(it.exposure, it.currency, limit.currency!!, today) }
+        // An exposure that left something out passes that on: the limit is only as complete as the figures under it.
+        exposures.filter { it.incomplete }.forEach { gaps.addAll(it.leftOutCurrencies, it.incompleteReasons) }
+        val total = exposures.sumOf { convert(it.exposure, it.currency, limit.currency!!, today, gaps) }
         return total to "${exposures.size} exposures over ${members.size} counterparties"
     }
 
     private fun parentMap(): Map<UUID, UUID?> = referenceData.counterparties().associate { it.id to it.parentCounterpartyId }
 
     /** Potential future exposure of a trade's remaining deliveries (an option's delta-equivalent), in [currency]. */
-    private fun pfe(trade: TradeView, addOns: List<PfeAddOnView>, currency: String, today: LocalDate): BigDecimal = trade.legs.sumOf { leg ->
-        leg.option?.let { terms ->
-            val greeks = optionValuation(trade, leg, today) ?: return@sumOf BigDecimal.ZERO
-            val notional = convert((leg.quantity * greeks.delta * greeks.underlyingPrice).abs(), leg.priceCurrency.currencyCode, currency, today)
-            return@sumOf PotentialFutureExposure.addOn(
-                notional,
-                PotentialFutureExposure.pct(addOns, trade.productFamily, Tenor.months(today, terms.expiryDate)),
-            )
+    private fun pfe(trade: TradeView, addOns: List<PfeAddOnView>, currency: String, today: LocalDate, gaps: MeasurementGaps): BigDecimal =
+        trade.legs.sumOf { leg ->
+            leg.option?.let { terms ->
+                val greeks = optionValuation(trade, leg, today) ?: run {
+                    gaps.omitted("option of trade ${trade.tradeNumber} has no value: its PFE is left out")
+                    return@sumOf BigDecimal.ZERO
+                }
+                val notional = convert(
+                    (leg.quantity * greeks.delta * greeks.underlyingPrice).abs(),
+                    leg.priceCurrency.currencyCode,
+                    currency,
+                    today,
+                    gaps,
+                )
+                return@sumOf PotentialFutureExposure.addOn(
+                    notional,
+                    PotentialFutureExposure.pct(addOns, trade.productFamily, Tenor.months(today, terms.expiryDate)),
+                )
+            }
+            leg.deliveries.filter { it.remainingQuantity.signum() > 0 }.sumOf { schedule ->
+                val price = unitPrice(trade, leg, schedule, today, gaps) ?: run {
+                    gaps.omitted("no price for trade ${trade.tradeNumber} on ${schedule.deliveryDate}: its PFE is left out")
+                    return@sumOf BigDecimal.ZERO
+                }
+                val notional = convert(schedule.remainingQuantity * price, leg.priceCurrency.currencyCode, currency, today, gaps)
+                PotentialFutureExposure.addOn(notional, PotentialFutureExposure.pct(addOns, trade.productFamily, Tenor.months(today, schedule.deliveryDate)))
+            }
         }
-        leg.deliveries.filter { it.remainingQuantity.signum() > 0 }.sumOf { schedule ->
-            val price = unitPrice(trade, leg, schedule, today) ?: return@sumOf BigDecimal.ZERO
-            val notional = convert(schedule.remainingQuantity * price, leg.priceCurrency.currencyCode, currency, today)
-            PotentialFutureExposure.addOn(notional, PotentialFutureExposure.pct(addOns, trade.productFamily, Tenor.months(today, schedule.deliveryDate)))
-        }
-    }
 
     /** The leg's price per unit: fixed, or for index legs today's forward price plus the spread. */
-    private fun unitPrice(trade: TradeView, leg: TradeLegView, schedule: DeliveryScheduleView, today: LocalDate): BigDecimal? = when (leg.priceType) {
-        PriceType.FIXED -> leg.price
-        else -> when (trade.productFamily) {
-            ProductFamily.EMISSION_ALLOWANCE -> leg.allowanceProductCode?.let { curves.forwardPrice(it, schedule.deliveryDate, today) }
-            ProductFamily.GUARANTEE_OF_ORIGIN -> leg.bucketCode?.let { curves.vintagePrice(it, schedule.deliveryDate.year, today) }
-        }?.let { convert(it.value, it.currency, leg.priceCurrency.currencyCode, today) + leg.price }
-    }
+    private fun unitPrice(trade: TradeView, leg: TradeLegView, schedule: DeliveryScheduleView, today: LocalDate, gaps: MeasurementGaps): BigDecimal? =
+        when (leg.priceType) {
+            PriceType.FIXED -> leg.price
+            else -> when (trade.productFamily) {
+                ProductFamily.EMISSION_ALLOWANCE -> leg.allowanceProductCode?.let { curves.forwardPrice(it, schedule.deliveryDate, today) }
+                ProductFamily.GUARANTEE_OF_ORIGIN -> leg.bucketCode?.let { curves.vintagePrice(it, schedule.deliveryDate.year, today) }
+            }?.let { convert(it.value, it.currency, leg.priceCurrency.currencyCode, today, gaps) + leg.price }
+        }
 
     // ----------------------------------------------------------------------------------------------------------
     // Positions, tenor, stop loss
@@ -511,29 +551,39 @@ class RiskService(
      * Signed quantity still to deliver: purchases positive, sales negative. An option leg counts its delta-equivalent
      * (ADR 0047): quantity × delta, the full quantity when it cannot be valued, nothing once decided at expiry.
      */
-    private fun netDeliveries(trade: TradeView, scope: LimitScope): BigDecimal = legsInScope(trade, scope).sumOf { leg ->
+    private fun netDeliveries(trade: TradeView, scope: LimitScope, gaps: MeasurementGaps): BigDecimal = legsInScope(trade, scope).sumOf { leg ->
         val quantity = when {
             leg.option == null -> leg.deliveries.sumOf { it.remainingQuantity }
             leg.expiry != null -> BigDecimal.ZERO
-            else -> deltaEquivalent(trade, leg)
+            else -> deltaEquivalent(trade, leg, gaps)
         }
         if (leg.side == Side.BUY) quantity else quantity.negate()
     }
 
-    /** A call's tonnes times its delta (a put's delta is negative); without a value, the full quantity. */
-    private fun deltaEquivalent(trade: TradeView, leg: TradeLegView): BigDecimal {
+    /**
+     * A call's tonnes times its delta (a put's delta is negative). Without a value the full quantity counts, the
+     * conservative figure, and the measurement says that it is incomplete.
+     */
+    private fun deltaEquivalent(trade: TradeView, leg: TradeLegView, gaps: MeasurementGaps): BigDecimal {
         val delta = optionValuation(trade, leg, LocalDate.now(clock))?.delta
-            ?: if (leg.option!!.optionType == OptionType.CALL) BigDecimal.ONE else BigDecimal.ONE.negate()
+            ?: (if (leg.option!!.optionType == OptionType.CALL) BigDecimal.ONE else BigDecimal.ONE.negate()).also {
+                gaps.assumed("option of trade ${trade.tradeNumber} has no value: a delta of $it is assumed")
+            }
         return leg.quantity * delta
     }
 
     /** Valued in a savepoint: a missing price or a role the valuation refuses must not fail the measuring transaction. */
     private fun optionValuation(trade: TradeView, leg: TradeLegView, today: LocalDate): OptionValuation? =
-        runCatching { savepoints.attempt { valuations.optionValuation(trade.legalEntityId, today, leg) } }.getOrNull()
+        try {
+            savepoints.attempt { valuations.optionValuation(trade.legalEntityId, today, leg) }
+        } catch (e: RuntimeException) {
+            log.warn("Option leg {} of trade {} could not be valued", leg.id, trade.tradeNumber, e)
+            null
+        }
 
     /** Net position: open trades plus inventory on accounts that belong to the book (or to the entity, without a book). */
-    private fun positionNet(legalEntityId: UUID, scope: LimitScope, exclude: UUID?): BigDecimal {
-        val open = openTrades(legalEntityId, scope, exclude).sumOf { netDeliveries(it, scope) }
+    private fun positionNet(legalEntityId: UUID, scope: LimitScope, exclude: UUID?, gaps: MeasurementGaps): BigDecimal {
+        val open = openTrades(legalEntityId, scope, exclude).sumOf { netDeliveries(it, scope, gaps) }
         val inBook = { accountId: UUID -> scope.bookId == null || referenceData.registryAccount(accountId)?.defaultBookId == scope.bookId }
         val inventory = when (scope.productFamily) {
             ProductFamily.EMISSION_ALLOWANCE -> holdings.holdings(legalEntityId)
@@ -556,14 +606,14 @@ class RiskService(
         .maxOfOrNull { Tenor.months(today, it) } ?: 0
 
     /** Loss of MtM since the end of last month (in the book, if the limit names one), in the limit's currency. */
-    private fun stopLoss(limit: RiskLimitView, today: LocalDate): Pair<BigDecimal, String?> {
+    private fun stopLoss(limit: RiskLimitView, today: LocalDate, gaps: MeasurementGaps): Pair<BigDecimal, String?> {
         val explain = valuations.explain(
             limit.legalEntityId!!,
             today.withDayOfMonth(1).minusDays(1),
             today,
         ) ?: return BigDecimal.ZERO to "no official runs to compare"
         val change = limit.scope.bookId?.let { book -> explain.rows.filter { it.bookId == book }.sumOf { it.amountBase } } ?: (explain.mtmTo - explain.mtmFrom)
-        val loss = convert(change.negate().max(BigDecimal.ZERO), explain.baseCurrency, limit.currency!!, today)
+        val loss = convert(change.negate().max(BigDecimal.ZERO), explain.baseCurrency, limit.currency!!, today, gaps)
         return loss to "MtM ${explain.fromDate} to ${explain.toDate}: $change ${explain.baseCurrency}"
     }
 
@@ -587,8 +637,14 @@ class RiskService(
                 .mapNotNull { concentrationFinding(trade, it) } +
             basisFindings(trade, limits.filter { it.type == LimitType.GOO_BASIS }) +
             limits.filter { (it.type == LimitType.STOP_LOSS_MTD && inScope(trade, it.scope)) || it.type == LimitType.COMPLIANCE_SHORT || it.type in GOO_LIMITS }
-                .filter { repository.utilisation(it.id)?.status == UtilisationStatus.BREACH && relevant(trade, it) }
-                .map { ApprovalFinding("LIMIT_IN_BREACH", FindingSeverity.WARN, "${it.type} limit ${it.id} is in breach") }
+                .filter { repository.utilisation(it.id)?.status?.breached == true && relevant(trade, it) }
+                .map {
+                    if (repository.utilisation(it.id)?.status == UtilisationStatus.NOT_MEASURED) {
+                        ApprovalFinding("LIMIT_NOT_MEASURED", FindingSeverity.WARN, "${it.type} limit ${it.id} could not be measured and counts as in breach")
+                    } else {
+                        ApprovalFinding("LIMIT_IN_BREACH", FindingSeverity.WARN, "${it.type} limit ${it.id} is in breach")
+                    }
+                }
     }
 
     /**
@@ -656,19 +712,32 @@ class RiskService(
      * A GoO purchase of the limit's bucket adds to its free certificates once delivered; a sale does not add to it.
      * With a vintage, only its deliveries marked at it count. Projected on the last measured value, in MWh (or at the bucket's mark for a limit in EUR).
      */
-    private fun concentrationFinding(trade: TradeView, limit: RiskLimitView): ApprovalFinding? {
+    private fun concentrationFinding(trade: TradeView, limit: RiskLimitView): ApprovalFinding? = try {
+        savepoints.attempt { concentrationProjection(trade, limit) }
+    } catch (e: RuntimeException) {
+        log.warn("GoO concentration of trade {} against limit {} could not be checked", trade.tradeNumber, limit.id, e)
+        concentrationNotChecked(limit, e.message ?: e.javaClass.simpleName)
+    }
+
+    /** The check could not run: the trade is not waved through as if it were within the limit. */
+    private fun concentrationNotChecked(limit: RiskLimitView, reason: String) = ApprovalFinding(
+        "GOO_CONCENTRATION_NOT_CHECKED",
+        FindingSeverity.WARN,
+        "Concentration of ${limit.scope.bucketCode} not checked against limit ${limit.id}: $reason",
+    )
+
+    private fun concentrationProjection(trade: TradeView, limit: RiskLimitView): ApprovalFinding? {
         val year = limit.scope.productionYear
+        val query = goo?.ifAvailable ?: return concentrationNotChecked(limit, "GoO measures are not available")
         // A limit on one vintage counts only the deliveries marked at it.
-        val vintages = if (year == null) emptyMap() else goo?.ifAvailable?.let { q -> runCatching { q.vintages(trade) }.getOrNull() } ?: return null
+        val vintages = if (year == null) emptyMap() else query.vintages(trade)
         val bought = trade.legs.filter { it.side == Side.BUY && it.bucketCode == limit.scope.bucketCode }
             .sumOf { leg -> leg.deliveries.filter { year == null || vintages[it.id] == year }.sumOf { it.quantity - it.deliveredQuantity } }
         if (bought.signum() <= 0) return null
         val current = repository.utilisation(limit.id)?.value ?: BigDecimal.ZERO
         val added = if (limit.currency == EUR) {
-            val mark = goo?.ifAvailable?.let { q ->
-                runCatching { savepoints.attempt { q.concentration(limit.legalEntityId!!, limit.scope.bucketCode!!, year) } }.getOrNull()
-            }?.markEur
-                ?: return null
+            val mark = query.concentration(limit.legalEntityId!!, limit.scope.bucketCode!!, year)?.markEur
+                ?: return concentrationNotChecked(limit, "no mark for ${limit.scope.bucketCode}")
             bought * mark
         } else {
             bought
@@ -694,29 +763,39 @@ class RiskService(
         if (credit.isEmpty()) return listOf(ApprovalFinding("NO_CREDIT_LIMIT", FindingSeverity.WARN, "No credit limit covers ${counterparty.code}"))
         val addOns = repository.pfeAddOns()
         return credit.mapNotNull { limit ->
-            val current = creditUsage(limit, today).first
-            val added = pfe(trade, addOns, limit.currency!!, today)
+            val gaps = MeasurementGaps()
+            val current = creditUsage(limit, today, gaps).first
+            val added = pfe(trade, addOns, limit.currency!!, today, gaps)
             val projected = current + added
+            val incomplete = if (gaps.isComplete) "" else "; the check is incomplete (${gaps.summary()})"
             val text = "credit exposure to ${counterparty.code} would be ${money(
                 projected,
-            )} of ${limit.amount} ${limit.currency} (PFE of this trade ${money(added)})"
+            )} of ${limit.amount} ${limit.currency} (PFE of this trade ${money(added)})$incomplete"
             when {
                 projected > limit.amount -> ApprovalFinding("CREDIT_LIMIT", FindingSeverity.REQUIRES_RISK_APPROVAL, "Over the limit: $text")
                 projected * BigDecimal(
                     PERCENT,
                 ) >= limit.amount * BigDecimal(limit.warningPct) -> ApprovalFinding("CREDIT_LIMIT_WARNING", FindingSeverity.WARN, text)
+                // Below the limit on figures that left something out: say so rather than pass quietly.
+                !gaps.isComplete -> ApprovalFinding(
+                    "CREDIT_CHECK_INCOMPLETE",
+                    FindingSeverity.WARN,
+                    "Credit check for ${counterparty.code} is incomplete: ${gaps.summary()}",
+                )
                 else -> null
             }
         }
     }
 
     private fun positionFinding(trade: TradeView, limit: RiskLimitView): ApprovalFinding? {
-        val projected = (positionNet(limit.legalEntityId!!, limit.scope, trade.id) + netDeliveries(trade, limit.scope)).abs()
+        val gaps = MeasurementGaps()
+        val projected = (positionNet(limit.legalEntityId!!, limit.scope, trade.id, gaps) + netDeliveries(trade, limit.scope, gaps)).abs()
         return if (projected > limit.amount) {
+            val incomplete = if (gaps.isComplete) "" else " (incomplete: ${gaps.summary()})"
             ApprovalFinding(
                 "POSITION_LIMIT",
                 FindingSeverity.REQUIRES_RISK_APPROVAL,
-                "Net position would be ${projected.toPlainString()} against a limit of ${limit.amount}",
+                "Net position would be ${projected.toPlainString()} against a limit of ${limit.amount}$incomplete",
             )
         } else {
             null
@@ -782,11 +861,13 @@ class RiskService(
     @Transactional(readOnly = true)
     override fun pfeAddOns(): List<PfeAddOnView> = repository.pfeAddOns()
 
-    private fun convert(amount: BigDecimal, from: String, to: String, date: LocalDate): BigDecimal {
+    /** Converts at the rate of [date]. With no rate the amount is left out (zero) and [gaps] records the currency, so the figure is marked incomplete. */
+    private fun convert(amount: BigDecimal, from: String, to: String, date: LocalDate, gaps: MeasurementGaps): BigDecimal {
         if (from == to || amount.signum() == 0) return amount
         val rate = fxRates.rate(date, from, to)?.rate
         if (rate == null) {
             log.warn("No {}/{} rate on {}; {} {} left out of risk measurement", from, to, date, amount, from)
+            gaps.missingRate(from, to, date)
             return BigDecimal.ZERO
         }
         return amount * rate

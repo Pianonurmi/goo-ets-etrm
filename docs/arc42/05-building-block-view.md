@@ -10,7 +10,7 @@ flowchart TB
   product --> taxonomy
   marketdata --> referencedata & product & workflow
   trade --> referencedata & product & workflow & document & marketdata
-  inventory --> referencedata & taxonomy & product
+  inventory --> referencedata & taxonomy & product & workflow
   registry --> referencedata & inventory & workflow & document
   allocation --> product & inventory & trade & registry & referencedata & marketdata & workflow
   position --> inventory & trade & allocation & product & referencedata & etscompliance

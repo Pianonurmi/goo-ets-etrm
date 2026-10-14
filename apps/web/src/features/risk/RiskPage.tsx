@@ -1,6 +1,7 @@
 import { BarChart } from '@mantine/charts';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   Group,
@@ -14,6 +15,7 @@ import {
   Tabs,
   Text,
   TextInput,
+  Tooltip,
 } from '@mantine/core';
 import { IconGauge, IconPlus } from '@tabler/icons-react';
 import { useQueries } from '@tanstack/react-query';
@@ -98,7 +100,9 @@ function RiskKpis({ entityId }: { entityId: string }) {
     const current = utilisations.get(limit.id);
     return current ? [{ limit, current }] : [];
   });
-  const inBreach = measured.filter((row) => row.current.status === 'BREACH').length;
+  const inBreach = measured.filter(
+    (row) => row.current.status === 'BREACH' || row.current.status === 'NOT_MEASURED',
+  ).length;
   const warning = measured.filter((row) => row.current.status === 'WARNING').length;
   const highest = measured.reduce<(typeof measured)[number] | undefined>(
     (top, row) => (!top || row.current.utilisation > top.current.utilisation ? row : top),
@@ -154,6 +158,34 @@ function RiskKpis({ entityId }: { entityId: string }) {
   );
 }
 
+/** A limit that could not be measured counts as a breach; a measurement that left something out says what. */
+export function MeasurementFlags({
+  value,
+}: {
+  value: Pick<Utilisation, 'status' | 'incomplete' | 'leftOutCurrencies' | 'incompleteReasons'>;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {value.status === 'NOT_MEASURED' && (
+        <StatusBadge
+          status="NOT_MEASURED"
+          label={t('risk.statusNotMeasured')}
+          size="xs"
+          data-testid="limit-not-measured"
+        />
+      )}
+      {value.incomplete && (
+        <Tooltip label={t('risk.incompleteHint', { reasons: value.incompleteReasons.join('; ') })} multiline maw={320}>
+          <Badge color="orange" variant="light" size="xs" tt="none" data-testid="measurement-incomplete">
+            {t('risk.incomplete', { currencies: value.leftOutCurrencies.join(', ') })}
+          </Badge>
+        </Tooltip>
+      )}
+    </>
+  );
+}
+
 export function UtilisationCell({ value }: { value: Utilisation | undefined }) {
   const { t } = useTranslation();
   if (!value) {
@@ -169,6 +201,7 @@ export function UtilisationCell({ value }: { value: Utilisation | undefined }) {
       <Text size="xs" c={utilisationColor(value.status)}>
         {formatDecimal(value.utilisation, 0, 1)} %
       </Text>
+      <MeasurementFlags value={value} />
     </Group>
   );
 }
@@ -344,6 +377,14 @@ function ExposuresTab({ entityId }: { entityId: string }) {
       money('collateral', t('risk.collateral')),
       { ...money('exposure', t('risk.exposure')), cellStyle: { fontWeight: 600 } },
       { field: 'currency', headerName: t('trades.form.currency'), width: 100 },
+      {
+        colId: 'incomplete',
+        headerName: t('risk.incompleteColumn'),
+        width: 150,
+        valueGetter: (p) =>
+          p.data?.incomplete ? p.data.leftOutCurrencies.join(', ') || t('risk.incomplete', { currencies: '' }) : '',
+        tooltipValueGetter: (p) => p.data?.incompleteReasons.join('; '),
+      },
       {
         field: 'measuredAt',
         headerName: t('risk.measuredAt'),

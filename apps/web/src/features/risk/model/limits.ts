@@ -170,6 +170,7 @@ export function limitUnit(limit: Pick<Limit, 'type' | 'currency' | 'scope'>): st
 export function utilisationColor(status: UtilisationStatus | undefined): string {
   switch (status) {
     case 'BREACH':
+    case 'NOT_MEASURED':
       return 'red';
     case 'WARNING':
       return 'orange';
