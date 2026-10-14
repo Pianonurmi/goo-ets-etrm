@@ -93,7 +93,11 @@ interface LotCommand {
 
     fun correct(lotId: UUID, correction: LotCorrection): LotView
 
-    /** Marks HELD lots whose expiry date has passed as EXPIRED. Returns the number of lots expired. */
+    /**
+     * Marks HELD and RESERVED lots whose expiry date has passed as EXPIRED, each lot in its own transaction: a lot that
+     * cannot be expired (a listener refuses it) is left as it was, counted in `etrm.inventory.expiry.failures` and
+     * reported with [LotExpiryFailed], and the others still expire. Returns the number of lots expired.
+     */
     fun expireDueLots(asOf: LocalDate): Int
 }
 

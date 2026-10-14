@@ -9,6 +9,7 @@ import com.pianonurmi.etrm.inventory.api.LotCorrected
 import com.pianonurmi.etrm.inventory.api.LotCorrection
 import com.pianonurmi.etrm.inventory.api.LotEventView
 import com.pianonurmi.etrm.inventory.api.LotExpired
+import com.pianonurmi.etrm.inventory.api.LotExpiryFailed
 import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotQuery
 import com.pianonurmi.etrm.inventory.api.LotReceived
@@ -42,9 +43,16 @@ import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.referencedata.api.RegistryType
 import com.pianonurmi.etrm.taxonomy.api.TaxonomyQuery
 import com.pianonurmi.etrm.taxonomy.api.TaxonomyScheme
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.core.type.TypeReference
 import java.time.Clock
 import java.time.Instant
@@ -62,7 +70,16 @@ class LotService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    /** Absent in hand-wired tests, which then run each expiry without a transaction of its own. */
+    transactionManager: PlatformTransactionManager? = null,
+    private val meters: MeterRegistry = SimpleMeterRegistry(),
 ) : LotCommand, LotQuery {
+    private val log = LoggerFactory.getLogger(LotService::class.java)
+
+    private val perLot: TransactionTemplate? = transactionManager?.let {
+        TransactionTemplate(it).apply { propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW }
+    }
+
     // ----------------------------------------------------------------------------------------------------------
     // Commands
     // ----------------------------------------------------------------------------------------------------------
@@ -250,15 +267,40 @@ class LotService(
         return next
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     override fun expireDueLots(asOf: LocalDate): Int {
         var count = 0
         lots.dueForExpiry(asOf).forEach { id ->
-            val next = CertificateLot(locked(id)).expire(asOf)
-            persist(next, record(id, "LotExpired", clock.instant(), mapOf("asOf" to asOf)))
-            events.publishEvent(LotExpired(next))
-            count++
+            try {
+                inOwnTransaction { expire(id, asOf) }
+                count++
+            } catch (ex: RuntimeException) {
+                reportExpiryFailure(id, asOf, ex)
+            }
         }
         return count
+    }
+
+    /** Counts the failure and publishes it (audited, parked as a work task) in a transaction of its own; never fails the sweep. */
+    private fun reportExpiryFailure(id: UUID, asOf: LocalDate, cause: RuntimeException) {
+        meters.counter("etrm.inventory.expiry.failures").increment()
+        log.error("Lot {} could not be expired as of {}", id, asOf, cause)
+        try {
+            inOwnTransaction { lots.find(id)?.let { events.publishEvent(LotExpiryFailed(it, cause.message ?: cause.javaClass.simpleName)) } }
+        } catch (ex: RuntimeException) {
+            log.error("The failed expiry of lot {} could not be reported", id, ex)
+        }
+    }
+
+    private fun expire(id: UUID, asOf: LocalDate) {
+        val next = CertificateLot(locked(id)).expire(asOf)
+        persist(next, record(id, "LotExpired", clock.instant(), mapOf("asOf" to asOf)))
+        events.publishEvent(LotExpired(next))
+    }
+
+    private fun inOwnTransaction(block: () -> Unit) {
+        val template = perLot
+        if (template == null) block() else template.executeWithoutResult { block() }
     }
 
     // ----------------------------------------------------------------------------------------------------------
