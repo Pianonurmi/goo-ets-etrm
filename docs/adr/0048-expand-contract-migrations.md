@@ -21,8 +21,9 @@
 - **Append-only tables** stay append-only through all three steps; a contract step never rewrites history.
 - **Migrations are forward only.** A failed release rolls back the application, never the schema; that is safe
   because of the rule above.
-- **CI checks it**: the previous release's jar starts against the current migrations and serves its smoke requests
-  (`n-minus-one` job).
+- **CI checks it**: each build migrates an empty database with its own jar (`--migrate-only`), then starts the
+  latest published release on it with migrations off and lets its demo seeder write a full data set through the
+  REST API (`ops/release/compat-check.sh`, step "Previous release on the migrated schema").
 
 ## Consequences
 - Some changes take two or three releases. The pull request template asks whether a migration is additive.
