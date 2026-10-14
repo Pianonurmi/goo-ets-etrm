@@ -39,6 +39,9 @@ data class Actor(
 
     companion object {
         val SYSTEM: Actor = Actor("system", "System", setOf(Role.SYSTEM), allEntities = true)
+
+        /** A web request without a signed-in user: no roles and no legal entities. */
+        val ANONYMOUS: Actor = Actor("anonymous", "Anonymous", emptySet())
     }
 }
 

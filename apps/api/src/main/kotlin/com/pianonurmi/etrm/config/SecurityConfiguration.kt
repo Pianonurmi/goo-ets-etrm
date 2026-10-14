@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.web.Personas
 import com.pianonurmi.etrm.web.SpaConfiguration
 import com.pianonurmi.etrm.web.UiProperties
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -27,6 +28,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
 import org.springframework.security.web.util.matcher.RequestMatcher
+import org.springframework.web.context.request.RequestContextHolder
 import java.util.UUID
 
 /**
@@ -60,6 +62,8 @@ class SecurityConfiguration {
             it.requestMatchers(managementPortOnly(managementPort)).permitAll()
             it.requestMatchers(HttpMethod.GET, "/api/v1/ui-config").permitAll()
             it.requestMatchers("/error").permitAll()
+            // Server paths always need a token; matched on the decoded path before the UI shell is let through.
+            it.requestMatchers(SERVER_PATHS).authenticated()
             it.requestMatchers(SPA_ROUTES).permitAll()
             it.anyRequest().authenticated()
         }
@@ -100,12 +104,21 @@ class SecurityConfiguration {
     companion object {
         /** Actuator requests that arrive on the separate management port; nothing when the port is shared. */
         fun managementPortOnly(managementPort: ManagementPort) = RequestMatcher { request ->
-            managementPort.matches(request.localPort) && request.requestURI.startsWith("/actuator")
+            managementPort.matches(request.localPort) && decodedPath(request).startsWith("/actuator")
         }
+
+        /**
+         * The request's path within the application, decoded and normalised by the container. Matchers must use this
+         * and never `requestURI`, which is still percent-encoded: `/%61pi/v1/trades` is routed to `/api/v1/trades`.
+         */
+        fun decodedPath(request: HttpServletRequest): String = request.servletPath + (request.pathInfo ?: "")
+
+        /** API, actuator, OpenAPI and error paths, however they are encoded. */
+        val SERVER_PATHS = RequestMatcher { request -> SpaConfiguration.isServerPath(decodedPath(request)) }
 
         /** GET requests for the UI shell: anything outside the API, actuator and OpenAPI paths. */
         val SPA_ROUTES = RequestMatcher { request ->
-            request.method == HttpMethod.GET.name() && !SpaConfiguration.isServerPath(request.requestURI.removePrefix(request.contextPath))
+            request.method == HttpMethod.GET.name() && !SpaConfiguration.isServerPath(decodedPath(request))
         }
 
         /**
@@ -161,23 +174,30 @@ class SpringSecurityActorProvider(
 ) : ActorProvider {
     override fun current(): Actor {
         val authentication: Authentication? = SecurityContextHolder.getContext().authentication
-        // The showcase seeder acts as the personas named by the dev headers, through every check a visitor meets.
-        if (authentication is SeedAuthentication) return HeaderActorResolver.resolve() ?: Actor.SYSTEM
-        // A signed-in showcase visitor acts as the persona chosen in the UI (validated by PersonaFilter).
-        if (authentication is UsernamePasswordAuthenticationToken && authentication.isAuthenticated) return showcasePersona()
-        if (authentication is JwtAuthenticationToken) {
-            val jwt = authentication.token
-            val subject = jwt.subject ?: "unknown"
-            return Actor(
-                userId = subject,
-                displayName = jwt.claims[properties.displayNameClaim]?.toString() ?: subject,
-                roles = SecurityConfiguration.rolesOf(jwt, properties.rolesClaim).mapNotNull { parseRole(it) }.toSet(),
-                legalEntityScope = entityClaim(jwt).mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }.toSet(),
-                // A missing claim grants no entity; "*" must be granted explicitly by the identity provider.
-                allEntities = "*" in entityClaim(jwt),
-            )
+        return when {
+            // The showcase seeder acts as the personas named by the dev headers, through every check a visitor meets.
+            authentication is SeedAuthentication -> HeaderActorResolver.resolve() ?: Actor.SYSTEM
+            // A signed-in showcase visitor acts as the persona chosen in the UI (validated by PersonaFilter).
+            authentication is UsernamePasswordAuthenticationToken && authentication.isAuthenticated -> showcasePersona()
+            authentication is JwtAuthenticationToken -> tokenActor(authentication.token)
+            headersAllowed -> HeaderActorResolver.resolve() ?: Actor.SYSTEM
+            // Outside a web request (jobs, listeners on other threads) the system acts; a request without a
+            // principal acts as nobody, never as the system.
+            RequestContextHolder.getRequestAttributes() == null -> Actor.SYSTEM
+            else -> Actor.ANONYMOUS
         }
-        return (if (headersAllowed) HeaderActorResolver.resolve() else null) ?: Actor.SYSTEM
+    }
+
+    private fun tokenActor(jwt: Jwt): Actor {
+        val subject = jwt.subject ?: "unknown"
+        return Actor(
+            userId = subject,
+            displayName = jwt.claims[properties.displayNameClaim]?.toString() ?: subject,
+            roles = SecurityConfiguration.rolesOf(jwt, properties.rolesClaim).mapNotNull { parseRole(it) }.toSet(),
+            legalEntityScope = entityClaim(jwt).mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }.toSet(),
+            // A missing claim grants no entity; "*" must be granted explicitly by the identity provider.
+            allEntities = "*" in entityClaim(jwt),
+        )
     }
 
     private fun showcasePersona(): Actor {
@@ -194,7 +214,9 @@ class SpringSecurityActorProvider(
         else -> emptySet()
     }
 
-    private fun parseRole(name: String): Role? = runCatching { Role.valueOf(name.removePrefix("ROLE_").uppercase()) }.getOrNull()
+    /** A token never grants SYSTEM: that role belongs to jobs and listeners inside the application. */
+    private fun parseRole(name: String): Role? =
+        runCatching { Role.valueOf(name.removePrefix("ROLE_").uppercase()) }.getOrNull()?.takeIf { it != Role.SYSTEM }
 }
 
 /** Dev/test actor from request headers; absent outside a web request. */
