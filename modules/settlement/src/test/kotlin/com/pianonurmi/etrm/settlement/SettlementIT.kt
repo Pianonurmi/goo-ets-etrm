@@ -5,10 +5,23 @@ import com.pianonurmi.etrm.clearing.api.FinalSettlement
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqFxRateRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqImportRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqInstrumentRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqPriceIndexRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqQuoteRepository
+import com.pianonurmi.etrm.marketdata.api.CreateInstrument
+import com.pianonurmi.etrm.marketdata.api.CreatePriceIndex
+import com.pianonurmi.etrm.marketdata.api.FixingRule
 import com.pianonurmi.etrm.marketdata.api.FixingView
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
+import com.pianonurmi.etrm.marketdata.api.InstrumentKind
+import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.marketdata.api.QuotesImported
+import com.pianonurmi.etrm.marketdata.api.RecordQuote
+import com.pianonurmi.etrm.marketdata.application.MarketDataService
+import com.pianonurmi.etrm.marketdata.application.MarketDataSettings
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -22,11 +35,14 @@ import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
+import com.pianonurmi.etrm.product.adapter.jooq.JooqFuturesContractRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
 import com.pianonurmi.etrm.product.api.InstrumentType
+import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.application.CriteriaServiceImpl
+import com.pianonurmi.etrm.product.application.FuturesContractService
 import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
@@ -141,7 +157,7 @@ class SettlementIT {
     @BeforeAll
     @Suppress("LongMethod") // wires the module graph by hand
     fun setUp() {
-        TestDatabase.migrate("taxonomy", "referencedata", "product", "trade", "document", "settlement")
+        TestDatabase.migrate("taxonomy", "referencedata", "product", "marketdata", "trade", "document", "settlement")
         val dsl = TestDatabase.dsl
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
@@ -808,6 +824,57 @@ class SettlementIT {
         )
         matched.unappliedAmount.signum() shouldBe 0
         invoices.invoice(invoice.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+    }
+
+    @Test
+    fun `a month average does not price a delivery before the month has ended`() {
+        val dsl = TestDatabase.dsl
+        val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
+        var marketNow = Instant.parse("2026-10-09T10:00:00Z")
+        val marketClock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+
+            override fun withZone(zone: java.time.ZoneId?) = this
+
+            override fun instant() = marketNow
+        }
+        val marketData = MarketDataService(
+            JooqInstrumentRepository(dsl),
+            JooqQuoteRepository(dsl),
+            JooqFxRateRepository(dsl),
+            JooqImportRepository(dsl),
+            JooqPriceIndexRepository(dsl),
+            catalogue,
+            FuturesContractService(JooqFuturesContractRepository(dsl), catalogue, actor),
+            mockk<ProductBucketQuery>(),
+            MarketDataSettings(maxMovePct = BigDecimal(20)),
+            actor,
+            bus,
+            marketClock,
+        )
+        user = "middle"
+        marketData.createInstrument(CreateInstrument("SETT_EUA_IDX", InstrumentKind.EUA_SPOT, "EUA spot for settlement", allowanceProductCode = "EUA"))
+        marketData.createIndex(CreatePriceIndex("SETT_AVG", "Monthly average", "SETT_EUA_IDX", QuoteType.CLOSE, FixingRule.MONTH_AVERAGE))
+        listOf(1 to "70.00", 2 to "72.00").forEach { (d, p) ->
+            marketData.recordQuote(RecordQuote("SETT_EUA_IDX", LocalDate.of(2026, 10, d), QuoteType.CLOSE, BigDecimal(p)))
+        }
+        val priced = SettlementItemService(JooqSettlementItemRepository(dsl), vat, referenceData, parties, actor, bus, trades, marketData, Savepoints.NONE)
+
+        val item = delivered(domestic, priceType = PriceType.INDEX, price = "0.10", priceIndex = "SETT_AVG")
+        item.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
+        // Two days of October are known on 9 October: that is a partial average, so the item stays unpriced.
+        priced.reevaluate(item.id).let {
+            it.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
+            it.unitPrice shouldBe null
+            it.problem!! shouldStartWith "The price of trade"
+        }
+        // Once October has ended the average is final and prices the item (71.00 + 0.10 spread).
+        marketNow = Instant.parse("2026-11-02T10:00:00Z")
+        priced.on(QuotesImported(UUID.randomUUID(), "TEST", 1, setOf(LocalDate.of(2026, 10, 30))))
+        priced.item(item.id)!!.let {
+            it.status shouldBe SettlementItemStatus.OPEN
+            it.unitPrice!!.compareTo(BigDecimal("71.10")) shouldBe 0
+        }
     }
 
     @Test
