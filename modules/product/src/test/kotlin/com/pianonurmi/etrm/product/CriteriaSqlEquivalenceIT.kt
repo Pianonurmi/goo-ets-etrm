@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.product
 
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.api.criteria.BindContext
@@ -221,7 +222,7 @@ class CriteriaSqlEquivalenceIT {
     fun `compiled SQL selects exactly the rows the in-memory evaluator accepts`() {
         var evaluated = 0
         runBlocking {
-            checkAll(PropTestConfig(iterations = 300, seed = 20261010L), treeArb(3)) { criterion ->
+            checkAll(PropTestConfig(iterations = 300, seed = PropertySeeds.seed(20261010L)), treeArb(3)) { criterion ->
                 evaluated++
                 val bound = CriteriaBinder.bind(CriteriaCodec.parse(CriteriaCodec.toJson(criterion)), ctx)
                 val expected = rows.filter { CriteriaEvaluator.matches(bound, it) }.map { it.id }.toSet()

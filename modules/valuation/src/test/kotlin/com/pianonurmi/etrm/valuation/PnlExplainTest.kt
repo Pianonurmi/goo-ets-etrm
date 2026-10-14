@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.valuation
 
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.VintageYears
 import com.pianonurmi.etrm.referencedata.api.BookType
@@ -116,7 +117,7 @@ class PnlExplainTest {
             discount,
             discount,
         ) { q0, q1, k0, k1, f0, f1, x0, x1, amended, d0, d0r, d1 -> listOf(q0, q1, k0, k1, f0, f1, x0, x1, d0, d0r, d1) to amended }
-        checkAll(PropTestConfig(iterations = 500), Arb.list(case, 1..6)) { cases ->
+        checkAll(PropTestConfig(seed = PropertySeeds.seed(500L), iterations = 500), Arb.list(case, 1..6)) { cases ->
             val before = mutableListOf<ValuationResultView>()
             val after = mutableListOf<ValuationResultView>()
             val rolled = mutableMapOf<UUID, BigDecimal>()

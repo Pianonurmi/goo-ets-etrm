@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.allocation.domain.ExactSolverSettings
 import com.pianonurmi.etrm.allocation.domain.GlopPricer
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
 import com.pianonurmi.etrm.allocation.domain.PricingSettings
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.country
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
 import io.kotest.matchers.doubles.plusOrMinus
@@ -109,7 +110,11 @@ class ShadowPriceTest {
         val lotArb = Arb.bind(Arb.element(countries), Arb.element(sources), Arb.long(10L..200L)) { c, s, q -> Triple(c, s, q) }
         val oblArb = Arb.bind(Arb.set(Arb.element(countries), 1..3), Arb.long(10L..250L)) { cs, q -> cs to q }
         val markArb = Arb.list(Arb.int(10..300), countries.size..countries.size)
-        checkAll(PropTestConfig(seed = 8L, iterations = 40), Arb.list(lotArb, 1..8), Arb.list(oblArb, 1..5), markArb) { lotSpecs, oblSpecs, cents ->
+        checkAll(PropTestConfig(seed = PropertySeeds.seed(8L), iterations = 40), Arb.list(lotArb, 1..8), Arb.list(oblArb, 1..5), markArb) {
+            lotSpecs,
+            oblSpecs,
+            cents,
+            ->
             val lots = lotSpecs.mapIndexed { i, (c, s, q) -> lot(c, s, q, device = "DEV-$i") }
             val obligations = oblSpecs.map { (cs, q) -> obligation(country(*cs.toTypedArray()), q) }
             val marks = countries.zip(cents).associate { (c, m) -> "C_$c" to BigDecimal(m).movePointLeft(2) }

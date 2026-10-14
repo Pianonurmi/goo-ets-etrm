@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.ledger
 
 import com.pianonurmi.etrm.ledger.api.JournalLineView
 import com.pianonurmi.etrm.ledger.domain.EntryBuilder
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import io.kotest.assertions.withClue
 import io.kotest.common.ExperimentalKotest
 import io.kotest.matchers.shouldBe
@@ -21,11 +22,11 @@ import java.math.RoundingMode
  * D7 and C8): whatever the amounts, the number of lines and the rate, `balanceBase` absorbs the rounding cents, no base
  * amount turns negative, no line moves further from its exact value than the cents it absorbs, and `requireBalanced`
  * accepts the result. The seed is fixed for the build and set to a random value by the nightly property run
- * (`-Detrm.proptest.seed`), which prints it with any failure.
+ * ([PropertySeeds]), which prints it with any failure.
  */
 @OptIn(ExperimentalKotest::class)
 class BalancePropertyTest {
-    private val seed = System.getProperty("etrm.proptest.seed")?.toLongOrNull() ?: 14L
+    private val seed = PropertySeeds.seed(14L)
 
     @Test
     fun `base amounts balance after rounding whatever the lines and the rate`() {

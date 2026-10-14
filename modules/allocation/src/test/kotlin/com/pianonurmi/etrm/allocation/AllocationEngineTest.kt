@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.allocation.EngineFixtures.problem
 import com.pianonurmi.etrm.allocation.api.AllocationConstraint
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.all
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
@@ -151,7 +152,10 @@ class AllocationEngineTest {
         }
 
         runBlocking {
-            checkAll(PropTestConfig(iterations = 150, seed = 42), Arb.list(lotArb, 1..25), Arb.list(obligationArb, 1..12)) { lots, obligations ->
+            checkAll(PropTestConfig(iterations = 150, seed = PropertySeeds.seed(42L)), Arb.list(lotArb, 1..25), Arb.list(obligationArb, 1..12)) {
+                lots,
+                obligations,
+                ->
                 val problem = problem(lots, obligations)
                 val result = solver.solve(problem)
                 val again = solver.solve(problem)
