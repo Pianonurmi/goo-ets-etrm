@@ -35,6 +35,18 @@ function JournalResult({ onClose }: { onClose: () => void }) {
                     </List.Item>
                   ))}
                 </List>
+                {result.brokenHoldings.length > 0 && (
+                  <>
+                    <Text size="sm" mt="sm">
+                      {t('inventory.journal.brokenHoldings')}
+                    </Text>
+                    <List size="sm">
+                      {result.brokenHoldings.map((id) => (
+                        <List.Item key={id}>{id}</List.Item>
+                      ))}
+                    </List>
+                  </>
+                )}
               </Alert>
             ))}
         </QueryState>
@@ -43,7 +55,7 @@ function JournalResult({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Recomputes the hash chain of every lot's journal and lists the lots whose chain no longer verifies. */
+/** Recomputes the hash chains of the lot journals and allowance movements and lists those that no longer verify. */
 export function JournalCheckButton() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
