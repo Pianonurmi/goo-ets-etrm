@@ -24,6 +24,9 @@ Names as Prometheus shows them (Micrometer turns dots into underscores and adds 
 | `etrm_integrity_chain_ok` | gauge | `chain` | 1 when the nightly verification found the chain intact, 0 when not |
 | `etrm_ledger_unposted_open` | gauge | | Events the ledger could not post, waiting in the inbox |
 | `etrm_events_publications_incomplete` | gauge | | Domain events not yet delivered to their listeners or Kafka |
+| `etrm_events_publications_parked` | gauge | | Publications that failed `etrm.events.max-attempts` times and wait for an administrator |
+| `etrm_http_bulkhead_rejected_total` | counter | | API requests refused with 503 at the concurrent request limit (`etrm.http.max-concurrent-requests`) |
+| `etrm_http_bulkhead_in_use` | gauge | | API requests in progress, counted against that limit |
 | `etrm_db_partitions_default_rows` | gauge | `table` | Rows in a default partition (partition maintenance fell behind) |
 | `etrm_registry_dispatch_lag_seconds` | gauge | | Age of the oldest instruction waiting to be sent |
 | `etrm_registry_instructions_open` | gauge | `status` | Open registry instructions by status (`UNKNOWN` needs a person) |

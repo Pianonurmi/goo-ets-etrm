@@ -78,6 +78,8 @@ spec:
               value: {{ .Values.environment | quote }}
             - name: ETRM_MANAGEMENT_PORT
               value: {{ .Values.service.managementPort | quote }}
+            - name: ETRM_DB_POOL_MAX
+              value: {{ .Values.database.poolMax | quote }}
             - name: ETRM_DB_URL
               valueFrom:
                 secretKeyRef:
@@ -127,18 +129,21 @@ spec:
               path: /actuator/health/liveness
               port: management
             periodSeconds: 5
+            timeoutSeconds: 3
             failureThreshold: 60
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: management
             periodSeconds: 10
+            timeoutSeconds: 3
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: management
             periodSeconds: 5
+            timeoutSeconds: 3
             failureThreshold: 3
           lifecycle:
             preStop:

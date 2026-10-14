@@ -45,6 +45,21 @@ spec:
           annotations:
             summary: Requests wait for a database connection
             runbook_url: {{ $runbooks }}/latency-and-pool.md
+        - alert: EtrmDatabaseUnreachable
+          # Readiness leaves the database out (pods keep answering with 503 problems), so this alert reports an outage.
+          expr: sum(increase(hikaricp_connections_timeout_total{service="{{ $service }}"}[5m])) > 10
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: Requests time out waiting for a database connection
+            runbook_url: {{ $runbooks }}/latency-and-pool.md
+        - alert: EtrmRequestsShed
+          expr: sum(increase(etrm_http_bulkhead_rejected_total{service="{{ $service }}"}[5m])) > 0
+          for: 10m
+          labels: {severity: warning}
+          annotations:
+            summary: API requests are refused with 503 because the concurrent request limit is reached
+            runbook_url: {{ $runbooks }}/latency-and-pool.md
     - name: etrm.jobs
       rules:
         - alert: EtrmJobFailed
@@ -81,6 +96,12 @@ spec:
           labels: {severity: warning}
           annotations:
             summary: Domain events have not reached their listeners or Kafka for half an hour
+            runbook_url: {{ $runbooks }}/event-publications.md
+        - alert: EtrmEventPublicationsParked
+          expr: max(etrm_events_publications_parked{service="{{ $service }}"}) > 0
+          labels: {severity: critical}
+          annotations:
+            summary: Event publications failed too often and are no longer resubmitted; an administrator must act
             runbook_url: {{ $runbooks }}/event-publications.md
         - alert: EtrmDefaultPartitionRows
           expr: max by (table) (etrm_db_partitions_default_rows{service="{{ $service }}"}) > 0

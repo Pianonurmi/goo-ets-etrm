@@ -24,10 +24,24 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - The showcase login throttle counts failures only, so successful sign-ins never lock anyone out, and its memory is
   bounded. The FILE registry gateway uses only file-name-safe characters from an instruction key.
 
+### Changed
+- **Overload and database outages answer quickly.** At most 200 API requests run at once (`etrm.http.max-concurrent-requests`);
+  more wait two seconds and get 503 with `Retry-After`. A request waits at most five seconds for a database
+  connection. Readiness no longer includes the database, so an outage no longer takes every pod out of the service
+  at once; `ETRM_DB_POOL_MAX` (Helm `database.poolMax`) sizes the pool. Probes time out after three seconds.
+- Registry adapters keep one HTTP client per registry instead of building one per call, and use the JVM's proxy
+  settings.
+
 ### Added
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
   refused; `TokenValidationIT` checks signature, expiry, issuer, audience and unsigned tokens with Spring Boot's own
   decoder.
+- **Operations signals** (review findings O2, O3, O7, O8): every scheduled job reports failures, its last success and
+  its expected interval (`etrm_jobs_*`); alert rules for the Prometheus Operator (`prometheusRule.enabled`) with a
+  [runbook](docs/operations/runbooks/README.md) per alert and a metric catalogue in
+  [observability](docs/operations/observability.md).
+- Event publications that fail ten times are parked instead of retried forever; administrators list and resubmit
+  them under `/api/v1/admin/event-publications`.
 - The change process: `CODEOWNERS`, a pull request template, `SECURITY.md`, [contributing](docs/contributing.md)
   and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
   by default.

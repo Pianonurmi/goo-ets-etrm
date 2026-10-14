@@ -21,6 +21,8 @@ database:
   urlKey: jdbc-uri
   usernameKey: username
   passwordKey: password
+  # Connections per pod; keep poolMax times the maximum replicas below the database's max_connections.
+  poolMax: 20
 
 oidc:
   # Issuer the API validates tokens against, and the one the browser signs in with if it differs.
