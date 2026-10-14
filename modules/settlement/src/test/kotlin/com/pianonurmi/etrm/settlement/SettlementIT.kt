@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.marketdata.api.RecordQuote
 import com.pianonurmi.etrm.marketdata.application.MarketDataService
 import com.pianonurmi.etrm.marketdata.application.MarketDataSettings
 import com.pianonurmi.etrm.platform.errors.ConflictException
+import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -71,7 +72,9 @@ import com.pianonurmi.etrm.settlement.adapter.jooq.JooqSettlementItemRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqStandardRateRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqVatRuleRepository
 import com.pianonurmi.etrm.settlement.api.AllocatePayment
+import com.pianonurmi.etrm.settlement.api.AllocationKind
 import com.pianonurmi.etrm.settlement.api.FixPrice
+import com.pianonurmi.etrm.settlement.api.InvoiceFilter
 import com.pianonurmi.etrm.settlement.api.InvoiceKind
 import com.pianonurmi.etrm.settlement.api.InvoiceLineType
 import com.pianonurmi.etrm.settlement.api.InvoiceRun
@@ -114,6 +117,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
@@ -147,6 +151,8 @@ class SettlementIT {
     private lateinit var numbers: JooqNumberSeriesRepository
     private lateinit var payments: PaymentService
     private lateinit var netting: NettingService
+    private lateinit var invoiceSettlement: InvoiceSettlement
+    private lateinit var documentService: DocumentService
     private lateinit var reports: SettlementReportService
     private lateinit var entity: UUID
     private lateinit var book: UUID
@@ -208,6 +214,8 @@ class SettlementIT {
             bus,
             clock,
         )
+        invoiceSettlement = settlement
+        documentService = documents
         invoices = InvoiceService(
             JooqInvoiceRepository(dsl),
             JooqSettlementItemRepository(dsl),
@@ -796,6 +804,72 @@ class SettlementIT {
         )
         shouldThrow<ValidationException> { netting.settle(fresh.id, net.id) }.message shouldContain sale.number
         netting.statement(fresh.id)!!.status shouldBe NettingStatus.AGREED
+    }
+
+    private class AgreedStatement(val id: UUID, val paymentId: UUID, val sale: InvoiceView, val purchase: InvoiceView)
+
+    /** A netting statement with the counterparty's agreement recorded and its net payment received, ready to settle. */
+    private fun agreedStatement(code: String): AgreedStatement {
+        val (sale, cp) = nettingFixture(code)
+        val purchase = invoices.invoices(InvoiceFilter(entity, cp)).single { it.id != sale.id }
+        user = "billing"
+        val statement = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        user = "controller"
+        netting.agree(statement.id, "THEIR-OK")
+        user = "billing"
+        val net = payments.record(
+            RecordPayment(entity, PaymentDirection.INCOMING, BigDecimal("2095.85"), "EUR", LocalDate.of(2026, 11, 30), "BANK-$code", counterpartyId = cp),
+        )
+        return AgreedStatement(statement.id, net.id, sale, purchase)
+    }
+
+    private fun nettingWith(events: ApplicationEventPublisher) = NettingService(
+        JooqNettingRepository(TestDatabase.dsl),
+        JooqInvoiceRepository(TestDatabase.dsl),
+        JooqPaymentRepository(TestDatabase.dsl),
+        invoiceSettlement,
+        referenceData,
+        documentService,
+        actor,
+        events,
+    )
+
+    /** The statement is settled and its offsets and net payment were applied once: nothing was allocated twice. */
+    private fun assertSettledOnce(fixture: AgreedStatement) {
+        netting.statement(fixture.id)!!.status shouldBe NettingStatus.SETTLED
+        payments.allocations(fixture.sale.id).map { it.kind }.sorted() shouldBe listOf(AllocationKind.PAYMENT, AllocationKind.NETTING).sorted()
+        payments.allocations(fixture.purchase.id).map { it.kind } shouldBe listOf(AllocationKind.NETTING)
+        invoices.invoice(fixture.sale.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.PAID
+            it.paidAmount.compareTo(it.grossTotal) shouldBe 0
+        }
+        invoices.invoice(fixture.purchase.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.PAID
+            it.paidAmount.compareTo(it.grossTotal) shouldBe 0
+        }
+        payments.payment(fixture.paymentId)!!.unappliedAmount.signum() shouldBe 0
+    }
+
+    /** The statement row lock: the second settlement waits for the first (see [NettingRace.held]) and is then refused. */
+    @Test
+    fun `settling a statement twice at once settles it once because the second waits for the statement row`() {
+        val fixture = agreedStatement("NET-RACE-HELD")
+        user = "billing"
+        val race = NettingRace(::nettingWith).held(fixture.id, fixture.paymentId)
+        race.settled shouldBe 1
+        race.refusals.single().shouldBeInstanceOf<IllegalStateTransitionException>()
+        assertSettledOnce(fixture)
+    }
+
+    /** The same race released together by a barrier (see [NettingRace.together]). */
+    @Test
+    fun `two settlements released together settle the statement once`() {
+        val fixture = agreedStatement("NET-RACE-OPEN")
+        user = "billing"
+        val race = NettingRace(::nettingWith).together(fixture.id, fixture.paymentId)
+        race.settled shouldBe 1
+        race.refusals.single().shouldBeInstanceOf<IllegalStateTransitionException>()
+        assertSettledOnce(fixture)
     }
 
     @Test
