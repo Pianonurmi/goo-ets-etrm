@@ -90,6 +90,17 @@ serviceMonitor:
   enabled: false
   interval: 30s
 
+# Alert rules for the Prometheus Operator (docs/operations/observability.md#alerts). Each alert links its runbook.
+prometheusRule:
+  enabled: false
+  # Extra labels, e.g. the label your Prometheus selects rules by.
+  labels: {}
+  runbookBaseUrl: https://github.com/Pianonurmi/goo-ets-etrm/blob/main/docs/operations/runbooks
+  # Backup and WAL archive alerts for the CloudNativePG cluster (ops/k8s/postgres-cluster.yaml).
+  cnpg:
+    enabled: false
+    cluster: etrm-db
+
 podAnnotations: {}
 nodeSelector: {}
 tolerations: []

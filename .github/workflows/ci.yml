@@ -54,6 +54,7 @@ jobs:
           helm template etrm ops/helm/etrm > default.yaml
           helm template etrm ops/helm/etrm --set autoscaling.enabled=false --set registryOutbox.persistence=true \
             --set kafka.enabled=true --set kafka.bootstrapServers=kafka:9092 --set serviceMonitor.enabled=true \
+            --set prometheusRule.enabled=true --set prometheusRule.cnpg.enabled=true \
             --set tracing.otlpEndpoint=http://otel:4318/v1/traces > full.yaml
           kubeconform -strict -summary -kubernetes-version 1.31.0 \
             -schema-location default \

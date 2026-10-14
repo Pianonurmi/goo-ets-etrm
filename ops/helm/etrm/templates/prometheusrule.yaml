@@ -1,0 +1,130 @@
+{{- if .Values.prometheusRule.enabled }}
+{{- $runbooks := .Values.prometheusRule.runbookBaseUrl }}
+{{- $service := include "etrm.fullname" . }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $service }}
+  labels:
+    {{- include "etrm.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: etrm.application
+      rules:
+        - alert: EtrmDown
+          expr: up{service="{{ $service }}"} == 0
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: An ETRM pod does not answer its metrics scrape
+            runbook_url: {{ $runbooks }}/application-down.md
+        - alert: EtrmHighErrorRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{service="{{ $service }}", status=~"5.."}[5m]))
+              / sum(rate(http_server_requests_seconds_count{service="{{ $service }}"}[5m])) > 0.02
+          for: 10m
+          labels: {severity: critical}
+          annotations:
+            summary: More than 2% of API requests fail with a server error
+            runbook_url: {{ $runbooks }}/error-rate.md
+        - alert: EtrmSlowRequests
+          expr: |
+            histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{service="{{ $service }}", uri!~"/actuator.*"}[5m]))) > 1
+          for: 15m
+          labels: {severity: warning}
+          annotations:
+            summary: The 95th percentile of API latency is above one second
+            runbook_url: {{ $runbooks }}/latency-and-pool.md
+        - alert: EtrmDatabasePoolSaturated
+          expr: max(hikaricp_connections_pending{service="{{ $service }}"}) > 5
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Requests wait for a database connection
+            runbook_url: {{ $runbooks }}/latency-and-pool.md
+    - name: etrm.jobs
+      rules:
+        - alert: EtrmJobFailed
+          expr: sum by (job_name) (increase(etrm_jobs_failures_total{service="{{ $service }}"}[1h])) > 0
+          labels: {severity: warning}
+          annotations:
+            summary: {{`"A scheduled job ({{ $labels.job_name }}) failed for at least one subject in the last hour"`}}
+            runbook_url: {{ $runbooks }}/job-failures.md
+        - alert: EtrmJobNotRun
+          expr: (time() - max by (job_name) (etrm_jobs_last_success_seconds{service="{{ $service }}"})) > on (job_name) group_left() (2 * max by (job_name) (etrm_jobs_expected_interval_seconds{service="{{ $service }}"}))
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: {{`"The scheduled job {{ $labels.job_name }} has not completed for more than twice its interval"`}}
+            runbook_url: {{ $runbooks }}/job-failures.md
+    - name: etrm.integrity
+      rules:
+        - alert: EtrmHashChainBroken
+          expr: min by (chain) (etrm_integrity_chain_ok{service="{{ $service }}"}) == 0
+          labels: {severity: critical}
+          annotations:
+            summary: {{`"The {{ $labels.chain }} hash chain does not verify: a record was changed outside the application"`}}
+            runbook_url: {{ $runbooks }}/hash-chain-broken.md
+        - alert: EtrmLedgerUnposted
+          expr: max(etrm_ledger_unposted_open{service="{{ $service }}"}) > 0
+          for: 1h
+          labels: {severity: warning}
+          annotations:
+            summary: Events wait for the ledger's attention (LEDGER_ATTENTION tasks in the inbox)
+            runbook_url: {{ $runbooks }}/ledger-unposted.md
+        - alert: EtrmEventPublicationsStuck
+          expr: max(etrm_events_publications_incomplete{service="{{ $service }}"}) > 0
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: Domain events have not reached their listeners or Kafka for half an hour
+            runbook_url: {{ $runbooks }}/event-publications.md
+        - alert: EtrmDefaultPartitionRows
+          expr: max by (table) (etrm_db_partitions_default_rows{service="{{ $service }}"}) > 0
+          labels: {severity: warning}
+          annotations:
+            summary: {{`"Rows landed in the default partition of {{ $labels.table }}"`}}
+            runbook_url: {{ $runbooks }}/../database.md#rows-in-a-default-partition
+    - name: etrm.integrations
+      rules:
+        - alert: EtrmRegistryDispatchLag
+          expr: max(etrm_registry_dispatch_lag_seconds{service="{{ $service }}"}) > 600
+          for: 10m
+          labels: {severity: warning}
+          annotations:
+            summary: Registry instructions wait more than ten minutes to be sent
+            runbook_url: {{ $runbooks }}/registry-instructions.md
+        - alert: EtrmRegistryInstructionsUnknown
+          expr: max(etrm_registry_instructions_open{service="{{ $service }}", status="UNKNOWN"}) > 0
+          for: 30m
+          labels: {severity: critical}
+          annotations:
+            summary: Registry instructions have an unknown outcome and must be confirmed against the registry
+            runbook_url: {{ $runbooks }}/registry-instructions.md
+        - alert: EtrmFxRatesStale
+          expr: max(etrm_marketdata_fx_age_days{service="{{ $service }}"}) > 3
+          for: 1h
+          labels: {severity: warning}
+          annotations:
+            summary: The newest ECB reference rate is more than three days old
+            runbook_url: {{ $runbooks }}/fx-rates-stale.md
+    {{- if .Values.prometheusRule.cnpg.enabled }}
+    - name: etrm.database
+      rules:
+        - alert: EtrmDatabaseBackupOld
+          expr: (time() - max(cnpg_collector_last_available_backup_timestamp{namespace="{{ .Release.Namespace }}", pod=~"{{ .Values.prometheusRule.cnpg.cluster }}-.*"})) > 26 * 3600
+          labels: {severity: critical}
+          annotations:
+            summary: The newest base backup of the database is more than 26 hours old
+            runbook_url: {{ $runbooks }}/database-backup.md
+        - alert: EtrmDatabaseWalArchiveFailing
+          expr: increase(cnpg_pg_stat_archiver_failed_count{namespace="{{ .Release.Namespace }}", pod=~"{{ .Values.prometheusRule.cnpg.cluster }}-.*"}[15m]) > 0
+          labels: {severity: critical}
+          annotations:
+            summary: WAL archiving to the object store fails; point-in-time recovery is at risk
+            runbook_url: {{ $runbooks }}/database-backup.md
+    {{- end }}
+{{- end }}

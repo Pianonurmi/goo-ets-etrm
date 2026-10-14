@@ -10,8 +10,52 @@ Micrometer with the Prometheus registry. `GET /actuator/prometheus` serves them.
 - Every meter has the tag `application=goo-ets-etrm`.
 - HTTP server timings carry histogram buckets and SLO buckets at 100 ms, 250 ms, 500 ms, 1 s and 2 s, so latency
   percentiles and SLO burn can be computed in Prometheus.
-- Application meters include `etrm.reconciliation.breaks.open` (registry dispatcher) and the outbox and dispatcher
-  timings of the registry module.
+- Application meters are listed in the catalogue below.
+
+### Metric catalogue
+
+Names as Prometheus shows them (Micrometer turns dots into underscores and adds `_total` to counters).
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `etrm_jobs_failures_total` | counter | `job_name` | A scheduled job failed, as a whole or for one subject (entity, curve, account, lot) |
+| `etrm_jobs_last_success_seconds` | gauge | `job_name` | When the job last completed (epoch seconds) |
+| `etrm_jobs_expected_interval_seconds` | gauge | `job_name` | How often the job is expected to complete |
+| `etrm_integrity_chain_ok` | gauge | `chain` | 1 when the nightly verification found the chain intact, 0 when not |
+| `etrm_ledger_unposted_open` | gauge | | Events the ledger could not post, waiting in the inbox |
+| `etrm_events_publications_incomplete` | gauge | | Domain events not yet delivered to their listeners or Kafka |
+| `etrm_db_partitions_default_rows` | gauge | `table` | Rows in a default partition (partition maintenance fell behind) |
+| `etrm_registry_dispatch_lag_seconds` | gauge | | Age of the oldest instruction waiting to be sent |
+| `etrm_registry_instructions_open` | gauge | `status` | Open registry instructions by status (`UNKNOWN` needs a person) |
+| `etrm_reconciliation_breaks_open` | gauge | | Open reconciliation breaks |
+| `etrm_marketdata_fx_age_days` | gauge | | Days since the newest FX rate |
+| `etrm_inventory_expiry_failures_total` | counter | | Lots the nightly expiry could not expire |
+| `http_server_requests_seconds` | histogram | `uri`, `status`, `exception` | API latency and outcomes, with SLO buckets |
+| `hikaricp_connections_*` | gauges | `pool` | Database pool: active, idle, pending, max |
+
+### Alerts
+
+The chart's `PrometheusRule` (`prometheusRule.enabled=true`, with the labels your Prometheus selects rules by in
+`prometheusRule.labels`) carries the alerts below. Each links its page in the [runbooks](runbooks/README.md).
+`prometheusRule.cnpg.enabled` adds the database backup and WAL archive alerts for the CloudNativePG cluster.
+
+| Alert | Severity | Fires when |
+|---|---|---|
+| `EtrmDown` | critical | A pod is not scraped for 5 minutes |
+| `EtrmHighErrorRate` | critical | More than 2 % of requests answer 5xx for 10 minutes |
+| `EtrmSlowRequests` | warning | p95 latency above 1 s for 15 minutes |
+| `EtrmDatabasePoolSaturated` | warning | More than 5 requests wait for a connection for 5 minutes |
+| `EtrmJobFailed` | warning | A job failure in the last hour |
+| `EtrmJobNotRun` | warning | A job has not completed for twice its interval |
+| `EtrmHashChainBroken` | critical | The nightly verification found a broken chain |
+| `EtrmLedgerUnposted` | warning | Events have waited for the ledger for an hour |
+| `EtrmEventPublicationsStuck` | warning | Events have not been delivered for 30 minutes |
+| `EtrmDefaultPartitionRows` | warning | Rows in a default partition |
+| `EtrmRegistryDispatchLag` | warning | Instructions wait more than 10 minutes to be sent |
+| `EtrmRegistryInstructionsUnknown` | critical | An instruction's outcome has been unknown for 30 minutes |
+| `EtrmFxRatesStale` | warning | The newest FX rate is more than 3 days old |
+| `EtrmDatabaseBackupOld` | critical | No base backup for 26 hours (CloudNativePG) |
+| `EtrmDatabaseWalArchiveFailing` | critical | WAL archiving failed in the last 15 minutes (CloudNativePG) |
 
 ## Traces
 
