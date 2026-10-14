@@ -55,12 +55,14 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import org.jooq.exception.DataAccessException
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
+import java.sql.SQLException
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -304,6 +306,24 @@ class InventoryServiceIT {
         shouldThrow<ConflictException> {
             holdings.record(RecordAllowanceMovement(entityId, etsAccountId, "EUA", AllowanceMovementType.SALE, 1_000, LocalDate.of(2026, 10, 1)))
         }
+
+        // The movements are append-only and chained per holding; a change made with the triggers off is found.
+        holdings.verifyMovements().shouldBeEmpty()
+
+        fun sql(statement: String, tamper: Boolean = false) = TestDatabase.dataSource.connection.use { c ->
+            c.autoCommit = !tamper
+            if (tamper) c.createStatement().use { it.execute("SET LOCAL session_replication_role = replica") }
+            c.createStatement().use { it.execute(statement) }
+            if (tamper) c.commit()
+        }
+        val table = "etrm_inventory.allowance_movement"
+        val ofHolding = "holding_id = '${holding.id}'"
+        shouldThrow<SQLException> { sql("UPDATE $table SET quantity = 1 WHERE $ofHolding") }.message shouldContain "append-only"
+        shouldThrow<SQLException> { sql("DELETE FROM $table WHERE $ofHolding") }.message shouldContain "append-only"
+        sql("UPDATE etrm_inventory.allowance_movement SET quantity = 11000 WHERE holding_id = '${holding.id}' AND quantity = 10000", tamper = true)
+        holdings.verifyMovements() shouldBe listOf(holding.id)
+        sql("UPDATE etrm_inventory.allowance_movement SET quantity = 10000 WHERE holding_id = '${holding.id}' AND quantity = 11000", tamper = true)
+        holdings.verifyMovements().shouldBeEmpty()
     }
 
     @Test

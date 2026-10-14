@@ -25,6 +25,7 @@ import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
 import com.pianonurmi.etrm.ledger.domain.GlExportRenderer
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
 import com.pianonurmi.etrm.ledger.domain.GlInterfaceRepository
+import com.pianonurmi.etrm.ledger.domain.JournalChain
 import com.pianonurmi.etrm.ledger.domain.JournalRepository
 import com.pianonurmi.etrm.ledger.domain.PeriodRepository
 import com.pianonurmi.etrm.ledger.domain.PostingRuleRepository
@@ -32,6 +33,7 @@ import com.pianonurmi.etrm.ledger.domain.RuleSelector
 import com.pianonurmi.etrm.ledger.domain.TrialBalance
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.crypto.HashChain
+import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -48,6 +50,7 @@ import java.math.RoundingMode
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Service
@@ -118,6 +121,9 @@ class LedgerService(
         val chart = ensureChartOfAccounts(manual.legalEntityId).associateBy { it.code }
         val base = referenceData.requireLegalEntity(manual.legalEntityId).baseCurrency.currencyCode
         val rate = fxRateFor(manual.postingDate, manual.currency, base)
+        manual.lines.firstOrNull { it.debit.stripTrailingZeros().scale() > 2 || it.credit.stripTrailingZeros().scale() > 2 }?.let {
+            throw ValidationException("Amounts have at most two decimals (account ${it.accountCode})")
+        }
         val lines = manual.lines.mapIndexed { index, l ->
             val account = chart[l.accountCode] ?: throw NotFoundException("GlAccount", l.accountCode)
             val side = if (l.debit.signum() > 0) PostingSide.DEBIT else PostingSide.CREDIT
@@ -150,9 +156,12 @@ class LedgerService(
 
     override fun reverse(entryId: UUID, reason: String): JournalEntryView {
         actorProvider.current().requireRole(Role.ACCOUNTANT, Role.BACK_OFFICE)
+        val found = journal.find(entryId) ?: throw NotFoundException("JournalEntry", entryId)
+        // Lock first, then read again: two reversals of the same entry must not both see it POSTED.
+        journal.lockEntity(found.legalEntityId)
         val original = journal.find(entryId) ?: throw NotFoundException("JournalEntry", entryId)
+        actorProvider.current().requireEntity(original.legalEntityId)
         if (original.status != EntryStatus.POSTED) throw ValidationException("Entry ${original.entryNumber} is ${original.status} and cannot be reversed")
-        journal.lockEntity(original.legalEntityId)
         val today = LocalDate.now(clock)
         val postingDate = if (periods.find(
                 original.legalEntityId,
@@ -181,7 +190,7 @@ class LedgerService(
             status = EntryStatus.REVERSAL,
             reversalOf = original.id,
         )
-        journal.markReversed(original.id, reversal.id)
+        if (!journal.markReversed(original.id, reversal.id)) throw ConflictException("Entry ${original.entryNumber} was reversed concurrently")
         return reversal
     }
 
@@ -205,8 +214,7 @@ class LedgerService(
         EntryBuilder.requireOpen(periods.find(legalEntityId, period), manual)
         val prev = journal.lastHash(legalEntityId)
         val number = journal.nextEntryNumber()
-        val payload = chainPayload(number, postingDate, eventType, lines)
-        val entry = JournalEntryView(
+        val unhashed = JournalEntryView(
             id = Ids.newId(),
             entryNumber = number,
             legalEntityId = legalEntityId,
@@ -223,11 +231,12 @@ class LedgerService(
             reversalOf = reversalOf,
             reversedBy = null,
             createdBy = actorProvider.current().userId,
-            createdAt = clock.instant(),
+            createdAt = clock.instant().truncatedTo(ChronoUnit.MICROS),
             prevHash = prev,
-            hash = HashChain.next(prev, payload),
+            hash = "",
             lines = lines,
         )
+        val entry = unhashed.copy(hash = JournalChain.hash(prev, unhashed))
         val chart = accounts.accounts(legalEntityId).associate { it.code to it.id }
         journal.insert(entry, chart)
         events.publishEvent(JournalEntryPosted(entry))
@@ -243,31 +252,23 @@ class LedgerService(
         rate: BigDecimal,
         dims: Map<String, String?>,
         memo: String?,
-    ) = JournalLineView(
-        lineNo = no,
-        accountCode = account.code,
-        accountName = account.name,
-        debit = if (side == PostingSide.DEBIT) amount else BigDecimal.ZERO,
-        credit = if (side == PostingSide.CREDIT) amount else BigDecimal.ZERO,
-        currency = currency,
-        fxRate = rate,
-        baseDebit = if (side == PostingSide.DEBIT) (amount * rate).setScale(2, RoundingMode.HALF_EVEN) else BigDecimal.ZERO,
-        baseCredit = if (side == PostingSide.CREDIT) (amount * rate).setScale(2, RoundingMode.HALF_EVEN) else BigDecimal.ZERO,
-        dimensions = dims,
-        memo = memo,
-    )
-
-    /** Hash input normalised so that a round trip through NUMERIC columns reproduces it exactly. */
-    private fun chainPayload(number: Long, postingDate: LocalDate, eventType: String, lines: List<JournalLineView>): String = Json.canonical(
-        mapOf(
-            "n" to number,
-            "d" to postingDate.toString(),
-            "e" to eventType,
-            "lines" to lines.map { listOf(it.accountCode, money(it.debit), money(it.credit), it.currency) },
-        ),
-    )
-
-    private fun money(value: BigDecimal): String = value.setScale(2, RoundingMode.HALF_EVEN).toPlainString()
+    ): JournalLineView {
+        // Stored, hashed and balanced at the scale of the column, so the database never rounds what was hashed.
+        val stored = amount.setScale(2, RoundingMode.HALF_EVEN)
+        return JournalLineView(
+            lineNo = no,
+            accountCode = account.code,
+            accountName = account.name,
+            debit = if (side == PostingSide.DEBIT) stored else BigDecimal.ZERO,
+            credit = if (side == PostingSide.CREDIT) stored else BigDecimal.ZERO,
+            currency = currency,
+            fxRate = rate,
+            baseDebit = if (side == PostingSide.DEBIT) (stored * rate).setScale(2, RoundingMode.HALF_EVEN) else BigDecimal.ZERO,
+            baseCredit = if (side == PostingSide.CREDIT) (stored * rate).setScale(2, RoundingMode.HALF_EVEN) else BigDecimal.ZERO,
+            dimensions = dims,
+            memo = memo,
+        )
+    }
 
     /**
      * Automatic postings dated in a closed (or soft-closed) period go to the first day of the next open period, with
@@ -304,6 +305,8 @@ class LedgerService(
         val actor = actorProvider.current()
         actor.requireRole(Role.ACCOUNTANT)
         actor.requireEntity(legalEntityId)
+        // Under the posting lock, so that no entry commits into the period after it is closed.
+        journal.lockEntity(legalEntityId)
         val current = periods.find(legalEntityId, period.toString())?.status ?: PeriodStatus.OPEN
         val target = if (hard) PeriodStatus.CLOSED else PeriodStatus.SOFT_CLOSED
         if (current == PeriodStatus.CLOSED) throw ValidationException("Period $period is already hard-closed")
@@ -322,6 +325,7 @@ class LedgerService(
         val actor = actorProvider.current()
         actor.requireRole(Role.ACCOUNTANT)
         actor.requireEntity(legalEntityId)
+        journal.lockEntity(legalEntityId)
         when (periods.find(legalEntityId, period.toString())?.status ?: PeriodStatus.OPEN) {
             PeriodStatus.CLOSED -> throw ValidationException("Period $period is hard-closed and cannot be reopened; post adjustments in an open period")
             PeriodStatus.OPEN -> throw ValidationException("Period $period is open")
@@ -464,14 +468,8 @@ class LedgerService(
 
     @Transactional(readOnly = true)
     override fun verifyJournal(legalEntityId: UUID): List<UUID> {
-        var prev: String? = null
-        val broken = mutableListOf<UUID>()
-        journal.allForEntity(legalEntityId).forEach { e ->
-            val payload = chainPayload(e.entryNumber, e.postingDate, e.eventType, e.lines)
-            if (e.prevHash != prev || e.hash != HashChain.next(prev, payload)) broken += e.id
-            prev = e.hash
-        }
-        return broken
+        actorProvider.current().requireEntity(legalEntityId)
+        return JournalChain.verify(journal.chain(legalEntityId))
     }
 
     private companion object {
