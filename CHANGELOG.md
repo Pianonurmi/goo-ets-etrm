@@ -7,6 +7,48 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-10-14
+
+An accounting patch: three defects that put wrong figures in the books, found by the
+[enterprise readiness review](docs/reviews/2026-10-enterprise-readiness.md) (F1–F3). Re-run the period end of any
+open period after upgrading.
+
+### Fixed
+- **Index-priced GoO sales booked revenue at the spread.** For an index-priced leg the trade's price is the spread
+  over the index, but the ledger booked revenue and the accrued receivable at spread × MWh when the registry confirmed
+  the delivery, and the period end used the spread as the firm sale price of a reserved lot, writing it down to
+  almost nothing. Both now use the index fixing for the delivery date plus the spread, as settlement does. While the
+  fixing is not there, the revenue is not booked (the cost of sales is) instead of being booked at the spread; a
+  formula-priced leg is treated the same way.
+- **The FX revaluation re-posted realised FX every month.** Realised FX on a paid foreign-currency invoice is booked
+  in base currency, which the period end's revaluation of 1510 and 2210 did not see, so it posted the realised
+  difference again as unrealised (and reversed it) at every month end. Realised FX is now tagged with the invoice's
+  currency and counted as booked.
+- **Allowance corrections from reconciliation left the cost layers behind.** A correction changed the holding but
+  not the cost layers: units found in the registry had no layer, so their later surrender or sale failed inside the
+  registry confirmation, and units missing kept their cost on the asset account. Found units now come in at the
+  statement's price (3920, reconciliation differences found) and missing units leave at cost (4920, missing);
+  default posting rules version 7.
+
+## [0.13.1] - 2026-10-14
+
+A security patch. Upgrade at once; the public showcase was redeployed on this version.
+
+### Security
+- **API reads without sign-in through encoded paths.** Up to 0.13.0 the security chain decided whether a request was
+  for the web UI by its raw, percent-encoded path, while the server routed it by the decoded one. A request such as
+  `GET /%61pi/v1/trades` therefore reached the API without a token or a session and ran with system rights, which see
+  every legal entity. GET endpoints, the OpenAPI document and the actuator (SBOM, metrics) were readable this way in
+  every deployment, including the public showcase. Only GET requests passed, so no command could be sent. The chain now matches on the decoded path, every API, actuator and OpenAPI path
+  needs credentials, and a request without a signed-in user acts as nobody rather than as the system. Found by the
+  [enterprise readiness review](docs/reviews/2026-10-enterprise-readiness.md) (S1).
+- **No system role from a token.** A `SYSTEM` role in a token's roles claim is ignored.
+- **The manual expiry sweep** (`POST /api/v1/inventory/jobs/expire`) needs back office or registry operator rights on
+  every legal entity and refuses a date after today; before, any signed-in user could expire every entity's lots.
+
+### Changed
+- `KafkaExternalizationIT` is skipped where Docker is not available instead of failing.
+
 ## [0.13.0] - 2026-10-13
 
 Options on EUA futures (increment 13).
@@ -243,7 +285,9 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.2
+[0.13.1]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.1
 [0.13.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.0
 [0.12.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.12.0
 [0.11.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.11.0

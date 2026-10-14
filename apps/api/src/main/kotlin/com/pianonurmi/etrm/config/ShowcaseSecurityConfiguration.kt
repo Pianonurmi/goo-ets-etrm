@@ -67,6 +67,7 @@ class ShowcaseSecurityConfiguration {
             it.requestMatchers(HttpMethod.GET, "/api/v1/ui-config").permitAll()
             it.requestMatchers("/api/v1/auth/**").permitAll()
             it.requestMatchers("/error").permitAll()
+            it.requestMatchers(SecurityConfiguration.SERVER_PATHS).authenticated()
             it.requestMatchers(SecurityConfiguration.SPA_ROUTES).permitAll()
             it.anyRequest().authenticated()
         }

@@ -39,6 +39,7 @@ import com.pianonurmi.etrm.ledger.api.PeriodEndComponentKind
 import com.pianonurmi.etrm.ledger.api.PeriodEndRunView
 import com.pianonurmi.etrm.ledger.api.PolicyChangeStatus
 import com.pianonurmi.etrm.ledger.api.PolicyKind
+import com.pianonurmi.etrm.ledger.api.PostingFacts
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDesignation
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDiscontinuation
 import com.pianonurmi.etrm.ledger.api.RequestPolicyChange
@@ -152,7 +153,9 @@ class PeriodEndIT {
             JooqGlInterfaceRepository(dsl),
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
-        listeners = LedgerEventListeners(ledger, JooqCostLayerRepository(dsl), referenceData, mockk(relaxed = true), mockk(relaxed = true), clock)
+        listeners = LedgerEventListeners(ledger, JooqCostLayerRepository(dsl), referenceData, mockk(relaxed = true), mockk(relaxed = true), clock) { _, _ ->
+            null
+        }
 
         val valuations = mockk<ValuationQuery>()
         every { valuations.official(any(), any(), true) } answers {
@@ -196,6 +199,7 @@ class PeriodEndIT {
         val trades = mockk<TradeQuery> {
             every { trade(any()) } answers { tradesById[firstArg()] }
             every { obligation(saleRef) } returns mockk<DeliveryObligationView> {
+                every { priceType } returns PriceType.FIXED
                 every { price } returns BigDecimal("0.80")
                 every { priceCurrency } returns Currency.getInstance("EUR")
             }
@@ -485,6 +489,53 @@ class PeriodEndIT {
         balance(e, october, "4910") shouldBe BigDecimal("5.50")
         balance(e, october, "1510") shouldBe BigDecimal("93.50")
         balance(e, october.plusMonths(1), "1510") shouldBe BigDecimal("5.50")
+    }
+
+    @Test
+    fun `a foreign currency invoice paid at another rate leaves nothing to revalue`() {
+        val e = entity("PE-FX-PAID")
+        fx.put(LocalDate.of(2026, 10, 1), "SEK", "EUR", BigDecimal("0.0880"))
+        fx.put(LocalDate.of(2026, 10, 19), "SEK", "EUR", BigDecimal("0.0900"))
+        fx.put(LocalDate.of(2026, 10, 31), "SEK", "EUR", BigDecimal("0.0850"))
+        val invoice = mapOf("invoice" to "INV-SEK-1", "counterparty" to "c-1")
+        ledger.postManual(
+            ManualJournal(
+                e,
+                LocalDate.of(2026, 10, 1),
+                "Invoice in SEK",
+                "SEK",
+                listOf(ManualLine("1510", debit = BigDecimal("10000")), ManualLine("3000", credit = BigDecimal("10000"))),
+            ),
+        )
+        ledger.postManual(
+            ManualJournal(
+                e,
+                LocalDate.of(2026, 10, 19),
+                "Paid in full",
+                "SEK",
+                listOf(ManualLine("1900", debit = BigDecimal("10000")), ManualLine("1510", credit = BigDecimal("10000"))),
+            ),
+        )
+        // As SettlementPostings books it: the realised difference in base currency, tagged with the item's currency.
+        ledger.post(
+            PostingFacts(
+                e,
+                "RealisedFx",
+                UUID.randomUUID(),
+                LocalDate.of(2026, 10, 19),
+                "EUR",
+                "INVOICE",
+                "INV-SEK-1",
+                "Realised FX on INV-SEK-1",
+                mapOf("fxGain" to BigDecimal("20.00")),
+                mapOf("direction" to "RECEIVABLE"),
+                invoice + ("revaluedCurrency" to "SEK"),
+            ),
+        )
+        balance(e, october, "1510").signum() shouldBe 0
+        periodEnd.run(e, october).component(PeriodEndComponentKind.FX_REVALUATION, "1510:SEK").posted.signum() shouldBe 0
+        balance(e, october, "3910").signum() shouldBe 0
+        balance(e, october, "4910").signum() shouldBe 0
     }
 
     @Test

@@ -187,4 +187,15 @@ class OperationsGuardsIT {
         s.asUser("trader", "TRADER").body("""{"bookId":null}""").put("/api/v1/reference/registry-accounts/${s.gooAccountId}/default-book")
             .then().statusCode(403)
     }
+
+    @Test
+    fun `the manual expiry sweep needs operations rights on every entity and never runs ahead`() {
+        val s = ApiScenario(port)
+        s.asUser("trader", "TRADER").post("/api/v1/inventory/jobs/expire").then().statusCode(403)
+        s.asUser("auditor", "AUDITOR").post("/api/v1/inventory/jobs/expire").then().statusCode(403)
+        s.asUser("scoped", "BACK_OFFICE").header("X-Entities", "0190a1b2-0000-7000-8000-000000000009")
+            .post("/api/v1/inventory/jobs/expire").then().statusCode(403)
+        s.asUser("backoffice", "BACK_OFFICE").post("/api/v1/inventory/jobs/expire?asOf=${LocalDate.now().plusDays(1)}").then().statusCode(422)
+        s.asUser("backoffice", "BACK_OFFICE").post("/api/v1/inventory/jobs/expire?asOf=${LocalDate.now()}").then().statusCode(200)
+    }
 }

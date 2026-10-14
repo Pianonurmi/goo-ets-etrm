@@ -10,6 +10,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIf
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
@@ -26,6 +27,7 @@ import java.util.UUID
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@EnabledIf("com.pianonurmi.etrm.Docker#available", disabledReason = "needs Docker for the Kafka broker")
 class KafkaExternalizationIT {
     companion object {
         private val kafka = KafkaContainer("apache/kafka:3.9.1").also { it.start() }

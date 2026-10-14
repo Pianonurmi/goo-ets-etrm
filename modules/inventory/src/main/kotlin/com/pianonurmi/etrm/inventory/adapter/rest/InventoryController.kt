@@ -24,7 +24,9 @@ import com.pianonurmi.etrm.inventory.api.ReconciliationQuery
 import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.inventory.api.SplitResult
 import com.pianonurmi.etrm.inventory.api.StatementView
+import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
@@ -146,10 +148,21 @@ class InventoryController(
         return operation()
     }
 
+    /**
+     * Runs the nightly expiry sweep by hand. It touches every entity's lots, so it needs back office or registry
+     * operator rights on all entities, and it never expires ahead of today.
+     */
     @PostMapping("/jobs/expire")
     fun expire(
         @RequestParam(required = false) asOf: LocalDate?,
-    ): Map<String, Int> = mapOf("expired" to lotCommand.expireDueLots(asOf ?: LocalDate.now()))
+    ): Map<String, Int> {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
+        if (!actor.seesAllEntities) throw ForbiddenException("The expiry sweep covers every legal entity; ${actor.userId} does not see them all")
+        val today = LocalDate.now()
+        if (asOf != null && asOf.isAfter(today)) throw ValidationException("Lots cannot be expired ahead of today ($today)")
+        return mapOf("expired" to lotCommand.expireDueLots(asOf ?: today))
+    }
 
     @GetMapping("/expiry-ladder")
     fun expiryLadder(
