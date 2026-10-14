@@ -104,6 +104,8 @@ class EtsComplianceIT {
         override fun movements(holdingId: UUID) = movements.filter { it.holdingId == holdingId }
 
         override fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>?) = 0L
+
+        override fun verifyMovements() = emptyList<UUID>()
     }
 
     /** Records a movement on the account's EUA holding and lets the service see it, as inventory would. */

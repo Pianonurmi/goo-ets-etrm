@@ -30,11 +30,13 @@ class DatabaseRolesIT {
             url = owner.metaData.url
             owner.createStatement().use {
                 it.execute(
-                    "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$role') THEN CREATE ROLE $role LOGIN PASSWORD '$password'; END IF; END $$",
+                    "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$role') " +
+                        "THEN CREATE ROLE $role LOGIN PASSWORD '$password'; END IF; END $$",
                 )
             }
         }
-        TestDatabase.resetSchemas("ledger", "audit")
+        // No schema reset: other test classes in this JVM keep application contexts on these schemas. The grants are
+        // applied on every migration run, whether or not a migration was pending.
         ModularMigrations(
             TestDatabase.dataSource,
             MigrationProperties(modules = listOf("platform", "ledger", "audit")),
@@ -51,7 +53,8 @@ class DatabaseRolesIT {
         runtime { it.createStatement().use { s -> s.executeQuery("SELECT count(*) FROM etrm_ledger.journal_entry").next() } } shouldBe true
         runtime {
             it.exec(
-                "INSERT INTO etrm_platform.shedlock (name, lock_until, locked_at, locked_by) VALUES ('roles-test', now(), now(), 'test') ON CONFLICT DO NOTHING",
+                "INSERT INTO etrm_platform.shedlock (name, lock_until, locked_at, locked_by) " +
+                    "VALUES ('roles-test', now(), now(), 'test') ON CONFLICT DO NOTHING",
             )
         }
     }

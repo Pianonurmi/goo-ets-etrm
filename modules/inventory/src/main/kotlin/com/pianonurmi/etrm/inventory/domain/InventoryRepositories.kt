@@ -104,6 +104,9 @@ interface AllowanceHoldingRepository {
     fun movements(holdingId: UUID): List<AllowanceMovementView>
 
     fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>?): Long
+
+    /** Holdings whose movement chain does not verify (a link or a digest differs from what was written). */
+    fun brokenMovementChains(): List<UUID>
 }
 
 interface ReconciliationRepository {

@@ -242,7 +242,8 @@ interface JournalRepository {
 
     fun insert(entry: JournalEntryView, accountIds: Map<String, UUID>)
 
-    fun markReversed(entryId: UUID, reversalId: UUID)
+    /** Marks a POSTED entry REVERSED; false when it was not POSTED any more. */
+    fun markReversed(entryId: UUID, reversalId: UUID): Boolean
 
     fun find(id: UUID): JournalEntryView?
 
@@ -257,7 +258,8 @@ interface JournalRepository {
         afterEntryNumber: Long? = null,
     ): List<JournalEntryView>
 
-    fun allForEntity(legalEntityId: UUID): List<JournalEntryView>
+    /** The entity's whole journal in entry number order, with the chain version each entry was hashed with. */
+    fun chain(legalEntityId: UUID): List<ChainedEntry>
 
     fun lockEntity(legalEntityId: UUID)
 
