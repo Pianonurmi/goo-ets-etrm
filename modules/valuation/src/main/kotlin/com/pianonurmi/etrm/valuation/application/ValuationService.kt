@@ -391,8 +391,16 @@ class ValuationService(
         val marketContract = (market.value * toContract).setScale(6, RoundingMode.HALF_EVEN)
         val contract = when (leg.priceType) {
             PriceType.FIXED -> leg.price
-            // An index leg pays its fixing plus the spread; until fixed, the forward price stands in for the fixing.
-            else -> (fixedIndex(leg, draft.deliveryDate, date) ?: marketContract) + leg.price
+            // An index leg pays its fixing plus the spread. Until the day after delivery the forward price stands in for a
+            // fixing not yet published; after that the fixing is overdue, and without it the leg is not valued at the forward.
+            else -> (
+                fixedIndex(leg, draft.deliveryDate, date)
+                    ?: if (draft.deliveryDate.isBefore(date)) {
+                        throw Unpriced(ResultStatus.MISSING_PRICE, year, "No fixing of ${leg.priceIndex ?: "an index"} for ${draft.deliveryDate}")
+                    } else {
+                        marketContract
+                    }
+                ) + leg.price
         }
         // Futures are margined daily: their value is paid out now, not on delivery.
         val df = if (leg.futuresContractCode != null) DiscountFactor.NONE else discount(draft.contractCurrency, draft.payDate!!)
