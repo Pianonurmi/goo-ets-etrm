@@ -152,6 +152,9 @@
     "keepEdits": "Reload, keep my edits",
     "discardEdits": "Reload, discard my edits"
   },
+  "limitNotice": {
+    "text": "Showing the first {{count}} rows; there may be more. Narrow the filters to see the rest."
+  },
   "common": {
     "yes": "Yes",
     "no": "No",
@@ -566,6 +569,7 @@
     "acquiredThrough": "Acquired through"
   },
   "trades": {
+    "moreChanges": "and {{count}} more changes",
     "title": "Trades",
     "description": "Trade blotter of {{entity}}, newest first.",
     "new": "New trade",
@@ -1866,6 +1870,7 @@
       "GUARANTEE_OF_ORIGIN": "MWh"
     },
     "form": {
+      "moreTrades": "Load more trades",
       "itemTitle": "Hedged forecast",
       "itemHint": "A highly probable purchase or sale of allowances or certificates.",
       "direction": "Direction",

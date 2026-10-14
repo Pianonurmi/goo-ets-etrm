@@ -16,12 +16,16 @@ import { QueryState } from '@/shared/components/QueryState';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { newKey } from '@/shared/ids';
+import { LimitNotice } from '@/shared/components/LimitNotice';
 import { canCheckLimits, canSettle, deliveryActions, type DeliveryAction } from './model/operations';
 import { unitOf } from './model/tradeForm';
 
 type Trade = Schema<'TradeView'>;
 type Leg = Schema<'TradeLegView'>;
 type Schedule = Schema<'DeliveryScheduleView'>;
+
+/** Held lots offered when matching a receipt; a full answer is probably cut off. */
+const LOT_CHOICES = 500;
 
 function useRefresh() {
   const queryClient = useQueryClient();
@@ -341,7 +345,7 @@ function MatchReceiptModal({
   const lots = $api.useQuery(
     'get',
     '/api/v1/inventory/lots',
-    { params: { query: { holderEntityId: trade.legalEntityId, status: ['HELD'], limit: 500 } } },
+    { params: { query: { holderEntityId: trade.legalEntityId, status: ['HELD'], limit: LOT_CHOICES } } },
     { enabled: !allowance },
   );
   const holdings = $api.useQuery(
@@ -404,6 +408,7 @@ function MatchReceiptModal({
             data-testid="match-lot"
           />
         )}
+        {!allowance && <LimitNotice shown={lots.data?.length ?? 0} limit={LOT_CHOICES} testId="match-lot-limit" />}
         <Button
           disabled={!ready}
           loading={match.isPending}
