@@ -32,6 +32,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
   by default.
 
+### Changed
+- **Browser tokens stay in memory only**, no longer in session storage; a reload signs in again silently, and the
+  silent renewal of a session works without a refresh token (its page may now be framed by the application itself,
+  and only by it). See the amendment to ADR 0026.
+- Grids open the focused row with Enter or Space, as a click does, so every detail page can be reached by keyboard.
+
 ## [0.13.2] - 2026-10-14
 
 An accounting patch: three defects that put wrong figures in the books, found by the
