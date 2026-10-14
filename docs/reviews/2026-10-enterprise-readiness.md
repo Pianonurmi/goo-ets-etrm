@@ -355,7 +355,76 @@ merge or close them, and let Dependabot's PRs be the way versions move.
 
 <!-- CODE_QUALITY -->
 
-<!-- WEB -->
+### Web UI
+
+Grades: maintainability B, security B, accessibility B−, test confidence B−. The checks all pass (lint with zero
+warnings under `strictTypeChecked`, typecheck, 367 Vitest tests in 45 s, API coverage 306 of 323 operations with 17
+reasoned exceptions, help check, bundle within budget, `npm audit` clean, every runtime dependency in use, exact
+pins and a lockfile). What holds the grades down:
+
+**W1 [Medium] Silent token renew cannot complete through the iframe path.** `oidc.ts` sets `automaticSilentRenew`
+but the only callback handler is `signinRedirectCallback` on `/auth/callback` (`apps/web/src/shared/auth/oidc.ts:23-42`);
+`signinSilentCallback` is never called, so the renew iframe boots the whole SPA and fails. Renewal works today only
+because the identity provider issues a refresh token for the public client; without one the session ends in a
+full-page redirect and lost form state. No unit test covers `oidc.ts`. Fix: handle the silent callback (or a static
+`/auth/silent.html`), decide explicitly on refresh tokens, and test both paths against a fake provider.
+
+**W2 [Medium] Access and refresh tokens in `sessionStorage`.** `oidc.ts:24`; ADR 0026 accepted it, the strict CSP is
+the only barrier, and `style-src 'unsafe-inline'` is required by Mantine. Fix: in-memory user store with silent
+sign-in on reload, or a backend-for-frontend cookie session; record the decision either way.
+
+**W3 [Medium] Grids are outside the accessibility gate and open rows only by mouse.** `hardening.spec.ts:56` excludes
+`.ag-root-wrapper` from axe; 23 grids use `onRowClicked` with no keyboard handler, so a keyboard-only user cannot
+open a trade from the blotter. Fix: an Enter/Space handler in `DataGrid`, identifier columns as links, and only
+AG Grid's known rule ids excluded.
+
+**W4 [Medium] Coverage and tests measure the small part.** Vitest coverage is scoped to `shared/**` and
+`features/**/model/**` (2 121 statements of a 47 000-line tree, `vite.config.ts:44`); the 41 pages have 12 component
+tests, and those mock the grid. The 91 Playwright journeys are good but not re-runnable on the same database, lean
+on named demo rows (`payments.spec.ts:28-61`), and run with one retry in CI. Fix: coverage over `src/**` with an
+honest threshold and a ratchet; msw page tests for the five heaviest pages; journeys that create their own subjects
+through `e2e/api.ts`; retries off with flakes tracked.
+
+**W5 [Medium] Optimistic-concurrency conflicts end in a notification.** A 409 on amend or reference-data edit
+shows "Someone changed this in the meantime" and keeps the stale version in the form
+(`notify.ts:12-23`, `TradeFormPage.tsx:175-194`), so resubmitting repeats the conflict until a reload. Fix: refetch,
+show the diff against the versions, offer "reload and keep my edits".
+
+**W6 [Medium] Large lists are capped or loaded whole without saying so.** Inventory caps at 2 000 rows with no
+hint (`InventoryPage.tsx:142,236`); valuation results load whole; 89 of the contract's GETs return unpaged arrays
+and only five screens page by cursor. AG Grid Community has no server-side row model. Fix: a "showing the first
+2 000" notice, keyset paging on items, invoices, payments and results, `useInfiniteQuery` as the blotter does.
+
+**W7 [Medium] English-only in substance.** `format.ts:3` fixes `en-GB` number formatting (Finnish and Swedish users
+read `1,234.50`); status labels are derived from enum constants and bypass `en.json`; instants show in browser-local
+time with no zone label although entities carry a time zone; 206 dynamic translation keys defeat static checking.
+Fix: locale from the user, status labels through the catalogue, instants in the entity's zone with a suffix, an
+unused/missing-key test.
+
+**W8 [Medium] The role table is hand-maintained with no contract check.** `permissions.ts:8-164` mirrors about
+150 service role checks; the OpenAPI document carries no role metadata; the test asserts two entries. Drift shows
+up as hidden buttons or 403 notifications. Fix: publish `x-roles` from the guards through an `OperationCustomizer`
+and generate or assert the table from it.
+
+**W9 [Medium] God components and no client error telemetry.** 22 page files over 500 lines mixing queries,
+mutations, state and markup (`ReferenceDataPage.tsx` 1 100 lines with 11 queries, 7 mutations and 27 state hooks;
+a 578-line form function in `TradeFormPage.tsx`); only five features keep data access in a `hooks.ts`; ten copies of
+the same URL-state helper. `sourcemap: false`, no `onerror`/`unhandledrejection` hook, so production errors are
+minified and invisible to operations. Fix: one file per tab or drawer, queries in hooks, a shared `useUrlState`,
+hidden source maps kept as an artifact, an error sink carrying `X-Trace-Id`.
+
+**W10 [Low] Smaller items.** Network blips (`status 0`) are never retried and `refetchOnWindowFocus` is off
+(`App.tsx:30-31`); `decimal()` and three `as unknown as number` casts exist because the generated types call
+decimals `number`; `formatDecimal` round-trips through `Number()` and rounds above 16 digits; query invalidation
+depends on the library's internal key layout; the whole AG Grid Community module set is registered (the largest
+chunk, 312 of 360 kB); URL parameters are cast to enums without validation; the object URL is revoked before the
+download starts; several parallel 401s each start a redirect; `/api/v1/me` is cached forever so a role change needs
+a reload; `Money`/`Quantity` components are used in 17 files while `formatMoney` is called directly at 63 sites.
+
+What is right here deserves saying: typed end to end over the committed contract, a single error model with
+problem details mapped onto forms, four-eyes rules as pure tested functions behind `<Can>`, idempotency keys created
+once per dialog, no money arithmetic in the browser, security headers from the server with a CSP-violation gate in
+e2e, lazy routes with an enforced bundle budget, and an e2e suite that plays both personas of every approval.
 
 ### Financial correctness
 
