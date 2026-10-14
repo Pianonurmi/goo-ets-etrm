@@ -11,6 +11,10 @@ on:
         type: choice
         options: [smoke, baseline, stress]
 
+# The token reads the repository only; jobs that publish or release widen it themselves.
+permissions:
+  contents: read
+
 jobs:
   load:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}

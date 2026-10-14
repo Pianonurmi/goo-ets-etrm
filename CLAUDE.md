@@ -123,7 +123,8 @@ Kotlin warnings are errors. detekt config is `config/detekt/detekt.yml` (max lin
 
 ## Commits
 
-Small, descriptive commit messages in the imperative. CI (`.github/workflows/ci.yml`) runs the full build with a PostgreSQL 17 service, publishes SBOMs, then builds the image and scans it: a critical vulnerability with a fix fails the build (accepted ones go in `.trivyignore` with a reason). See `docs/operations/supply-chain.md`.
+Changes reach `main` through pull requests with green CI ([contributing](docs/contributing.md)); patches to an older
+line go through `release/X.Y`. Small, descriptive commit messages in the imperative. CI (`.github/workflows/ci.yml`) runs the full build with a PostgreSQL 17 service, publishes SBOMs, then builds the image and scans it: a critical vulnerability with a fix fails the build (accepted ones go in `.trivyignore` with a reason). See `docs/operations/supply-chain.md`.
 
 The repository is public and the workflows run on GitHub's hosted runners; a self-hosted homelab runner (label `etrm`, ADR 0041, `docs/operations/ci-runner.md`) is the fallback for a private repository, selected with the repository variable `CI_RUNNER`. Keep every job's `runs-on` on that expression, take the PostgreSQL service on a free port (`job.services.postgres.ports['5432']`), and use no `sudo` outside `runner.environment == 'github-hosted'`. Never select the self-hosted runner while the repository is public.
 
