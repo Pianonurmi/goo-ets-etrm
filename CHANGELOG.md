@@ -43,6 +43,27 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
   by default.
 
+### Fixed
+- **A settlement item that could not be evaluated failed the delivery's commit.** Parking an item whose counterparty
+  or legal entity could not be found (or whose futures price lookup failed) marked the transaction rollback-only, so
+  the delivery that created it failed at commit although the item had been parked. The lookups now run in a savepoint.
+- **Credit notes can be refunded and netted.** What is left of a credit note after its original was paid is refunded
+  by a payment in the other direction (an outgoing payment for a sales credit note) or offsets what the counterparty
+  claims in a netting statement. Netting and credit notes in a foreign currency now realise the exchange difference
+  to the booked rate, as a payment does; default posting rules version 8.
+- **A netting statement is refused when an invoice changed after it was prepared.** Agreeing and settling check the
+  amounts captured at preparation against what is outstanding now, and name the invoice (a payment applied in
+  between, for example).
+- **A month average is a fixing only once the month has ended.** Index-priced deliveries stay unpriced (needs
+  attention) while the average of the delivery month is partial, instead of being priced at the average so far.
+- **A payment is applied to an invoice only when its remittance quotes the whole invoice number.** `INV-2026-000012`
+  no longer matches a remittance mentioning `INV-2026-0000123`.
+- **A late settlement price no longer margins a day's move twice.** Computing a margin day again runs every later day
+  of the account that already has a run, in date order, and the ledger posts only the differences. The run hash
+  (and so the idempotency of a re-run) no longer depends on the scale of the prices; the first re-run of a day after
+  upgrading therefore gives a version 2 with the same margin and nothing to post.
+- The margin job dates its work in Europe/Berlin, where its cron runs, instead of UTC.
+
 ## [0.13.2] - 2026-10-14
 
 An accounting patch: three defects that put wrong figures in the books, found by the

@@ -27,6 +27,8 @@ current settlement price, and the variation margin. A gain is green and a loss r
 
 - A run never changes. If a trade is amended or a price corrected, the day is computed again and the new version
   replaces the old one, which stays on record; only the current version of each day is listed.
+  Computing a day again also computes every later day of the account that already has a run (a late settlement price
+  changes the next day's move), and the ledger books only the differences.
 - Margin is computed every weekday evening. **Compute margin** (middle or back office) does it by hand for one
   business day, for example after the settlement price arrived late. A day without an official settlement price
   cannot be computed.
