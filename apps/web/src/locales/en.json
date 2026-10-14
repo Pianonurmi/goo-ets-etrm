@@ -539,10 +539,11 @@
     },
     "journal": {
       "verify": "Verify journal",
-      "title": "Lot journal check",
-      "hint": "Recomputes the hash chain of every lot's journal. A broken chain means an event was changed outside the application.",
-      "intact": "Every lot's journal chain is intact.",
-      "broken": "These lots' journal chains do not verify"
+      "title": "Journal check",
+      "hint": "Recomputes the hash chain of every lot's journal and of every allowance holding's movements. A broken chain means a record was changed outside the application.",
+      "intact": "Every lot's journal chain and every holding's movement chain is intact.",
+      "broken": "These lots' journal chains do not verify",
+      "brokenHoldings": "These allowance holdings' movement chains do not verify:"
     },
     "kpi": {
       "live": "Live certificates",

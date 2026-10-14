@@ -172,14 +172,19 @@ class InventoryController(
     ) =
         lotQuery.expiryLadder(holderEntityId, from ?: LocalDate.now(), months)
 
-    /** Checks the hash chain of the lot journal; broken lots are named only within the user's legal entities. */
+    /**
+     * Checks the hash chains of the lot journal and the allowance movements; broken lots and holdings are named only
+     * within the user's legal entities.
+     */
     @GetMapping("/journal/verify")
     fun verifyJournal(): Map<String, Any> {
         val actor = actorProvider.current()
         actor.requireRole(*JOURNAL_READERS)
         val broken = lotQuery.verifyJournal()
         val visible = broken.filter { actor.canAccess(lotQuery.lot(it)?.holderEntityId) }
-        return mapOf("brokenLots" to visible, "ok" to broken.isEmpty())
+        val brokenHoldings = holdingQuery.verifyMovements()
+        val visibleHoldings = brokenHoldings.filter { actor.canAccess(holdingQuery.holdingById(it)?.holderEntityId) }
+        return mapOf("brokenLots" to visible, "brokenHoldings" to visibleHoldings, "ok" to (broken.isEmpty() && brokenHoldings.isEmpty()))
     }
 
     @GetMapping("/holdings")

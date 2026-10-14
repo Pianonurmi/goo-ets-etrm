@@ -57,6 +57,9 @@ spring:
 etrm:
   migrations:
     enabled: true
+    # The schema owner (migrations, partitions); requests then run as ETRM_DB_USER with table rights only.
+    user: ${ETRM_DB_MIGRATION_USER:}
+    password: ${ETRM_DB_MIGRATION_PASSWORD:}
   ui:
     # Browser sign-in (ADR 0026): Authorization Code with PKCE against the public client etrm-web.
     auth-mode: OIDC

@@ -24,7 +24,8 @@ what you may do with it under **Actions**.
   the registry** for a beneficiary (disclosure or own consumption). **In our books:** **Reserve** (all or part; a
   part splits the lot), **Release**, **Split**, **Correct** (expiry, support, labels and cost), **Cancel for
   disclosure** and **Withdraw**. You only see the actions your roles and the lot's status allow.
-- **Verify journal**, also in the page header, checks the hash chain of the lot journals.
+- **Verify journal**, also in the page header, checks the hash chains of the lot journals and of the allowance
+  movements.
 
 ## Criteria search
 

@@ -1,5 +1,55 @@
 # Database operations
 
+## Roles: schema owner and runtime role
+
+The append-only tables are protected by triggers, and a trigger only protects against a role that cannot disable it.
+Production therefore uses two database roles (review finding D1):
+
+| Role | Used by | Rights |
+|---|---|---|
+| Schema owner (`ETRM_DB_MIGRATION_USER` / `ETRM_DB_MIGRATION_PASSWORD`) | Flyway migrations and `PartitionMaintenance` | Owns the `etrm_*` schemas and every object in them |
+| Runtime role (`ETRM_DB_USER` / `ETRM_DB_PASSWORD`) | Requests and jobs | `USAGE` on the schemas, `SELECT`, `INSERT`, `UPDATE`, `DELETE` on tables, sequences; nothing else |
+
+After each module's migrations, `ModularMigrations` grants the runtime role these rights on everything in the schema and
+sets default privileges, so tables the owner creates later (monthly partitions) are covered without a migration. The
+runtime role cannot `ALTER TABLE … DISABLE TRIGGER`, `TRUNCATE`, `DROP` or `CREATE`; `DatabaseRolesIT` proves it.
+
+When the migration user is not set, or equals the runtime user, one role does both (development, the showcase, the
+compose stack). The `kubernetes` profile logs a warning in that case.
+
+In Kubernetes the CloudNativePG cluster (`ops/k8s/postgres-cluster.yaml`) declares the runtime role `etrm_app` with its
+password in the secret `etrm-db-runtime`; the application's owner `etrm` keeps the secret `etrm-db-app`. The chart
+uses the split when `database.runtimeSecret` is set (the default):
+
+```yaml
+database:
+  existingSecret: etrm-db-app        # owner: migrations and partitions
+  runtimeSecret: etrm-db-runtime     # runtime role: requests and jobs
+  url: jdbc:postgresql://etrm-db-rw:5432/etrm
+```
+
+An existing installation moves to the split by creating the runtime role and secret (the cluster manifest does both)
+and upgrading the chart; the first start grants the runtime role its rights.
+
+## Tamper evidence
+
+| Data | Protection | Verified by |
+|---|---|---|
+| Journal (`journal_entry`, `journal_line`) | Lines never change; an entry changes only from POSTED to REVERSED by the reversal that names it. One reversal per entry (`journal_entry_reversal_uq`). No entry into a hard-closed period. Lines balance at commit. Hash chain per legal entity; version 2 covers the header, rates, base amounts, dimensions and memo | `GET /api/v1/ledger/journal/verify`; the GL export refuses a broken chain |
+| Lot journal (`lot_event`) | Append-only, hash chain per lot | `GET /api/v1/inventory/journal/verify` (`brokenLots`) |
+| Allowance movements (`allowance_movement`) | Append-only, hash chain per holding computed in the database (`allowance_movement_digest`) | `GET /api/v1/inventory/journal/verify` (`brokenHoldings`) |
+| Versions and history (`certificate_lot_version`, `trade_version`, `reference_history`) | Append-only; the only update closes the current version's period | — |
+| Posting rule history, registry instruction events, audit trail, task events, period-end runs, hedge measurements, memo movements | Append-only | — |
+
+Journal entries written before 0.14.0 keep `chain_version = 1` and verify with the payload they were written with.
+`registry_instruction_event` records each state of a registry instruction (creation, status, attempt, external
+reference, error, response); instructions from earlier versions start with their state at the upgrade.
+
+`AppendOnlyTablesIT` fails the build when one of these tables, or one of its partitions, loses its trigger.
+
+A change made by the schema owner with the triggers disabled is found by the chains, not prevented; the owner's
+credentials are for migrations only and are not given to the application at run time.
+
 ## Partitions (ADR 0030)
 
 | Table | Partition key | Partitions |

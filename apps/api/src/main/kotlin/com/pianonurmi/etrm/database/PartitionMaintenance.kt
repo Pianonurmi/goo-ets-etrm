@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.database
 
+import com.pianonurmi.etrm.config.SchemaOwner
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
@@ -7,6 +8,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
@@ -42,11 +44,14 @@ data class PartitionReport(val created: List<String>, val failed: List<String>, 
  */
 @Component
 class PartitionMaintenance(
-    private val jdbc: JdbcTemplate,
-    private val tx: TransactionTemplate,
+    owner: SchemaOwner,
     private val meters: MeterRegistry,
     @Value("\${etrm.partitions.months-ahead:3}") private val monthsAhead: Int,
 ) {
+    // Partitions are created by the schema owner; the runtime role cannot create tables (SchemaOwner).
+    private val jdbc = JdbcTemplate(owner.dataSource)
+    private val tx = TransactionTemplate(DataSourceTransactionManager(owner.dataSource))
+
     private val log = LoggerFactory.getLogger(PartitionMaintenance::class.java)
     private val defaultRows = ConcurrentHashMap<String, Long>()
     private val utc: Clock = Clock.systemUTC()

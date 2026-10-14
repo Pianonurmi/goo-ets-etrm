@@ -78,6 +78,31 @@ spec:
               value: {{ .Values.environment | quote }}
             - name: ETRM_MANAGEMENT_PORT
               value: {{ .Values.service.managementPort | quote }}
+            {{- if .Values.database.runtimeSecret }}
+            # Requests run as the runtime role; the owner from existingSecret only migrates and creates partitions.
+            - name: ETRM_DB_URL
+              value: {{ required "database.url is required with database.runtimeSecret" .Values.database.url | quote }}
+            - name: ETRM_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.runtimeSecret }}
+                  key: {{ .Values.database.usernameKey }}
+            - name: ETRM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.runtimeSecret }}
+                  key: {{ .Values.database.passwordKey }}
+            - name: ETRM_DB_MIGRATION_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.usernameKey }}
+            - name: ETRM_DB_MIGRATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.passwordKey }}
+            {{- else }}
             - name: ETRM_DB_URL
               valueFrom:
                 secretKeyRef:
@@ -93,6 +118,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.database.existingSecret }}
                   key: {{ .Values.database.passwordKey }}
+            {{- end }}
             - name: ETRM_OIDC_ISSUER
               value: {{ .Values.oidc.issuer | quote }}
             {{- with .Values.oidc.browserIssuer }}
