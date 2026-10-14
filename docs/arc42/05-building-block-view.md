@@ -32,6 +32,7 @@ flowchart TB
     events --> inventory & ledger & registry & risk & settlement & trade
     home --> allocation & audit & etscompliance & inventory & ledger & position & referencedata & risk & settlement & trade & valuation & workflow
     integrity --> audit & document & inventory & ledger & referencedata
+    jobs --> platform
     showcase --> config & web
     web --> audit
   end
@@ -42,7 +43,7 @@ Arrows are compile-time dependencies on another module's `api` (or `criteria`) n
 `ModularityTests`. Everything else flows through domain events. The diagram is generated: `ModularityTests` fails
 when it differs from the modules as built and prints the block to paste. The packages of `apps/api` are modules of
 their own (configuration and security, the web layer, the home summary, event externalisation, the nightly
-integrity check, the demo data and the showcase), drawn apart because they compose the domain modules.
+integrity check, job metrics, the demo data and the showcase), drawn apart because they compose the domain modules.
 
 Increment 8 adds two arrows, valuation → allocation and risk → allocation, both to `allocation :: api`. Allocation
 depends on neither valuation nor risk, so no cycle forms. Valuation and risk call allocation for the portfolio

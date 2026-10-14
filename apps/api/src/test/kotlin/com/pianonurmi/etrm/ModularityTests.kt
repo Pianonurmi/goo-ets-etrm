@@ -61,7 +61,7 @@ class ModularityTests {
 
     private companion object {
         const val PLATFORM = "platform"
-        val APPLICATION = setOf("config", "database", "demo", "events", "home", "integrity", "showcase", "web")
+        val APPLICATION = setOf("config", "database", "demo", "events", "home", "integrity", "jobs", "showcase", "web")
         const val BEGIN = "<!-- module-diagram:begin (generated, checked by ModularityTests) -->"
         const val END = "<!-- module-diagram:end -->"
     }
