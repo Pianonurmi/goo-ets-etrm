@@ -122,7 +122,9 @@ cancelled or disputed trade ends in a failed step.
 
 **Amend** is in the **More actions** menu (the three dots) at the top of the page, together with **Cancel trade**.
 It opens the form with a reason; saving creates a new version, and an approved trade goes back for approval. The
-**Versions** tab shows what changed between versions, field by field.
+**Versions** tab shows what changed between versions, field by field. If someone else amended the trade while you
+were editing, saving lists the fields that changed and offers **Reload, keep my edits**: the form continues from the
+current version with your edits on top, and you can save again.
 
 ## Confirmation, delivery and settlement
 

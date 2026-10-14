@@ -48,6 +48,9 @@ const OPEN = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED', 'PARTIALLY_D
 
 type Version = Schema<'TradeVersionView'>;
 
+/** Field changes listed under each version; the rest is counted. */
+const VERSION_CHANGES_SHOWN = 40;
+
 function useRefreshTrades() {
   const queryClient = useQueryClient();
   return () =>
@@ -397,7 +400,7 @@ function Versions({ tradeId }: { tradeId: string }) {
               {changes.length > 0 && (
                 <Table mt="xs" withTableBorder>
                   <Table.Tbody>
-                    {changes.slice(0, 40).map((change) => (
+                    {changes.slice(0, VERSION_CHANGES_SHOWN).map((change) => (
                       <Table.Tr key={change.path}>
                         <Table.Td>
                           <Text size="xs" ff="monospace">
@@ -418,6 +421,11 @@ function Versions({ tradeId }: { tradeId: string }) {
                     ))}
                   </Table.Tbody>
                 </Table>
+              )}
+              {changes.length > VERSION_CHANGES_SHOWN && (
+                <Text size="xs" c="dimmed" mt={4} data-testid="more-changes">
+                  {t('trades.moreChanges', { count: changes.length - VERSION_CHANGES_SHOWN })}
+                </Text>
               )}
             </Paper>
           );

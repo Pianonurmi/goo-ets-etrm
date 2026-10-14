@@ -25,11 +25,13 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { asProblemError } from '@/shared/api/problem';
 import { notifyProblem, notifySuccess } from '@/shared/components/notify';
+import { StaleVersionAlert } from '@/shared/components/StaleVersionAlert';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
 import { useCan } from '@/shared/auth/Can';
 import { applyProblemToForm } from '@/shared/forms/applyProblemToForm';
+import { useStaleRecovery } from '@/shared/forms/useStaleRecovery';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
 import {
   useAllowanceProducts,
@@ -41,6 +43,7 @@ import {
   usePriceIndices,
 } from './hooks';
 import { HeadroomHint, JointHeadroomNote } from './HeadroomHint';
+import { tradeFieldLabel } from './model/conflict';
 import { demandRef, headroomByRef, headroomRequest, jointShortfall, ownScheduleIds } from './model/headroom';
 import {
   brokersOf,
@@ -139,6 +142,23 @@ function TradeForm({ existing }: { existing?: TradeView }) {
         contracts: contractsRef.current,
       }),
   });
+  // A save refused as stale refetches the trade and offers to re-apply the edits on its current version.
+  const recovery = useStaleRecovery<TradeView | undefined, TradeFormValues>({
+    initial: existing,
+    toDraft: (trade) => (trade ? fromTrade(trade) : form.values),
+    values: form.values,
+    setValues: (values) => {
+      form.setValues(values);
+      setUnplaced([]);
+    },
+    fetchCurrent: () =>
+      existing
+        ? queryClient.query({
+            ...$api.queryOptions('get', '/api/v1/trades/{id}', { params: { path: { id: existing.id } } }),
+            staleTime: 0,
+          })
+        : Promise.resolve(undefined),
+  });
   const instrument = form.values.instrumentType;
   const future = instrument === 'FUTURE';
   const option = instrument === 'OPTION';
@@ -156,7 +176,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
   const amend = $api.useMutation('put', '/api/v1/trades/{id}', { meta: { notify: false } });
   const family = form.values.productFamily;
   const headroom = useHeadroom(
-    headroomRequest(form.values, entityId, ownScheduleIds(existing)),
+    headroomRequest(form.values, entityId, ownScheduleIds(recovery.record)),
     useCan('allocation_headroomCheck'),
   );
   const headroomOf = headroomByRef(headroom);
@@ -168,6 +188,7 @@ function TradeForm({ existing }: { existing?: TradeView }) {
   );
 
   const failed = (error: unknown) => {
+    if (recovery.handle(error)) return;
     const problem = asProblemError(error);
     if (problem.status === 422) {
       const rest = applyProblemToForm(form, problem, FORM_FIELDS);
@@ -191,7 +212,10 @@ function TradeForm({ existing }: { existing?: TradeView }) {
     setUnplaced([]);
     if (existing) {
       amend.mutate(
-        { params: { path: { id: existing.id } }, body: toAmendTrade(values, existing.version) },
+        {
+          params: { path: { id: existing.id } },
+          body: toAmendTrade(values, recovery.record?.version ?? existing.version),
+        },
         { onSuccess: saved, onError: failed },
       );
     } else if (entityId) {
@@ -252,6 +276,14 @@ function TradeForm({ existing }: { existing?: TradeView }) {
   return (
     <form onSubmit={submit} noValidate>
       <Stack gap="lg">
+        {recovery.conflict && (
+          <StaleVersionAlert
+            changes={recovery.conflict.changes}
+            label={(path) => tradeFieldLabel(path, t)}
+            onKeepEdits={recovery.keepEdits}
+            onDiscardEdits={recovery.discardEdits}
+          />
+        )}
         {unplaced.length > 0 && (
           <Alert color="red" title={t('errors.validation')} data-testid="form-problem">
             {unplaced.map((line) => (

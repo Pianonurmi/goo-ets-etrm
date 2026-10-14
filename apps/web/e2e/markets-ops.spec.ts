@@ -191,7 +191,7 @@ test.describe('allocation, market data, curves, valuation and positions operatio
     await actAs(page, 'risk');
     await page.goto('/valuation?tab=official');
     await expect(page.getByTestId('official-run-status')).toHaveText('Official');
-    await expect(page.getByTestId('official-run-date')).toHaveText(/^\d{4}-\d{2}-\d{2}$/);
+    await expect(page.getByTestId('official-run-date')).toHaveText(/^\d{2}\/\d{2}\/\d{4}$/);
     await page.getByTestId('official-date').fill('2001-01-02');
     await expect(page.getByTestId('official-none')).toBeVisible();
     await page.getByTestId('official-date').fill(today());
@@ -230,7 +230,7 @@ test.describe('allocation, market data, curves, valuation and positions operatio
     await page.goto('/positions?tab=snapshots');
     await expect(page.getByTestId('snapshots-table')).toBeVisible();
     await page.getByTestId('take-snapshots').click();
-    await expect(page.getByText(/^Snapshots taken for \d{4}-\d{2}-\d{2}$/)).toBeVisible();
+    await expect(page.getByText(/^Snapshots taken for \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
     await expect(page.getByTestId('snapshots-table').locator('tbody tr').first()).toBeVisible();
     await page.getByTestId('snapshot-kind').getByText('EU ETS').click();
     await expect(page.getByRole('columnheader', { name: 'Net position (t)' })).toBeVisible();

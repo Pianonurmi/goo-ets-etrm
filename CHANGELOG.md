@@ -110,6 +110,25 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   dependency check fails when its NVD key is missing and on a CVSS score of 7 or more; coverage must stay at 90 % of
   lines and 65 % of branches.
 
+### Changed
+- **Browser tokens stay in memory only**, no longer in session storage; a reload signs in again silently, and the
+  silent renewal of a session works without a refresh token (its page may now be framed by the application itself,
+  and only by it). See the amendment to ADR 0026.
+- Grids open the focused row with Enter or Space, as a click does, so every detail page can be reached by keyboard.
+- **A save refused because the record changed no longer repeats itself.** On a trade amendment and on editing a legal
+  entity, counterparty or production device, the form fetches the record again, lists the fields that changed on the
+  server, and **Reload, keep my edits** continues from the current version with your edits on top.
+- **Long lists say so.** Lots, criteria search results, received confirmations, registry statements and the lots
+  offered for a receipt show a notice when the answer came back exactly at its limit; a trade's version changes
+  beyond the first 40 are counted; the hedge designation loads further pages of trades on request.
+- **Numbers and dates follow the browser's language** (English UK remains the fallback), times of day show in the
+  selected legal entity's time zone with a short zone name, and the labels of states and types come from the
+  translation catalogue; a test fails when a text key is missing or the API gains a constant without a label.
+- The web UI retries network failures twice, refetches stale data when the window regains focus, and reloads
+  `/api/v1/me` on focus so a role change applies without a reload; tabs and filters read from the URL fall back to
+  their default for a value they do not know; decimal strings are formatted exactly instead of through a double; a
+  download keeps its object URL for ten seconds.
+
 ## [0.13.2] - 2026-10-14
 
 An accounting patch: three defects that put wrong figures in the books, found by the

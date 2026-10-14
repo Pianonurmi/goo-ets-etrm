@@ -11,9 +11,16 @@ import { QueryState } from '@/shared/components/QueryState';
 import { EntityProvider } from '@/shared/context/EntityContext';
 import { router } from './router';
 
+/** A server error or a network failure (status 0) is worth another try; anything else would fail the same way. */
+export function shouldRetry(count: number, error: unknown): boolean {
+  const status = asProblemError(error).status;
+  return (status >= 500 || status === 0) && count < 2;
+}
+
 /**
  * Queries show their own error state; mutations notify unless they set `meta: { notify: false }` (forms map
- * violations onto fields instead). 401s are handled by the sign-in flow.
+ * violations onto fields instead). 401s are handled by the sign-in flow. Queries older than their stale time are
+ * fetched again when the window regains focus; network failures and 5xx are retried twice.
  */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -27,15 +34,16 @@ export function createQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 30_000,
-        refetchOnWindowFocus: false,
-        retry: (count, error) => asProblemError(error).status >= 500 && count < 2,
+        refetchOnWindowFocus: true,
+        retry: shouldRetry,
       },
     },
   });
 }
 
 function SessionGate({ config }: { config: UiConfig }) {
-  const me = $api.useQuery('get', '/api/v1/me', {}, { staleTime: Infinity });
+  // Fetched again whenever the window regains focus, so a role change applies without a reload.
+  const me = $api.useQuery('get', '/api/v1/me', {}, { staleTime: 0, refetchOnWindowFocus: 'always' });
   if (!me.data) {
     return (
       <Center h="100vh">

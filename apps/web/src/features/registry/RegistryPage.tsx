@@ -36,6 +36,7 @@ import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { oneOfOrNull } from '@/shared/urlParams';
 import {
   QUEUE_VIEWS,
   asQueueView,
@@ -50,6 +51,7 @@ import { NEW_FORMAT, formatKey, formatToUpsert, upsertBody } from './model/forma
 import { TransferModal, useInvalidateRegistry, useRegistries } from './TransferModal';
 
 const TABS = ['instructions', 'routes', 'formats'] as const;
+const ASSET_KINDS: NonNullable<Instruction['assetKind']>[] = ['GOO_LOT', 'ALLOWANCE'];
 const PAGE = 100;
 /** The figures read a page of their own: a plain query must not share the infinite list's cache entry. */
 const KPI_PAGE = 200;
@@ -115,7 +117,7 @@ function InstructionsTab({ entityId }: { entityId: string }) {
   const registries = useRegistries();
   const view = asQueueView(params.get('view'));
   const registryCode = params.get('registry');
-  const assetKind = params.get('asset') as Instruction['assetKind'] | null;
+  const assetKind = oneOfOrNull(params.get('asset'), ASSET_KINDS);
   const set = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);

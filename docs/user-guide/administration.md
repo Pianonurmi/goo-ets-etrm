@@ -7,6 +7,8 @@ accounts and books. Middle office maintains them; back office and registry opera
 
 ![Reference data](../images/admin-reference.png)
 
+- If a record was changed by someone else while you were editing it, saving shows what changed and offers **Reload,
+  keep my edits** (or **Reload, discard my edits**) instead of failing until you reload the page.
 - Changes keep their history: open a record's **History** and view it **As of** an earlier time.
 - **Sensitive data** (registry integration, counterparty registry accounts, bank accounts) changes through a
   **change request** that a second person approves (**Request change**). The **Change requests** screen lists them

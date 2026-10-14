@@ -1,4 +1,4 @@
-import { asProblemError, isProblem, problemFromResponse, ProblemError } from './problem';
+import { asProblemError, isProblem, isStaleVersion, problemFromResponse, ProblemError } from './problem';
 
 describe('problems', () => {
   it('reads a problem body and exposes its code', async () => {
@@ -38,5 +38,13 @@ describe('problems', () => {
     expect(isProblem({ type: 'x', status: 400, title: 'x' })).toBe(true);
     expect(isProblem({ message: 'nope' })).toBe(false);
     expect(isProblem(null)).toBe(false);
+  });
+
+  it('recognises a stale version among the 409s', () => {
+    const problem = (type: string, status: number) => new ProblemError({ type, title: 't', status });
+    expect(isStaleVersion(problem('urn:etrm:problem:stale-version', 409))).toBe(true);
+    expect(isStaleVersion(problem('urn:etrm:problem:conflict', 409))).toBe(false);
+    expect(isStaleVersion(problem('urn:etrm:problem:stale-version', 422))).toBe(false);
+    expect(isStaleVersion(new Error('stale-version'))).toBe(false);
   });
 });
