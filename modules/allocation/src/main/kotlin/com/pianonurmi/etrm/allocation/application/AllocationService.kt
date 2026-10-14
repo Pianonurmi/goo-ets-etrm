@@ -495,7 +495,10 @@ class AllocationService(
         save(cancelled)
         plans.deleteSoftReservations(planId)
         current.lines.filter { it.status == LineStatus.RESERVED || it.status == LineStatus.INSTRUCTED || it.status == LineStatus.FAILED }.forEach { line ->
-            line.instructionId?.let { id -> runCatching { instructions.cancel(id, "plan cancelled: $reason") } }
+            line.instructionId?.let { id ->
+                runCatching { savepoints.attempt { instructions.cancel(id, "plan cancelled: $reason") } }
+                    .onFailure { log.warn("Could not cancel instruction {} of plan {}", id, planId, it) }
+            }
             releaseQuietly(line, planId)
         }
         return cancelled
@@ -540,9 +543,11 @@ class AllocationService(
     private fun releaseQuietly(line: AllocationLineView, planId: UUID) {
         val lotId = line.reservedLotId ?: return
         runCatching {
-            val lot = lotQuery.requireLot(lotId)
-            if (lot.status == LotStatus.RESERVED && lot.reservationRef == planId) lotCommand.release(lotId, planId)
-        }.onFailure { log.warn("Could not release lot {} of plan {}: {}", lotId, planId, it.message) }
+            savepoints.attempt {
+                val lot = lotQuery.requireLot(lotId)
+                if (lot.status == LotStatus.RESERVED && lot.reservationRef == planId) lotCommand.release(lotId, planId)
+            }
+        }.onFailure { log.warn("Could not release lot {} of plan {}", lotId, planId, it) }
     }
 
     private fun locked(id: UUID): AllocationPlanView = plans.lock(id) ?: throw NotFoundException("AllocationPlan", id)

@@ -51,7 +51,11 @@ object Tenor {
 }
 
 object Utilisation {
-    fun of(limitId: UUID, value: BigDecimal, limit: RiskLimitView, detail: String?, at: Instant): LimitUtilisationView {
+    /** The latest measure of a limit that could not be measured: the last value stays, the status says so. */
+    fun notMeasured(limitId: UUID, lastValue: BigDecimal, limit: RiskLimitView, detail: String?, at: Instant, gaps: MeasurementGaps? = null) =
+        of(limitId, lastValue, limit, detail, at, gaps).copy(status = UtilisationStatus.NOT_MEASURED)
+
+    fun of(limitId: UUID, value: BigDecimal, limit: RiskLimitView, detail: String?, at: Instant, gaps: MeasurementGaps? = null): LimitUtilisationView {
         val pct = if (limit.amount.signum() == 0) {
             if (value.signum() > 0) BigDecimal(FULL * 10) else BigDecimal.ZERO
         } else {
@@ -62,10 +66,63 @@ object Utilisation {
             pct >= BigDecimal(limit.warningPct) -> UtilisationStatus.WARNING
             else -> UtilisationStatus.OK
         }
-        return LimitUtilisationView(limitId, value.setScale(2, RoundingMode.HALF_EVEN), pct, status, detail, at)
+        return LimitUtilisationView(
+            limitId,
+            value.setScale(2, RoundingMode.HALF_EVEN),
+            pct,
+            status,
+            detail,
+            at,
+            gaps?.isComplete == false,
+            gaps?.currencies.orEmpty(),
+            gaps?.reasons.orEmpty(),
+        )
     }
 
     private const val FULL = 100
+}
+
+/**
+ * What a measurement left out: the currencies without an exchange rate, and other reasons such as an option without a
+ * value. A measurement with gaps is stored as incomplete, so a figure that looks low is not read as safe.
+ */
+class MeasurementGaps {
+    private val currencySet = sortedSetOf<String>()
+    private val reasonSet = linkedSetOf<String>()
+
+    val currencies: List<String> get() = currencySet.toList()
+    val reasons: List<String> get() = reasonSet.toList()
+    val isComplete: Boolean get() = currencySet.isEmpty() && reasonSet.isEmpty()
+
+    /** Something was left out, so the figure is a floor: a last measure above it is kept. An assumption leaves it as it is. */
+    var isFloor: Boolean = false
+        private set
+
+    fun missingRate(from: String, to: String, date: LocalDate) {
+        currencySet += from
+        reasonSet += "no $from/$to rate on $date"
+        isFloor = true
+    }
+
+    /** An amount or exposure that could not be measured and counts as nothing. */
+    fun omitted(reason: String) {
+        reasonSet += reason
+        isFloor = true
+    }
+
+    /** A figure that could not be measured and was replaced by a conservative assumption. */
+    fun assumed(reason: String) {
+        reasonSet += reason
+    }
+
+    fun addAll(currencies: Collection<String>, reasons: Collection<String>) {
+        currencySet += currencies
+        reasonSet += reasons
+        if (currencies.isNotEmpty()) isFloor = true
+    }
+
+    /** The reasons in one sentence for a detail text or a finding. */
+    fun summary(): String = reasons.joinToString("; ")
 }
 
 /** Counterparty groups: a limit on a parent covers the parent and every counterparty below it. */

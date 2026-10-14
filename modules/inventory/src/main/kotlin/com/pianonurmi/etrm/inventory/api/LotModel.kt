@@ -232,6 +232,12 @@ data class LotCancelled(override val lot: LotView, val details: CancellationDeta
 
 data class LotExpired(override val lot: LotView, val metadata: EventMetadata = EventMetadata()) : LotEvent, DomainEvent by metadata
 
+/**
+ * The nightly sweep could not expire a lot that is due (a listener refused, a rate or posting rule is missing). The lot
+ * stays as it was; the sweep carries on with the others. Published after the lot's own transaction rolled back.
+ */
+data class LotExpiryFailed(val lot: LotView, val reason: String, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata
+
 data class LotWithdrawn(override val lot: LotView, val reason: String, val metadata: EventMetadata = EventMetadata()) : LotEvent, DomainEvent by metadata
 
 data class LotCorrected(override val lot: LotView, val changedFields: Set<String>, val metadata: EventMetadata = EventMetadata()) :

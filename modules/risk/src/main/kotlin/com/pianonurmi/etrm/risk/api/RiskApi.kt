@@ -100,7 +100,18 @@ data class RequestLimit(
     val reason: String,
 )
 
-enum class UtilisationStatus { OK, WARNING, BREACH }
+enum class UtilisationStatus {
+    OK,
+    WARNING,
+    BREACH,
+
+    /** The limit could not be measured; the value is the last one measured. It counts as a breach until it can be. */
+    NOT_MEASURED,
+    ;
+
+    /** Breached, or not measured: shown and handled as a breach. */
+    val breached: Boolean get() = this == BREACH || this == NOT_MEASURED
+}
 
 data class LimitUtilisationView(
     val limitId: UUID,
@@ -110,6 +121,10 @@ data class LimitUtilisationView(
     val status: UtilisationStatus,
     val detail: String?,
     val measuredAt: Instant,
+    /** The measurement left something out: the currencies without a rate and any other reason are named below. */
+    val incomplete: Boolean,
+    val leftOutCurrencies: List<String>,
+    val incompleteReasons: List<String>,
 )
 
 enum class CreditSupportKind(val received: Boolean) {
@@ -172,6 +187,10 @@ data class CounterpartyExposureView(
     val exposure: BigDecimal,
     val valuationRunId: UUID?,
     val measuredAt: Instant,
+    /** Amounts in a currency without an exchange rate (or an option without a value) are left out, so the exposure may be low. */
+    val incomplete: Boolean,
+    val leftOutCurrencies: List<String>,
+    val incompleteReasons: List<String>,
 )
 
 enum class BreachStatus { OPEN, CLOSED }
