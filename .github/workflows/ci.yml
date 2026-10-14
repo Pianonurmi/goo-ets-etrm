@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    # Other branches are built by their pull request; building them on push as well ran every check twice.
+    branches: ["main", "release/**"]
     # A release: vX.Y.Z publishes the image under its version and creates the GitHub release (docs/operations/releases.md).
     tags: ["v*"]
   pull_request:
