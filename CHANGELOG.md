@@ -32,6 +32,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
   by default.
 
+### Changed
+- **Stricter gates.** Every GitHub Action is pinned to a commit and the base images to a digest, kept current by
+  Dependabot; the image scan fails on high as well as critical vulnerabilities that have a fix; the weekly
+  dependency check fails when its NVD key is missing and on a CVSS score of 7 or more; coverage must stay at 90 % of
+  lines and 65 % of branches.
+
 ## [0.13.2] - 2026-10-14
 
 An accounting patch: three defects that put wrong figures in the books, found by the
