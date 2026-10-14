@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -129,10 +129,11 @@ describe('amending a trade that changed in the meantime', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.type(await screen.findByLabelText('Reason for the amendment'), 'Price correction');
-    const price = screen.getByTestId('leg-0-price');
-    await user.clear(price);
-    await user.type(price, '71');
+    // The form re-renders on every keystroke; set whole values to keep the test quick.
+    fireEvent.change(await screen.findByLabelText('Reason for the amendment'), {
+      target: { value: 'Price correction' },
+    });
+    fireEvent.change(screen.getByTestId('leg-0-price'), { target: { value: '71' } });
     await user.click(screen.getByTestId('submit-trade'));
 
     const alert = await screen.findByTestId('stale-version-alert');
