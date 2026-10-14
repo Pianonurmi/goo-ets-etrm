@@ -4,14 +4,14 @@
 # exactly the rows written before the target are back, and reports the time of each step and the archiving lag.
 #
 # Runs against the current kubectl context (a kind cluster in CI, .github/workflows/cnpg-drill.yml) with the
-# CloudNativePG operator installed. MinIO stands in for the object store.
+# CloudNativePG operator installed. moto's S3 server stands in for the object store.
 #
 # Usage: ops/dr/cnpg-drill.sh [report file]
 set -euo pipefail
 
 ns=etrm-drill
 report=${1:-build/dr/cnpg-report.md}
-minio_image=${MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
+s3_image=${S3_IMAGE:-python:3.13-slim}
 pg_image=${PG_IMAGE:-ghcr.io/cloudnative-pg/postgresql:17.6}
 key=drill-access-key
 secret=drill-secret-key-0123456789
@@ -26,27 +26,24 @@ kubectl create namespace "$ns"
 kubectl -n "$ns" apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: minio}
+metadata: {name: s3}
 spec:
-  selector: {matchLabels: {app: minio}}
+  selector: {matchLabels: {app: s3}}
   template:
-    metadata: {labels: {app: minio}}
+    metadata: {labels: {app: s3}}
     spec:
       containers:
-        - name: minio
-          image: $minio_image
-          args: [server, /data]
-          env:
-            - {name: MINIO_ROOT_USER, value: $key}
-            - {name: MINIO_ROOT_PASSWORD, value: $secret}
+        - name: s3
+          image: $s3_image
+          command: [sh, -c, "pip install --no-cache-dir --quiet 'moto[server]>=5,<6' && exec moto_server -H 0.0.0.0 -p 9000"]
           ports: [{containerPort: 9000}]
-          readinessProbe: {httpGet: {path: /minio/health/ready, port: 9000}}
+          readinessProbe: {tcpSocket: {port: 9000}, periodSeconds: 2}
 ---
 apiVersion: v1
 kind: Service
-metadata: {name: minio}
+metadata: {name: s3}
 spec:
-  selector: {app: minio}
+  selector: {app: s3}
   ports: [{port: 9000}]
 ---
 apiVersion: v1
@@ -54,18 +51,18 @@ kind: Secret
 metadata: {name: drill-s3}
 stringData: {ACCESS_KEY_ID: $key, ACCESS_SECRET_KEY: $secret}
 EOF
-kubectl -n "$ns" rollout status deploy/minio --timeout=300s
-kubectl -n "$ns" port-forward svc/minio 19000:9000 >/dev/null 2>&1 &
+kubectl -n "$ns" rollout status deploy/s3 --timeout=300s
+kubectl -n "$ns" port-forward svc/s3 19000:9000 >/dev/null 2>&1 &
 forward=$!
 trap 'kill $forward 2>/dev/null || true' EXIT
-for _ in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:19000/minio/health/ready && break; sleep 1; done
-curl -fsS -X PUT --aws-sigv4 "aws:amz:us-east-1:s3" --user "$key:$secret" http://127.0.0.1:19000/drill
+for _ in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:19000/ && break; sleep 1; done
+curl -fsS -X PUT http://127.0.0.1:19000/drill
 step "Object store ready"
 
 store() {
   cat <<EOF
       destinationPath: s3://drill/
-      endpointURL: http://minio.$ns.svc:9000
+      endpointURL: http://s3.$ns.svc:9000
       s3Credentials:
         accessKeyId: {name: drill-s3, key: ACCESS_KEY_ID}
         secretAccessKey: {name: drill-s3, key: ACCESS_SECRET_KEY}

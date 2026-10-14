@@ -73,7 +73,7 @@ file its report with the change record.
 ### Point-in-time recovery drill (CloudNativePG)
 
 The **CloudNativePG drill** workflow (`.github/workflows/cnpg-drill.yml`, monthly, on demand, and on changes to the
-drill or the cluster manifest) runs `ops/dr/cnpg-drill.sh` on a kind cluster with the operator and MinIO as the
+drill or the cluster manifest) runs `ops/dr/cnpg-drill.sh` on a kind cluster with the operator and moto's S3 server as the
 object store:
 
 1. A cluster with continuous WAL archiving and a base backup.

@@ -24,6 +24,7 @@ class MigrateOnlyIT {
 
     @Test
     fun `exits with 1 when the database cannot be reached`() {
-        MigrateOnly.run(args(mapOf("spring.datasource.url" to "jdbc:postgresql://127.0.0.1:1/none", "spring.datasource.hikari.connection-timeout" to "1000"))) shouldBe 1
+        val unreachable = mapOf("spring.datasource.url" to "jdbc:postgresql://127.0.0.1:1/none", "spring.datasource.hikari.connection-timeout" to "1000")
+        MigrateOnly.run(args(unreachable)) shouldBe 1
     }
 }
