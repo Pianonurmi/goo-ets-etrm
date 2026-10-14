@@ -76,6 +76,11 @@ class JooqClearingRepository(private val dsl: DSLContext) : ClearingRepository {
         .orderBy(MARGIN_RUN.BUSINESS_DATE.desc())
         .fetch(::toRun)
 
+    override fun laterRunDates(accountId: UUID, date: LocalDate): List<LocalDate> = dsl.select(MARGIN_RUN.BUSINESS_DATE).from(MARGIN_RUN)
+        .where(MARGIN_RUN.ACCOUNT_ID.eq(accountId), MARGIN_RUN.SUPERSEDED_AT.isNull, MARGIN_RUN.BUSINESS_DATE.gt(date))
+        .orderBy(MARGIN_RUN.BUSINESS_DATE.asc())
+        .fetch(MARGIN_RUN.BUSINESS_DATE)
+
     override fun run(id: UUID): MarginRunView? = dsl.selectFrom(MARGIN_RUN).where(MARGIN_RUN.ID.eq(id)).fetchOne()?.let(::toRun)
 
     override fun nextVersion(accountId: UUID, businessDate: LocalDate): Int = (

@@ -223,6 +223,45 @@ class ClearingServiceIT {
         clearing.finalSettlement(UUID.randomUUID()) shouldBe null
     }
 
+    @Test
+    fun `a late settlement price re-runs the later days, so the move is not margined twice`() {
+        val owner = UUID.randomUUID()
+        val account = clearing.createAccount(CreateClearingAccount("ECC-LATE", owner, ccp, "Member Bank AG"))
+        val first = LocalDate.of(2026, 11, 2)
+        val second = first.plusDays(1)
+        val third = first.plusDays(2)
+        book += future("L-1", Side.BUY, 5000, "70.00", first, owner)
+
+        settlement(first, "70.40")
+        val firstRun = clearing.computeMargin(account.id, first)
+        firstRun.variationMargin shouldBe BigDecimal("2000.00")
+
+        // The second day's price is not in yet: the third day margins against the first day's (70.50 - 70.40 on 5 000 t).
+        settlement(third, "70.50")
+        clearing.computeMargin(account.id, third).variationMargin shouldBe BigDecimal("500.00")
+
+        // The price arrives late and the second day is run by hand: 70.40 -> 71.00 earns 3 000 and the third day is run again.
+        settlement(second, "71.00")
+        clearing.computeMargin(account.id, second).variationMargin shouldBe BigDecimal("3000.00")
+        val thirdRun = clearing.runs(account.id, first, third).first()
+        thirdRun.businessDate shouldBe third
+        thirdRun.version shouldBe 2
+        thirdRun.variationMargin shouldBe BigDecimal("-2500.00")
+        thirdRun.lines.single().previousSettlementPrice!!.compareTo(BigDecimal("71.00")) shouldBe 0
+        published.filterIsInstance<VariationMarginComputed>().last().let {
+            it.run.id shouldBe thirdRun.id
+            it.previous shouldBe BigDecimal("500.00")
+        }
+        // Over the three days the account earned the move from 70.00 to 70.50 once, and the ledger posts only the differences.
+        clearing.runs(account.id, first, third).fold(BigDecimal.ZERO) { sum, run -> sum + run.variationMargin } shouldBe BigDecimal("2500.00")
+
+        // The same prices written with another scale are the same content: no new version, no event.
+        val events = published.size
+        settlement(first, "70.400")
+        clearing.computeMargin(account.id, first).id shouldBe firstRun.id
+        published.size shouldBe events
+    }
+
     private fun statementFile(vararg rows: String) = "Date,Account,Record,Contract,Position,SettlementPrice,Amount,Currency\n" + rows.joinToString("") {
         "$it\n"
     }

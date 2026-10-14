@@ -58,7 +58,7 @@ re-evaluates that schedule's items.
   negative amounts are outgoing).
   - The bank reference is unique per entity, so importing a statement again changes nothing.
   - A payment is applied to the listed invoices, else to invoices whose number (or the supplier's reference) appears
-    in the remittance information.
+    in the remittance information as whole tokens (`INV-12` is not found in `INV-123`).
   - What is left stays unapplied until it is allocated with `POST /payments/{id}/allocations`.
 - **Allocations** (payment, credit note, netting) are append-only. They set the invoice's paid amount and its
   status (`UNPAID`, `PARTIALLY_PAID`, `PAID`).
@@ -74,7 +74,8 @@ re-evaluates that schedule's items.
 
 It goes through the same four-eyes approval. On issue it settles the original (marked `credited`) and reopens the
 original's items, so the next invoice run invoices them again. A credit note against an invoice that was already
-paid keeps the unused amount open, to be refunded or netted.
+paid keeps the unused amount open. It is refunded by a payment in the other direction (an outgoing payment for a
+sales credit note, an incoming one for a purchase credit note) or offsets the other side in a netting statement.
 
 ## Netting
 
@@ -82,9 +83,11 @@ Netting is only allowed with counterparties that have `nettingAgreed`.
 
 1. **Prepare:** `POST /netting` (entity, counterparty, currency, value date). It takes every issued, unpaid invoice
    due by the value date and computes the receivable and payable totals and the net. The statement PDF is rendered.
-   Both directions are required.
+   Both directions are required. A credit note counts on the side that owes the money: a sales credit note is a claim
+   of the counterparty, a purchase credit note one of ours.
 2. **Agree:** `POST /netting/{id}/agree` records the counterparty's agreement and reference. It must be a different
-   person from the preparer.
+   person from the preparer. Agreeing and settling check the invoices against the amounts captured at preparation: an
+   invoice paid or changed since refuses the statement, naming the invoice, and a new one is prepared.
 3. **Settle:** `POST /netting/{id}/settle` with the payment of the net amount (unless it is zero). The smaller side
    is offset in full against the larger; the payment settles the rest.
 
