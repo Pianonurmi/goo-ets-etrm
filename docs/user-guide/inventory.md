@@ -16,6 +16,8 @@ what you may do with it under **Actions**.
 
 ![A lot with its journal](../images/inventory-lot.png)
 
+- The list and the criteria search show at most 2,000 lots; when that many come back, a notice says the list may be
+  cut off and the totals cover only the lots shown.
 - **Receive certificates** (back office, registry operator), in the page header, records lots that arrived in our
   account.
 - On a lot, **Actions** are in two groups. **In the registry:** **New transfer** to another account and **Cancel in
