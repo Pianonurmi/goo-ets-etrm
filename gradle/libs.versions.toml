@@ -14,6 +14,11 @@ jmustache = "1.16"
 ortools = "9.15.6755"
 # Above the version Spring Boot 4.1.1 manages (11.0.24: CVE-2026-65182, CVE-2026-65905, CVE-2026-68525). Drop with Boot 4.1.2.
 tomcat = "11.0.26"
+# Above Spring Boot 4.1.1 (Jackson 3.1.5 and 2.22.1: CVE-2026-89407, CVE-2026-68497). Drop when Boot manages these or later.
+jackson3 = "3.1.7"
+jackson2 = "2.22.3"
+# Above kafka-clients' 1.10.1 (CVE-2026-106451). Drop when Kafka depends on 1.11.4 or later.
+lz4-java = "1.11.4"
 roaringbitmap = "1.6.24"
 uuid-generator = "5.2.0"
 json-schema-validator = "3.0.8"
@@ -37,6 +42,9 @@ spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies"
 tomcat-embed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcat" }
 tomcat-embed-el = { module = "org.apache.tomcat.embed:tomcat-embed-el", version.ref = "tomcat" }
 tomcat-embed-websocket = { module = "org.apache.tomcat.embed:tomcat-embed-websocket", version.ref = "tomcat" }
+jackson3-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson3" }
+jackson2-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson2" }
+lz4-java = { module = "at.yawk.lz4:lz4-java", version.ref = "lz4-java" }
 spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-bom", version.ref = "spring-modulith" }
 spring-modulith-starter-core = { module = "org.springframework.modulith:spring-modulith-starter-core" }
 spring-modulith-starter-jdbc = { module = "org.springframework.modulith:spring-modulith-starter-jdbc" }
