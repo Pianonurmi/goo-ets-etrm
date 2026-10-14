@@ -51,7 +51,8 @@ data class AllocationView(
 
 /**
  * A bank payment. Recording the same bank reference again returns the earlier payment. The payment is applied to
- * [invoiceIds] in order, else to invoices whose numbers appear in the remittance information; the rest is unapplied.
+ * [invoiceIds] in order, else to invoices whose numbers appear in the remittance information as whole tokens; the rest is unapplied.
+ * An outgoing payment may refund a sales credit note, an incoming one a purchase credit note.
  */
 data class RecordPayment(
     val legalEntityId: UUID,
@@ -198,11 +199,16 @@ interface SettlementReports {
 /** Cash moved through the bank (posted against unapplied cash until allocated). */
 data class PaymentRecorded(val payment: PaymentView, val metadata: EventMetadata = EventMetadata()) : DomainEvent by metadata
 
-/** Part of an invoice settled by a payment, a credit note or netting. */
+/**
+ * Part of an invoice settled by a payment, a credit note or netting. [allocation] is a positive amount; when [invoice] is
+ * itself a credit note (negative total), the payment is a refund and the netting offsets what the counterparty claims.
+ * [creditNote] is the credit note that settled [invoice] when the allocation is of that kind.
+ */
 data class InvoiceSettled(
     val invoice: InvoiceView,
     val allocation: AllocationView,
     val payment: PaymentView?,
+    val creditNote: InvoiceView? = null,
     val metadata: EventMetadata = EventMetadata(),
 ) : DomainEvent by metadata
 

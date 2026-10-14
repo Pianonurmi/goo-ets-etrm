@@ -238,6 +238,7 @@ class SettlementIT {
         price: String = "2.00",
         priceType: PriceType = PriceType.FIXED,
         deliveredOn: LocalDate = LocalDate.of(2026, 10, 5),
+        priceIndex: String = "NORDIC-HYDRO-2026",
     ): SettlementItemView {
         user = "trader"
         val trade = trades.capture(
@@ -256,7 +257,7 @@ class SettlementIT {
                         unit = QuantityUnit.MWH,
                         price = BigDecimal(price),
                         priceType = priceType,
-                        priceIndex = if (priceType == PriceType.FIXED) null else "NORDIC-HYDRO-2026",
+                        priceIndex = if (priceType == PriceType.FIXED) null else priceIndex,
                         deliveries = listOf(CaptureDelivery(LocalDateRange.ofMonth(java.time.YearMonth.of(2026, 10)), deliveredOn, BigDecimal(quantity))),
                     ),
                 ),
@@ -493,11 +494,40 @@ class SettlementIT {
         val buyer = referenceData.createCounterparty(
             CreateCounterparty(code, "$code Oy", "FI", vatNumber = "FI87654321", paymentTermsDays = 14, nettingAgreed = netting),
         ).id
+        return issuedSaleTo(buyer, quantity, price)
+    }
+
+    /** Delivers a sale to the counterparty and issues its invoice (the counterparty has no other open delivery). */
+    private fun issuedSaleTo(buyer: UUID, quantity: Long = 1_000, price: String = "2.00"): InvoiceView {
         delivered(buyer, quantity = quantity, price = price)
         user = "billing"
         val draft = invoices.run(InvoiceRun(entity, LocalDate.of(2026, 10, 31), buyer)).single()
         invoices.submit(draft.id)
         return invoices.approve(draft.id, "controller")
+    }
+
+    /** Pays the invoice in full by an incoming payment that names it. */
+    private fun pay(invoice: InvoiceView, reference: String) {
+        user = "billing"
+        payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                invoice.grossTotal,
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                reference,
+                invoiceIds = listOf(invoice.id),
+            ),
+        )
+        invoices.invoice(invoice.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+    }
+
+    private fun issuedCreditNote(original: InvoiceView): InvoiceView {
+        user = "billing"
+        val creditNote = invoices.creditNote(original.id, "price corrected")
+        invoices.submit(creditNote.id)
+        return invoices.approve(creditNote.id, "controller")
     }
 
     @Test
@@ -612,6 +642,84 @@ class SettlementIT {
         netting.settle(statement.id, net.id).status shouldBe NettingStatus.SETTLED
         invoices.invoice(sale.id)!!.paymentStatus shouldBe PaymentStatus.PAID
         invoices.invoice(purchase.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+        payments.payment(net.id)!!.unappliedAmount.signum() shouldBe 0
+    }
+
+    @Test
+    fun `a credit note issued after full payment can be refunded, and only by a payment in the other direction`() {
+        val original = issuedSale("CN-REFUND-CP", quantity = 50)
+        pay(original, "BANK-CNR-1")
+        val creditNote = issuedCreditNote(original)
+        // The original was paid, so nothing of the credit note was used: 125.50 is owed to the customer.
+        invoices.invoice(creditNote.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.UNPAID
+            it.outstanding.compareTo(BigDecimal("-125.50")) shouldBe 0
+        }
+        shouldThrow<ValidationException> {
+            payments.record(
+                RecordPayment(
+                    entity,
+                    PaymentDirection.INCOMING,
+                    BigDecimal("125.50"),
+                    "EUR",
+                    LocalDate.of(2026, 10, 21),
+                    "BANK-CNR-2",
+                    invoiceIds = listOf(creditNote.id),
+                ),
+            )
+        }
+        val refund = payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.OUTGOING,
+                BigDecimal("125.50"),
+                "EUR",
+                LocalDate.of(2026, 10, 21),
+                "BANK-CNR-3",
+                invoiceIds = listOf(creditNote.id),
+            ),
+        )
+        refund.unappliedAmount.signum() shouldBe 0
+        invoices.invoice(creditNote.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.PAID
+            it.outstanding.signum() shouldBe 0
+        }
+        payments.allocations(creditNote.id).single().let {
+            it.kind shouldBe com.pianonurmi.etrm.settlement.api.AllocationKind.PAYMENT
+            it.amount.compareTo(BigDecimal("125.50")) shouldBe 0
+        }
+        // The original stays paid; nothing was applied to it twice.
+        invoices.invoice(original.id)!!.paidAmount.compareTo(original.grossTotal) shouldBe 0
+    }
+
+    @Test
+    fun `a credit note with a balance left is netted against an invoice of the counterparty`() {
+        val cp = referenceData.createCounterparty(
+            CreateCounterparty("NET-CN-CP", "Net Credit Oy", "FI", vatNumber = "FI87654321", paymentTermsDays = 14, nettingAgreed = true),
+        ).id
+        val paid = issuedSaleTo(cp, quantity = 50)
+        pay(paid, "BANK-NCN-1")
+        val open = issuedSaleTo(cp, quantity = 1_000)
+        val creditNote = issuedCreditNote(paid)
+
+        val statement = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        // We claim the open invoice (2510.00), the customer claims the credit note (125.50).
+        statement.receivableTotal.compareTo(BigDecimal("2510.00")) shouldBe 0
+        statement.payableTotal.compareTo(BigDecimal("125.50")) shouldBe 0
+        statement.netAmount.compareTo(BigDecimal("2384.50")) shouldBe 0
+        statement.invoices.keys shouldContain creditNote.id
+        user = "controller"
+        netting.agree(statement.id, "THEIR-OK-CN")
+        val net = payments.record(
+            RecordPayment(entity, PaymentDirection.INCOMING, BigDecimal("2384.50"), "EUR", LocalDate.of(2026, 11, 30), "BANK-NCN-2", counterpartyId = cp),
+        )
+        netting.settle(statement.id, net.id).status shouldBe NettingStatus.SETTLED
+        invoices.invoice(open.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+        invoices.invoice(creditNote.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.PAID
+            it.outstanding.signum() shouldBe 0
+        }
+        payments.allocations(creditNote.id).single().kind shouldBe com.pianonurmi.etrm.settlement.api.AllocationKind.NETTING
         payments.payment(net.id)!!.unappliedAmount.signum() shouldBe 0
     }
 

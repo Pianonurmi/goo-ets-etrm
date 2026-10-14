@@ -160,7 +160,14 @@ class SettlementPostingsIT {
             "billing",
         )
 
-    private fun settle(invoice: InvoiceView, amount: String, kind: AllocationKind, payment: PaymentView? = null) = postings.on(
+    private fun settle(
+        invoice: InvoiceView,
+        amount: String,
+        kind: AllocationKind,
+        payment: PaymentView? = null,
+        at: Instant = Instant.now(),
+        creditNote: InvoiceView? = null,
+    ) = postings.on(
         InvoiceSettled(
             invoice,
             AllocationView(
@@ -169,12 +176,13 @@ class SettlementPostingsIT {
                 kind,
                 BigDecimal(amount),
                 payment?.id,
-                null,
+                creditNote?.id,
                 if (kind == AllocationKind.NETTING) Ids.newId() else null,
                 "billing",
-                Instant.now(),
+                at,
             ),
             payment,
+            creditNote,
         ),
     )
 
@@ -273,6 +281,87 @@ class SettlementPostingsIT {
         entries.single { it.ruleCode == "FX_GAIN_RECEIVABLE" }.lines.single { it.accountCode == "3900" }.credit shouldBe BigDecimal("20.00")
         // In base currency the invoiced receivable is fully cleared.
         ledger.trialBalance(e, YearMonth.of(2026, 10)).single { it.accountCode == "1510" }.let { (it.debit - it.credit).signum() shouldBe 0 }
+    }
+
+    @Test
+    fun `netting realises the exchange difference on both sides, like a payment does`() {
+        val e = entity("SP-NET-FX")
+        val invoiced = LocalDate.of(2026, 10, 1)
+        val nettedOn = LocalDate.of(2026, 10, 12)
+        fx.put(invoiced, "NOK", "EUR", BigDecimal("0.0900"))
+        fx.put(nettedOn, "NOK", "EUR", BigDecimal("0.0950"))
+        val receivable = invoice(e, InvoiceKind.SALES, "10000.00", "0", currency = "NOK", date = invoiced)
+        val payable = invoice(e, InvoiceKind.PURCHASE, "4000.00", "0", currency = "NOK", date = invoiced)
+        postings.on(InvoiceIssued(receivable))
+        postings.on(InvoiceIssued(payable))
+        val at = nettedOn.atTime(10, 0).toInstant(ZoneOffset.UTC)
+        settle(receivable, "4000.00", AllocationKind.NETTING, at = at)
+        settle(payable, "4000.00", AllocationKind.NETTING, at = at)
+
+        val entries = ledger.entries(e, YearMonth.of(2026, 10), null, 100)
+        // 4 000 NOK booked at 0.0900 and netted at 0.0950: the receivable gains 20.00 EUR, the payable loses 20.00 EUR.
+        entries.single { it.ruleCode == "FX_GAIN_RECEIVABLE" }.lines.single { it.accountCode == "3900" }.credit shouldBe BigDecimal("20.00")
+        entries.single { it.ruleCode == "FX_LOSS_PAYABLE" }.lines.single { it.accountCode == "4900" }.debit shouldBe BigDecimal("20.00")
+        balances(e).let {
+            // What is left is the unnetted 6 000 NOK / 0 NOK at the invoice rate, and the clearing account is empty.
+            it["1510"] shouldBe BigDecimal("540.00")
+            it["2210"]!!.signum() shouldBe 0
+            it["1950"]!!.signum() shouldBe 0
+        }
+    }
+
+    @Test
+    fun `a credit note in a foreign currency realises the exchange difference to its original`() {
+        val e = entity("SP-CN-FX")
+        val invoiced = LocalDate.of(2026, 10, 1)
+        val credited = LocalDate.of(2026, 10, 12)
+        fx.put(invoiced, "NOK", "EUR", BigDecimal("0.0900"))
+        fx.put(credited, "NOK", "EUR", BigDecimal("0.0950"))
+        val original = invoice(e, InvoiceKind.SALES, "10000.00", "0", currency = "NOK", date = invoiced)
+        val creditNote = invoice(e, InvoiceKind.CREDIT_NOTE, "-10000.00", "0", currency = "NOK", date = credited)
+        postings.on(InvoiceIssued(original))
+        postings.on(InvoiceIssued(creditNote))
+        settle(original, "10000.00", AllocationKind.CREDIT_NOTE, creditNote = creditNote)
+
+        // The receivable was booked at 900.00 EUR and reversed at 950.00: the 50.00 left on it is realised as a gain.
+        ledger.entries(e, YearMonth.of(2026, 10), null, 100).single { it.ruleCode == "FX_GAIN_RECEIVABLE" }
+            .lines.single { it.accountCode == "3900" }.credit shouldBe BigDecimal("50.00")
+        balances(e)["1510"]!!.signum() shouldBe 0
+    }
+
+    @Test
+    fun `the unused amount of a credit note is refunded or netted with the mirror postings`() {
+        val e = entity("SP-CN-USE")
+        val original = invoice(e, InvoiceKind.SALES, "100.00", "25.50")
+        val credit = invoice(e, InvoiceKind.CREDIT_NOTE, "-100.00", "-25.50")
+        postings.on(InvoiceIssued(original))
+        val received = payment(e, PaymentDirection.INCOMING, "125.50")
+        postings.on(PaymentRecorded(received))
+        settle(original, "125.50", AllocationKind.PAYMENT, received)
+        // Credited after it was paid: nothing of the original is left to settle, so the customer is owed 125.50.
+        postings.on(InvoiceIssued(credit))
+        balances(e)["1510"] shouldBe BigDecimal("-125.50")
+
+        val refund = payment(e, PaymentDirection.OUTGOING, "125.50")
+        postings.on(PaymentRecorded(refund))
+        settle(credit, "125.50", AllocationKind.PAYMENT, refund)
+        balances(e).let {
+            it["1510"]!!.signum() shouldBe 0
+            it["1520"]!!.signum() shouldBe 0
+            it["1900"]!!.signum() shouldBe 0
+        }
+
+        // A purchase credit note, netted against a purchase invoice: the supplier owes us, so it offsets what we owe.
+        val purchase = invoice(e, InvoiceKind.PURCHASE, "200.00", "51.00")
+        val purchaseCredit = invoice(e, InvoiceKind.PURCHASE_CREDIT_NOTE, "-80.00", "-20.40")
+        postings.on(InvoiceIssued(purchase))
+        postings.on(InvoiceIssued(purchaseCredit))
+        settle(purchase, "100.40", AllocationKind.NETTING)
+        settle(purchaseCredit, "100.40", AllocationKind.NETTING)
+        balances(e).let {
+            it["1950"]!!.signum() shouldBe 0
+            it["2210"] shouldBe BigDecimal("-150.60")
+        }
     }
 
     @Test
