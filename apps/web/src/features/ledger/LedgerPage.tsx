@@ -409,7 +409,12 @@ function TrialBalanceTab({ entityId }: { entityId: string }) {
     () => [
       { field: 'accountCode', headerName: t('ledger.account'), width: 120 },
       { field: 'accountName', headerName: t('ledger.accountName'), flex: 1, minWidth: 220 },
-      { field: 'type', headerName: t('ledger.type'), width: 120 },
+      {
+        field: 'type',
+        headerName: t('ledger.type'),
+        width: 120,
+        valueFormatter: (p) => statusLabel(String(p.value)),
+      },
       {
         field: 'debit',
         headerName: t('ledger.debit'),
@@ -464,7 +469,12 @@ function AccountsTab({ entityId }: { entityId: string }) {
     () => [
       { field: 'code', headerName: t('ledger.account'), width: 120, sort: 'asc' },
       { field: 'name', headerName: t('ledger.accountName'), flex: 1, minWidth: 240 },
-      { field: 'type', headerName: t('ledger.type'), width: 130 },
+      {
+        field: 'type',
+        headerName: t('ledger.type'),
+        width: 130,
+        valueFormatter: (p) => statusLabel(String(p.value)),
+      },
       { field: 'glMapping', headerName: t('ledger.glMapping'), width: 140 },
       {
         field: 'active',

@@ -27,6 +27,7 @@ import { formatDate, formatDecimal, formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useBooks } from '@/features/trades/hooks';
 import { signOffSteps } from '@/features/marketdata/model/lifecycle';
+import { oneOf } from '@/shared/urlParams';
 import { explainBars } from './model/explain';
 import { OfficialRun } from './OfficialRun';
 import { PortfolioExplain, PortfolioTab } from './PortfolioTab';
@@ -305,7 +306,7 @@ export function ValuationPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'runs';
+  const tab = oneOf(params.get('tab'), ['runs', 'official', 'explain'] as const, 'runs');
   return (
     <Stack>
       <PageHeader

@@ -11,14 +11,17 @@ import {
   TextInput,
   Textarea,
 } from '@mantine/core';
+import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { $api } from '@/shared/api/client';
-import { asProblemError } from '@/shared/api/problem';
+import { asProblemError, isStaleVersion } from '@/shared/api/problem';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
+import { labelsFrom, StaleVersionAlert } from '@/shared/components/StaleVersionAlert';
 import { applyProblemToForm } from '@/shared/forms/applyProblemToForm';
+import { useStaleRecovery } from '@/shared/forms/useStaleRecovery';
 import { useInvalidateReference } from './PartyDetails';
 import {
   EMIR_CLASSIFICATIONS,
@@ -62,6 +65,39 @@ function useFieldErrors() {
   };
 }
 
+/** Catalogue keys of the fields an edit form shows, by draft field, for the conflict explanation. */
+const ENTITY_LABELS = {
+  name: 'ets.name',
+  lei: 'admin.lei',
+  vatNumber: 'admin.vatNumber',
+  emirClassification: 'admin.emirClassification',
+  obligationsOpenAt: 'admin.obligationsOpenAt',
+  validTo: 'admin.validTo',
+  active: 'marketData.active',
+};
+const COUNTERPARTY_LABELS = {
+  name: 'ets.name',
+  lei: 'admin.lei',
+  vatNumber: 'admin.vatNumber',
+  paymentTermsDays: 'admin.paymentTerms',
+  invoiceEmail: 'admin.invoiceEmail',
+  emirClassification: 'admin.emirClassification',
+  parentCounterpartyId: 'admin.parentCounterparty',
+  nettingAgreed: 'admin.nettingAgreed',
+  selfBilling: 'admin.selfBilling',
+  active: 'marketData.active',
+};
+const DEVICE_LABELS = {
+  name: 'ets.name',
+  capacityKw: 'admin.capacityKw',
+  decommissioningDate: 'admin.decommissioned',
+  issuanceLagDays: 'admin.issuanceLagDays',
+  supportSchemeCodes: 'admin.supportSchemes',
+  labelCodes: 'admin.labels',
+  externalCodes: 'admin.externalCodes',
+  active: 'marketData.active',
+};
+
 function useTaxonomyOptions(scheme: TaxonomyScheme) {
   const nodes = $api.useQuery(
     'get',
@@ -101,7 +137,20 @@ export function EditEntityModal({ entity, onClose }: { entity: LegalEntity; onCl
   const { t } = useTranslation();
   const invalidate = useInvalidateReference();
   const fields = useFieldErrors();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<EntityDraft>(() => entityDraft(entity));
+  // A save refused as stale fetches the entity again; `recovery.record` is the version the draft is based on.
+  const recovery = useStaleRecovery({
+    initial: entity,
+    toDraft: entityDraft,
+    values: draft,
+    setValues: setDraft,
+    fetchCurrent: () =>
+      queryClient.query({
+        ...$api.queryOptions('get', '/api/v1/reference/legal-entities/{id}', { params: { path: { id: entity.id } } }),
+        staleTime: 0,
+      }),
+  });
   const save = $api.useMutation('patch', '/api/v1/reference/legal-entities/{id}', {
     meta: { notify: false },
     onSuccess: () => {
@@ -109,14 +158,24 @@ export function EditEntityModal({ entity, onClose }: { entity: LegalEntity; onCl
       void invalidate();
       onClose();
     },
-    onError: fields.onError,
+    onError: (error) => {
+      if (!recovery.handle(error)) fields.onError(error);
+    },
   });
   const set = (patch: Partial<EntityDraft>) => setDraft({ ...draft, ...patch });
-  const body = entityPatch(entity, draft);
+  const body = entityPatch(recovery.record, draft);
   return (
     <Modal opened onClose={onClose} title={t('admin.editTitle', { name: entity.code })}>
       <Stack>
-        <ProblemAlert error={save.error} />
+        <ProblemAlert error={isStaleVersion(save.error) ? null : save.error} />
+        {recovery.conflict && (
+          <StaleVersionAlert
+            changes={recovery.conflict.changes}
+            label={labelsFrom(ENTITY_LABELS, t)}
+            onKeepEdits={recovery.keepEdits}
+            onDiscardEdits={recovery.discardEdits}
+          />
+        )}
         <Text size="sm" c="dimmed">
           {t('admin.accountingPolicyNote')} {t('admin.blankKeeps')}
         </Text>
@@ -162,7 +221,7 @@ export function EditEntityModal({ entity, onClose }: { entity: LegalEntity; onCl
             type="date"
             label={t('admin.validTo')}
             value={draft.validTo}
-            min={entity.validPeriod.validFrom}
+            min={recovery.record.validPeriod.validFrom}
             error={fields.errors.validTo}
             onChange={(e) => set({ validTo: e.currentTarget.value })}
             data-testid="edit-valid-to"
@@ -199,8 +258,22 @@ export function EditCounterpartyModal({ counterparty, onClose }: { counterparty:
   const { t } = useTranslation();
   const invalidate = useInvalidateReference();
   const fields = useFieldErrors();
+  const queryClient = useQueryClient();
   const counterparties = $api.useQuery('get', '/api/v1/reference/counterparties');
   const [draft, setDraft] = useState<CounterpartyDraft>(() => counterpartyDraft(counterparty));
+  const recovery = useStaleRecovery({
+    initial: counterparty,
+    toDraft: counterpartyDraft,
+    values: draft,
+    setValues: setDraft,
+    fetchCurrent: () =>
+      queryClient.query({
+        ...$api.queryOptions('get', '/api/v1/reference/counterparties/{id}', {
+          params: { path: { id: counterparty.id } },
+        }),
+        staleTime: 0,
+      }),
+  });
   const save = $api.useMutation('patch', '/api/v1/reference/counterparties/{id}', {
     meta: { notify: false },
     onSuccess: () => {
@@ -208,17 +281,27 @@ export function EditCounterpartyModal({ counterparty, onClose }: { counterparty:
       void invalidate();
       onClose();
     },
-    onError: fields.onError,
+    onError: (error) => {
+      if (!recovery.handle(error)) fields.onError(error);
+    },
   });
   const set = (patch: Partial<CounterpartyDraft>) => setDraft({ ...draft, ...patch });
-  const body = counterpartyPatch(counterparty, draft);
+  const body = counterpartyPatch(recovery.record, draft);
   const parents = (counterparties.data ?? [])
     .filter((candidate) => candidate.id !== counterparty.id)
     .map((candidate) => ({ value: candidate.id, label: `${candidate.code} · ${candidate.name}` }));
   return (
     <Modal opened onClose={onClose} title={t('admin.editTitle', { name: counterparty.code })} size="lg">
       <Stack>
-        <ProblemAlert error={save.error} />
+        <ProblemAlert error={isStaleVersion(save.error) ? null : save.error} />
+        {recovery.conflict && (
+          <StaleVersionAlert
+            changes={recovery.conflict.changes}
+            label={labelsFrom(COUNTERPARTY_LABELS, t)}
+            onKeepEdits={recovery.keepEdits}
+            onDiscardEdits={recovery.discardEdits}
+          />
+        )}
         <Text size="sm" c="dimmed">
           {t('admin.counterpartySensitiveNote')} {t('admin.blankKeeps')}
         </Text>
@@ -548,7 +631,21 @@ export function EditDeviceModal({ device, onClose }: { device: Device; onClose: 
   const { t } = useTranslation();
   const invalidate = useInvalidateReference();
   const fields = useFieldErrors();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<DeviceDraft>(() => deviceDraft(device));
+  const recovery = useStaleRecovery({
+    initial: device,
+    toDraft: deviceDraft,
+    values: draft,
+    setValues: setDraft,
+    fetchCurrent: () =>
+      queryClient.query({
+        ...$api.queryOptions('get', '/api/v1/reference/production-devices/{id}', {
+          params: { path: { id: device.id } },
+        }),
+        staleTime: 0,
+      }),
+  });
   const save = $api.useMutation('patch', '/api/v1/reference/production-devices/{id}', {
     meta: { notify: false },
     onSuccess: () => {
@@ -556,15 +653,25 @@ export function EditDeviceModal({ device, onClose }: { device: Device; onClose: 
       void invalidate();
       onClose();
     },
-    onError: fields.onError,
+    onError: (error) => {
+      if (!recovery.handle(error)) fields.onError(error);
+    },
   });
   const set = (patch: Partial<DeviceDraft>) => setDraft({ ...draft, ...patch });
   const problems = deviceEditProblems(draft);
-  const body = devicePatch(device, draft);
+  const body = devicePatch(recovery.record, draft);
   return (
     <Modal opened onClose={onClose} title={t('admin.editTitle', { name: device.name })} size="lg">
       <Stack>
-        <ProblemAlert error={save.error} />
+        <ProblemAlert error={isStaleVersion(save.error) ? null : save.error} />
+        {recovery.conflict && (
+          <StaleVersionAlert
+            changes={recovery.conflict.changes}
+            label={labelsFrom(DEVICE_LABELS, t)}
+            onKeepEdits={recovery.keepEdits}
+            onDiscardEdits={recovery.discardEdits}
+          />
+        )}
         <Text size="sm" c="dimmed">
           {t('admin.deviceIdentityFixed')} {t('admin.blankKeeps')}
         </Text>
@@ -590,7 +697,7 @@ export function EditDeviceModal({ device, onClose }: { device: Device; onClose: 
             type="date"
             label={t('admin.decommissioned')}
             value={draft.decommissioningDate}
-            min={device.commissioningDate}
+            min={recovery.record.commissioningDate}
             error={fields.errors.decommissioningDate}
             onChange={(e) => set({ decommissioningDate: e.currentTarget.value })}
             data-testid="device-decommissioned"

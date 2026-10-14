@@ -39,6 +39,7 @@ import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { useEntityAccounts } from '@/features/trades/hooks';
+import { yearOr } from '@/shared/urlParams';
 import { InstallationsCard } from './InstallationsCard';
 import { DEADLINE_TONES, deadlineCalendar, nextDeadline } from './model/deadlines';
 
@@ -366,7 +367,7 @@ export function EtsPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
-  const year = Number(params.get('year') ?? new Date().getFullYear());
+  const year = yearOr(params.get('year'), new Date().getFullYear());
   const [registering, setRegistering] = useState(false);
   const compliance = $api.useQuery(
     'get',

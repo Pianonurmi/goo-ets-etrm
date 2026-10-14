@@ -16,7 +16,8 @@ eyes.
 ## Decision
 - **Production:** the UI signs in with Authorization Code and PKCE (S256), using `oidc-client-ts`, against the
   public client `etrm-web`.
-  - Tokens stay in memory and session storage, never in cookies, and renew silently.
+  - Tokens stay in memory only, never in browser storage or cookies (amended in increment 14, see below), and renew
+    silently.
   - The API is called with `Authorization: Bearer`.
   - Logout ends the identity provider session.
 - **Public configuration:** `GET /api/v1/ui-config` is the only public API path. It carries `etrm.ui.*`: the
@@ -35,6 +36,23 @@ eyes.
 - **One issuer:** Keycloak runs with `KC_HOSTNAME=http://localhost:8081`, so browser tokens and the API agree on
   the issuer. The API container fetches keys over the compose network
   (`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`).
+
+## Amendment (increment 14, review findings W1 and W2)
+- **Tokens in memory only.** Session storage held the access and refresh tokens, readable by any script that ran
+  in the page; the content security policy was the only barrier, and Mantine needs `style-src 'unsafe-inline'`.
+  The user store is now in memory. A reload signs in again with a silent request in a hidden frame
+  (`prompt=none`) while the identity provider's session lasts, and falls back to the full redirect otherwise.
+  A backend-for-frontend with a cookie session was considered and not chosen: it would make the API stateful and
+  add CSRF handling to every call, for the same protection against token theft that memory storage gives here.
+- **Silent renewal works.** The identity provider redirects the hidden frame to `/auth/silent`, which completes the
+  renewal (`signinSilentCallback`) without starting the application. Every page is served with
+  `frame-ancestors 'none'` and `X-Frame-Options: DENY` except this one, which the application's own pages may frame
+  (`'self'`, `SAMEORIGIN`). Before, the frame was refused, and renewal worked only because the identity provider
+  also issued a refresh token. With a refresh token the library still uses it; without one the frame renews.
+- When renewal fails and the token has expired, the next call signs in again by redirect, once however many calls
+  failed together.
+- Browsers that block third-party cookies may refuse the provider's session in the frame; the fallback is the
+  redirect, which returns to the same page.
 
 ## Consequences
 - The content security policy allows the identity provider origin for token calls and the silent-renew frame.

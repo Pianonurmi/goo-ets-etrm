@@ -53,7 +53,7 @@ describe('HeadroomGrid', () => {
     const headers = within(grid)
       .getAllByRole('columnheader')
       .map((header) => header.textContent);
-    expect(headers).toEqual(['Bucket', 'Vintage', 'Held', '2026-10-31', '2026-11-30', '2026-12-31']);
+    expect(headers).toEqual(['Bucket', 'Vintage', 'Held', '31/10/2026', '30/11/2026', '31/12/2026']);
   });
 
   it('shows held and headroom per bucket and vintage', () => {

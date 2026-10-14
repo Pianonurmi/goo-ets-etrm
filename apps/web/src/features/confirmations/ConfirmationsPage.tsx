@@ -16,6 +16,7 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useCounterparties } from '@/features/trades/hooks';
+import { LimitNotice } from '@/shared/components/LimitNotice';
 import { UploadConfirmationsModal } from './ConfirmationModals';
 import {
   QUEUE_VIEWS,
@@ -31,6 +32,8 @@ export function ConfirmationStatusBadge({ status, testId }: { status: Confirmati
 }
 
 const ALL = queueStatuses('all');
+/** The queue is read in one call (the API's default size); a full answer is probably cut off. */
+const RECEIVED_LIMIT = 200;
 
 /** Confirmations received from counterparties, to match, override or dispute. */
 export function ConfirmationsPage() {
@@ -52,7 +55,16 @@ export function ConfirmationsPage() {
   const received = $api.useQuery(
     'get',
     '/api/v1/confirmations',
-    { params: { query: { legalEntityId: entity?.id, status: ALL, counterpartyId: counterpartyId ?? undefined } } },
+    {
+      params: {
+        query: {
+          legalEntityId: entity?.id,
+          status: ALL,
+          counterpartyId: counterpartyId ?? undefined,
+          limit: RECEIVED_LIMIT,
+        },
+      },
+    },
     { enabled: Boolean(entity) },
   );
   const all = useMemo(() => received.data ?? [], [received.data]);
@@ -138,6 +150,7 @@ export function ConfirmationsPage() {
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
         <>
+          <LimitNotice shown={all.length} limit={RECEIVED_LIMIT} />
           <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md">
             <KpiCard
               label={t('confirmations.kpi.mismatched')}

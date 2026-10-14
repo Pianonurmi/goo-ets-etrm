@@ -31,6 +31,7 @@ import { CardSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { oneOf, yearOr } from '@/shared/urlParams';
 import { ComplianceStatusBadge, Figure, tonnes, useInvalidateEts } from './EtsPage';
 
 type EmissionRecord = Schema<'EmissionRecordView'>;
@@ -491,8 +492,8 @@ export function InstallationPage() {
   const { t } = useTranslation();
   const { installationId = '' } = useParams();
   const [params, setParams] = useSearchParams();
-  const year = Number(params.get('year') ?? new Date().getFullYear());
-  const tab = params.get('tab') ?? 'emissions';
+  const year = yearOr(params.get('year'), new Date().getFullYear());
+  const tab = oneOf(params.get('tab'), ['emissions', 'free-allocation', 'surrenders'] as const, 'emissions');
   const installation = $api.useQuery('get', '/api/v1/ets/installations/{id}', {
     params: { path: { id: installationId } },
   });

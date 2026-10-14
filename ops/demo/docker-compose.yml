@@ -16,7 +16,7 @@ x-hardening: &hardening
 services:
   postgres:
     <<: *hardening
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     restart: unless-stopped
     # Its entrypoint changes ownership of the data directory as root, so it keeps the default capabilities.
     networks: [backend]

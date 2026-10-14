@@ -45,8 +45,12 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
 
     // Security fixes ahead of the Spring Boot BOM; each entry in the catalogue says when it can go.
+    listOf(libs.jackson3.bom, libs.jackson2.bom).forEach {
+        implementation(platform(it))
+        testImplementation(platform(it))
+    }
     constraints {
-        listOf(libs.tomcat.embed.core, libs.tomcat.embed.el, libs.tomcat.embed.websocket).forEach {
+        listOf(libs.tomcat.embed.core, libs.tomcat.embed.el, libs.tomcat.embed.websocket, libs.lz4.java).forEach {
             implementation(it)
             testImplementation(it)
         }

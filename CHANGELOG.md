@@ -21,6 +21,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - **The `test` profile is held to the `dev` profile's rules** (loopback only, never with the public profiles).
 - **Request bodies with unknown properties are refused** instead of silently dropping the property, and a body
   that does not parse names the failing field rather than the parser's internal message.
+- Jackson 3.1.7 and 2.22.3 and lz4-java 1.11.4 ahead of Spring Boot and Kafka (CVE-2026-89407, CVE-2026-68497,
+  CVE-2026-106451); the image scan now fails the build on high vulnerabilities with a fix, not only critical ones.
 - The showcase login throttle counts failures only, so successful sign-ins never lock anyone out, and its memory is
   bounded. The FILE registry gateway uses only file-name-safe characters from an instruction key.
 - **The application no longer runs as the schema owner** in Kubernetes: migrations and partition maintenance use the
@@ -101,6 +103,31 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   (and so the idempotency of a re-run) no longer depends on the scale of the prices; the first re-run of a day after
   upgrading therefore gives a version 2 with the same margin and nothing to post.
 - The margin job dates its work in Europe/Berlin, where its cron runs, instead of UTC.
+
+### Changed
+- **Stricter gates.** Every GitHub Action is pinned to a commit and the base images to a digest, kept current by
+  Dependabot; the image scan fails on high as well as critical vulnerabilities that have a fix; the weekly
+  dependency check fails when its NVD key is missing and on a CVSS score of 7 or more; coverage must stay at 90 % of
+  lines and 65 % of branches.
+
+### Changed
+- **Browser tokens stay in memory only**, no longer in session storage; a reload signs in again silently, and the
+  silent renewal of a session works without a refresh token (its page may now be framed by the application itself,
+  and only by it). See the amendment to ADR 0026.
+- Grids open the focused row with Enter or Space, as a click does, so every detail page can be reached by keyboard.
+- **A save refused because the record changed no longer repeats itself.** On a trade amendment and on editing a legal
+  entity, counterparty or production device, the form fetches the record again, lists the fields that changed on the
+  server, and **Reload, keep my edits** continues from the current version with your edits on top.
+- **Long lists say so.** Lots, criteria search results, received confirmations, registry statements and the lots
+  offered for a receipt show a notice when the answer came back exactly at its limit; a trade's version changes
+  beyond the first 40 are counted; the hedge designation loads further pages of trades on request.
+- **Numbers and dates follow the browser's language** (English UK remains the fallback), times of day show in the
+  selected legal entity's time zone with a short zone name, and the labels of states and types come from the
+  translation catalogue; a test fails when a text key is missing or the API gains a constant without a label.
+- The web UI retries network failures twice, refetches stale data when the window regains focus, and reloads
+  `/api/v1/me` on focus so a role change applies without a reload; tabs and filters read from the URL fall back to
+  their default for a value they do not know; decimal strings are formatted exactly instead of through a double; a
+  download keeps its object URL for ten seconds.
 
 ## [0.13.2] - 2026-10-14
 

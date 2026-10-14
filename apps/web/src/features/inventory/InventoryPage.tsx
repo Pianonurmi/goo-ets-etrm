@@ -33,6 +33,8 @@ import { DataGrid } from '@/shared/grid/DataGrid';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
 import { EXAMPLE, incomplete, type Criterion } from '@/features/criteria/model/tree';
 import { AllowanceTransferModal } from '@/features/registry/AllowanceTransferModal';
+import { allOf, oneOf } from '@/shared/urlParams';
+import { LimitNotice } from '@/shared/components/LimitNotice';
 import { ExpiryLadder } from './ExpiryLadder';
 import { JournalCheckButton } from './JournalCheck';
 import { lotColumns, totals, type Lot } from './lotColumns';
@@ -50,6 +52,8 @@ const STATUSES: LotStatus[] = [
   'WITHDRAWN',
   'SPLIT',
 ];
+/** Rows asked for by the lot list and the criteria search; a full answer is probably cut off. */
+const LOT_LIMIT = 2000;
 const LIVE: LotStatus[] = ['HELD', 'RESERVED', 'IN_TRANSFER'];
 
 function Totals({ lots }: { lots: Lot[] }) {
@@ -131,7 +135,7 @@ function LotsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
   const open = useOpenLot();
   const [params, setParams] = useSearchParams();
-  const statuses = params.getAll('status') as LotStatus[];
+  const statuses = allOf(params.getAll('status'), STATUSES);
   const expiringBefore = params.get('expiringBefore') ?? '';
   const lots = $api.useQuery('get', '/api/v1/inventory/lots', {
     params: {
@@ -139,7 +143,7 @@ function LotsTab({ entityId }: { entityId: string }) {
         holderEntityId: entityId,
         status: statuses.length > 0 ? statuses : LIVE,
         expiringBefore: expiringBefore || undefined,
-        limit: 2000,
+        limit: LOT_LIMIT,
       },
     },
   });
@@ -210,14 +214,17 @@ function LotsTab({ entityId }: { entityId: string }) {
             />
           </Paper>
         ) : (
-          <DataGrid<Lot>
-            rowData={lots.data ?? []}
-            columnDefs={columns}
-            rowId={(lot) => lot.id}
-            onRowClicked={(event) => open(event.data)}
-            rowStyle={{ cursor: 'pointer' }}
-            overlayNoRowsTemplate={t('common.empty')}
-          />
+          <>
+            <LimitNotice shown={lots.data?.length ?? 0} limit={LOT_LIMIT} />
+            <DataGrid<Lot>
+              rowData={lots.data ?? []}
+              columnDefs={columns}
+              rowId={(lot) => lot.id}
+              onRowClicked={(event) => open(event.data)}
+              rowStyle={{ cursor: 'pointer' }}
+              overlayNoRowsTemplate={t('common.empty')}
+            />
+          </>
         )}
       </QueryState>
     </Stack>
@@ -233,7 +240,7 @@ function SearchTab({ entityId }: { entityId: string }) {
   const search = $api.useMutation('post', '/api/v1/inventory/lots/search', { meta: { notify: false } });
   const columns = useMemo(() => lotColumns(t), [t]);
   const run = () =>
-    search.mutate({ body: { holderEntityId: entityId, criterion, deliveryDate, statuses, limit: 2000 } });
+    search.mutate({ body: { holderEntityId: entityId, criterion, deliveryDate, statuses, limit: LOT_LIMIT } });
   return (
     <Stack>
       <Paper withBorder radius="lg" p="lg">
@@ -283,6 +290,7 @@ function SearchTab({ entityId }: { entityId: string }) {
       {search.data && (
         <Stack>
           <Totals lots={search.data} />
+          <LimitNotice shown={search.data.length} limit={LOT_LIMIT} />
           <DataGrid<Lot>
             rowData={search.data}
             columnDefs={columns}
@@ -443,7 +451,7 @@ export function InventoryPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'lots';
+  const tab = oneOf(params.get('tab'), ['lots', 'search', 'allowances'] as const, 'lots');
   const [receiving, setReceiving] = useState(false);
   return (
     <Stack gap="lg">
