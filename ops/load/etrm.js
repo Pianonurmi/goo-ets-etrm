@@ -161,7 +161,8 @@ export function whatIf(ctx) {
 }
 
 function batchCall(method, path, body, roleHeaders, name, ok) {
-  const params = { headers: roleHeaders, tags: { kind: 'batch', name } };
+  // The statuses listed as served are not failed requests (a period end refused by its gate still did its checks).
+  const params = { headers: roleHeaders, tags: { kind: 'batch', name }, responseCallback: http.expectedStatuses(...ok) };
   const res = method === 'POST' ? http.post(`${BASE}${path}`, JSON.stringify(body), params) : http.get(`${BASE}${path}`, params);
   check(res, { [`${name} served`]: (r) => ok.includes(r.status) });
   return res;
