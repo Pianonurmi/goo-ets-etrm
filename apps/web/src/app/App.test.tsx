@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { configureApiAuth } from '@/shared/api/client';
 import { currentPersona, personaHeaders } from '@/shared/auth/personas';
 import { server } from '@/test/server';
-import { App } from './App';
+import { ProblemError } from '@/shared/api/problem';
+import { App, shouldRetry } from './App';
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
@@ -50,5 +51,18 @@ describe('App shell', () => {
       await screen.findByText(/^Good (morning|afternoon|evening), Max$/, {}, { timeout: 5000 }),
     ).toBeInTheDocument();
     expect(within(screen.getByTestId('my-roles')).getByText('Middle office')).toBeInTheDocument();
+  });
+});
+
+describe('query retries', () => {
+  const failure = (status: number) => new ProblemError({ type: 'urn:etrm:problem:x', title: 'x', status });
+
+  it('retries network failures and server errors twice, nothing else', () => {
+    expect(shouldRetry(0, new TypeError('Failed to fetch'))).toBe(true);
+    expect(shouldRetry(1, failure(0))).toBe(true);
+    expect(shouldRetry(2, failure(0))).toBe(false);
+    expect(shouldRetry(0, failure(503))).toBe(true);
+    expect(shouldRetry(0, failure(404))).toBe(false);
+    expect(shouldRetry(0, failure(409))).toBe(false);
   });
 });

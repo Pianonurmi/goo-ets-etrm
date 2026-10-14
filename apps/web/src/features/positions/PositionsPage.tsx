@@ -27,6 +27,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { oneOf } from '@/shared/urlParams';
 import { FutureSupplyTab } from './FutureSupplyTab';
 import { HeadroomTab } from './HeadroomTab';
 import { ladderSeries } from './model/ladder';
@@ -279,7 +280,7 @@ export function PositionsPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'goo';
+  const tab = oneOf(params.get('tab'), ['goo', 'ets', 'snapshots'] as const, 'goo');
   return (
     <Stack>
       <PageHeader

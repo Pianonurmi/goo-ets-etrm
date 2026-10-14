@@ -31,6 +31,7 @@ import { statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDecimal, formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { allOf, oneOfOrNull } from '@/shared/urlParams';
 import { useBooks, useCounterparties } from './hooks';
 import { dueWithin } from './model/lifecycle';
 import { ObligationsPanel } from './ObligationsPanel';
@@ -39,6 +40,7 @@ import { TradeStatusBadge } from './TradeStatusBadge';
 type Row = Schema<'TradeSummaryView'>;
 type Status = Row['status'];
 type Family = Row['productFamily'];
+const FAMILIES: Family[] = ['GUARANTEE_OF_ORIGIN', 'EMISSION_ALLOWANCE'];
 const STATUSES: Status[] = [
   'DRAFT',
   'PENDING_APPROVAL',
@@ -120,8 +122,8 @@ export function TradesPage() {
   const [params, setParams] = useSearchParams();
   const [text, setText] = useState(params.get('q') ?? '');
   const [q] = useDebouncedValue(text.trim(), 300);
-  const statuses = params.getAll('status') as Status[];
-  const family = (params.get('family') ?? null) as Family | null;
+  const statuses = allOf(params.getAll('status'), STATUSES);
+  const family = oneOfOrNull(params.get('family'), FAMILIES);
   const view = params.get('view') === 'deliveries' ? 'deliveries' : 'blotter';
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';

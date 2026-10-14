@@ -33,6 +33,7 @@ import { DataGrid } from '@/shared/grid/DataGrid';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
 import { EXAMPLE, incomplete, type Criterion } from '@/features/criteria/model/tree';
 import { AllowanceTransferModal } from '@/features/registry/AllowanceTransferModal';
+import { allOf, oneOf } from '@/shared/urlParams';
 import { ExpiryLadder } from './ExpiryLadder';
 import { JournalCheckButton } from './JournalCheck';
 import { lotColumns, totals, type Lot } from './lotColumns';
@@ -131,7 +132,7 @@ function LotsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
   const open = useOpenLot();
   const [params, setParams] = useSearchParams();
-  const statuses = params.getAll('status') as LotStatus[];
+  const statuses = allOf(params.getAll('status'), STATUSES);
   const expiringBefore = params.get('expiringBefore') ?? '';
   const lots = $api.useQuery('get', '/api/v1/inventory/lots', {
     params: {
@@ -443,7 +444,7 @@ export function InventoryPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'lots';
+  const tab = oneOf(params.get('tab'), ['lots', 'search', 'allowances'] as const, 'lots');
   const [receiving, setReceiving] = useState(false);
   return (
     <Stack gap="lg">

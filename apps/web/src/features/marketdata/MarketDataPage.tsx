@@ -30,6 +30,7 @@ import { QueryState } from '@/shared/components/QueryState';
 import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { oneOf } from '@/shared/urlParams';
 import { ImportFormats } from './ImportFormats';
 import { IndicesTab } from './IndicesTab';
 import { AliasModal, CreateInstrumentModal } from './InstrumentActions';
@@ -58,7 +59,12 @@ function InstrumentsTab() {
   const columns = useMemo<ColDef<Instrument>[]>(
     () => [
       { field: 'code', headerName: t('marketData.code'), width: 230 },
-      { field: 'kind', headerName: t('marketData.kind'), width: 140 },
+      {
+        field: 'kind',
+        headerName: t('marketData.kind'),
+        width: 140,
+        valueFormatter: (p) => statusLabel(String(p.value)),
+      },
       { field: 'description', headerName: t('marketData.descriptionColumn'), flex: 1 },
       { field: 'bucketCode', headerName: t('positions.bucket'), width: 150 },
       { field: 'productionYear', headerName: t('positions.vintage'), width: 100 },
@@ -542,7 +548,11 @@ function ImportsTab() {
 export function MarketDataPage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'quotes';
+  const tab = oneOf(
+    params.get('tab'),
+    ['quotes', 'suspect', 'fx', 'instruments', 'indices', 'imports'] as const,
+    'quotes',
+  );
   const suspect = $api.useQuery('get', '/api/v1/market-data/quotes/suspect', {});
   const instruments = $api.useQuery('get', '/api/v1/market-data/instruments', {});
   const curves = $api.useQuery('get', '/api/v1/market-data/curves', { params: { query: { activeOnly: true } } });

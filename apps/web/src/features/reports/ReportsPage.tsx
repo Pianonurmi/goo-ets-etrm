@@ -37,6 +37,7 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { previousPeriod } from '@/features/monthend/model/glBalances';
+import { oneOf } from '@/shared/urlParams';
 import {
   missingParameters,
   parameterInput,
@@ -439,7 +440,7 @@ export function ReportsPage() {
   const [params, setParams] = useSearchParams();
   const canSeeLog = useCan('reporting_exports');
   const canSeeEmir = useCan('reporting_emirFieldRules');
-  const tab = params.get('tab') ?? 'catalogue';
+  const tab = oneOf(params.get('tab'), ['catalogue', 'log', 'emir'] as const, 'catalogue');
   return (
     <Stack>
       <PageHeader title={t('reports.title')} description={t('reports.description', { entity: entity?.code ?? '' })} />

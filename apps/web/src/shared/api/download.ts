@@ -9,16 +9,21 @@ export function fileNameFrom(disposition: string | null, fallback: string): stri
   return plain ?? fallback;
 }
 
+/** How long the object URL stays valid after the click. */
+export const REVOKE_DELAY_MS = 10_000;
+
 /** Downloads an authenticated resource (CSV, PDF) and saves it under the server's file name. */
 export async function download(url: string, fallbackName: string, init?: RequestInit): Promise<Response> {
   const response = await authorisedFetch(url, init);
   const blob = await response.clone().blob();
   const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(blob);
+  link.href = objectUrl;
   link.download = fileNameFrom(response.headers.get('Content-Disposition'), fallbackName);
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(link.href);
+  // Revoking at once can cancel the save in some browsers; release the blob after the download has started.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), REVOKE_DELAY_MS);
   return response;
 }
