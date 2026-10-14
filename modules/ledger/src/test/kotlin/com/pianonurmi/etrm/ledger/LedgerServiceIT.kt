@@ -1,5 +1,9 @@
 package com.pianonurmi.etrm.ledger
 
+import com.pianonurmi.etrm.allocation.api.AllocationLineConfirmed
+import com.pianonurmi.etrm.allocation.api.AllocationLineView
+import com.pianonurmi.etrm.allocation.api.ObligationKind
+import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingView
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
@@ -32,6 +36,8 @@ import com.pianonurmi.etrm.ledger.domain.CostLayer
 import com.pianonurmi.etrm.ledger.domain.CostingEngine
 import com.pianonurmi.etrm.ledger.domain.CostingMethod
 import com.pianonurmi.etrm.ledger.domain.GlExportFormat
+import com.pianonurmi.etrm.marketdata.api.FixingView
+import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -47,6 +53,8 @@ import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
+import com.pianonurmi.etrm.trade.api.DeliveryObligationView
+import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -66,6 +74,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
+import java.util.Currency
 import java.util.UUID
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -109,6 +118,7 @@ class LedgerServiceIT {
             mockk<LotQuery>(relaxed = true),
             mockk<TradeQuery>(relaxed = true),
             clock,
+            IndexFixings { _, _ -> null },
         )
         entityId = referenceData.createLegalEntity(CreateLegalEntity("LEDGER-CO", "Ledger Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
         wacEntityId = referenceData.createLegalEntity(
@@ -242,6 +252,101 @@ class LedgerServiceIT {
         val firstPage = ledger.entries(entityId, period = YearMonth.of(2026, 8), limit = 2)
         val nextPage = ledger.entries(entityId, period = YearMonth.of(2026, 8), afterEntryNumber = firstPage.last().entryNumber)
         (firstPage + nextPage).map { it.id } shouldBe entries.map { it.id }
+    }
+
+    @Test
+    fun `a reconciliation correction moves the cost layers with the holding`() {
+        val holding = AllowanceHoldingView(UUID.randomUUID(), entityId, UUID.randomUUID(), "EUA", 0, 0, 1)
+
+        fun movement(type: AllowanceMovementType, qty: Long, price: String?, seq: Long) =
+            AllowanceMovementView(
+                seq,
+                holding.id,
+                type,
+                qty,
+                LocalDate.of(2026, 8, 20),
+                "COR-$seq",
+                price?.let(::BigDecimal),
+                "EUR",
+                2026,
+                "ops",
+                Instant.now(),
+            )
+
+        listeners.on(HoldingChanged(holding.copy(quantity = 100), movement(AllowanceMovementType.PURCHASE, 100, "70.00", 101)))
+        // The registry holds ten more than we booked: they come in at the statement's price.
+        listeners.on(HoldingChanged(holding.copy(quantity = 110), movement(AllowanceMovementType.CORRECTION, 10, "75.00", 102)))
+        // Surrendering all of them needs a layer for every unit (it threw "Insufficient cost layers" before).
+        listeners.on(HoldingChanged(holding.copy(quantity = 0), movement(AllowanceMovementType.SURRENDER, -110, null, 103)))
+        listeners.on(HoldingChanged(holding.copy(quantity = 100), movement(AllowanceMovementType.PURCHASE, 100, "80.00", 104)))
+        // Five are missing in the registry: they leave at cost.
+        listeners.on(HoldingChanged(holding.copy(quantity = 95), movement(AllowanceMovementType.CORRECTION, -5, null, 105)))
+
+        val entries = ledger.entries(entityId, period = YearMonth.of(2026, 8))
+        entries.single { it.sourceRef == "102" }.let {
+            it.ruleCode shouldBe "EUA_CORRECTION_FOUND"
+            it.lines.map { l -> l.accountCode } shouldBe listOf("1610", "3920")
+            it.totalDebit shouldBe BigDecimal("750.00")
+        }
+        entries.single { it.sourceRef == "103" }.totalDebit shouldBe BigDecimal("7750.00") // 100 @ 70 + 10 @ 75
+        entries.single { it.sourceRef == "105" }.let {
+            it.ruleCode shouldBe "EUA_CORRECTION_MISSING"
+            it.lines.map { l -> l.accountCode } shouldBe listOf("4920", "1610")
+            it.totalDebit shouldBe BigDecimal("400.00") // 5 @ 80
+        }
+        ledger.verifyJournal(entityId).shouldBeEmpty()
+    }
+
+    @Test
+    fun `an index-priced sale books revenue at the fixing plus the spread, never at the spread alone`() {
+        val fixedOn = LocalDate.of(2026, 9, 10)
+        val fixings = IndexFixings { index, date ->
+            if (index == "GO_NORDIC" && date == fixedOn) FixingView(index, date, BigDecimal("5.00"), "EUR", emptyList()) else null
+        }
+
+        fun deliver(deliveryDate: LocalDate): UUID {
+            val sold = lot(100, "0.50")
+            val scheduleId = UUID.randomUUID()
+            val delivery = mockk<DeliveryObligationView> {
+                every { priceType } returns PriceType.INDEX
+                every { priceIndex } returns "GO_NORDIC"
+                every { price } returns BigDecimal("0.10") // the spread over the index
+                every { priceCurrency } returns Currency.getInstance("EUR")
+                every { this@mockk.deliveryDate } returns deliveryDate
+                every { tradeNumber } returns "T-IDX"
+            }
+            val sale = LedgerEventListeners(
+                ledger,
+                JooqCostLayerRepository(TestDatabase.dsl),
+                referenceDataService,
+                mockk<LotQuery> { every { lot(sold.id) } returns sold },
+                mockk<TradeQuery> { every { obligation(scheduleId) } returns delivery },
+                clock,
+                fixings,
+            )
+            val lineId = UUID.randomUUID()
+            val line = mockk<AllocationLineView>(relaxed = true) {
+                every { id } returns lineId
+                every { reservedLotId } returns sold.id
+                every { quantityMwh } returns 100L
+            }
+            val obligation = mockk<ObligationView>(relaxed = true) {
+                every { kind } returns ObligationKind.SALE
+                every { holderEntityId } returns entityId
+                every { sourceRef } returns scheduleId
+                every { tradeRef } returns "T-IDX"
+                every { counterpartyId } returns null
+            }
+            sale.on(AllocationLineConfirmed(mockk(relaxed = true), line, obligation))
+            return lineId
+        }
+
+        val fixed = ledger.entries(entityId, sourceRef = deliver(fixedOn).toString())
+        fixed.single { it.ruleCode == "GOO_SALE_DELIVERY_REVENUE" }.lines.single { it.accountCode == "3000" }.credit shouldBe BigDecimal("510.00")
+        fixed.single { it.ruleCode == "GOO_SALE_DELIVERY_COGS" }.totalDebit shouldBe BigDecimal("50.00")
+        // Not fixed yet: the cost of sales is booked, the revenue waits rather than being booked at the spread.
+        val unfixed = ledger.entries(entityId, sourceRef = deliver(fixedOn.plusDays(1)).toString())
+        unfixed.map { it.ruleCode } shouldBe listOf("GOO_SALE_DELIVERY_COGS")
     }
 
     @Test

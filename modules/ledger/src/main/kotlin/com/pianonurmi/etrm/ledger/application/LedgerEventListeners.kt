@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.ledger.application
 import com.pianonurmi.etrm.allocation.api.AllocationLineConfirmed
 import com.pianonurmi.etrm.allocation.api.ObligationKind
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
+import com.pianonurmi.etrm.inventory.api.AllowanceMovementView
 import com.pianonurmi.etrm.inventory.api.HoldingChanged
 import com.pianonurmi.etrm.inventory.api.LotCancelled
 import com.pianonurmi.etrm.inventory.api.LotExpired
@@ -14,11 +15,14 @@ import com.pianonurmi.etrm.ledger.domain.CostLayer
 import com.pianonurmi.etrm.ledger.domain.CostLayerRepository
 import com.pianonurmi.etrm.ledger.domain.CostingEngine
 import com.pianonurmi.etrm.ledger.domain.CostingMethod
+import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.referencedata.api.AccountingPolicy
 import com.pianonurmi.etrm.referencedata.api.AllowanceCostingMethod
 import com.pianonurmi.etrm.referencedata.api.FreeAllocationPolicy
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.trade.api.TradeQuery
+import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -41,7 +45,10 @@ class LedgerEventListeners(
     private val lotQuery: LotQuery,
     private val tradeQuery: TradeQuery,
     private val clock: Clock,
+    private val fixings: IndexFixings,
 ) {
+    private val log = LoggerFactory.getLogger(LedgerEventListeners::class.java)
+
     @EventListener
     fun on(event: LotReceived) {
         val lot = event.lot
@@ -98,7 +105,14 @@ class LedgerEventListeners(
         val amounts = buildMap {
             put("quantity", quantity)
             lotCost(lot)?.let { put("cost", it) }
-            tradeObligation?.let { put("proceeds", (it.price * quantity).setScale(2, RoundingMode.HALF_UP)) }
+            tradeObligation?.let { delivery ->
+                val price = deliveredUnitPrice(delivery, fixings)
+                if (price == null) {
+                    log.warn("No delivered price for {} {} on {}; revenue not posted", delivery.priceType, delivery.tradeNumber, delivery.deliveryDate)
+                } else {
+                    put("proceeds", (price * quantity).setScale(2, RoundingMode.HALF_UP))
+                }
+            }
         }
         ledger.post(
             facts(
@@ -156,7 +170,7 @@ class LedgerEventListeners(
                     }
                 }
             }
-            AllowanceMovementType.CORRECTION -> return
+            AllowanceMovementType.CORRECTION -> correction(entity.id, assetKey, movement.quantity, movement, currency, policy, amounts)
         }
         ledger.post(
             facts(
@@ -182,6 +196,34 @@ class LedgerEventListeners(
                 ),
             ),
         )
+    }
+
+    /**
+     * A reconciliation correction moves the cost layers with the holding: units found in the registry come in at the
+     * statement's price (zero when none is given), units missing go out at cost like a sale. The difference is booked
+     * to the reconciliation result, so layers, the asset account and the holding stay in step.
+     */
+    @Suppress("LongParameterList") // the movement's parts the two directions need
+    private fun correction(
+        entityId: UUID,
+        assetKey: String,
+        signedQuantity: Long,
+        movement: AllowanceMovementView,
+        currency: String,
+        policy: AccountingPolicy,
+        amounts: MutableMap<String, BigDecimal>,
+    ) {
+        val quantity = BigDecimal(kotlin.math.abs(signedQuantity))
+        if (signedQuantity > 0) {
+            val unitCost = movement.costPerUnit ?: BigDecimal.ZERO
+            costLayers.insert(CostLayer(Ids.newId(), entityId, assetKey, movement.effectiveDate, quantity, quantity, unitCost, currency, movement.reference))
+            if (unitCost.signum() > 0) amounts["correctionGain"] = (unitCost * quantity).setScale(2, RoundingMode.HALF_EVEN)
+        } else if (signedQuantity < 0) {
+            val method = if (policy.allowanceCostingMethod == AllowanceCostingMethod.FIFO) CostingMethod.FIFO else CostingMethod.WEIGHTED_AVERAGE
+            val consumption = CostingEngine.consume(costLayers.open(entityId, assetKey), quantity, method)
+            consumption.consumed.forEach { (layer, qty) -> costLayers.reduce(layer.id, qty) }
+            if (consumption.cost.signum() > 0) amounts["correctionLoss"] = consumption.cost
+        }
     }
 
     private fun lotCost(lot: LotView): BigDecimal? = lot.costBasisPerMwh?.takeIf {

@@ -1,7 +1,7 @@
 # Posting rules
 
 Facts (`PostingFacts`): `amounts` (`cost`, `proceeds`, `notional`, `quantity`, settlement: `net`, `vat`, `gross`,
-`selfAssessedVat`, `amount`, `deliveredValue`, `openCommitment`, `fxGain`, `fxLoss`), `attributes` (`acquisitionSource`,
+`selfAssessedVat`, `amount`, `deliveredValue`, `openCommitment`, `fxGain`, `fxLoss`, `correctionGain`, `correctionLoss`), `attributes` (`acquisitionSource`,
 `side`, `movementType`, `allowanceClassification`, `freeAllocationPolicy`, derived `hasCost`, `hasProceeds`), `dimensions`
 (trade, lot, device, counterparty, registry account, bucket).
 
@@ -18,6 +18,8 @@ Facts (`PostingFacts`): `amounts` (`cost`, `proceeds`, `notional`, `quantity`, s
 | EUA_FREE_ALLOCATION_FAIR_VALUE / _INVENTORY | HoldingChanged | FREE_ALLOCATION, FAIR_VALUE, classification | 1610 / 1410 | 2400 Deferred income |
 | EUA_SURRENDER / _INVENTORY | HoldingChanged | SURRENDER, cost, classification | 2300 Emission provision | 1610 / 1410 |
 | EUA_SALE_COST / _INVENTORY, EUA_SALE_PROCEEDS | HoldingChanged | SALE, classification | 4010 / 1500 | 1610 or 1410 / 3010 |
+| EUA_CORRECTION_FOUND / _INVENTORY | HoldingChanged | CORRECTION up, statement price | 1610 / 1410 | 3920 Reconciliation differences found |
+| EUA_CORRECTION_MISSING / _INVENTORY | HoldingChanged | CORRECTION down, cost | 4920 Reconciliation differences missing | 1610 / 1410 |
 | TRADE_SALE_ / TRADE_PURCHASE_COMMITMENT_RELEASE | DeliveryRecorded | side, memo open | 9009 memo contra | 9000 / 9001 memo |
 | TRADE_SALE_ / TRADE_PURCHASE_COMMITMENT_REVERSAL | CommitmentReversed | side | 9009 memo contra | 9000 / 9001 memo |
 | INVOICE_RECEIVABLE | InvoiceIssued | RECEIVABLE | 1510 Invoiced receivables (gross) | 1500 (net), 2500 Output VAT |
@@ -36,7 +38,14 @@ Facts (`PostingFacts`): `amounts` (`cost`, `proceeds`, `notional`, `quantity`, s
 
 Costing: certificates use specific identification (lot cost basis). Allowances use cost layers per account and
 product consumed FIFO or weighted average per the entity's `allowanceCostingMethod`; nominal free allocation creates a
-zero-cost layer, fair-value free allocation a layer at the fair value supplied with the movement.
+zero-cost layer, fair-value free allocation a layer at the fair value supplied with the movement. A reconciliation
+correction moves the layers with the holding: units found add a layer at the statement's price (zero when none is
+given), units missing are consumed like a sale.
+
+Sale proceeds are the delivered unit price times the quantity: a fixed leg's price, or for an index leg the index
+fixing for the delivery date plus the leg's spread. Until the fixing exists the revenue is not posted; it is never
+posted at the spread. Realised FX lines carry the settled item's currency as the `revaluedCurrency` dimension, so the
+period end's FX revaluation counts them as booked.
 
 Period-end rules carry increase and decrease amounts (gain and loss for FX), so the same rule moves a balance up or
 down; see [ADR 0021](../adr/0021-period-end-accounting.md). They post through the adjustment path on the last day of

@@ -116,7 +116,8 @@ class SettlementPostings(private val ledger: LedgerService, private val referenc
                 description = "Realised FX on ${invoice.number} (${invoice.currency} ${amount.toPlainString()})",
                 amounts = mapOf((if (gain) "fxGain" else "fxLoss") to difference.abs()),
                 attributes = mapOf("direction" to invoice.direction.name),
-                dimensions = dimensions,
+                // The period end's FX revaluation counts these base-currency lines with the item they settled.
+                dimensions = dimensions + ("revaluedCurrency" to invoice.currency),
             ),
         )
     }
