@@ -133,6 +133,7 @@ class CommitmentMemosIT {
         Ids.newId(),
         mockk<DeliveryObligationView> {
             every { this@mockk.scheduleId } returns this@CommitmentMemosIT.scheduleId
+            every { legalEntityId } returns trade.legalEntityId
             every { tradeNumber } returns trade.tradeNumber
             every { counterpartyId } returns UUID.randomUUID()
             every { remainingQuantity } returns BigDecimal(remaining)

@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.ledger.application
 
 import com.pianonurmi.etrm.ledger.api.PostingFacts
+import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.trade.api.OptionExpired
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeCancelled
@@ -21,16 +22,20 @@ import java.util.UUID
  * cancellation reverses what was posted, and the premium is released to the realised result at expiry.
  */
 @Component
-class OptionPostings(private val ledger: LedgerService, private val trades: TradeQuery) {
+class OptionPostings(private val ledger: LedgerService, private val trades: TradeQuery, private val unposted: UnpostedEvents? = null) : PostingReplay {
     @EventListener
-    fun on(event: TradeConfirmed) {
+    fun on(event: TradeConfirmed) = guard(event, event.trade.legalEntityId) { handle(event) }
+
+    private fun handle(event: TradeConfirmed) {
         val trade = event.trade
         if (trade.legs.none { it.option != null }) return
         post(trade, event.eventId, premiums(trade) - premiums(confirmedBefore(trade)), "Option ${trade.tradeNumber} premium")
     }
 
     @EventListener
-    fun on(event: TradeCancelled) {
+    fun on(event: TradeCancelled) = guard(event, event.trade.legalEntityId) { handle(event) }
+
+    private fun handle(event: TradeCancelled) {
         val trade = event.trade
         if (trade.legs.none { it.option != null }) return
         val posted = premiums(confirmedBefore(trade))
@@ -38,7 +43,9 @@ class OptionPostings(private val ledger: LedgerService, private val trades: Trad
     }
 
     @EventListener
-    fun on(event: OptionExpired) {
+    fun on(event: OptionExpired) = guard(event, event.trade.legalEntityId) { handle(event) }
+
+    private fun handle(event: OptionExpired) {
         val trade = event.trade
         val leg = trade.legs.first { it.legNo == event.legNo }
         val amount = premium(leg)
@@ -113,6 +120,20 @@ class OptionPostings(private val ledger: LedgerService, private val trades: Trad
         "book" to trade.bookId.toString(),
         "counterparty" to trade.counterpartyId.toString(),
     )
+
+    override fun replay(event: DomainEvent): Boolean {
+        when (event) {
+            is TradeConfirmed -> on(event)
+            is TradeCancelled -> on(event)
+            is OptionExpired -> on(event)
+            else -> return false
+        }
+        return true
+    }
+
+    private fun guard(event: DomainEvent, legalEntityId: UUID?, body: () -> Unit) {
+        unposted?.guard(event, legalEntityId, body = body) ?: body()
+    }
 
     companion object {
         const val PREMIUM_EVENT = "OptionPremium"
