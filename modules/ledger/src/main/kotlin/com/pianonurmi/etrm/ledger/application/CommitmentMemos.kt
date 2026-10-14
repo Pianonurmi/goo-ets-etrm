@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.ledger.domain.CommitmentMemoRepository
 import com.pianonurmi.etrm.ledger.domain.MemoMovementKind
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
+import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.trade.api.DeliveryRecorded
@@ -38,9 +39,12 @@ class CommitmentMemos(
     private val curves: CurveQuery,
     private val fxRates: FxRates,
     private val clock: Clock,
-) {
+    private val unposted: UnpostedEvents? = null,
+) : PostingReplay {
     @EventListener
-    fun on(event: TradeConfirmed) {
+    fun on(event: TradeConfirmed) = guard(event, event.trade.legalEntityId) { handle(event) }
+
+    private fun handle(event: TradeConfirmed) {
         val trade = event.trade
         trade.legs.filter { it.priceType == PriceType.FIXED || it.priceType == PriceType.INDEX }.forEach { leg ->
             val created = leg.deliveries.filter { it.remainingQuantity.signum() > 0 }.mapNotNull { schedule ->
@@ -92,7 +96,9 @@ class CommitmentMemos(
 
     /** A delivery releases its share of the schedule's memo; the delivery completing the schedule releases the rest. */
     @EventListener
-    fun on(event: DeliveryRecorded) {
+    fun on(event: DeliveryRecorded) = guard(event, event.obligation.legalEntityId) { handle(event) }
+
+    private fun handle(event: DeliveryRecorded) {
         val o = event.obligation
         memos.openForSchedule(o.scheduleId).forEach { memo ->
             val share = if (o.remainingQuantity.signum() <= 0) {
@@ -120,10 +126,14 @@ class CommitmentMemos(
     }
 
     @EventListener
-    fun on(event: TradeAmended) = reverseOpen(event.trade, event.eventId, "amended to version ${event.trade.version}")
+    fun on(event: TradeAmended) = guard(event, event.trade.legalEntityId) { handle(event) }
+
+    private fun handle(event: TradeAmended) = reverseOpen(event.trade, event.eventId, "amended to version ${event.trade.version}")
 
     @EventListener
-    fun on(event: TradeCancelled) = reverseOpen(event.trade, event.eventId, "cancelled: ${event.reason}")
+    fun on(event: TradeCancelled) = guard(event, event.trade.legalEntityId) { handle(event) }
+
+    private fun handle(event: TradeCancelled) = reverseOpen(event.trade, event.eventId, "cancelled: ${event.reason}")
 
     private fun reverseOpen(trade: TradeView, eventId: UUID, why: String) {
         memos.openForTrade(trade.id)
@@ -154,4 +164,19 @@ class CommitmentMemos(
         "book" to trade.bookId.toString(),
         "counterparty" to trade.counterpartyId.toString(),
     )
+
+    override fun replay(event: DomainEvent): Boolean {
+        when (event) {
+            is TradeConfirmed -> on(event)
+            is DeliveryRecorded -> on(event)
+            is TradeAmended -> on(event)
+            is TradeCancelled -> on(event)
+            else -> return false
+        }
+        return true
+    }
+
+    private fun guard(event: DomainEvent, legalEntityId: UUID?, body: () -> Unit) {
+        unposted?.guard(event, legalEntityId, body = body) ?: body()
+    }
 }

@@ -5,11 +5,13 @@ import com.pianonurmi.etrm.clearing.api.MarginCallClosed
 import com.pianonurmi.etrm.clearing.api.MarginCallStatus
 import com.pianonurmi.etrm.clearing.api.VariationMarginComputed
 import com.pianonurmi.etrm.ledger.api.PostingFacts
+import com.pianonurmi.etrm.platform.events.DomainEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.UUID
 
 /**
  * Cleared futures in the books (ADR 0046): the variation margin of a day is a realised result, paid to or from the
@@ -17,9 +19,11 @@ import java.time.ZoneOffset
  * The member's statements move initial margin and charge fees.
  */
 @Component
-class ClearingPostings(private val ledger: LedgerService) {
+class ClearingPostings(private val ledger: LedgerService, private val unposted: UnpostedEvents? = null) : PostingReplay {
     @EventListener
-    fun on(event: VariationMarginComputed) {
+    fun on(event: VariationMarginComputed) = guard(event, event.run.legalEntityId) { handle(event) }
+
+    private fun handle(event: VariationMarginComputed) {
         val run = event.run
         val change = run.variationMargin - event.previous
         if (change.signum() == 0) return
@@ -41,7 +45,9 @@ class ClearingPostings(private val ledger: LedgerService) {
 
     /** Initial margin moves cash at the member into margin posted (and back); fees are charged against that cash. */
     @EventListener
-    fun on(event: ClearingStatementImported) {
+    fun on(event: ClearingStatementImported) = guard(event, event.statement.legalEntityId) { handle(event) }
+
+    private fun handle(event: ClearingStatementImported) {
         val statement = event.statement
         if (event.initialMarginChange.signum() == 0 && event.feesChange.signum() == 0) return
         ledger.post(
@@ -67,7 +73,9 @@ class ClearingPostings(private val ledger: LedgerService) {
 
     /** A paid margin call moves cash from the bank to the clearing member. */
     @EventListener
-    fun on(event: MarginCallClosed) {
+    fun on(event: MarginCallClosed) = guard(event, event.call.legalEntityId) { handle(event) }
+
+    private fun handle(event: MarginCallClosed) {
         val call = event.call
         if (call.status != MarginCallStatus.PAID) return
         ledger.post(
@@ -84,6 +92,20 @@ class ClearingPostings(private val ledger: LedgerService) {
                 dimensions = mapOf("clearingAccount" to call.accountId.toString()),
             ),
         )
+    }
+
+    override fun replay(event: DomainEvent): Boolean {
+        when (event) {
+            is VariationMarginComputed -> on(event)
+            is ClearingStatementImported -> on(event)
+            is MarginCallClosed -> on(event)
+            else -> return false
+        }
+        return true
+    }
+
+    private fun guard(event: DomainEvent, legalEntityId: UUID?, body: () -> Unit) {
+        unposted?.guard(event, legalEntityId, body = body) ?: body()
     }
 
     companion object {
