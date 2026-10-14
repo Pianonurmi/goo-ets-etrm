@@ -4,12 +4,12 @@ import com.pianonurmi.etrm.inventory.api.AcquisitionSource
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.CancellationPurpose
 import com.pianonurmi.etrm.inventory.api.CertificateRange
-import com.pianonurmi.etrm.inventory.api.EnergyCarrier
 import com.pianonurmi.etrm.inventory.api.LotReceived
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.product.api.EnergyCarrier
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
 import com.pianonurmi.etrm.registry.api.InstructionStatus
