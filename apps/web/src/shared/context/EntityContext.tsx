@@ -2,6 +2,7 @@ import { createContext, use, useMemo, useState, type ReactNode } from 'react';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { useSession } from '@/shared/auth/SessionContext';
+import { setDisplayTimeZone } from '@/shared/format/format';
 
 export type LegalEntity = Schema<'LegalEntityView'>;
 
@@ -47,6 +48,10 @@ export function EntityProvider({ children }: { children: ReactNode }) {
       },
     };
   }, [data, me, selected]);
+
+  // Instants are shown in the selected entity's zone. Set during render, so the children below already read it;
+  // setting the same value again is harmless.
+  setDisplayTimeZone(value.entity?.timeZone);
 
   return <EntityContext value={value}>{children}</EntityContext>;
 }

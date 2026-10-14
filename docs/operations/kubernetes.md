@@ -26,9 +26,17 @@ Access tokens must carry `oidc.audience` in their `aud` claim; configure an audi
 application ID URI (Entra ID) for the clients that call the API. The chart deploys its `appVersion` image unless `image.tag` says otherwise; pin a release, and see
 [releases](releases.md) for the image tags and upgrades.
 
-Flyway migrates at start-up. Each module's migrations run under PostgreSQL's advisory lock, so when two replicas start
-together the second one waits and then finds nothing to do. A rolling update keeps every old pod serving
-(`maxUnavailable: 0`) until a new one is ready.
+### Migrations and upgrades
+
+Migrations run in a Job before the install or upgrade (`migrations.job`, a `pre-install,pre-upgrade` hook): the image
+with `--migrate-only`, as the schema owner, then the Job exits. The pods start with `ETRM_MIGRATIONS_ENABLED=false`.
+A failed migration fails `helm upgrade` before any new pod starts, and the running version keeps serving; the Job's
+log says why (`kubectl logs job/<release>-etrm-migrate`, kept until the next attempt).
+
+While the new pods roll out (`maxUnavailable: 0`), pods of the previous version serve on the migrated schema. That is
+safe because migrations only expand the schema ([ADR 0048](../adr/0048-expand-contract-migrations.md)),
+and CI starts the previous release on each build's schema to prove it (`ops/release/compat-check.sh`). With
+`migrations.job: false` the pods migrate at start-up as before (Flyway's per-schema lock lets one replica do it).
 
 ## What the chart sets
 
@@ -36,14 +44,36 @@ together the second one waits and then finds nothing to do. A rolling update kee
 |---|---|
 | Profiles | `kubernetes,json`: actuator on the management port (9090), readiness without the database (an outage answers 503 problems instead of emptying the service), ECS JSON logs, forwarded headers from the ingress |
 | Probes | startup and liveness on `/actuator/health/liveness`, readiness on `/actuator/health/readiness`, all on the management port with a 3 s timeout |
-| Shutdown | `preStop` sleep of 10 s so the endpoints drop the pod first; 30 s per shutdown phase in the application; 60 s grace period |
-| Security | non-root user 10001 (numeric in the image), read-only root file system with `emptyDir` for `/tmp`, all capabilities dropped, `RuntimeDefault` seccomp, no service account token. `/tmp` must allow exec: the exact allocation solver unpacks its native library there. An `emptyDir` does, and otherwise exact allocation falls back to greedy and says so. |
+| Shutdown | `preStop` sleep of 10 s so the endpoints drop the pod first; requests in flight and a running scheduled job get 30 s to finish; 60 s grace period |
+| Security | non-root user 10001 (numeric in the image), read-only root file system with `emptyDir` for `/tmp`, all capabilities dropped, `RuntimeDefault` seccomp, no service account token. `/tmp` must allow exec: the exact allocation solver unpacks its native library (about 70 MB) there at every container start. An `emptyDir` does, and otherwise exact allocation falls back to greedy and says so; `tmpSizeLimit` (512 MiB) bounds it. |
 | Secrets | database URL and credentials from `database.existingSecret` (default `etrm-db-app` from CloudNativePG); nothing secret in values |
-| Scaling | HPA on CPU (2–6 replicas); scheduled jobs run once across replicas through ShedLock; PDB keeps one pod during node drains; pods spread across zones and nodes |
-| Network | ingress routes only the HTTP port. The network policy admits the ingress controller's namespace to HTTP and the monitoring namespace to the management port. |
+| Scaling | HPA on CPU (2–6 replicas); scheduled jobs run once across replicas through ShedLock; the PDB lets node drains take one pod at a time; pods spread across zones and nodes |
+| Network | ingress routes only the HTTP port. The network policy admits the ingress controller's namespace to HTTP and the monitoring namespace to the management port. With `networkPolicy.egress` (a list of egress rules) outbound traffic is limited to DNS and those destinations: the database, the identity provider, the registries, Kafka, the collector, and the ECB when it is on. |
 | Metrics | Prometheus annotations on the pod, or a `ServiceMonitor` when `serviceMonitor.enabled` |
 | Registry files | the FILE channel writes to `/var/lib/etrm/registry-outbox`: an `emptyDir` by default, or a claim with `registryOutbox.persistence` (ReadWriteMany when there is more than one replica) |
-| Optional | Kafka (`kafka.enabled`, `kafka.bootstrapServers`, `kafka.topicReplicas`), OTLP traces (`tracing.otlpEndpoint`), extra environment (`extraEnv`) |
+| Optional | Kafka (`kafka.enabled`, `kafka.bootstrapServers`, `kafka.topicReplicas`; `kafka.createTopics` off by default, topics are provisioned by the platform; `kafka.securityProtocol`, `kafka.saslMechanism` and `kafka.jaasSecret` for SASL), ECB rates (`ecb.enabled`), OTLP traces (`tracing.otlpEndpoint`), further settings (`config`, see below), extra environment (`extraEnv`) |
+
+### Registry adapters and other settings
+
+`config` is written to a config map and read as `/etc/etrm/application.yml`; pods restart when it changes. Secrets
+never go there: put them in a Secret, pass them with `extraEnv`, and name the variable in the setting.
+
+```yaml
+config:
+  etrm:
+    registry:
+      adapters:
+        FINGRID:
+          enabled: true
+          base-url: https://registry.example/api
+          client-id: etrm
+          token-url: https://registry.example/oauth/token
+          credential-env: ETRM_REGISTRY_FINGRID_SECRET
+extraEnv:
+  - name: ETRM_REGISTRY_FINGRID_SECRET
+    valueFrom:
+      secretKeyRef: {name: etrm-registry-fingrid, key: client-secret}
+```
 
 ## PostgreSQL
 
@@ -53,7 +83,7 @@ together the second one waits and then finds nothing to do. A rolling update kee
   - WAL is archived continuously and a base backup runs every night to object storage, kept for 35 days.
   - Point-in-time recovery is a new `Cluster` bootstrapped with `recovery` from that store (see the DR runbook).
 - **Connections:** the application connects through `etrm-db-rw`. Each replica's Hikari pool is 20 connections, so six replicas (120) stay under `max_connections` (200).
-- **Schemas:** the application user owns the database and creates the `etrm_<module>` schemas through Flyway.
+- **Schemas:** the owner `etrm` creates the `etrm_<module>` schemas through Flyway (in the migrations Job); requests run as `etrm_app` with table rights only ([database](database.md#roles-schema-owner-and-runtime-role)).
 
 ## Not covered by the chart
 

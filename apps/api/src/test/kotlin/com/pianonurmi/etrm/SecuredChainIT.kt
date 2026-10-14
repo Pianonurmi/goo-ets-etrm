@@ -59,6 +59,14 @@ class SecuredChainIT {
         val shell = client.get().uri("/inbox").retrieve().toEntity(String::class.java)
         shell.statusCode.value() shouldBe 200
         shell.headers.getFirst("Content-Security-Policy")!! shouldContain "connect-src 'self' https://login.example.test"
+        shell.headers.getFirst("Content-Security-Policy")!! shouldContain "frame-ancestors 'none'"
+        shell.headers.getFirst("X-Frame-Options") shouldBe "DENY"
+
+        // The silent-renew page runs in a frame of the application itself, and only there (review finding W1).
+        val silent = client.get().uri("/auth/silent").retrieve().toEntity(String::class.java)
+        silent.statusCode.value() shouldBe 200
+        silent.headers.getFirst("Content-Security-Policy")!! shouldContain "frame-ancestors 'self'"
+        silent.headers.getFirst("X-Frame-Options") shouldBe "SAMEORIGIN"
 
         val config = client.get().uri("/api/v1/ui-config").retrieve().body(Map::class.java)!!
         config["authMode"] shouldBe "OIDC"

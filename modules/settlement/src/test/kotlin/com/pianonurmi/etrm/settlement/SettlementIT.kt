@@ -5,10 +5,23 @@ import com.pianonurmi.etrm.clearing.api.FinalSettlement
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqFxRateRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqImportRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqInstrumentRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqPriceIndexRepository
+import com.pianonurmi.etrm.marketdata.adapter.jooq.JooqQuoteRepository
+import com.pianonurmi.etrm.marketdata.api.CreateInstrument
+import com.pianonurmi.etrm.marketdata.api.CreatePriceIndex
+import com.pianonurmi.etrm.marketdata.api.FixingRule
 import com.pianonurmi.etrm.marketdata.api.FixingView
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
+import com.pianonurmi.etrm.marketdata.api.InstrumentKind
+import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.marketdata.api.QuotesImported
+import com.pianonurmi.etrm.marketdata.api.RecordQuote
+import com.pianonurmi.etrm.marketdata.application.MarketDataService
+import com.pianonurmi.etrm.marketdata.application.MarketDataSettings
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -19,13 +32,17 @@ import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
+import com.pianonurmi.etrm.product.adapter.jooq.JooqFuturesContractRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
 import com.pianonurmi.etrm.product.api.InstrumentType
+import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.application.CriteriaServiceImpl
+import com.pianonurmi.etrm.product.application.FuturesContractService
 import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
@@ -140,7 +157,7 @@ class SettlementIT {
     @BeforeAll
     @Suppress("LongMethod") // wires the module graph by hand
     fun setUp() {
-        TestDatabase.migrate("taxonomy", "referencedata", "product", "trade", "document", "settlement")
+        TestDatabase.migrate("taxonomy", "referencedata", "product", "marketdata", "trade", "document", "settlement")
         val dsl = TestDatabase.dsl
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
@@ -178,6 +195,7 @@ class SettlementIT {
                 ->
                 fixings[code to date]
             },
+            Savepoints.NONE,
         )
         numbers = JooqNumberSeriesRepository(dsl)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
@@ -236,6 +254,7 @@ class SettlementIT {
         price: String = "2.00",
         priceType: PriceType = PriceType.FIXED,
         deliveredOn: LocalDate = LocalDate.of(2026, 10, 5),
+        priceIndex: String = "NORDIC-HYDRO-2026",
     ): SettlementItemView {
         user = "trader"
         val trade = trades.capture(
@@ -254,7 +273,7 @@ class SettlementIT {
                         unit = QuantityUnit.MWH,
                         price = BigDecimal(price),
                         priceType = priceType,
-                        priceIndex = if (priceType == PriceType.FIXED) null else "NORDIC-HYDRO-2026",
+                        priceIndex = if (priceType == PriceType.FIXED) null else priceIndex,
                         deliveries = listOf(CaptureDelivery(LocalDateRange.ofMonth(java.time.YearMonth.of(2026, 10)), deliveredOn, BigDecimal(quantity))),
                     ),
                 ),
@@ -398,8 +417,19 @@ class SettlementIT {
             every { finalSettlement(any()) } returns null
             every { finalSettlement(trade.id) } answers { FinalSettlement("EUAZ26", LocalDate.of(2026, 10, 2), published, "EUR") }
         }
-        val futures =
-            SettlementItemService(JooqSettlementItemRepository(TestDatabase.dsl), vat, referenceData, parties, actor, bus, trades, { _, _ -> null }, clearing)
+        val noFixings = IndexFixings { _, _ -> null }
+        val futures = SettlementItemService(
+            JooqSettlementItemRepository(TestDatabase.dsl),
+            vat,
+            referenceData,
+            parties,
+            actor,
+            bus,
+            trades,
+            noFixings,
+            Savepoints.NONE,
+            clearing,
+        )
         val obligation = trades.obligation(trade.legs.single().deliveries.single().id)!!
         futures.on(DeliveryRecorded(trade, UUID.randomUUID(), obligation, BigDecimal(1000), LocalDate.of(2026, 10, 5), "TX-FUT"))
         val parked = futures.items(SettlementItemFilter(tradeId = trade.id)).single()
@@ -480,11 +510,40 @@ class SettlementIT {
         val buyer = referenceData.createCounterparty(
             CreateCounterparty(code, "$code Oy", "FI", vatNumber = "FI87654321", paymentTermsDays = 14, nettingAgreed = netting),
         ).id
+        return issuedSaleTo(buyer, quantity, price)
+    }
+
+    /** Delivers a sale to the counterparty and issues its invoice (the counterparty has no other open delivery). */
+    private fun issuedSaleTo(buyer: UUID, quantity: Long = 1_000, price: String = "2.00"): InvoiceView {
         delivered(buyer, quantity = quantity, price = price)
         user = "billing"
         val draft = invoices.run(InvoiceRun(entity, LocalDate.of(2026, 10, 31), buyer)).single()
         invoices.submit(draft.id)
         return invoices.approve(draft.id, "controller")
+    }
+
+    /** Pays the invoice in full by an incoming payment that names it. */
+    private fun pay(invoice: InvoiceView, reference: String) {
+        user = "billing"
+        payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                invoice.grossTotal,
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                reference,
+                invoiceIds = listOf(invoice.id),
+            ),
+        )
+        invoices.invoice(invoice.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+    }
+
+    private fun issuedCreditNote(original: InvoiceView): InvoiceView {
+        user = "billing"
+        val creditNote = invoices.creditNote(original.id, "price corrected")
+        invoices.submit(creditNote.id)
+        return invoices.approve(creditNote.id, "controller")
     }
 
     @Test
@@ -600,6 +659,222 @@ class SettlementIT {
         invoices.invoice(sale.id)!!.paymentStatus shouldBe PaymentStatus.PAID
         invoices.invoice(purchase.id)!!.paymentStatus shouldBe PaymentStatus.PAID
         payments.payment(net.id)!!.unappliedAmount.signum() shouldBe 0
+    }
+
+    @Test
+    fun `a credit note issued after full payment can be refunded, and only by a payment in the other direction`() {
+        val original = issuedSale("CN-REFUND-CP", quantity = 50)
+        pay(original, "BANK-CNR-1")
+        val creditNote = issuedCreditNote(original)
+        // The original was paid, so nothing of the credit note was used: 125.50 is owed to the customer.
+        invoices.invoice(creditNote.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.UNPAID
+            it.outstanding.compareTo(BigDecimal("-125.50")) shouldBe 0
+        }
+        shouldThrow<ValidationException> {
+            payments.record(
+                RecordPayment(
+                    entity,
+                    PaymentDirection.INCOMING,
+                    BigDecimal("125.50"),
+                    "EUR",
+                    LocalDate.of(2026, 10, 21),
+                    "BANK-CNR-2",
+                    invoiceIds = listOf(creditNote.id),
+                ),
+            )
+        }
+        val refund = payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.OUTGOING,
+                BigDecimal("125.50"),
+                "EUR",
+                LocalDate.of(2026, 10, 21),
+                "BANK-CNR-3",
+                invoiceIds = listOf(creditNote.id),
+            ),
+        )
+        refund.unappliedAmount.signum() shouldBe 0
+        invoices.invoice(creditNote.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.PAID
+            it.outstanding.signum() shouldBe 0
+        }
+        payments.allocations(creditNote.id).single().let {
+            it.kind shouldBe com.pianonurmi.etrm.settlement.api.AllocationKind.PAYMENT
+            it.amount.compareTo(BigDecimal("125.50")) shouldBe 0
+        }
+        // The original stays paid; nothing was applied to it twice.
+        invoices.invoice(original.id)!!.paidAmount.compareTo(original.grossTotal) shouldBe 0
+    }
+
+    @Test
+    fun `a credit note with a balance left is netted against an invoice of the counterparty`() {
+        val cp = referenceData.createCounterparty(
+            CreateCounterparty("NET-CN-CP", "Net Credit Oy", "FI", vatNumber = "FI87654321", paymentTermsDays = 14, nettingAgreed = true),
+        ).id
+        val paid = issuedSaleTo(cp, quantity = 50)
+        pay(paid, "BANK-NCN-1")
+        val open = issuedSaleTo(cp, quantity = 1_000)
+        val creditNote = issuedCreditNote(paid)
+
+        val statement = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        // We claim the open invoice (2510.00), the customer claims the credit note (125.50).
+        statement.receivableTotal.compareTo(BigDecimal("2510.00")) shouldBe 0
+        statement.payableTotal.compareTo(BigDecimal("125.50")) shouldBe 0
+        statement.netAmount.compareTo(BigDecimal("2384.50")) shouldBe 0
+        statement.invoices.keys shouldContain creditNote.id
+        user = "controller"
+        netting.agree(statement.id, "THEIR-OK-CN")
+        val net = payments.record(
+            RecordPayment(entity, PaymentDirection.INCOMING, BigDecimal("2384.50"), "EUR", LocalDate.of(2026, 11, 30), "BANK-NCN-2", counterpartyId = cp),
+        )
+        netting.settle(statement.id, net.id).status shouldBe NettingStatus.SETTLED
+        invoices.invoice(open.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+        invoices.invoice(creditNote.id)!!.let {
+            it.paymentStatus shouldBe PaymentStatus.PAID
+            it.outstanding.signum() shouldBe 0
+        }
+        payments.allocations(creditNote.id).single().kind shouldBe com.pianonurmi.etrm.settlement.api.AllocationKind.NETTING
+        payments.payment(net.id)!!.unappliedAmount.signum() shouldBe 0
+    }
+
+    private fun nettingFixture(code: String): Pair<InvoiceView, UUID> {
+        val sale = issuedSale(code, quantity = 1_000, price = "2.00", netting = true)
+        val cp = sale.counterpartyId
+        delivered(cp, side = Side.BUY, quantity = 300, price = "1.10")
+        user = "billing"
+        val purchase = invoices.registerPurchaseInvoice(
+            RegisterPurchaseInvoice(entity, cp, "$code-SUP", LocalDate.of(2026, 10, 7), "EUR", BigDecimal("330.00"), BigDecimal("84.15")),
+        )
+        invoices.submit(purchase.id)
+        invoices.approve(purchase.id, "controller")
+        return sale to cp
+    }
+
+    @Test
+    fun `a statement is refused when a payment changed an invoice after it was prepared, at agreement and at settlement`() {
+        val (sale, cp) = nettingFixture("NET-STALE")
+        user = "billing"
+        val stale = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        // A partial payment is applied to the sale between preparation and agreement.
+        payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                BigDecimal("500.00"),
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                "BANK-ST-1",
+                invoiceIds = listOf(sale.id),
+            ),
+        )
+        user = "controller"
+        shouldThrow<ValidationException> { netting.agree(stale.id, "THEIR-OK") }.message shouldContain sale.number!!
+        user = "billing"
+        netting.cancel(stale.id, "invoice paid in part")
+
+        // A new statement is agreed, and then another payment arrives before it is settled.
+        val fresh = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        fresh.receivableTotal.compareTo(BigDecimal("2010.00")) shouldBe 0
+        user = "controller"
+        netting.agree(fresh.id, "THEIR-OK").status shouldBe NettingStatus.AGREED
+        user = "billing"
+        val net = payments.record(
+            RecordPayment(entity, PaymentDirection.INCOMING, BigDecimal("1595.85"), "EUR", LocalDate.of(2026, 11, 30), "BANK-ST-2", counterpartyId = cp),
+        )
+        payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                BigDecimal("100.00"),
+                "EUR",
+                LocalDate.of(2026, 10, 21),
+                "BANK-ST-3",
+                invoiceIds = listOf(sale.id),
+            ),
+        )
+        shouldThrow<ValidationException> { netting.settle(fresh.id, net.id) }.message shouldContain sale.number
+        netting.statement(fresh.id)!!.status shouldBe NettingStatus.AGREED
+    }
+
+    @Test
+    fun `a remittance names an invoice only by its whole number, not by a longer number that contains it`() {
+        val invoice = issuedSale("TOKEN-CP", quantity = 100)
+        user = "billing"
+        // The number followed by one more digit, or preceded by a letter, is another reference.
+        listOf("Payment for ${invoice.number}3", "ref X${invoice.number}").forEachIndexed { i, text ->
+            val unmatched = payments.record(
+                RecordPayment(entity, PaymentDirection.INCOMING, invoice.grossTotal, "EUR", LocalDate.of(2026, 10, 20), "BANK-TOK-$i", remittanceInfo = text),
+            )
+            unmatched.unappliedAmount.compareTo(invoice.grossTotal) shouldBe 0
+            invoices.invoice(invoice.id)!!.paidAmount.signum() shouldBe 0
+        }
+        // The number between other words and punctuation is the same reference.
+        val matched = payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                invoice.grossTotal,
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                "BANK-TOK-9",
+                remittanceInfo = "Invoice (${invoice.number}), thanks",
+            ),
+        )
+        matched.unappliedAmount.signum() shouldBe 0
+        invoices.invoice(invoice.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+    }
+
+    @Test
+    fun `a month average does not price a delivery before the month has ended`() {
+        val dsl = TestDatabase.dsl
+        val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
+        var marketNow = Instant.parse("2026-10-09T10:00:00Z")
+        val marketClock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+
+            override fun withZone(zone: java.time.ZoneId?) = this
+
+            override fun instant() = marketNow
+        }
+        val marketData = MarketDataService(
+            JooqInstrumentRepository(dsl),
+            JooqQuoteRepository(dsl),
+            JooqFxRateRepository(dsl),
+            JooqImportRepository(dsl),
+            JooqPriceIndexRepository(dsl),
+            catalogue,
+            FuturesContractService(JooqFuturesContractRepository(dsl), catalogue, actor),
+            mockk<ProductBucketQuery>(),
+            MarketDataSettings(maxMovePct = BigDecimal(20)),
+            actor,
+            bus,
+            marketClock,
+        )
+        user = "middle"
+        marketData.createInstrument(CreateInstrument("SETT_EUA_IDX", InstrumentKind.EUA_SPOT, "EUA spot for settlement", allowanceProductCode = "EUA"))
+        marketData.createIndex(CreatePriceIndex("SETT_AVG", "Monthly average", "SETT_EUA_IDX", QuoteType.CLOSE, FixingRule.MONTH_AVERAGE))
+        listOf(1 to "70.00", 2 to "72.00").forEach { (d, p) ->
+            marketData.recordQuote(RecordQuote("SETT_EUA_IDX", LocalDate.of(2026, 10, d), QuoteType.CLOSE, BigDecimal(p)))
+        }
+        val priced = SettlementItemService(JooqSettlementItemRepository(dsl), vat, referenceData, parties, actor, bus, trades, marketData, Savepoints.NONE)
+
+        val item = delivered(domestic, priceType = PriceType.INDEX, price = "0.10", priceIndex = "SETT_AVG")
+        item.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
+        // Two days of October are known on 9 October: that is a partial average, so the item stays unpriced.
+        priced.reevaluate(item.id).let {
+            it.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
+            it.unitPrice shouldBe null
+            it.problem!! shouldStartWith "The price of trade"
+        }
+        // Once October has ended the average is final and prices the item (71.00 + 0.10 spread).
+        marketNow = Instant.parse("2026-11-02T10:00:00Z")
+        priced.on(QuotesImported(UUID.randomUUID(), "TEST", 1, setOf(LocalDate.of(2026, 10, 30))))
+        priced.item(item.id)!!.let {
+            it.status shouldBe SettlementItemStatus.OPEN
+            it.unitPrice!!.compareTo(BigDecimal("71.10")) shouldBe 0
+        }
     }
 
     @Test

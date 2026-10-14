@@ -25,7 +25,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @ConfigurationProperties(prefix = "etrm.registry")
 data class RegistryAdapterProperties(val adapters: Map<String, AdapterSettings> = emptyMap()) {
-    fun settings(registryCode: String): AdapterSettings? = adapters[registryCode.uppercase()]
+    /** By registry code in any case: keys from environment variables arrive in lower case. */
+    fun settings(registryCode: String): AdapterSettings? =
+        adapters[registryCode.uppercase()] ?: adapters.entries.firstOrNull { it.key.equals(registryCode, ignoreCase = true) }?.value
 }
 
 data class AdapterSettings(

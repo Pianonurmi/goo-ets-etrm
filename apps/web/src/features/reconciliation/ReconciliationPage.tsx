@@ -35,6 +35,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useRegistries } from '@/features/registry/TransferModal';
+import { LimitNotice } from '@/shared/components/LimitNotice';
 import {
   BREAK_TYPES,
   CLOSED_STATUSES,
@@ -76,6 +77,9 @@ export function BreakStatusBadge({ status, testId }: { status: BreakStatus; test
 }
 
 const AGEING = ['upToOneDay', 'upToOneWeek', 'upToOneMonth', 'older'] as const;
+
+/** Statements asked for (the API's default size); a full answer is probably cut off. */
+const STATEMENT_LIMIT = 100;
 
 /** Open breaks of the entity by how long the registry has shown the difference. */
 function BreakAgeing({ entityId }: { entityId: string }) {
@@ -398,7 +402,7 @@ function StatementsTab({ entityId }: { entityId: string }) {
   const statements = $api.useQuery(
     'get',
     '/api/v1/inventory/statements',
-    { params: { query: { registryAccountId: accountId ?? '' } } },
+    { params: { query: { registryAccountId: accountId ?? '', limit: STATEMENT_LIMIT } } },
     { enabled: Boolean(accountId) },
   );
   const columns = useMemo<ColDef<Statement>[]>(
@@ -470,6 +474,7 @@ function StatementsTab({ entityId }: { entityId: string }) {
         </Group>
       </Group>
       <QueryState isPending={statements.isPending && Boolean(accountId)} error={statements.error}>
+        <LimitNotice shown={statements.data?.length ?? 0} limit={STATEMENT_LIMIT} />
         <DataGrid<Statement>
           rowData={statements.data ?? []}
           columnDefs={columns}

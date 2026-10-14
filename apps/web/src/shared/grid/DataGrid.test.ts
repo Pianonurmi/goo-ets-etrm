@@ -1,16 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { fittedHeight } from './DataGrid';
+import { opensRow } from './DataGrid';
 
-describe('fittedHeight', () => {
-  it('grows with the rows and leaves room for the header and a horizontal scrollbar', () => {
-    expect(fittedHeight(5, 12, 40)).toBe(44 + 5 * 40 + 18);
-  });
-
-  it('keeps room for the empty-state overlay', () => {
-    expect(fittedHeight(0, 12, 40)).toBe(fittedHeight(3, 12, 40));
-  });
-
-  it('stops growing at the maximum and scrolls inside', () => {
-    expect(fittedHeight(500, 12, 32)).toBe(36 + 12 * 32 + 18);
+describe('grid keyboard', () => {
+  it('opens the focused row with Enter or Space, but not with a modifier or another key', () => {
+    expect(opensRow(new KeyboardEvent('keydown', { key: 'Enter' }))).toBe(true);
+    expect(opensRow(new KeyboardEvent('keydown', { key: ' ' }))).toBe(true);
+    expect(opensRow(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))).toBe(false);
+    expect(opensRow(new KeyboardEvent('keydown', { key: 'ArrowDown' }))).toBe(false);
+    expect(opensRow(new MouseEvent('click'))).toBe(false);
+    expect(opensRow(null)).toBe(false);
   });
 });

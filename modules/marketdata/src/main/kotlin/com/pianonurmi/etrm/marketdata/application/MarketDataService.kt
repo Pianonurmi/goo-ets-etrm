@@ -399,6 +399,8 @@ class MarketDataService(
                 ?.let { FixingView(index.code, fixingDate, it.value, currency, listOf(it.id)) }
             FixingRule.MONTH_AVERAGE -> {
                 val month = java.time.YearMonth.from(fixingDate)
+                // The average of a month still running is a partial one: there is no fixing before the month has ended.
+                if (!month.atEndOfMonth().isBefore(LocalDate.now(clock))) return null
                 val inMonth = quotes.quotes(index.instrumentCode, month.atDay(1), month.atEndOfMonth(), null)
                     .filter { it.quoteType == index.quoteType && it.quality.usable }
                     .groupBy { it.quoteDate }

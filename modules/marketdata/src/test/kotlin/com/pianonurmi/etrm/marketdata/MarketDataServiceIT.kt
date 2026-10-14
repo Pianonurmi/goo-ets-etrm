@@ -178,6 +178,24 @@ class MarketDataServiceIT {
     }
 
     @Test
+    fun `a month average is a fixing only once the month has ended`() {
+        service.createInstrument(CreateInstrument("EUA_SPOT_AVG", InstrumentKind.EUA_SPOT, "EUA spot for averages", allowanceProductCode = "EUA"))
+        service.createIndex(CreatePriceIndex("EUA_AVG", "EUA spot monthly average", "EUA_SPOT_AVG", QuoteType.CLOSE, FixingRule.MONTH_AVERAGE))
+        listOf(1 to "70.00", 2 to "72.00").forEach { (d, p) ->
+            service.recordQuote(RecordQuote("EUA_SPOT_AVG", LocalDate.of(2026, 10, d), QuoteType.CLOSE, BigDecimal(p)))
+        }
+        // 10 October: the month is running, so the two quotes so far are a partial average and not a fixing.
+        service.fixing("EUA_AVG", LocalDate.of(2026, 10, 9)) shouldBe null
+        val before = now
+        now = Instant.parse("2026-11-01T08:00:00Z")
+        try {
+            service.fixing("EUA_AVG", LocalDate.of(2026, 10, 9))!!.value shouldBe BigDecimal("71.000000")
+        } finally {
+            now = before
+        }
+    }
+
+    @Test
     fun `market data changes need market data roles`() {
         user = Actor("trader", "Trader", setOf(Role.TRADER), allEntities = true)
         shouldThrow<ForbiddenException> { service.recordFxRate(RecordFxRate(day, "EUR", "HUF", BigDecimal("400"))) }

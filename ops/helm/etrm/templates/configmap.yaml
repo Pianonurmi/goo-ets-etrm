@@ -1,0 +1,12 @@
+{{- if .Values.config }}
+# Application settings beyond the chart's own values, read as /etc/etrm/application.yml (SPRING_CONFIG_ADDITIONAL_LOCATION).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "etrm.fullname" . }}
+  labels:
+    {{- include "etrm.labels" . | nindent 4 }}
+data:
+  application.yml: |
+    {{- toYaml .Values.config | nindent 4 }}
+{{- end }}

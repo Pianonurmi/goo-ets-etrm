@@ -29,7 +29,9 @@ Facts (`PostingFacts`): `amounts` (`cost`, `proceeds`, `notional`, `quantity`, s
 | PAYMENT_RECEIVED / PAYMENT_MADE | PaymentRecorded | INCOMING / OUTGOING | 1900 Bank / 1520 Payments made, unapplied | 2600 Receipts, unapplied / 1900 |
 | RECEIVABLE_PAID / PAYABLE_PAID | InvoiceSettled | PAYMENT | 2600 / 2210 | 1510 / 1520 |
 | RECEIVABLE_NETTED / PAYABLE_NETTED | InvoiceSettled | NETTING | 1950 Netting clearing / 2210 | 1510 / 1950 |
-| FX_GAIN_* / FX_LOSS_* | RealisedFx | direction | 1510 or 2210 / 4900 FX losses | 3900 FX gains / 1510 or 2210 |
+| RECEIVABLE_REFUNDED / PAYABLE_REFUNDED | InvoiceSettled | REFUND (payment on a credit note) | 1510 / 2600 | 1520 / 2210 |
+| RECEIVABLE_CREDIT_NETTED / PAYABLE_CREDIT_NETTED | InvoiceSettled | NETTING_CREDIT (netting on a credit note) | 1510 / 1950 | 1950 / 2210 |
+| FX_GAIN_* / FX_LOSS_* | RealisedFx (payments, netting, and credit notes against their original) | direction | 1510 or 2210 / 4900 FX losses | 3900 FX gains / 1510 or 2210 |
 | MTM_PL / MTM_OCI | PeriodEndMtm | treatment | 1800 derivative assets / 3500 or 2950 (losses: 4500 or 2950) | 3500 or 2950 / 2800 derivative liabilities |
 | NRV_GOO / NRV_ALLOWANCE | PeriodEndNrv | asset | 4310 NRV write-down | 1490 / 1491 valuation allowance |
 | EMISSION_PROVISION | PeriodEndProvision | | 4200 Emission costs | 2300 Emission provision |

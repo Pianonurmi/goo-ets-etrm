@@ -26,7 +26,12 @@ import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.header.writers.ContentSecurityPolicyHeaderWriter
+import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
+import org.springframework.security.web.header.writers.frameoptions.XFrameOptionsHeaderWriter
+import org.springframework.security.web.header.writers.frameoptions.XFrameOptionsHeaderWriter.XFrameOptionsMode
+import org.springframework.security.web.util.matcher.NegatedRequestMatcher
 import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.web.context.request.RequestContextHolder
 import java.util.UUID
@@ -130,7 +135,7 @@ class SecurityConfiguration {
          * Content security policy for the UI: own scripts only, inline styles (Mantine injects them), and the identity
          * provider for token calls and the silent-renew frame.
          */
-        fun contentSecurityPolicy(ui: UiProperties): String {
+        fun contentSecurityPolicy(ui: UiProperties, frameAncestors: String = "'none'"): String {
             val idp = if (ui.authMode == UiProperties.AuthMode.OIDC) " " + ui.oidc.origin() else ""
             return listOf(
                 "default-src 'self'",
@@ -140,17 +145,31 @@ class SecurityConfiguration {
                 "font-src 'self' data:",
                 "connect-src 'self'$idp",
                 "frame-src 'self'$idp",
-                "frame-ancestors 'none'",
+                "frame-ancestors $frameAncestors",
                 "base-uri 'self'",
                 "form-action 'self'$idp",
                 "object-src 'none'",
             ).joinToString("; ")
         }
 
+        /** The page the identity provider redirects the silent-renew frame to (`oidc.ts`); the UI frames it itself. */
+        const val SILENT_RENEW_PATH = "/auth/silent"
+
+        /**
+         * Security headers for every response. No page may be framed, except the silent-renew page, which only the
+         * application's own pages may frame: the token renewal runs in that frame (ADR 0026).
+         */
         fun browserHeaders(headers: HeadersConfigurer<HttpSecurity>, ui: UiProperties) {
-            headers.contentSecurityPolicy { it.policyDirectives(contentSecurityPolicy(ui)) }
+            val silentRenew = RequestMatcher { request -> decodedPath(request) == SILENT_RENEW_PATH }
+            val elsewhere = NegatedRequestMatcher(silentRenew)
+            headers.frameOptions { it.disable() }
+            headers.addHeaderWriter(DelegatingRequestMatcherHeaderWriter(elsewhere, ContentSecurityPolicyHeaderWriter(contentSecurityPolicy(ui))))
+            headers.addHeaderWriter(
+                DelegatingRequestMatcherHeaderWriter(silentRenew, ContentSecurityPolicyHeaderWriter(contentSecurityPolicy(ui, "'self'"))),
+            )
+            headers.addHeaderWriter(DelegatingRequestMatcherHeaderWriter(elsewhere, XFrameOptionsHeaderWriter(XFrameOptionsMode.DENY)))
+            headers.addHeaderWriter(DelegatingRequestMatcherHeaderWriter(silentRenew, XFrameOptionsHeaderWriter(XFrameOptionsMode.SAMEORIGIN)))
             headers.referrerPolicy { it.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
-            headers.frameOptions { it.deny() }
         }
 
         fun rolesOf(jwt: Jwt, claim: String): Set<String> {

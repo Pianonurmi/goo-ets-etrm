@@ -1,5 +1,6 @@
 import {
   Alert,
+  Anchor,
   Button,
   Group,
   Modal,
@@ -14,7 +15,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
@@ -42,11 +43,24 @@ import {
   type TradeSummary,
 } from './model/hedge';
 
-/** Open trades of the entity and family, found with the blotter's search (`trade_search`). */
+/** Open trades of the entity and family, found with the blotter's search (`trade_search`), page by page. */
 function useOpenTrades(entityId: string, family: HedgeFamily) {
-  return $api.useQuery('get', '/api/v1/trades/search', {
-    params: { query: { legalEntityId: entityId, status: INSTRUMENT_STATUSES, productFamily: family, limit: 200 } },
-  });
+  const search = $api.useInfiniteQuery(
+    'get',
+    '/api/v1/trades/search',
+    {
+      params: {
+        query: { legalEntityId: entityId, status: INSTRUMENT_STATUSES, productFamily: family, limit: 200 },
+      },
+    },
+    {
+      initialPageParam: null as string | null,
+      getNextPageParam: (page) => page.nextCursor ?? undefined,
+      pageParamName: 'cursor',
+    },
+  );
+  const items = useMemo(() => search.data?.pages.flatMap((page) => page.items) ?? [], [search.data]);
+  return { search, items };
 }
 
 function tradeLabel(trade: TradeSummary): string {
@@ -80,8 +94,8 @@ export function HedgeDesignateModal({ entityId, onClose }: { entityId: string; o
       Object.fromEntries(Object.entries(validateHedge(values)).map(([field, key]) => [field, t(key)])),
   });
   const { direction, productFamily: family } = form.values;
-  const trades = useOpenTrades(entityId, family);
-  const candidates = eligibleTrades(trades.data?.items ?? [], direction, family, form.values.allowanceProductCode);
+  const { search: trades, items: openTrades } = useOpenTrades(entityId, family);
+  const candidates = eligibleTrades(openTrades, direction, family, form.values.allowanceProductCode);
   const side = instrumentSide(direction);
   const sideText = t(`hedges.sides.${side}`);
   const designate = $api.useMutation('post', '/api/v1/ledger/hedges', { meta: { notify: false } });
@@ -256,6 +270,18 @@ export function HedgeDesignateModal({ entityId, onClose }: { entityId: string; o
             clearable
             data-testid="hedge-instruments"
           />
+          {trades.hasNextPage && (
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              ta="left"
+              onClick={() => void trades.fetchNextPage()}
+              data-testid="hedge-more-trades"
+            >
+              {trades.isFetchingNextPage ? t('app.loading') : t('hedges.form.moreTrades')}
+            </Anchor>
+          )}
           {form.values.instruments.map((instrument, index) => {
             const trade = chosen.get(instrument.tradeId);
             return (

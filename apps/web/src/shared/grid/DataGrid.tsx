@@ -6,8 +6,11 @@ import {
   colorSchemeDark,
   colorSchemeLight,
   themeQuartz,
+  type CellKeyDownEvent,
   type ColDef,
+  type FullWidthCellKeyDownEvent,
   type GridOptions,
+  type RowClickedEvent,
 } from 'ag-grid-community';
 import { AgGridReact, type AgGridReactProps } from 'ag-grid-react';
 import { useMemo } from 'react';
@@ -69,7 +72,16 @@ export function fittedHeight(rows: number, maxRows: number, rowHeight: number): 
   return rowHeight + 4 + shown * rowHeight + 2 + 16;
 }
 
-/** AG Grid with the application's theme, defaults and empty state (ADR 0025). */
+/** Enter and Space open the focused row, as a click does (review finding W3). */
+export function opensRow(event: Event | null | undefined): boolean {
+  if (!(event instanceof KeyboardEvent) || event.altKey || event.ctrlKey || event.metaKey) return false;
+  return event.key === 'Enter' || event.key === ' ';
+}
+
+/**
+ * AG Grid with the application's theme, defaults and empty state (ADR 0025). A grid whose rows open on click opens
+ * them from the keyboard too, so a keyboard-only user can reach every detail page.
+ */
 export function DataGrid<Row>({ height, rowId, fitRows, defaultColDef: overrides, ...props }: DataGridProps<Row>) {
   const scheme = useComputedColorScheme('light');
   const density = useDensity();
@@ -78,6 +90,13 @@ export function DataGrid<Row>({ height, rowId, fitRows, defaultColDef: overrides
     () => (rowId ? (params) => rowId(params.data) : undefined),
     [rowId],
   );
+  const keyDown = (event: CellKeyDownEvent<Row> | FullWidthCellKeyDownEvent<Row>) => {
+    props.onCellKeyDown?.(event);
+    if (props.onRowClicked && opensRow(event.event)) {
+      event.event?.preventDefault();
+      props.onRowClicked({ ...event, type: 'rowClicked' } as RowClickedEvent<Row>);
+    }
+  };
   return (
     <div
       style={{
@@ -96,6 +115,7 @@ export function DataGrid<Row>({ height, rowId, fitRows, defaultColDef: overrides
         enableCellTextSelection
         ensureDomOrder
         {...props}
+        onCellKeyDown={keyDown}
       />
     </div>
   );
