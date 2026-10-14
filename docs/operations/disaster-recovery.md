@@ -85,6 +85,9 @@ The report (job summary and artifact) has the time of each step and how long the
 object store, which bounds the RPO. `archive_timeout` (5 minutes in `ops/k8s/postgres-cluster.yaml`) closes a WAL
 segment on a quiet database, so the RPO stays under 15 minutes without load.
 
+The cluster manifest and the drill use CloudNativePG's built-in Barman Cloud support, which CloudNativePG 1.29
+deprecates and removes in 1.31: move both to the Barman Cloud plugin before upgrading the operator past 1.30.
+
 ### After a recovery: what to reconcile
 
 A recovery to an earlier time loses what happened after it in this system, not outside. Per integration:

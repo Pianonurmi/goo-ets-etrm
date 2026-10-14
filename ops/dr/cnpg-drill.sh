@@ -26,24 +26,26 @@ kubectl create namespace "$ns"
 kubectl -n "$ns" apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: s3}
+metadata: {name: objectstore}
 spec:
-  selector: {matchLabels: {app: s3}}
+  selector: {matchLabels: {app: objectstore}}
   template:
-    metadata: {labels: {app: s3}}
+    metadata: {labels: {app: objectstore}}
     spec:
       containers:
-        - name: s3
+        - name: moto
           image: $s3_image
+          # Path-style requests to this host name; moto would otherwise read a bucket name from it.
+          env: [{name: MOTO_S3_CUSTOM_ENDPOINTS, value: "http://objectstore.$ns.svc:9000"}]
           command: [sh, -c, "pip install --no-cache-dir --quiet 'moto[server]>=5,<6' && exec moto_server -H 0.0.0.0 -p 9000"]
           ports: [{containerPort: 9000}]
           readinessProbe: {tcpSocket: {port: 9000}, periodSeconds: 2}
 ---
 apiVersion: v1
 kind: Service
-metadata: {name: s3}
+metadata: {name: objectstore}
 spec:
-  selector: {app: s3}
+  selector: {app: objectstore}
   ports: [{port: 9000}]
 ---
 apiVersion: v1
@@ -51,8 +53,8 @@ kind: Secret
 metadata: {name: drill-s3}
 stringData: {ACCESS_KEY_ID: $key, ACCESS_SECRET_KEY: $secret}
 EOF
-kubectl -n "$ns" rollout status deploy/s3 --timeout=300s
-kubectl -n "$ns" port-forward svc/s3 19000:9000 >/dev/null 2>&1 &
+kubectl -n "$ns" rollout status deploy/objectstore --timeout=300s
+kubectl -n "$ns" port-forward svc/objectstore 19000:9000 >/dev/null 2>&1 &
 forward=$!
 trap 'kill $forward 2>/dev/null || true' EXIT
 for _ in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:19000/ && break; sleep 1; done
@@ -62,7 +64,7 @@ step "Object store ready"
 store() {
   cat <<EOF
       destinationPath: s3://drill/
-      endpointURL: http://s3.$ns.svc:9000
+      endpointURL: http://objectstore.$ns.svc:9000
       s3Credentials:
         accessKeyId: {name: drill-s3, key: ACCESS_KEY_ID}
         secretAccessKey: {name: drill-s3, key: ACCESS_SECRET_KEY}
