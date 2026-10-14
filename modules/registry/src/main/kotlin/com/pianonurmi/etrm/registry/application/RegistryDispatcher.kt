@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.registry.application
 
 import com.pianonurmi.etrm.inventory.api.BreakAgeing
 import com.pianonurmi.etrm.inventory.api.ReconciliationQuery
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.domain.GatewayResult
 import com.pianonurmi.etrm.registry.domain.InstructionStatusSource
@@ -88,6 +89,7 @@ class RegistryDispatcher(
         call()
     } catch (ex: RuntimeException) {
         log.error("Registry gateway error during {}", what, ex)
+        JobRun.subjectFailed()
         null
     }
 

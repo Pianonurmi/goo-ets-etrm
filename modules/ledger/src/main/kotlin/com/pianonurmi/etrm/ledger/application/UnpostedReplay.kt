@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.ledger.domain.UnpostedEvent
 import com.pianonurmi.etrm.ledger.domain.UnpostedEventRepository
 import com.pianonurmi.etrm.ledger.domain.UnpostedStatus
 import com.pianonurmi.etrm.platform.events.DomainEvent
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.workflow.api.TaskStatus
 import com.pianonurmi.etrm.workflow.api.WorkflowCommand
@@ -71,7 +72,10 @@ class UnpostedReplay(
         repository.replayable(BATCH).forEach { record ->
             runCatching { transactions.execute { retry(record, SYSTEM_USER) } == true }
                 .onSuccess { if (it) posted++ }
-                .onFailure { log.error("Replay of unposted event {} failed", record.id, it) }
+                .onFailure {
+                    log.error("Replay of unposted event {} failed", record.id, it)
+                    JobRun.subjectFailed()
+                }
         }
         if (posted > 0) log.info("Posted {} recorded events on retry", posted)
         return posted

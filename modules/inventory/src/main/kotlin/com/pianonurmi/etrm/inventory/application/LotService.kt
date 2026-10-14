@@ -34,6 +34,7 @@ import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.StaleVersionException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
@@ -284,6 +285,7 @@ class LotService(
     /** Counts the failure and publishes it (audited, parked as a work task) in a transaction of its own; never fails the sweep. */
     private fun reportExpiryFailure(id: UUID, asOf: LocalDate, cause: RuntimeException) {
         meters.counter("etrm.inventory.expiry.failures").increment()
+        JobRun.subjectFailed()
         log.error("Lot {} could not be expired as of {}", id, asOf, cause)
         try {
             inOwnTransaction { lots.find(id)?.let { events.publishEvent(LotExpiryFailed(it, cause.message ?: cause.javaClass.simpleName)) } }
