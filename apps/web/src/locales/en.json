@@ -143,6 +143,15 @@
     "technicalDetails": "Technical details",
     "openInbox": "Open the inbox"
   },
+  "conflict": {
+    "title": "Someone changed this record while you were editing",
+    "lead": "These fields have a different value on the server now. Reload to continue from the current version.",
+    "noVisibleChange": "The record changed, but not in a field you can edit here. Reload to continue from the current version.",
+    "change": "was {{was}}, now {{now}}.",
+    "yourEdit": "Your edit ({{mine}}) is kept.",
+    "keepEdits": "Reload, keep my edits",
+    "discardEdits": "Reload, discard my edits"
+  },
   "common": {
     "yes": "Yes",
     "no": "No",

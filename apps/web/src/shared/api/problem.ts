@@ -54,6 +54,11 @@ export async function problemFromResponse(response: Response): Promise<ProblemEr
   });
 }
 
+/** A save refused because the record changed since it was loaded (409, `stale-version`). */
+export function isStaleVersion(error: unknown): boolean {
+  return error instanceof ProblemError && error.status === 409 && error.code === 'stale-version';
+}
+
 export function asProblemError(error: unknown): ProblemError {
   if (error instanceof ProblemError) return error;
   const message = error instanceof Error ? error.message : String(error);
