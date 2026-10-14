@@ -1,8 +1,14 @@
 package com.pianonurmi.etrm.database
 
 import com.pianonurmi.etrm.config.SchemaOwner
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
+import java.time.Clock
+import java.time.YearMonth
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -12,11 +18,6 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
-import java.time.Clock
-import java.time.YearMonth
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.concurrent.ConcurrentHashMap
 
 /** A table partitioned by month: `<table>_pYYYYMM` partitions and a `<table>_pdefault` catch-all (ADR 0030). */
 data class PartitionedTable(val schema: String, val table: String) {
@@ -77,6 +78,7 @@ class PartitionMaintenance(
                     } catch (e: DataAccessException) {
                         log.error("Could not create partition {}.{}: {}", table.schema, name, e.mostSpecificCause.message)
                         failed += "${table.schema}.$name"
+                        JobRun.subjectFailed()
                     }
                 }
             }

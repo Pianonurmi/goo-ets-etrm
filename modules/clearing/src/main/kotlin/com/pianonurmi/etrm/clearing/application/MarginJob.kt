@@ -1,12 +1,13 @@
 package com.pianonurmi.etrm.clearing.application
 
 import com.pianonurmi.etrm.clearing.domain.ClearingRepository
+import com.pianonurmi.etrm.platform.jobs.JobRun
+import java.time.Clock
+import java.time.LocalDate
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
-import java.time.Clock
-import java.time.LocalDate
 
 /** Variation margin of the day for every active clearing account, after the exchange's settlement prices are in. */
 @Component
@@ -19,7 +20,10 @@ class MarginJob(private val clearing: ClearingService, private val repository: C
         val today = LocalDate.now(clock)
         repository.accounts(null).filter { it.active }.forEach { account ->
             runCatching { clearing.computeMargin(account.id, today) }
-                .onFailure { log.warn("Variation margin of {} on {} not computed: {}", account.code, today, it.message) }
+                .onFailure {
+                    JobRun.subjectFailed()
+                    log.warn("Variation margin of {} on {} not computed: {}", account.code, today, it.message, it)
+                }
         }
     }
 }
