@@ -821,6 +821,30 @@
         "required" : [ "actor", "eventId", "eventType", "occurredAt", "payload", "recordedAt", "seq" ],
         "type" : "object"
       },
+      "AuditTrailCheck" : {
+        "properties" : {
+          "brokenSeqs" : {
+            "items" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "head" : {
+            "type" : [ "string", "null" ]
+          },
+          "ok" : {
+            "readOnly" : true,
+            "type" : "boolean"
+          },
+          "unsealed" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "brokenSeqs", "ok", "unsealed" ],
+        "type" : "object"
+      },
       "BankAccountChange" : {
         "properties" : {
           "accountId" : {
@@ -13031,6 +13055,34 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AuditEventView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Audit" ]
+      }
+    },
+    "/api/v1/audit/verify" : {
+      "get" : {
+        "operationId" : "audit_verify",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuditTrailCheck"
                 }
               }
             },

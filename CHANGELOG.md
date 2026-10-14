@@ -33,6 +33,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - **Allowance movements, trade versions, lot versions, reference data history and posting rule history are
   append-only**, and allowance movements are hash-chained per holding (the journal check reports `brokenHoldings`).
   Every state of a registry instruction is kept in `registry_instruction_event`.
+- **The audit trail is sealed into a hash chain** every minute and verified with the other chains every night; the
+  gauge `etrm_integrity_chain_ok` reports each chain, and a daily digest of the chain heads, signed when
+  `ETRM_INTEGRITY_SIGNING_KEY` is set, is stored for keeping outside the database
+  ([tamper evidence](docs/operations/database.md#tamper-evidence)).
+- **The audit trail says who read sensitive data**: document content, bank accounts, report and invoice exports and
+  the trail itself, and showcase sign-ins including failed ones. History rows name the user who made the change, and
+  audit records carry the request's trace id.
 
 ### Added
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
