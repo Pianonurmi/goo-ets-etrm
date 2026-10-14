@@ -184,6 +184,10 @@ class PeriodEndService(
             if (values.isEmpty() && bookedAsset.signum() == 0 && bookedLiability.signum() == 0) return@forEach
             if (policy != null && !policy.signedOff && values.isNotEmpty()) ctx.warnings += "MtM policy for $bookType is not signed off by accounting"
             if (!PeriodEndMath.posts(policy)) {
+                if (bookedAsset.signum() != 0 || bookedLiability.signum() != 0) {
+                    ctx.warnings += "MtM of $bookType books was posted by an earlier run under another treatment and stays booked " +
+                        "now that the policy only discloses; reverse it by a manual journal"
+                }
                 ctx.components += component(PeriodEndComponentKind.MTM, "$bookType:ASSET", asset, bookedAsset, BigDecimal.ZERO, disclosed = true)
                 ctx.components += component(PeriodEndComponentKind.MTM, "$bookType:LIABILITY", liability, bookedLiability, BigDecimal.ZERO, disclosed = true)
                 return@forEach
@@ -387,7 +391,8 @@ class PeriodEndService(
         if (ctx.entity.accountingPolicy.freeAllocationPolicy != FreeAllocationPolicy.FAIR_VALUE) return
         listOf(ctx.period.year - 1, ctx.period.year).forEach { year ->
             val dims = mapOf("complianceYear" to year.toString())
-            val deferred = journal.balance(ctx.entity.id, "2400", ctx.end, "HoldingChanged", dimensions = dims).baseCredit
+            // Net of any debit to the deferred grant (a correction or reversal), not its credits alone.
+            val deferred = journal.balance(ctx.entity.id, "2400", ctx.end, "HoldingChanged", dimensions = dims).baseNet.negate()
             val booked = journal.balance(ctx.entity.id, "4210", ctx.end, GRANT_EVENT, dimensions = dims).baseNet.negate()
             if (deferred.signum() == 0 && booked.signum() == 0) return@forEach
             val e = emissions(ctx, year)

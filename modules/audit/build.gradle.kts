@@ -5,6 +5,7 @@ plugins {
 dependencies {
     implementation(project(":platform"))
     implementation(libs.springdoc.openapi)
+    implementation(libs.shedlock.spring)
 
     testImplementation(testFixtures(project(":platform")))
 }

@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.audit.adapter.rest
 import com.pianonurmi.etrm.audit.api.AuditEventView
 import com.pianonurmi.etrm.audit.api.AuditFilter
 import com.pianonurmi.etrm.audit.api.AuditQuery
+import com.pianonurmi.etrm.audit.api.AuditTrailCheck
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
@@ -47,4 +48,8 @@ class AuditController(private val query: AuditQuery, private val actorProvider: 
     fun event(
         @PathVariable eventId: UUID,
     ): AuditEventView? = requireReader().let { query.event(eventId) }
+
+    /** Checks the seal chain over the trail: rows changed or removed after sealing, and rows left unsealed. */
+    @GetMapping("/verify")
+    fun verify(): AuditTrailCheck = requireReader().let { query.verifyTrail() }
 }

@@ -13,6 +13,9 @@ Micrometer with the Prometheus registry. `GET /actuator/prometheus` serves them.
 - Application meters include `etrm.reconciliation.breaks.open` (registry dispatcher) and the outbox and dispatcher
   timings of the registry module, and `etrm.inventory.expiry.failures`, the lots the nightly expiry sweep could not
   expire (each also opens a `LOT_EXPIRY_FAILED` task for back office and registry operators).
+- `etrm.integrity.chain.ok{chain}` is 1 when the nightly verification found the chain intact and 0 when it did not,
+  for the audit seals, the lot journal, the allowance movements and the journal
+  ([tamper evidence](database.md#tamper-evidence)).
 
 ## Traces
 

@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.audit.api.AuditCommand
 import com.pianonurmi.etrm.audit.api.AuditEventView
 import com.pianonurmi.etrm.audit.api.AuditFilter
 import com.pianonurmi.etrm.audit.api.AuditQuery
+import com.pianonurmi.etrm.audit.api.AuditTrailCheck
 import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.eventType
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -76,6 +77,16 @@ class AuditService(
     @Transactional(readOnly = true)
     override fun event(eventId: UUID): AuditEventView? = repository.byEventId(eventId)
 
+    @Transactional(readOnly = true)
+    override fun verifyTrail(): AuditTrailCheck = AuditTrailCheck(
+        brokenSeqs = repository.brokenSeals(),
+        unsealed = repository.unsealedBefore(clock.instant().minus(SEALING_DELAY)),
+        head = repository.sealHead(),
+    )
+
+    @Transactional
+    override fun seal(catchUp: Boolean): Int = repository.sealPending(SEAL_BATCH, if (catchUp) CATCH_UP_DAYS else RECENT_DAYS)
+
     /** Best-effort aggregate reference: the first nested object carrying an `id`, else the event's own id. */
     private fun aggregateOf(event: DomainEvent, payload: Map<String, Any?>): Pair<String?, String?> {
         payload.entries.firstOrNull { (key, value) -> key != "metadata" && value is Map<*, *> && value["id"] != null }?.let { (key, value) ->
@@ -89,10 +100,23 @@ class AuditService(
     }
 }
 
+private val SEALING_DELAY = java.time.Duration.ofMinutes(10)
+private const val SEAL_BATCH = 50_000
+private const val RECENT_DAYS = 2
+private const val CATCH_UP_DAYS = 36_500
+
 interface AuditRepository {
     fun append(event: AuditEventView): AuditEventView
 
     fun query(filter: AuditFilter): List<AuditEventView>
 
     fun byEventId(eventId: UUID): AuditEventView?
+
+    fun sealPending(maxRows: Int, horizonDays: Int): Int
+
+    fun brokenSeals(): List<Long>
+
+    fun unsealedBefore(recordedBefore: java.time.Instant): Long
+
+    fun sealHead(): String?
 }
