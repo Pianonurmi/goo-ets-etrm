@@ -204,7 +204,6 @@ class JooqApprovalTaskRepository(private val dsl: DSLContext) : ApprovalTaskRepo
     /** Tasks the actor could decide: a candidate role and not their own request. */
     private fun actionableBy(actor: Actor): Condition {
         val notOwn = APPROVAL_TASK.REQUESTED_BY.ne(actor.userId)
-        if (actor.has(Role.ADMIN)) return notOwn
         val roles = actor.roles.map { it.name }.toTypedArray()
         return notOwn.and(DSL.condition("{0} && {1}::text[]", APPROVAL_TASK.CANDIDATE_ROLES, DSL.`val`(roles)))
     }

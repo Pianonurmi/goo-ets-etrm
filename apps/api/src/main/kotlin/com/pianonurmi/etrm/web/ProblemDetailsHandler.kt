@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import tools.jackson.core.JacksonException
 import java.net.URI
 
 /** Maps domain exceptions to RFC 9457 problem details. */
@@ -53,17 +54,29 @@ class ProblemDetailsHandler {
         return problem
     }
 
+    /**
+     * A body that is not valid JSON for the request names the field that failed, never the parser's own message (which
+     * carries internal class names and input excerpts).
+     */
     @ExceptionHandler(HttpMessageNotReadableException::class)
     fun handleUnreadable(ex: HttpMessageNotReadableException): ProblemDetail {
-        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.mostSpecificCause.message ?: "Malformed request body")
+        val field = (ex.mostSpecificCause as? JacksonException)?.path.orEmpty()
+            .joinToString(".") { it.propertyName ?: "[${it.index}]" }
+            .replace(".[", "[")
+            .takeIf { it.isNotEmpty() }
+        val detail = if (field == null) "Malformed request body" else "Invalid or missing value for '$field'"
+        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail)
         problem.type = URI.create("urn:etrm:problem:bad-request")
         problem.title = "bad-request"
+        field?.let { problem.setProperty("violations", listOf(mapOf("field" to it, "message" to "invalid value"))) }
         return problem
     }
 
+    /** Domain `require` failures read well; a failed enum lookup would name an internal class, so it is generalised. */
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgument(ex: IllegalArgumentException): ProblemDetail {
-        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.message ?: "Bad request")
+        val message = ex.message?.takeUnless { it.startsWith("No enum constant") || it.contains("com.pianonurmi.") } ?: "Bad request"
+        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, message)
         problem.type = URI.create("urn:etrm:problem:bad-request")
         problem.title = "bad-request"
         return problem

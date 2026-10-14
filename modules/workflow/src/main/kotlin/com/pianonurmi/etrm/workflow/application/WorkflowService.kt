@@ -278,7 +278,11 @@ class WorkflowService(
 
     private fun definition(type: String): TaskTypeDefinition = handlers[type]?.definition ?: throw ValidationException("Unknown task type $type")
 
-    private fun isCandidate(actor: Actor, task: ApprovalTaskView): Boolean = actor.has(Role.ADMIN) || task.candidateRoles.any { actor.has(it) }
+    /**
+     * A decision needs one of the task's candidate roles held explicitly: ADMIN administers the inbox (assigns,
+     * escalates) but does not stand in for the business roles that four eyes require.
+     */
+    private fun isCandidate(actor: Actor, task: ApprovalTaskView): Boolean = task.candidateRoles.any { it in actor.roles }
 
     private fun mayManage(actor: Actor, task: ApprovalTaskView): Boolean =
         actor.has(Role.ADMIN) || actor.userId == task.assignee || (handlers[task.type]?.definition?.escalationRoles.orEmpty()).any { actor.has(it) }

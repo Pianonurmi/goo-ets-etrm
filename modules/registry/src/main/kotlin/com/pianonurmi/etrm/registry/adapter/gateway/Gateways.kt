@@ -37,6 +37,9 @@ class ManualRegistryGateway : RegistryGateway {
         GatewayResult.Sent(null, mapOf("mode" to "manual", "expectedEffectiveAt" to instruction.expectedEffectiveAt?.toString()))
 }
 
+private val UNSAFE_FILE_CHARS = Regex("[^A-Za-z0-9._-]")
+private const val MAX_KEY_LENGTH = 120
+
 /**
  * File gateway: writes an instruction pack (CSV) to an outbox directory for upload to the registry; confirmation
  * arrives via statement import or operator confirmation.
@@ -56,7 +59,9 @@ class FileRegistryGateway(
     override fun execute(instruction: RegistryInstructionView): GatewayResult = runCatching {
         val dir = Path.of(outboxDir, instruction.registryCode)
         Files.createDirectories(dir)
-        val file = dir.resolve("${DateTimeFormatter.ISO_INSTANT.format(instruction.createdAt).replace(":", "")}-${instruction.instructionKey}.csv")
+        // The key comes from the client (an idempotency key): only file-name-safe characters reach the path.
+        val safeKey = instruction.instructionKey.replace(UNSAFE_FILE_CHARS, "_").take(MAX_KEY_LENGTH)
+        val file = dir.resolve("${DateTimeFormatter.ISO_INSTANT.format(instruction.createdAt).replace(":", "")}-$safeKey.csv")
         val fromAccount = referenceData.requireRegistryAccount(instruction.fromAccountId).accountNumber
         Files.writeString(file, InstructionPack.csv(instruction, fromAccount))
         log.info("Wrote registry instruction pack {}", file)

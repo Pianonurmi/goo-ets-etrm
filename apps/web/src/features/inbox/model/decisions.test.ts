@@ -44,17 +44,17 @@ describe('decisions', () => {
     expect(decisionBlock(task, type, { userId: 'middle', roles: ['MIDDLE_OFFICE'] })).toBeNull();
   });
 
-  it('refuses the requester when four eyes apply, even an admin', () => {
+  it('refuses the requester when four eyes apply', () => {
     expect(decisionBlock(task, type, { userId: 'trader', roles: ['MIDDLE_OFFICE', 'TRADER'] })).toBe('own-request');
-    expect(decisionBlock(task, type, { userId: 'trader', roles: ['ADMIN'] })).toBe('own-request');
+    expect(decisionBlock(task, type, { userId: 'trader', roles: ['ADMIN', 'MIDDLE_OFFICE'] })).toBe('own-request');
     expect(
       decisionBlock(task, { ...type, fourEyes: false }, { userId: 'trader', roles: ['MIDDLE_OFFICE'] }),
     ).toBeNull();
   });
 
-  it('refuses users without a candidate role, but not admins', () => {
+  it('refuses users without a candidate role, admins included', () => {
     expect(decisionBlock(task, type, { userId: 'risk', roles: ['RISK'] })).toBe('not-candidate');
-    expect(decisionBlock(task, type, { userId: 'boss', roles: ['ADMIN'] })).toBeNull();
+    expect(decisionBlock(task, type, { userId: 'boss', roles: ['ADMIN'] })).toBe('not-candidate');
   });
 
   it('treats decided tasks as closed', () => {

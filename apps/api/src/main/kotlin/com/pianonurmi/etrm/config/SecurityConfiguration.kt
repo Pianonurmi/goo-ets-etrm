@@ -60,6 +60,8 @@ class SecurityConfiguration {
             if (properties.publicApiDocs) it.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
             // A separate management port (Kubernetes) is reachable only inside the cluster: Prometheus scrapes it.
             it.requestMatchers(managementPortOnly(managementPort)).permitAll()
+            // On the application port the rest of the actuator (metrics, SBOM, module graph) is for administrators.
+            it.requestMatchers(ACTUATOR_PATHS).hasRole(Role.ADMIN.name)
             it.requestMatchers(HttpMethod.GET, "/api/v1/ui-config").permitAll()
             it.requestMatchers("/error").permitAll()
             // Server paths always need a token; matched on the decoded path before the UI shell is let through.
@@ -112,6 +114,9 @@ class SecurityConfiguration {
          * and never `requestURI`, which is still percent-encoded: `/%61pi/v1/trades` is routed to `/api/v1/trades`.
          */
         fun decodedPath(request: HttpServletRequest): String = request.servletPath + (request.pathInfo ?: "")
+
+        /** Actuator endpoints, however they are encoded. */
+        val ACTUATOR_PATHS = RequestMatcher { request -> decodedPath(request).startsWith("/actuator") }
 
         /** API, actuator, OpenAPI and error paths, however they are encoded. */
         val SERVER_PATHS = RequestMatcher { request -> SpaConfiguration.isServerPath(decodedPath(request)) }

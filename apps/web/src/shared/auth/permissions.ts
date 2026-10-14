@@ -18,6 +18,7 @@ export const PERMISSIONS: Partial<Record<OperationId, readonly Role[]>> = {
   partyDetails_upsertAddress: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'ACCOUNTANT'],
   partyDetails_upsertVatRegistration: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'ACCOUNTANT'],
   partyDetails_requestBankAccountChange: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'ACCOUNTANT'],
+  partyDetails_bankAccounts: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'ACCOUNTANT'],
   changeRequest_requestRegistryChange: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'ACCOUNTANT'],
   changeRequest_requestCounterpartyAccountChange: ['MIDDLE_OFFICE', 'BACK_OFFICE', 'REGISTRY_OPERATOR', 'ACCOUNTANT'],
   taxonomy_create: ['MIDDLE_OFFICE'],

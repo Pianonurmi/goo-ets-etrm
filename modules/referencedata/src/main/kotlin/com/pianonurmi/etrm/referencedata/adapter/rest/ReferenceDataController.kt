@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.referencedata.adapter.rest
 
+import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
@@ -79,18 +80,22 @@ class ReferenceDataController(
     @GetMapping("/legal-entities/{id}/books")
     fun books(
         @PathVariable id: UUID,
-    ): List<BookView> = query.books(id)
+    ): List<BookView> = actorProvider.current().requireEntity(id).let { query.books(id) }
 
     @PostMapping("/books")
     @ResponseStatus(HttpStatus.CREATED)
     fun createBook(
         @Valid @RequestBody body: CreateBook,
-    ): BookView = requireMaintainer().let { command.createBook(body) }
+    ): BookView {
+        requireMaintainer()
+        actorProvider.current().requireEntity(body.legalEntityId)
+        return command.createBook(body)
+    }
 
     @GetMapping("/books/{id}")
     fun book(
         @PathVariable id: UUID,
-    ): BookView = query.requireBook(id)
+    ): BookView = query.requireBook(id).also { actorProvider.current().requireEntity(it.legalEntityId) }
 
     @GetMapping("/counterparties")
     fun counterparties(): List<CounterpartyView> = query.counterparties()
@@ -125,8 +130,10 @@ class ReferenceDataController(
     fun registryAccounts(
         @RequestParam holderType: HolderType,
         @RequestParam holderId: UUID,
-    ): List<RegistryAccountView> =
-        query.registryAccounts(holderType, holderId)
+    ): List<RegistryAccountView> {
+        if (holderType == HolderType.LEGAL_ENTITY) actorProvider.current().requireEntity(holderId)
+        return query.registryAccounts(holderType, holderId)
+    }
 
     @GetMapping("/registry-accounts/{id}")
     fun registryAccount(
@@ -137,7 +144,11 @@ class ReferenceDataController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createRegistryAccount(
         @Valid @RequestBody body: CreateRegistryAccount,
-    ): RegistryAccountView = requireMaintainer(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR).let { command.createRegistryAccount(body) }
+    ): RegistryAccountView {
+        requireMaintainer(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
+        if (body.holderType == HolderType.LEGAL_ENTITY) actorProvider.current().requireEntity(body.holderId)
+        return command.createRegistryAccount(body)
+    }
 
     @PutMapping("/registry-accounts/{id}/default-book")
     fun assignDefaultBook(
@@ -175,14 +186,32 @@ class ReferenceDataController(
     fun history(
         @PathVariable table: String,
         @PathVariable id: UUID,
-    ): List<HistoryEntry<Map<String, Any?>>> = query.history(table, id)
+    ): List<HistoryEntry<Map<String, Any?>>> = requireHistoryReader(table, id).let { query.history(table, id) }
 
     @GetMapping("/history/{table}/{id}/as-of")
     fun asOf(
         @PathVariable table: String,
         @PathVariable id: UUID,
         @RequestParam knownAt: Instant,
-    ): Map<String, Any?>? = query.asOf(table, id, knownAt)
+    ): Map<String, Any?>? = requireHistoryReader(table, id).let { query.asOf(table, id, knownAt) }
+
+    /**
+     * History is kept for the master data tables below. Party details (addresses, VAT numbers, bank accounts) carry
+     * payment and personal data, so their history is read only by the roles that maintain them.
+     */
+    private fun requireHistoryReader(table: String, id: UUID) {
+        val actor = actorProvider.current()
+        when (table) {
+            in PUBLIC_HISTORY -> if (table == "legal_entity") actor.requireEntity(id)
+            in PARTY_HISTORY -> actor.requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.ACCOUNTANT)
+            else -> throw NotFoundException("History", table)
+        }
+    }
+
+    private companion object {
+        val PUBLIC_HISTORY = setOf("legal_entity", "book", "counterparty", "registry", "registry_account", "production_device")
+        val PARTY_HISTORY = setOf("party_address", "vat_registration", "bank_account")
+    }
 }
 
 data class DefaultBookRequest(val bookId: UUID?)

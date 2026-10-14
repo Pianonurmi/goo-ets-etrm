@@ -58,7 +58,7 @@ export interface DecisionCheck {
  * deciding roles, and (for four-eyes types) not being the requester. Mirrors `decisionBlock`.
  */
 export function decisionChecks(task: Task, type: TaskType | undefined, viewer: Viewer): DecisionCheck[] {
-  const role = viewer.roles.includes('ADMIN') || task.candidateRoles.some((r) => viewer.roles.includes(r));
+  const role = task.candidateRoles.some((r) => viewer.roles.includes(r));
   const checks: DecisionCheck[] = [{ key: 'role', ok: role }];
   if (type?.fourEyes ?? true) checks.push({ key: 'fourEyes', ok: task.requestedBy !== viewer.userId });
   return checks;

@@ -18,10 +18,12 @@ helm upgrade --install etrm ops/helm/etrm -n etrm \
   --set image.tag=0.9.0 \
   --set ingress.host=etrm.example.com \
   --set oidc.issuer=https://login.example.com/realms/etrm \
+  --set oidc.audience=etrm-api \
   --set environment=PROD
 ```
 
-The chart deploys its `appVersion` image unless `image.tag` says otherwise; pin a release, and see
+Access tokens must carry `oidc.audience` in their `aud` claim; configure an audience mapper (Keycloak) or the
+application ID URI (Entra ID) for the clients that call the API. The chart deploys its `appVersion` image unless `image.tag` says otherwise; pin a release, and see
 [releases](releases.md) for the image tags and upgrades.
 
 Flyway migrates at start-up. Each module's migrations run under PostgreSQL's advisory lock, so when two replicas start

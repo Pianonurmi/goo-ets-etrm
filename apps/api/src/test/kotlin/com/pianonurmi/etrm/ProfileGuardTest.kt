@@ -35,9 +35,15 @@ class ProfileGuardTest {
     }
 
     @Test
+    fun `the test profile is held to the same rules`() {
+        shouldNotThrowAny { ProfileGuard.check(env("test", address = "127.0.0.1")) }
+        shouldThrow<IllegalStateException> { ProfileGuard.check(env("test")) }.message shouldContain "test profile"
+        shouldThrow<IllegalStateException> { ProfileGuard.check(env("test", "showcase", address = "127.0.0.1")) }
+    }
+
+    @Test
     fun `other profiles are not affected`() {
         shouldNotThrowAny { ProfileGuard.check(env()) }
-        shouldNotThrowAny { ProfileGuard.check(env("test")) }
         shouldNotThrowAny { ProfileGuard.check(env("kubernetes", "json")) }
     }
 }

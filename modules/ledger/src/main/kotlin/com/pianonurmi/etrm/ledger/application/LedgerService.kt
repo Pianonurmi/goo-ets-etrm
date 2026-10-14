@@ -420,7 +420,7 @@ class LedgerService(
     // ----------------------------------------------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    override fun entry(id: UUID): JournalEntryView? = journal.find(id)
+    override fun entry(id: UUID): JournalEntryView? = journal.find(id)?.also { actorProvider.current().requireEntity(it.legalEntityId) }
 
     @Transactional(readOnly = true)
     override fun entries(

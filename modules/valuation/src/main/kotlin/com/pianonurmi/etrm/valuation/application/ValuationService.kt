@@ -208,8 +208,10 @@ class ValuationService(
     }
 
     override fun submit(runId: UUID): ValuationRunView {
-        actorProvider.current().requireRole(Role.RISK, Role.MIDDLE_OFFICE, Role.SYSTEM)
+        val actor = actorProvider.current()
+        actor.requireRole(Role.RISK, Role.MIDDLE_OFFICE, Role.SYSTEM)
         val run = repository.run(runId, lock = true) ?: throw NotFoundException("ValuationRun", runId)
+        actor.requireEntity(run.legalEntityId)
         if (run.status != RunStatus.DRAFT) throw ValidationException("Run ${run.id} is ${run.status}")
         repository.setStatus(runId, RunStatus.PENDING_SIGN_OFF)
         val submitted = repository.run(runId)!!

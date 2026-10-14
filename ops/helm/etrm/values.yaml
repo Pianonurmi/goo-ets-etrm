@@ -26,6 +26,8 @@ oidc:
   # Issuer the API validates tokens against, and the one the browser signs in with if it differs.
   issuer: https://login.example.com/realms/etrm
   browserIssuer: ""
+  # Audience the API requires in access tokens (the identity provider adds it with an audience mapper).
+  audience: etrm-api
   webClientId: etrm-web
 
 kafka:

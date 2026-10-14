@@ -91,7 +91,8 @@ class HomeController(
             settlement = section("settlement", actor, SETTLEMENT_READERS) { overdue(legalEntityId, today) },
             ledger = section("ledger", actor, LEDGER_READERS) { ledger(legalEntityId, today) },
             deadlines = section("deadlines") { deadlines(legalEntityId, today) }.orEmpty(),
-            activity = section("activity", actor, AUDIT_READERS) { activity() },
+            // The activity feed is the audit trail, which spans every entity.
+            activity = if (actor.seesAllEntities) section("activity", actor, AUDIT_READERS) { activity() } else null,
         )
     }
 

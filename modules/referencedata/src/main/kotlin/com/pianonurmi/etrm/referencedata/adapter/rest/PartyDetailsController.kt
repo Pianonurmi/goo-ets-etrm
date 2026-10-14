@@ -72,11 +72,17 @@ class PartyDetailsController(
         return command.upsertVatRegistration(partyType, partyId, body)
     }
 
+    /** Payment details are read by the people who maintain or pay them, within their legal entities. */
     @GetMapping("/bank-accounts")
     fun bankAccounts(
         @PathVariable partyType: PartyType,
         @PathVariable partyId: UUID,
-    ): List<BankAccountView> = query.bankAccounts(partyType, partyId)
+    ): List<BankAccountView> {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.ACCOUNTANT)
+        if (partyType == PartyType.LEGAL_ENTITY) actor.requireEntity(partyId)
+        return query.bankAccounts(partyType, partyId)
+    }
 
     /** Bank account changes apply only when a second person approves the REFERENCE_DATA_CHANGE task. */
     @PostMapping("/bank-accounts/change-requests")

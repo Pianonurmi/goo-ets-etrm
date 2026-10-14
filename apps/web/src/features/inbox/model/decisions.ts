@@ -11,11 +11,13 @@ export interface Viewer {
 
 export type DecisionBlock = 'closed' | 'not-candidate' | 'own-request';
 
-/** Why the viewer may not decide the task, or null when they may (mirrors the workflow service's checks). */
+/**
+ * Why the viewer may not decide the task, or null when they may (mirrors the workflow service's checks). Deciding
+ * needs one of the candidate roles held explicitly; ADMIN administers the inbox but does not decide.
+ */
 export function decisionBlock(task: Task, type: TaskType | undefined, viewer: Viewer): DecisionBlock | null {
   if (task.status !== 'OPEN') return 'closed';
-  const admin = viewer.roles.includes('ADMIN');
-  if (!admin && !task.candidateRoles.some((role) => viewer.roles.includes(role))) return 'not-candidate';
+  if (!task.candidateRoles.some((role) => viewer.roles.includes(role))) return 'not-candidate';
   if ((type?.fourEyes ?? true) && task.requestedBy === viewer.userId) return 'own-request';
   return null;
 }
@@ -54,8 +56,5 @@ export function canCancel(task: Task, type: TaskType | undefined, viewer: Viewer
 
 /** Whether the viewer may claim the task (an assignee only marks who is working on it; deciding is open to all candidates). */
 export function canWorkOn(task: Task, viewer: Viewer): boolean {
-  return (
-    task.status === 'OPEN' &&
-    (viewer.roles.includes('ADMIN') || task.candidateRoles.some((role) => viewer.roles.includes(role)))
-  );
+  return task.status === 'OPEN' && task.candidateRoles.some((role) => viewer.roles.includes(role));
 }

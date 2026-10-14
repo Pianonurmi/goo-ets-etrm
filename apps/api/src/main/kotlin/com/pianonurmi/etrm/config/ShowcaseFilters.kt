@@ -112,7 +112,9 @@ class PersonaFilter : OncePerRequestFilter() {
 
 /**
  * Brute-force protection for the demo login: five failures per user name or client address within the window lock
- * that key for the window, and the whole login accepts at most [globalPerMinute] attempts a minute.
+ * that key for the window, and after [globalPerMinute] failures a minute across all keys the login pauses for
+ * everyone. Only failures count, so successful sign-ins never lock anyone out, and keys whose failures have aged out
+ * are dropped so the map stays bounded.
  */
 class LoginThrottle(
     private val clock: Clock = Clock.systemUTC(),
@@ -121,26 +123,26 @@ class LoginThrottle(
     private val globalPerMinute: Int = 30,
 ) {
     private val failures = ConcurrentHashMap<String, MutableList<Instant>>()
-    private val attempts = ArrayDeque<Instant>()
+    private val recentFailures = ArrayDeque<Instant>()
 
     /** Seconds to wait before another attempt is allowed, or null when it is allowed now. */
     @Synchronized
     fun retryAfter(username: String?, address: String): Long? {
         val now = clock.instant()
-        while (attempts.isNotEmpty() && attempts.first().isBefore(now.minusSeconds(60))) attempts.removeFirst()
-        if (attempts.size >= globalPerMinute) return Duration.between(now, attempts.first().plusSeconds(60)).seconds.coerceAtLeast(1)
+        while (recentFailures.isNotEmpty() && recentFailures.first().isBefore(now.minusSeconds(60))) recentFailures.removeFirst()
+        if (recentFailures.size >= globalPerMinute) return Duration.between(now, recentFailures.first().plusSeconds(60)).seconds.coerceAtLeast(1)
         val blocked = keys(username, address).mapNotNull { key ->
             val recent = failures[key]?.filter { it.isAfter(now.minus(window)) }.orEmpty()
             if (recent.size >= maxFailures) Duration.between(now, recent.first().plus(window)).seconds.coerceAtLeast(1) else null
         }
-        if (blocked.isNotEmpty()) return blocked.max()
-        attempts.addLast(now)
-        return null
+        return blocked.maxOrNull()
     }
 
     @Synchronized
     fun failed(username: String?, address: String) {
         val now = clock.instant()
+        recentFailures.addLast(now)
+        if (failures.size > MAX_KEYS) failures.entries.removeIf { (_, times) -> times.none { it.isAfter(now.minus(window)) } }
         keys(username, address).forEach { key ->
             failures.compute(key) { _, list ->
                 (list ?: mutableListOf()).apply {
@@ -157,6 +159,10 @@ class LoginThrottle(
     }
 
     private fun keys(username: String?, address: String) = listOfNotNull(username?.lowercase()?.let { "user:$it" }, "ip:$address")
+
+    private companion object {
+        const val MAX_KEYS = 10_000
+    }
 }
 
 class LoginThrottleFilter(private val throttle: LoginThrottle, private val loginPath: String) : OncePerRequestFilter() {
