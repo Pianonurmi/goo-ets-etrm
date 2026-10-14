@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.clearing.application
 
 import com.pianonurmi.etrm.clearing.domain.ClearingRepository
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -21,7 +22,10 @@ class MarginJob(private val clearing: ClearingService, private val repository: C
         val today = LocalDate.now(clock.withZone(BERLIN))
         repository.accounts(null).filter { it.active }.forEach { account ->
             runCatching { clearing.computeMargin(account.id, today) }
-                .onFailure { log.warn("Variation margin of {} on {} not computed: {}", account.code, today, it.message) }
+                .onFailure {
+                    JobRun.subjectFailed()
+                    log.warn("Variation margin of {} on {} not computed: {}", account.code, today, it.message, it)
+                }
         }
     }
 

@@ -1,12 +1,15 @@
 package com.pianonurmi.etrm.events
 
+import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.LotReceived
 import com.pianonurmi.etrm.inventory.api.LotTransferred
+import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.ledger.api.JournalEntryPosted
 import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.eventType
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
+import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.risk.api.LimitBreached
 import com.pianonurmi.etrm.settlement.api.InvoiceIssued
 import com.pianonurmi.etrm.settlement.api.PaymentRecorded
@@ -51,6 +54,26 @@ object ExternalEvents {
         else -> null
     }
 
+    /**
+     * The event as it leaves the application: without the beneficiary's name and id of a cancellation (review finding
+     * S7). They are personal data when the beneficiary is a person, and a Kafka topic cannot forget them. A consumer
+     * that needs them reads the instruction or lot through the API, under its access rules; the ids in the event are
+     * the reference.
+     */
+    fun payload(event: Any): Any = when (event) {
+        is InstructionConfirmed -> event.copy(instruction = event.instruction.withoutBeneficiary(), lot = event.lot?.withoutBeneficiary())
+        is InstructionFailed -> event.copy(instruction = event.instruction.withoutBeneficiary())
+        is LotReceived -> event.copy(lot = event.lot.withoutBeneficiary())
+        is LotTransferred -> event.copy(lot = event.lot.withoutBeneficiary())
+        else -> event
+    }
+
+    private fun CancellationDetails.withoutBeneficiary() = copy(beneficiaryName = null, beneficiaryId = null)
+
+    private fun RegistryInstructionView.withoutBeneficiary() = copy(cancellation = cancellation?.withoutBeneficiary())
+
+    private fun LotView.withoutBeneficiary() = copy(cancellation = cancellation?.withoutBeneficiary())
+
     /** Headers consumers filter and deduplicate on: the event type and its id. */
     fun headers(event: Any): Map<String, Any> = (event as? DomainEvent)?.let {
         mapOf(
@@ -80,6 +103,7 @@ class EventExternalizationConfig {
             val (topic, key) = ExternalEvents.route(event)!!
             RoutingTarget.forTarget(topic).andKey(key)
         }
+        .mapping(ExternalEvents::payload)
         .headers(ExternalEvents::headers)
         .build()
 

@@ -8,6 +8,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ## [Unreleased]
 
 ### Security
+- **Kafka events no longer carry a cancellation's beneficiary.** `InstructionConfirmed`, `InstructionFailed`,
+  `LotReceived` and `LotTransferred` leave with `beneficiaryName` and `beneficiaryId` set to null; consumers read
+  the beneficiary through the API by the instruction or lot id. A change to the event contract (ADR 0029): a consumer
+  that read those fields must now call the API. Topics written by earlier versions still hold them; see
+  [data protection](docs/operations/data-protection.md) for what is kept where, for how long, and how access and
+  erasure requests are handled.
 - **Tokens must be issued for this API.** The resource server checks the `aud` claim (`ETRM_OIDC_AUDIENCE`, default
   `etrm-api`; Helm value `oidc.audience`). The development realm adds the audience with a mapper; an identity
   provider in production needs the same before upgrading.
@@ -44,6 +50,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   audit records carry the request's trace id.
 
 ### Changed
+- **Overload and database outages answer quickly.** At most 200 API requests run at once (`etrm.http.max-concurrent-requests`);
+  more wait two seconds and get 503 with `Retry-After`. A request waits at most five seconds for a database
+  connection. Readiness no longer includes the database, so an outage no longer takes every pod out of the service
+  at once; `ETRM_DB_POOL_MAX` (Helm `database.poolMax`) sizes the pool. Probes time out after three seconds.
+- Registry adapters keep one HTTP client per registry instead of building one per call, and use the JVM's proxy
+  settings.
 - **Migrations run before an upgrade, not in the pods** (review finding O1). The Helm chart runs the image with
   `--migrate-only` in a `pre-install,pre-upgrade` Job as the schema owner; a failed migration stops the upgrade while
   the running version keeps serving. The pods start with migrations off (`migrations.job: false` restores the old
@@ -83,6 +95,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
   refused; `TokenValidationIT` checks signature, expiry, issuer, audience and unsigned tokens with Spring Boot's own
   decoder.
+- **Operations signals** (review findings O2, O3, O7, O8): every scheduled job reports failures, its last success and
+  its expected interval (`etrm_jobs_*`); alert rules for the Prometheus Operator (`prometheusRule.enabled`) with a
+  [runbook](docs/operations/runbooks/README.md) per alert and a metric catalogue in
+  [observability](docs/operations/observability.md).
+- Event publications that fail ten times are parked instead of retried forever; administrators list and resubmit
+  them under `/api/v1/admin/event-publications`.
 - The change process: `CODEOWNERS`, a pull request template, `SECURITY.md`, [contributing](docs/contributing.md)
   and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
   by default.

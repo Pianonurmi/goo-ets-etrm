@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.marketdata.api.ImportResult
 import com.pianonurmi.etrm.marketdata.api.MarketDataCommand
 import com.pianonurmi.etrm.marketdata.application.MarketDataService
 import com.pianonurmi.etrm.marketdata.application.MarketDataSettings
+import com.pianonurmi.etrm.platform.jobs.JobRun
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
@@ -78,7 +79,10 @@ class EcbPullJob(
     @SchedulerLock(name = "marketdata-ecb-pull", lockAtMostFor = "PT10M")
     fun scheduled() {
         if (!settings.ecb.enabled) return
-        runCatching { pull() }.onFailure { log.warn("ECB reference rates not imported on {}: {}", LocalDate.now(clock), it.message) }
+        runCatching { pull() }.onFailure {
+            JobRun.subjectFailed()
+            log.warn("ECB reference rates not imported on {}: {}", LocalDate.now(clock), it.message, it)
+        }
     }
 
     /** Fetches and imports the current daily file; the same file twice is one import. */

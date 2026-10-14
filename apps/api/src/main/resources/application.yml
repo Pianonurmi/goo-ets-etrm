@@ -23,8 +23,10 @@ spring:
     username: ${ETRM_DB_USER:etrm}
     password: ${ETRM_DB_PASSWORD:etrm}
     hikari:
-      maximum-pool-size: 20
+      maximum-pool-size: ${ETRM_DB_POOL_MAX:20}
       pool-name: etrm
+      # A request waits at most this long for a connection, then fails with a problem response rather than hanging.
+      connection-timeout: 5000
   flyway:
     enabled: false   # migrations run per module schema, see ModularMigrations
   jooq:
