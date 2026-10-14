@@ -23,7 +23,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   that does not parse names the failing field rather than the parser's internal message.
 - The showcase login throttle counts failures only, so successful sign-ins never lock anyone out, and its memory is
   bounded. The FILE registry gateway uses only file-name-safe characters from an instruction key.
-
 - **The application no longer runs as the schema owner** in Kubernetes: migrations and partition maintenance use the
   owner (`ETRM_DB_MIGRATION_USER`), requests and jobs a role with table rights only, which cannot disable the
   append-only triggers ([database operations](docs/operations/database.md#roles-schema-owner-and-runtime-role)).
