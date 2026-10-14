@@ -23,6 +23,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   that does not parse names the failing field rather than the parser's internal message.
 - The showcase login throttle counts failures only, so successful sign-ins never lock anyone out, and its memory is
   bounded. The FILE registry gateway uses only file-name-safe characters from an instruction key.
+- **The application no longer runs as the schema owner** in Kubernetes: migrations and partition maintenance use the
+  owner (`ETRM_DB_MIGRATION_USER`), requests and jobs a role with table rights only, which cannot disable the
+  append-only triggers ([database operations](docs/operations/database.md#roles-schema-owner-and-runtime-role)).
+- **The journal is protected in the database.** An entry can only change from posted to reversed, by its reversal,
+  and only once, also when two people reverse it at the same moment; nothing is written into a hard-closed period;
+  lines balance at commit. New entries are hashed with the header, rates, base amounts, dimensions and memo
+  (chain version 2); earlier entries keep verifying.
+- **Allowance movements, trade versions, lot versions, reference data history and posting rule history are
+  append-only**, and allowance movements are hash-chained per holding (the journal check reports `brokenHoldings`).
+  Every state of a registry instruction is kept in `registry_instruction_event`.
 
 ### Changed
 - **Overload and database outages answer quickly.** At most 200 API requests run at once (`etrm.http.max-concurrent-requests`);

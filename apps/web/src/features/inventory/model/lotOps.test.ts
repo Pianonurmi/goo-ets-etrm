@@ -103,7 +103,16 @@ describe('expiry ladder and journal', () => {
 
   it('reads the journal check', () => {
     expect(journalResult(undefined)).toBeNull();
-    expect(journalResult({ ok: true, brokenLots: [] })).toEqual({ ok: true, brokenLots: [] });
-    expect(journalResult({ ok: false, brokenLots: ['l1', 2] })).toEqual({ ok: false, brokenLots: ['l1'] });
+    expect(journalResult({ ok: true, brokenLots: [] })).toEqual({ ok: true, brokenLots: [], brokenHoldings: [] });
+    expect(journalResult({ ok: false, brokenLots: [], brokenHoldings: ['h1'] })).toEqual({
+      ok: false,
+      brokenLots: [],
+      brokenHoldings: ['h1'],
+    });
+    expect(journalResult({ ok: false, brokenLots: ['l1', 2] })).toEqual({
+      ok: false,
+      brokenLots: ['l1'],
+      brokenHoldings: [],
+    });
   });
 });

@@ -23,8 +23,8 @@ import javax.sql.DataSource
 @EnableConfigurationProperties(MigrationProperties::class)
 class ModularMigrationsConfiguration {
     @Bean
-    fun modularMigrations(dataSource: DataSource, properties: MigrationProperties, hooks: ObjectProvider<MigrationHook>): ModularMigrations =
-        ModularMigrations(dataSource, properties, hooks.orderedStream().toList())
+    fun modularMigrations(owner: SchemaOwner, properties: MigrationProperties, hooks: ObjectProvider<MigrationHook>): ModularMigrations =
+        ModularMigrations(owner.dataSource, properties, hooks.orderedStream().toList(), owner.runtimeRole)
 
     companion object {
         /**
@@ -57,6 +57,9 @@ data class MigrationProperties(
     val modules: List<String> = DEFAULT_ORDER,
     /** Schemas outside the business modules, migrated after them: `demo` (the seeder's run log) in the demo profile. */
     val additionalModules: List<String> = emptyList(),
+    /** The schema owner's role (`ETRM_DB_MIGRATION_USER`); when set, requests run as the datasource role with table rights only. */
+    val user: String? = null,
+    val password: String? = null,
 ) {
     companion object {
         val DEFAULT_ORDER = listOf(
@@ -88,6 +91,8 @@ class ModularMigrations(
     private val dataSource: DataSource,
     private val properties: MigrationProperties,
     private val hooks: List<MigrationHook> = emptyList(),
+    /** The role requests run as when it is not the owner: granted table rights in every migrated schema. */
+    private val runtimeRole: String? = null,
 ) : InitializingBean {
     private val log = LoggerFactory.getLogger(ModularMigrations::class.java)
 
@@ -116,6 +121,27 @@ class ModularMigrations(
                 .load()
                 .migrate()
             log.info("Module {}: schema {} at version {} ({} applied)", module, schemaFor(module), result.targetSchemaVersion, result.migrationsExecuted)
+            runtimeRole?.let { grantRuntime(schemaFor(module), it) }
+        }
+    }
+
+    /**
+     * Table rights for the runtime role, for existing tables and (through default privileges) for those the owner
+     * creates later, such as monthly partitions. No ownership, so no ALTER, DROP or TRUNCATE, and no way to disable a
+     * trigger; the append-only triggers then hold against the application's own credentials.
+     */
+    private fun grantRuntime(schema: String, role: String) {
+        val quotedRole = "\"" + role.replace("\"", "\"\"") + "\""
+        dataSource.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                listOf(
+                    "GRANT USAGE ON SCHEMA $schema TO $quotedRole",
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA $schema TO $quotedRole",
+                    "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA $schema TO $quotedRole",
+                    "ALTER DEFAULT PRIVILEGES IN SCHEMA $schema GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO $quotedRole",
+                    "ALTER DEFAULT PRIVILEGES IN SCHEMA $schema GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO $quotedRole",
+                ).forEach(statement::execute)
+            }
         }
     }
 

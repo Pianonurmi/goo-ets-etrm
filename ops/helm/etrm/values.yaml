@@ -23,6 +23,12 @@ database:
   passwordKey: password
   # Connections per pod; keep poolMax times the maximum replicas below the database's max_connections.
   poolMax: 20
+  # Separate owner and runtime roles (recommended for production): requests run as the role in this secret (same
+  # keys), with table rights only, and the owner in existingSecret runs migrations and creates partitions. Then the
+  # URL is given without credentials, e.g. jdbc:postgresql://etrm-db-rw:5432/etrm (CloudNativePG's jdbc-uri embeds the
+  # owner's). ops/k8s/postgres-cluster.yaml creates the runtime role etrm_app with the secret etrm-db-runtime.
+  runtimeSecret: etrm-db-runtime
+  url: jdbc:postgresql://etrm-db-rw:5432/etrm
 
 oidc:
   # Issuer the API validates tokens against, and the one the browser signs in with if it differs.

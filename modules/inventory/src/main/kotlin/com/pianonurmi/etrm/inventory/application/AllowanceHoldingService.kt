@@ -100,4 +100,7 @@ class AllowanceHoldingService(
     @Transactional(readOnly = true)
     override fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>?): Long =
         repository.movementTotal(holderEntityId, type, complianceYear, productCodes?.map { it.uppercase() }?.toSet())
+
+    @Transactional(readOnly = true)
+    override fun verifyMovements(): List<UUID> = repository.brokenMovementChains()
 }

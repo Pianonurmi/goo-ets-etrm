@@ -34,8 +34,8 @@ together the second one waits and then finds nothing to do. A rolling update kee
 
 | Concern | Setting |
 |---|---|
-| Profiles | `kubernetes,json`: actuator on the management port (9090), readiness includes the database, ECS JSON logs, forwarded headers from the ingress |
-| Probes | startup and liveness on `/actuator/health/liveness`, readiness on `/actuator/health/readiness`, all on the management port |
+| Profiles | `kubernetes,json`: actuator on the management port (9090), readiness without the database (an outage answers 503 problems instead of emptying the service), ECS JSON logs, forwarded headers from the ingress |
+| Probes | startup and liveness on `/actuator/health/liveness`, readiness on `/actuator/health/readiness`, all on the management port with a 3 s timeout |
 | Shutdown | `preStop` sleep of 10 s so the endpoints drop the pod first; 30 s per shutdown phase in the application; 60 s grace period |
 | Security | non-root user 10001 (numeric in the image), read-only root file system with `emptyDir` for `/tmp`, all capabilities dropped, `RuntimeDefault` seccomp, no service account token. `/tmp` must allow exec: the exact allocation solver unpacks its native library there. An `emptyDir` does, and otherwise exact allocation falls back to greedy and says so. |
 | Secrets | database URL and credentials from `database.existingSecret` (default `etrm-db-app` from CloudNativePG); nothing secret in values |

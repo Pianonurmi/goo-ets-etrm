@@ -160,10 +160,17 @@ export function ladderRows(
 }
 
 /** The result of the journal check (`{ ok, brokenLots }`), or null while there is none. */
-export function journalResult(data: Record<string, unknown> | undefined): { ok: boolean; brokenLots: string[] } | null {
+export function journalResult(
+  data: Record<string, unknown> | undefined,
+): { ok: boolean; brokenLots: string[]; brokenHoldings: string[] } | null {
   if (!data) return null;
-  const broken = Array.isArray(data.brokenLots)
-    ? data.brokenLots.filter((id): id is string => typeof id === 'string')
-    : [];
-  return { ok: data.ok === true && broken.length === 0, brokenLots: broken };
+  const ids = (value: unknown) =>
+    Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+  const brokenLots = ids(data.brokenLots);
+  const brokenHoldings = ids(data.brokenHoldings);
+  return {
+    ok: data.ok === true && brokenLots.length === 0 && brokenHoldings.length === 0,
+    brokenLots,
+    brokenHoldings,
+  };
 }

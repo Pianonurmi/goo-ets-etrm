@@ -83,6 +83,22 @@ class JooqAllowanceHoldingRepository(private val dsl: DSLContext) : AllowanceHol
             .fetchOne(0, Long::class.java) ?: 0L
     }
 
+    /** Recomputes each digest with the same database function that wrote it, and each link from the previous row. */
+    override fun brokenMovementChains(): List<UUID> = dsl.fetch(
+        """
+        SELECT DISTINCT holding_id FROM (
+            SELECT m.holding_id, m.prev_hash, m.hash,
+                   lag(m.hash) OVER (PARTITION BY m.holding_id ORDER BY m.seq) AS expected_prev,
+                   {1}.allowance_movement_digest(m.prev_hash, m) AS recomputed
+            FROM {0} m
+        ) c
+        WHERE c.prev_hash IS DISTINCT FROM c.expected_prev OR c.hash IS DISTINCT FROM c.recomputed
+        ORDER BY holding_id
+        """.trimIndent(),
+        ALLOWANCE_MOVEMENT,
+        DSL.name(ALLOWANCE_MOVEMENT.schema!!.name),
+    ).map { it.get(0, UUID::class.java) }
+
     private fun toView(r: AllowanceHoldingRecord) = AllowanceHoldingView(
         r.id,
         r.holderEntityId,

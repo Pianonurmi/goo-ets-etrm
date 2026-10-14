@@ -234,6 +234,9 @@ interface AllowanceHoldingQuery {
      * without a compliance year count in the calendar year of their effective date.
      */
     fun movementTotal(holderEntityId: UUID, type: AllowanceMovementType, complianceYear: Int, productCodes: Set<String>? = null): Long
+
+    /** Checks the hash chain of every holding's movements; returns the holdings that do not verify. */
+    fun verifyMovements(): List<UUID>
 }
 
 data class HoldingChanged(

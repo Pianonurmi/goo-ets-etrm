@@ -28,6 +28,17 @@ spec:
     initdb:
       database: etrm
       owner: etrm
+  # The application serves requests as etrm_app, which the schema owner etrm grants table rights to after each
+  # migration: etrm_app cannot disable the append-only triggers or drop a table (docs/operations/database.md).
+  # Create the secret first: kubectl create secret generic etrm-db-runtime --type=kubernetes.io/basic-auth
+  #   --from-literal=username=etrm_app --from-literal=password=<random>
+  managed:
+    roles:
+      - name: etrm_app
+        ensure: present
+        login: true
+        passwordSecret:
+          name: etrm-db-runtime
   storage:
     size: 100Gi
     storageClass: standard
