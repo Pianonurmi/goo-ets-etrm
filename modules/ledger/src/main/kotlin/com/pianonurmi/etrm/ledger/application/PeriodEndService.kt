@@ -288,7 +288,9 @@ class PeriodEndService(
     /** The contract price of the sale a reserved lot is planned for, in base currency. */
     private fun firmSalePrice(ctx: Context, lot: LotView): BigDecimal? = lot.reservationRef
         ?.takeIf { lot.status == LotStatus.RESERVED }
-        ?.let { runCatching { plans.requirePlan(it) }.getOrNull() }
+        // A reservation may come from elsewhere than a plan (a manual one, say). `plan` answers null for it; `requirePlan`
+        // would throw inside the allocation service's transaction and mark this period end rollback-only.
+        ?.let(plans::plan)
         ?.lines?.firstOrNull { it.reservedLotId == lot.id }
         ?.let { obligations.obligation(it.obligationId)?.sourceRef }
         ?.let(trades::obligation)

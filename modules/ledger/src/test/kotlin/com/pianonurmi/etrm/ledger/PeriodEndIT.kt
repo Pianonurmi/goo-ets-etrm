@@ -187,7 +187,7 @@ class PeriodEndIT {
             every { reservedLotId } returns RESERVED_LOT
             every { this@mockk.obligationId } returns obligationId
         }
-        val plans = mockk<AllocationQuery> { every { requirePlan(planId) } returns mockk { every { lines } returns listOf(line) } }
+        val plans = mockk<AllocationQuery> { every { plan(planId) } returns mockk { every { lines } returns listOf(line) } }
         val obligations = mockk<ObligationQuery> { every { obligation(obligationId) } returns mockk { every { sourceRef } returns saleRef } }
         every { valuations.run(any()) } answers { valuationRuns.values.flatMap { it.values }.firstOrNull { r -> r.id == firstArg<UUID>() } }
         // The hypothetical derivative: q x (forward - locked price), undiscounted, in EUR.

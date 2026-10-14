@@ -12,6 +12,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import java.math.BigDecimal
+import java.util.UUID
 
 /**
  * Increment 3 end to end through REST, for one entity and September 2026:
@@ -127,7 +128,12 @@ class MonthEndIT {
                "deviceGsrn":"${s.deviceGsrn}","productionPeriod":{"start":"2026-08-01","endExclusive":"2026-09-01"},"issueDate":"2026-09-05",
                "issuingBody":"SIM","issuingCountry":"FI","supportProduction":false,"supportInvestment":false,"acquisitionSource":"ISSUANCE",
                "costBasisPerMwh":1.20,"costCurrency":"EUR"}""",
-        ).post("/api/v1/inventory/lots").then().statusCode(201)
+        ).post("/api/v1/inventory/lots").then().statusCode(201).extract().path<String>("id").let { lot ->
+            // Reserved by hand, not by an allocation plan: the net realisable value test must not fail on a reservation
+            // it cannot look up, and values the lot at its vintage mark.
+            s.asUser("backoffice").body("""{"reservationRef":"${UUID.randomUUID()}"}""").post("/api/v1/inventory/lots/$lot/reserve")
+                .then().statusCode(200).body("status", equalTo("RESERVED"))
+        }
         val eua: String = s.asUser("trader").body(
             """{"legalEntityId":"${s.entityId}","bookId":"${s.bookId}","counterpartyId":"${s.counterpartyId}","productFamily":"EMISSION_ALLOWANCE",
                "instrumentType":"FORWARD","tradeDate":"2026-09-01","regulatory":{"executionTimestamp":"2026-09-01T09:30:00Z","venueMic":"XOFF"},
