@@ -144,7 +144,8 @@ class LimitBreachTasks(private val workflow: WorkflowCommand) : TaskHandler {
                 event.breach.id,
                 l.legalEntityId,
                 if (event.utilisation.status == UtilisationStatus.NOT_MEASURED) {
-                    "${l.type} limit could not be measured (last value ${event.utilisation.value.toPlainString()} against ${l.amount.toPlainString()} ${l.currency ?: ""})".trim()
+                    val last = event.utilisation.value.toPlainString()
+                    "${l.type} limit could not be measured (last value $last against ${l.amount.toPlainString()} ${l.currency ?: ""})".trim()
                 } else {
                     "${l.type} limit breached: ${event.utilisation.value.toPlainString()} against ${l.amount.toPlainString()} ${l.currency ?: ""}".trim()
                 },

@@ -8,8 +8,8 @@ import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.DiscountFactors
-import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FixingView
+import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
@@ -406,6 +406,7 @@ class ValuationServiceIT {
         val valuationDate = LocalDate.of(2026, 10, 12)
         forward[valuationDate] = BigDecimal("74.00")
         val indexEntity = entity
+
         fun indexSale(number: String, delivery: LocalDate) = trade(
             number,
             ProductFamily.EMISSION_ALLOWANCE,
@@ -420,6 +421,7 @@ class ValuationServiceIT {
                 ),
             ),
         )
+
         val fixings = mutableMapOf<LocalDate, BigDecimal>()
         val book = mockk<TradeQuery> {
             every { trades(any()) } returns listOf(
@@ -429,6 +431,7 @@ class ValuationServiceIT {
             )
             every { trade(any()) } returns null
         }
+
         fun service() = ValuationService(
             JooqValuationRepository(TestDatabase.dsl),
             book,

@@ -722,7 +722,8 @@ class TradeServiceIT {
         val original = trades.requireTrade(trade.id)
         currentUser = "trader1"
         shouldThrow<ValidationException> {
-            trades.amend(trade.id, AmendTrade(expectedVersion = original.version, reason = "re-price", legs = gooSale(300, icoB, bookB).legs.map { it.copy(price = BigDecimal("2.10")) }))
+            val repriced = gooSale(300, icoB, bookB).legs.map { it.copy(price = BigDecimal("2.10")) }
+            trades.amend(trade.id, AmendTrade(expectedVersion = original.version, reason = "re-price", legs = repriced))
         }.message shouldContain mirror.tradeNumber
         trades.requireTrade(trade.id).let {
             it.version shouldBe original.version
@@ -744,16 +745,21 @@ class TradeServiceIT {
         currentUser = "trader1"
         val sale = gooSale()
         val leg = sale.legs.single()
-        val indexed = trades.capture(sale.copy(legs = listOf(leg.copy(priceType = PriceType.INDEX, priceIndex = "GOO_NORDIC_HYDRO", price = BigDecimal("-0.15")))))
+        val spread = leg.copy(priceType = PriceType.INDEX, priceIndex = "GOO_NORDIC_HYDRO", price = BigDecimal("-0.15"))
+        val indexed = trades.capture(sale.copy(legs = listOf(spread)))
         indexed.legs.single().price.compareTo(BigDecimal("-0.15")) shouldBe 0
-        shouldThrow<ValidationException> { trades.capture(sale.copy(legs = listOf(leg.copy(price = BigDecimal("-0.15"))))) }.message shouldContain "must not be negative"
+        shouldThrow<ValidationException> { trades.capture(sale.copy(legs = listOf(leg.copy(price = BigDecimal("-0.15"))))) }.message shouldContain
+            "must not be negative"
 
         // Windows are closed-open: a delivery date on the exclusive end is outside the window.
         val first = leg.deliveries.first()
+        val last = leg.deliveries.last()
+        val onTheEnd = first.copy(deliveryDate = first.deliveryWindow.endExclusive)
         shouldThrow<ValidationException> {
-            trades.capture(sale.copy(legs = listOf(leg.copy(deliveries = listOf(first.copy(deliveryDate = first.deliveryWindow.endExclusive), leg.deliveries.last())))))
+            trades.capture(sale.copy(legs = listOf(leg.copy(deliveries = listOf(onTheEnd, last)))))
         }.message shouldContain "must lie within"
-        trades.capture(sale.copy(legs = listOf(leg.copy(deliveries = listOf(first.copy(deliveryDate = first.deliveryWindow.endExclusive.minusDays(1)), leg.deliveries.last())))))
+        val lastDay = first.copy(deliveryDate = first.deliveryWindow.endExclusive.minusDays(1))
+        trades.capture(sale.copy(legs = listOf(leg.copy(deliveries = listOf(lastDay, last)))))
     }
 
     @Test

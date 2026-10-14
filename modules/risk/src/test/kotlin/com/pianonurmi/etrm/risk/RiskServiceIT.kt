@@ -95,7 +95,9 @@ class RiskServiceIT {
             val (date, from, to) = args.let { Triple(it[0] as LocalDate, it[1] as String, it[2] as String) }
             when {
                 from == "EUR" && to == "USD" -> eurUsd?.let { FxRateView(date, from, to, it, "DIRECT", date) }
-                from == "USD" && to == "EUR" -> eurUsd?.let { FxRateView(date, from, to, BigDecimal.ONE.divide(it, 6, RoundingMode.HALF_EVEN), "INVERSE", date) }
+                from == "USD" && to == "EUR" -> eurUsd?.let {
+                    FxRateView(date, from, to, BigDecimal.ONE.divide(it, 6, RoundingMode.HALF_EVEN), "INVERSE", date)
+                }
                 else -> null
             }
         }
@@ -679,7 +681,8 @@ class RiskServiceIT {
         gooRisk.utilisation(basis.id)!!.status shouldBe UtilisationStatus.NOT_MEASURED
         gooRisk.breaches(entity, openOnly = true).single().status shouldBe BreachStatus.OPEN
         published.filterIsInstance<LimitBreached>().single { it.limit.id == basis.id }.utilisation.status shouldBe UtilisationStatus.NOT_MEASURED
-        gooRisk.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 100)).single { it.code == "LIMIT_NOT_MEASURED" }.message shouldContain "counts as in breach"
+        gooRisk.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 100)).single { it.code == "LIMIT_NOT_MEASURED" }.message shouldContain
+            "counts as in breach"
 
         // Measured again, the breach closes.
         failing = false
@@ -698,7 +701,13 @@ class RiskServiceIT {
         val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, buckets)
         gooRisk.approveLimit(
             gooRisk.requestLimit(
-                RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "NORDIC_HYDRO", productionYear = 2025), BigDecimal(1000), reason = "2025"),
+                RequestLimit(
+                    entity,
+                    LimitType.GOO_CONCENTRATION,
+                    LimitScope(bucketCode = "NORDIC_HYDRO", productionYear = 2025),
+                    BigDecimal(1000),
+                    reason = "2025",
+                ),
             ).id,
             "risk2",
         )
