@@ -17,7 +17,10 @@ Europe/Berlin that dated their work in the clock's zone (UTC).
   market for exchange jobs (Europe/Berlin for EEX), never in the JVM's default zone.
 - **Events carry when they happened** (`occurredAt`); a listener dates its posting from the event, so a replay posts
   on the original date.
-- A detekt rule forbids `now()` without a clock argument in production code (increment 15 tightens it to tests).
+- A build test forbids `now()` without a clock argument in production code (`TimeSourceTest` in `apps/api`, which
+  scans the sources; detekt cannot run a type-aware rule here because it runs without type resolution). Its
+  exceptions are listed in the test: jOOQ adapters writing `recorded_at`-style instants, and the event and bitemporal
+  types' defaults. Tests use `TestClock` (platform test fixtures). Increment 15 extends the rule to tests.
 
 ## Consequences
 - Period-end, expiry and delivery dates are reproducible in tests and under replay.

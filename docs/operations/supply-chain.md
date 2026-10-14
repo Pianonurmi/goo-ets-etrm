@@ -16,13 +16,29 @@ the tools a job downloads (kubeconform, the runner itself) are checked against p
 
 - **Image (every build):**
   - Trivy reports critical and high vulnerabilities.
-  - The build fails on a critical vulnerability that has a fix.
+  - The build fails on a critical or high vulnerability that has a fix (since 0.14.0; critical only before).
   - Accepted findings go into `.trivyignore`, one CVE per line, with the reason and a review date.
 - **Dependencies (weekly, `security.yml`):**
   - The OWASP dependency check scans the jar and the web lockfile against the NVD.
-  - It fails at CVSS 9 or higher.
-  - It needs the repository secret `NVD_API_KEY`; without it the job says so and stops.
+  - It fails at CVSS 7 or higher.
+  - It needs the repository secret `NVD_API_KEY`; without it the job fails, so a missing key cannot pass as a clean scan.
 - **Web:** `npm audit --omit dev` is clean at the time of writing; Dependabot raises updates.
+
+## Pinning
+
+- **Actions** are pinned to a commit SHA with the version as a comment, and base images (`ops/Dockerfile`, the CI
+  PostgreSQL service) to a digest. Dependabot moves both.
+- **Gradle dependencies** have exact versions in `gradle/libs.versions.toml`, aligned by BOMs (Spring Boot, Jackson 2
+  and 3) and by `constraints` for transitive fixes (`lz4-java`). `gradle/actions/setup-gradle` validates the
+  wrapper jar against Gradle's published checksums on every run.
+- **Web dependencies** are locked by `apps/web/package-lock.json` (with integrity hashes) and installed with `npm ci`.
+
+**Not yet: Gradle dependency locking and verification metadata** (review finding S8, moved to increment 15). Both
+pin the transitive graph and verify each artifact's checksum. Dependabot, which raises all our updates, does not
+regenerate `gradle/verification-metadata.xml`, so every Dependabot PR would fail until someone ran
+`--write-verification-metadata sha256` by hand. Lockfiles have the same problem in a weaker form. Increment 15
+introduces both together with a workflow that refreshes them on Dependabot branches (or a move to Renovate, which
+maintains them), so the gate does not stop updates from flowing.
 
 ## Updates
 
