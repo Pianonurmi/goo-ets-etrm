@@ -70,6 +70,35 @@ The **DR drill** workflow (`.github/workflows/dr-drill.yml`) runs it every month
 seeded with the demo data. Run the drill against a production backup in the recovery environment every quarter and
 file its report with the change record.
 
+### Point-in-time recovery drill (CloudNativePG)
+
+The **CloudNativePG drill** workflow (`.github/workflows/cnpg-drill.yml`, monthly, on demand, and on changes to the
+drill or the cluster manifest) runs `ops/dr/cnpg-drill.sh` on a kind cluster with the operator and MinIO as the
+object store:
+
+1. A cluster with continuous WAL archiving and a base backup.
+2. More writes, a recovery target time, then damaging writes (more rows, half the rows deleted) and their WAL archived.
+3. A new cluster bootstrapped with `recovery` to the target time.
+4. The check: exactly the rows written before the target, none after it.
+
+The report (job summary and artifact) has the time of each step and how long the damaging WAL took to reach the
+object store, which bounds the RPO. `archive_timeout` (5 minutes in `ops/k8s/postgres-cluster.yaml`) closes a WAL
+segment on a quiet database, so the RPO stays under 15 minutes without load.
+
+### After a recovery: what to reconcile
+
+A recovery to an earlier time loses what happened after it in this system, not outside. Per integration:
+
+| Integration | What may differ | Reconcile with |
+|---|---|---|
+| Registries (Fingrid, Union Registry, others) | Instructions sent or confirmed after the recovery point | Holdings statements for every account: breaks show them; confirm or record each through the reconciliation workflow, never resend an `Unknown` instruction |
+| Bank | Payments and receipts recorded after the recovery point | The bank statement from the recovery point: record the missing payments again (same bank reference, idempotent) |
+| Kafka consumers | Events published after the recovery point, and events published again | Consumers deduplicate on `etrm-event-id`; tell them the recovery point so they can drop state after it |
+| GL (SAP export) | Exports produced after the recovery point | The GL export log: re-export the period from the recovered journal and let the GL reject duplicates by document number |
+| Counterparty confirmations | Confirmations received or issued after the recovery point | The confirmation inbox and the counterparties' copies |
+| Exchange (clearing) | Margin runs after the recovery point | The clearing member's statements; run the margin days again |
+| ECB rates and market data | Rates and curves imported after the recovery point | Pulled again by the next ECB run; import curves again |
+
 ### Last local drill
 
 2026-10-11: the source was the database after the end-to-end suite (demo data plus the Playwright scenarios),
