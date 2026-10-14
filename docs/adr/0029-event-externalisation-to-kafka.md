@@ -39,3 +39,9 @@ transaction, so an event is never lost.
   so treat these views like the OpenAPI document (ADR 0027).
 - `KafkaExternalizationIT` runs a broker in Testcontainers, so CI needs Docker; GitHub's hosted runners have it,
   and so does the self-hosted fallback (ADR 0041).
+
+## Amendment (2026-10-14, increment 14)
+Events leave without personal data that a topic could not forget (review finding S7): `ExternalEvents.payload`
+sets a cancellation's `beneficiaryName` and `beneficiaryId` to null in every externalised event, and consumers read
+them through the API by the instruction or lot id. Routing and headers still use the event as published. See
+[data protection](../operations/data-protection.md).

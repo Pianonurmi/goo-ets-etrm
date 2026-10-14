@@ -8,6 +8,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ## [Unreleased]
 
 ### Security
+- **Kafka events no longer carry a cancellation's beneficiary.** `InstructionConfirmed`, `InstructionFailed`,
+  `LotReceived` and `LotTransferred` leave with `beneficiaryName` and `beneficiaryId` set to null; consumers read
+  the beneficiary through the API by the instruction or lot id. A change to the event contract (ADR 0029): a consumer
+  that read those fields must now call the API. Topics written by earlier versions still hold them; see
+  [data protection](docs/operations/data-protection.md) for what is kept where, for how long, and how access and
+  erasure requests are handled.
 - **Tokens must be issued for this API.** The resource server checks the `aud` claim (`ETRM_OIDC_AUDIENCE`, default
   `etrm-api`; Helm value `oidc.audience`). The development realm adds the audience with a mapper; an identity
   provider in production needs the same before upgrading.
