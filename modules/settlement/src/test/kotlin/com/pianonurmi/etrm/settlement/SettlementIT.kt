@@ -19,6 +19,7 @@ import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqCriteriaRepository
 import com.pianonurmi.etrm.product.adapter.jooq.JooqProductBucketRepository
@@ -178,6 +179,7 @@ class SettlementIT {
                 ->
                 fixings[code to date]
             },
+            Savepoints.NONE,
         )
         numbers = JooqNumberSeriesRepository(dsl)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
@@ -398,8 +400,19 @@ class SettlementIT {
             every { finalSettlement(any()) } returns null
             every { finalSettlement(trade.id) } answers { FinalSettlement("EUAZ26", LocalDate.of(2026, 10, 2), published, "EUR") }
         }
-        val futures =
-            SettlementItemService(JooqSettlementItemRepository(TestDatabase.dsl), vat, referenceData, parties, actor, bus, trades, { _, _ -> null }, clearing)
+        val noFixings = IndexFixings { _, _ -> null }
+        val futures = SettlementItemService(
+            JooqSettlementItemRepository(TestDatabase.dsl),
+            vat,
+            referenceData,
+            parties,
+            actor,
+            bus,
+            trades,
+            noFixings,
+            Savepoints.NONE,
+            clearing,
+        )
         val obligation = trades.obligation(trade.legs.single().deliveries.single().id)!!
         futures.on(DeliveryRecorded(trade, UUID.randomUUID(), obligation, BigDecimal(1000), LocalDate.of(2026, 10, 5), "TX-FUT"))
         val parked = futures.items(SettlementItemFilter(tradeId = trade.id)).single()
