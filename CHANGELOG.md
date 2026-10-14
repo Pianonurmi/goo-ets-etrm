@@ -7,6 +7,25 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-14
+
+A security patch. Upgrade at once; the public showcase was redeployed on this version.
+
+### Security
+- **API reads without sign-in through encoded paths.** Up to 0.13.0 the security chain decided whether a request was
+  for the web UI by its raw, percent-encoded path, while the server routed it by the decoded one. A request such as
+  `GET /%61pi/v1/trades` therefore reached the API without a token or a session and ran with system rights, which see
+  every legal entity. GET endpoints, the OpenAPI document and the actuator (SBOM, metrics) were readable this way in
+  every deployment, including the public showcase. Only GET requests passed, so no command could be sent. The chain now matches on the decoded path, every API, actuator and OpenAPI path
+  needs credentials, and a request without a signed-in user acts as nobody rather than as the system. Found by the
+  [enterprise readiness review](docs/reviews/2026-10-enterprise-readiness.md) (S1).
+- **No system role from a token.** A `SYSTEM` role in a token's roles claim is ignored.
+- **The manual expiry sweep** (`POST /api/v1/inventory/jobs/expire`) needs back office or registry operator rights on
+  every legal entity and refuses a date after today; before, any signed-in user could expire every entity's lots.
+
+### Changed
+- `KafkaExternalizationIT` is skipped where Docker is not available instead of failing.
+
 ## [0.13.0] - 2026-10-13
 
 Options on EUA futures (increment 13).
@@ -243,7 +262,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.1
 [0.13.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.0
 [0.12.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.12.0
 [0.11.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.11.0

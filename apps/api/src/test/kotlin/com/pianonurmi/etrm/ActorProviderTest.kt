@@ -8,6 +8,9 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 
@@ -31,8 +34,28 @@ class ActorProviderTest {
     }
 
     @Test
-    fun `headers are ignored everywhere else`() {
+    fun `headers are ignored everywhere else, and a request without a user acts as nobody`() {
         request("X-Actor" to "mallory", "X-Roles" to "ADMIN")
+        val actor = SpringSecurityActorProvider(SecurityProperties()).current()
+        actor shouldBe Actor.ANONYMOUS
+        actor.roles shouldBe emptySet()
+        actor.seesAllEntities shouldBe false
+    }
+
+    @Test
+    fun `outside a web request the system acts`() {
         SpringSecurityActorProvider(SecurityProperties()).current() shouldBe Actor.SYSTEM
+    }
+
+    @Test
+    fun `a token never grants the system role`() {
+        val jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("u-1")
+            .claim("roles", listOf("SYSTEM", "TRADER")).claim("legal_entities", listOf("*")).build()
+        SecurityContextHolder.getContext().authentication = JwtAuthenticationToken(jwt)
+        try {
+            SpringSecurityActorProvider(SecurityProperties()).current().roles shouldBe setOf(Role.TRADER)
+        } finally {
+            SecurityContextHolder.clearContext()
+        }
     }
 }
