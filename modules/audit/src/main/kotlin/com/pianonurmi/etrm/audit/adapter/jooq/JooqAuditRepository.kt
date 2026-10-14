@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.audit.adapter.jooq
 
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditEvent.AUDIT_EVENT
+import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditSeal.AUDIT_SEAL
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.records.AuditEventRecord
 import com.pianonurmi.etrm.audit.api.AuditEventView
 import com.pianonurmi.etrm.audit.api.AuditFilter
@@ -11,7 +12,11 @@ import org.jooq.JSONB
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import tools.jackson.core.type.TypeReference
+import java.time.Instant
 import java.util.UUID
+
+/** The request's trace id, which the transaction manager puts in `etrm.correlation`; null outside a request. */
+private val CURRENT_CORRELATION = DSL.field("nullif(current_setting('etrm.correlation', true), '')", String::class.java)
 
 @Repository
 class JooqAuditRepository(private val dsl: DSLContext) : AuditRepository {
@@ -24,7 +29,7 @@ class JooqAuditRepository(private val dsl: DSLContext) : AuditRepository {
         .set(AUDIT_EVENT.EVENT_TYPE, event.eventType)
         .set(AUDIT_EVENT.AGGREGATE_TYPE, event.aggregateType)
         .set(AUDIT_EVENT.AGGREGATE_REF, event.aggregateRef)
-        .set(AUDIT_EVENT.CORRELATION_ID, event.correlationId)
+        .set(AUDIT_EVENT.CORRELATION_ID, event.correlationId?.let { DSL.`val`(it) } ?: CURRENT_CORRELATION)
         .set(AUDIT_EVENT.PAYLOAD, JSONB.jsonb(Json.mapper.writeValueAsString(event.payload)))
         .onConflict(AUDIT_EVENT.EVENT_ID, AUDIT_EVENT.OCCURRED_AT)
         .doNothing()
@@ -52,6 +57,26 @@ class JooqAuditRepository(private val dsl: DSLContext) : AuditRepository {
         .fetch(::toView)
 
     override fun byEventId(eventId: UUID): AuditEventView? = dsl.selectFrom(AUDIT_EVENT).where(AUDIT_EVENT.EVENT_ID.eq(eventId)).fetchOne()?.let(::toView)
+
+    override fun sealPending(maxRows: Int, horizonDays: Int): Int =
+        dsl.fetchValue("SELECT {0}.audit_seal_pending({1}, make_interval(days => {2}))", schema, DSL.`val`(maxRows), DSL.`val`(horizonDays))
+            .let { (it as Number).toInt() }
+
+    override fun brokenSeals(): List<Long> = dsl.fetch("SELECT audit_seq FROM {0}.audit_seal_broken()", schema).map { it.get(0, Long::class.java) }
+
+    override fun unsealedBefore(recordedBefore: Instant): Long = dsl.fetchValue(
+        """
+        SELECT count(*) FROM {0} e
+        WHERE e.recorded_at < {1} AND NOT EXISTS (SELECT 1 FROM {2} s WHERE s.audit_seq = e.seq AND s.occurred_at = e.occurred_at)
+        """.trimIndent(),
+        AUDIT_EVENT,
+        DSL.`val`(recordedBefore),
+        AUDIT_SEAL,
+    ).let { (it as Number).toLong() }
+
+    override fun sealHead(): String? = dsl.select(AUDIT_SEAL.HASH).from(AUDIT_SEAL).orderBy(AUDIT_SEAL.POSITION.desc()).limit(1).fetchOne(AUDIT_SEAL.HASH)
+
+    private val schema = DSL.name(AUDIT_EVENT.schema!!.name)
 
     private fun toView(r: AuditEventRecord) = AuditEventView(
         r.seq,

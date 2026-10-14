@@ -92,24 +92,27 @@ class ClearingService(
         actor.requireRole(Role.BACK_OFFICE, Role.MIDDLE_OFFICE, Role.SYSTEM)
         val account = repository.account(accountId) ?: throw NotFoundException("ClearingAccount", accountId)
         actor.requireEntity(account.legalEntityId)
-        if (businessDate.dayOfWeek == DayOfWeek.SATURDAY || businessDate.dayOfWeek == DayOfWeek.SUNDAY) {
-            throw ValidationException("$businessDate is not a business day")
+        requireBusinessDay(businessDate)
+        val current = repository.currentRun(account.id, businessDate, lock = true)
+        val run = compute(account, businessDate, current, actor.userId)
+        if (run !== current) {
+            // A later day margins against this day's settlement price, so every later day that was run is run again, in order.
+            repository.laterRunDates(account.id, businessDate).forEach { later ->
+                compute(account, later, repository.currentRun(account.id, later, lock = true), actor.userId)
+            }
         }
+        return run
+    }
+
+    private fun requireBusinessDay(date: LocalDate) {
+        if (date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY) throw ValidationException("$date is not a business day")
+    }
+
+    /** The day's run for the inputs of now: the [current] one when nothing changed, else a new version that supersedes it. */
+    private fun compute(account: ClearingAccountView, businessDate: LocalDate, current: MarginRunView?, userId: String): MarginRunView {
         val lines = lines(account, businessDate)
         val total = lines.fold(BigDecimal.ZERO.setScale(2)) { sum, l -> sum + l.variationMargin }
-        val hash = HashChain.next(
-            null,
-            Json.canonical(
-                mapOf(
-                    "account" to account.code,
-                    "date" to businessDate.toString(),
-                    "lines" to lines.map {
-                        listOf(it.contractCode, it.positionBefore.toPlainString(), it.tradedQuantity.toPlainString(), it.variationMargin.toPlainString())
-                    },
-                ),
-            ),
-        )
-        val current = repository.currentRun(account.id, businessDate, lock = true)
+        val hash = inputsHash(account, businessDate, lines)
         if (current != null && current.inputsHash == hash) return current
         val now = clock.instant()
         current?.let { repository.supersede(it.id, now) }
@@ -123,7 +126,7 @@ class ClearingService(
             variationMargin = total,
             lines = lines,
             inputsHash = hash,
-            computedBy = actor.userId,
+            computedBy = userId,
             computedAt = now,
             supersededAt = null,
         )
@@ -131,6 +134,29 @@ class ClearingService(
         events.publishEvent(VariationMarginComputed(run, current?.variationMargin ?: BigDecimal.ZERO.setScale(2)))
         return run
     }
+
+    /** The content of a run, with decimals in a form that does not depend on their scale (70.4 and 70.40 are one price). */
+    private fun inputsHash(account: ClearingAccountView, businessDate: LocalDate, lines: List<MarginLineView>): String = HashChain.next(
+        null,
+        Json.canonical(
+            mapOf(
+                "account" to account.code,
+                "date" to businessDate.toString(),
+                "lines" to lines.map {
+                    listOf(
+                        it.contractCode,
+                        it.positionBefore.canonical(),
+                        it.tradedQuantity.canonical(),
+                        it.settlementPrice.canonical(),
+                        it.previousSettlementPrice?.canonical(),
+                        it.variationMargin.canonical(),
+                    )
+                },
+            ),
+        ),
+    )
+
+    private fun BigDecimal.canonical(): String = if (signum() == 0) "0" else stripTrailingZeros().toPlainString()
 
     /** One line per contract with a position overnight or a trade on the day, up to the contract's last trading day. */
     private fun lines(account: ClearingAccountView, date: LocalDate): List<MarginLineView> {

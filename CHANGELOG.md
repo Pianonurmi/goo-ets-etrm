@@ -23,7 +23,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   that does not parse names the failing field rather than the parser's internal message.
 - The showcase login throttle counts failures only, so successful sign-ins never lock anyone out, and its memory is
   bounded. The FILE registry gateway uses only file-name-safe characters from an instruction key.
-
 - **The application no longer runs as the schema owner** in Kubernetes: migrations and partition maintenance use the
   owner (`ETRM_DB_MIGRATION_USER`), requests and jobs a role with table rights only, which cannot disable the
   append-only triggers ([database operations](docs/operations/database.md#roles-schema-owner-and-runtime-role)).
@@ -34,6 +33,28 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - **Allowance movements, trade versions, lot versions, reference data history and posting rule history are
   append-only**, and allowance movements are hash-chained per holding (the journal check reports `brokenHoldings`).
   Every state of a registry instruction is kept in `registry_instruction_event`.
+- **The audit trail is sealed into a hash chain** every minute and verified with the other chains every night; the
+  gauge `etrm_integrity_chain_ok` reports each chain, and a daily digest of the chain heads, signed when
+  `ETRM_INTEGRITY_SIGNING_KEY` is set, is stored for keeping outside the database
+  ([tamper evidence](docs/operations/database.md#tamper-evidence)).
+- **The audit trail says who read sensitive data**: document content, bank accounts, report and invoice exports and
+  the trail itself, and showcase sign-ins including failed ones. History rows name the user who made the change, and
+  audit records carry the request's trace id.
+
+### Changed
+- **Migrations run before an upgrade, not in the pods** (review finding O1). The Helm chart runs the image with
+  `--migrate-only` in a `pre-install,pre-upgrade` Job as the schema owner; a failed migration stops the upgrade while
+  the running version keeps serving. The pods start with migrations off (`migrations.job: false` restores the old
+  behaviour). CI starts the previous release on every build's schema (ADR 0048).
+- **Chart** (O5, O6): a node drain takes one pod at a time (`podDisruptionBudget.maxUnavailable`); a running
+  scheduled job finishes before shutdown; `/tmp` is bounded (`tmpSizeLimit`); Kafka with SASL and without topic
+  creation (`kafka.createTopics` now defaults to off: create the topics before enabling Kafka); `ecb.enabled`;
+  application settings such as registry adapters through `config`; an optional egress policy
+  (`networkPolicy.egress`). See [Kubernetes](docs/operations/kubernetes.md).
+- **Point-in-time recovery is drilled** (O4): a monthly workflow restores a CloudNativePG cluster to a target time
+  on kind and checks the rows; the production cluster archives WAL at least every five minutes
+  (`archive_timeout`). [Disaster recovery](docs/operations/disaster-recovery.md) lists what to reconcile per
+  integration after a recovery.
 
 ### Added
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
@@ -42,6 +63,44 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - The change process: `CODEOWNERS`, a pull request template, `SECURITY.md`, [contributing](docs/contributing.md)
   and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
   by default.
+- **Events the ledger cannot post wait in the inbox** (`LEDGER_ATTENTION`, for accountants). A posting listener now
+  runs in a savepoint: when it fails (no FX rate, too few cost layers) the delivery, registry confirmation or payment
+  still commits, and the event is recorded for the ledger's attention instead of failing the business transaction.
+  A posting rule that applies but lacks an amount (an index price not fixed yet) is recorded the same way instead of
+  posting nothing silently. An hourly job retries what can be retried and closes the task once it posts; the
+  accountant can also retry from the task, or dismiss it with a reason after a manual journal. The gauge
+  `etrm_ledger_unposted_open` counts what is waiting.
+
+### Fixed
+- Foreign-currency entries balance in base currency: the cent left by rounding each line goes on the last line, and an
+  entry that does not balance in base currency is refused.
+- Weighted-average costing reduces cost layers in whole units, so no fractional allowances remain in the layers.
+- Cancellations, expiries and deliveries are dated when they happened (the registry's confirmation, the expiry date)
+  rather than when the event was processed.
+- The hard close's period-end gate refuses a run older than the last posting of the period, and the release of the
+  free-allocation grant reads the deferred grant net of any debit. Period end warns when MtM booked under an earlier
+  treatment stays booked after the policy changed to disclosure only.
+
+### Fixed
+- **A settlement item that could not be evaluated failed the delivery's commit.** Parking an item whose counterparty
+  or legal entity could not be found (or whose futures price lookup failed) marked the transaction rollback-only, so
+  the delivery that created it failed at commit although the item had been parked. The lookups now run in a savepoint.
+- **Credit notes can be refunded and netted.** What is left of a credit note after its original was paid is refunded
+  by a payment in the other direction (an outgoing payment for a sales credit note) or offsets what the counterparty
+  claims in a netting statement. Netting and credit notes in a foreign currency now realise the exchange difference
+  to the booked rate, as a payment does; default posting rules version 8.
+- **A netting statement is refused when an invoice changed after it was prepared.** Agreeing and settling check the
+  amounts captured at preparation against what is outstanding now, and name the invoice (a payment applied in
+  between, for example).
+- **A month average is a fixing only once the month has ended.** Index-priced deliveries stay unpriced (needs
+  attention) while the average of the delivery month is partial, instead of being priced at the average so far.
+- **A payment is applied to an invoice only when its remittance quotes the whole invoice number.** `INV-2026-000012`
+  no longer matches a remittance mentioning `INV-2026-0000123`.
+- **A late settlement price no longer margins a day's move twice.** Computing a margin day again runs every later day
+  of the account that already has a run, in date order, and the ledger posts only the differences. The run hash
+  (and so the idempotency of a re-run) no longer depends on the scale of the prices; the first re-run of a day after
+  upgrading therefore gives a version 2 with the same margin and nothing to post.
+- The margin job dates its work in Europe/Berlin, where its cron runs, instead of UTC.
 
 ## [0.13.2] - 2026-10-14
 

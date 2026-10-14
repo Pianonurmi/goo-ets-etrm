@@ -7,7 +7,7 @@
 | Quote | A price of an instrument on a date: `SETTLEMENT`, `MID`, `BID`, `ASK`, `CLOSE` or `FIXING`, with source and quality |
 | FX rate | Units of the quote currency per unit of the base currency on a date, per source (ECB, an import, manual) |
 | Import format | How a file is read (see below) |
-| Price index | An instrument's quotes fixed by a rule (`ON_DATE`, `PRIOR_DAY`, `MONTH_AVERAGE`) for INDEX-priced trade legs |
+| Price index | An instrument's quotes fixed by a rule (`ON_DATE`, `PRIOR_DAY`, `MONTH_AVERAGE`) for INDEX-priced trade legs; a `MONTH_AVERAGE` is a fixing only once its month has ended |
 
 ## Quality and corrections
 - A price moving more than `etrm.marketdata.max-move-pct` (default 25 %) from the previous one is `SUSPECT`. A

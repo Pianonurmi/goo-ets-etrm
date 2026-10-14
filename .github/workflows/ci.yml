@@ -175,6 +175,14 @@ jobs:
           E2E_SHOWCASE_DB_URL: jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_showcase_e2e
           ETRM_JAVA: ${{ env.JAVA_HOME_25_X64 }}/bin/java
         run: npm run e2e
+      # A rolling upgrade runs the previous release on this build's migrations (ADR 0048).
+      - name: Previous release on the migrated schema
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JAVA: ${{ env.JAVA_HOME_25_X64 }}/bin/java
+        run: |
+          PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_compat;"
+          ops/release/compat-check.sh apps/api/build/libs/api.jar "jdbc:postgresql://localhost:$DB_PORT/etrm_compat"
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v7

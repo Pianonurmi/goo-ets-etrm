@@ -1,0 +1,54 @@
+name: CloudNativePG drill
+
+# Point-in-time recovery with CloudNativePG on a kind cluster (docs/operations/disaster-recovery.md): monthly, on
+# demand, and on changes to the drill itself.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 2 * *"
+  pull_request:
+    paths:
+      - .github/workflows/cnpg-drill.yml
+      - ops/dr/cnpg-drill.sh
+      - ops/k8s/postgres-cluster.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 45
+    env:
+      KIND_VERSION: v0.33.0
+      CNPG_VERSION: 1.29.3
+    steps:
+      - uses: actions/checkout@v7
+      - name: Kubernetes in Docker
+        run: |
+          mkdir -p "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          curl -fsSLo "$HOME/.local/bin/kind" "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x "$HOME/.local/bin/kind" && export PATH="$HOME/.local/bin:$PATH"
+          kind create cluster --name drill --wait 300s
+      - name: CloudNativePG operator
+        run: |
+          kubectl apply --server-side -f "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/v${CNPG_VERSION}/releases/cnpg-${CNPG_VERSION}.yaml"
+          kubectl -n cnpg-system rollout status deploy/cnpg-controller-manager --timeout=300s
+      - name: Backup, damage and point-in-time recovery
+        run: ops/dr/cnpg-drill.sh build/dr/cnpg-report.md
+      - name: Report
+        if: always()
+        run: |
+          [[ -f build/dr/cnpg-report.md ]] && cat build/dr/cnpg-report.md >> "$GITHUB_STEP_SUMMARY"
+          kubectl -n etrm-drill get cluster,backup,pods -o wide || true
+      - name: Operator and instance logs
+        if: failure()
+        run: |
+          kubectl -n cnpg-system logs deploy/cnpg-controller-manager --tail=200 || true
+          for pod in $(kubectl -n etrm-drill get pods -o name); do echo "== $pod"; kubectl -n etrm-drill logs "$pod" --all-containers --tail=100 || true; done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cnpg-drill
+          path: build/dr/
+          retention-days: 30

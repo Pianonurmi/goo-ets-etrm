@@ -1,7 +1,9 @@
 package com.pianonurmi.etrm.config
 
+import com.pianonurmi.etrm.audit.api.AuditCommand
 import com.pianonurmi.etrm.web.UiProperties
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -51,7 +53,13 @@ class ShowcaseSecurityConfiguration {
     fun loginThrottle(): LoginThrottle = LoginThrottle()
 
     @Bean
-    fun showcaseChain(http: HttpSecurity, ui: UiProperties, seedToken: SeedToken, throttle: LoginThrottle): SecurityFilterChain = http
+    fun showcaseChain(
+        http: HttpSecurity,
+        ui: UiProperties,
+        seedToken: SeedToken,
+        throttle: LoginThrottle,
+        audit: ObjectProvider<AuditCommand>,
+    ): SecurityFilterChain = http
         .csrf {
             it.spa()
             // The seeder authenticates per request with its token (no cookie), so it cannot be a cross-site forgery.
@@ -75,10 +83,12 @@ class ShowcaseSecurityConfiguration {
             it.loginProcessingUrl(LOGIN_PATH)
             it.successHandler { request, response, _ ->
                 throttle.succeeded(request.getParameter("username"))
+                recordSignIn(audit, "SignedIn", request.getParameter("username"), request.remoteAddr)
                 response.status = HttpStatus.NO_CONTENT.value()
             }
             it.failureHandler { request, response, _ ->
                 throttle.failed(request.getParameter("username"), request.remoteAddr)
+                recordSignIn(audit, "SignInFailed", request.getParameter("username"), request.remoteAddr)
                 response.problem(HttpStatus.UNAUTHORIZED.value(), "unauthenticated", "Wrong user name or password")
             }
             it.permitAll()
@@ -94,7 +104,14 @@ class ShowcaseSecurityConfiguration {
         .addFilterAfter(PersonaFilter(), ExceptionTranslationFilter::class.java)
         .build()
 
+    /** Sign-ins and failed attempts go to the audit trail; a failure to record never blocks the sign-in. */
+    private fun recordSignIn(audit: ObjectProvider<AuditCommand>, event: String, username: String?, remoteAddress: String?) {
+        runCatching { audit.ifAvailable?.record(event, "User", username?.take(MAX_USERNAME), mapOf("remoteAddress" to remoteAddress)) }
+            .onFailure { log.error("{} of {} could not be recorded in the audit trail", event, username, it) }
+    }
+
     companion object {
+        private const val MAX_USERNAME = 64
         const val LOGIN_PATH = "/api/v1/auth/login"
 
         /** Hashes a password for ETRM_DEMO_USERS, so the clear text need not sit in the environment. */

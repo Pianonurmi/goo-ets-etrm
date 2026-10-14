@@ -6,6 +6,12 @@ spring:
   lifecycle:
     # Graceful shutdown: requests in flight and scheduled jobs get this long before the context closes.
     timeout-per-shutdown-phase: 30s
+  task:
+    scheduling:
+      shutdown:
+        # A job running at shutdown finishes (within the phase timeout) instead of being interrupted mid-subject.
+        await-termination: true
+        await-termination-period: 30s
   threads:
     virtual:
       # Requests, scheduled jobs and async work run on virtual threads. This needs Java 24 or later (JEP 491): on Java 21 a
@@ -60,6 +66,9 @@ etrm:
     # The schema owner (migrations, partitions); requests then run as ETRM_DB_USER with table rights only.
     user: ${ETRM_DB_MIGRATION_USER:}
     password: ${ETRM_DB_MIGRATION_PASSWORD:}
+  integrity:
+    # Signs the daily chain-head digest (HMAC-SHA256); without it the digest is stored unsigned.
+    signing-key: ${ETRM_INTEGRITY_SIGNING_KEY:}
   ui:
     # Browser sign-in (ADR 0026): Authorization Code with PKCE against the public client etrm-web.
     auth-mode: OIDC

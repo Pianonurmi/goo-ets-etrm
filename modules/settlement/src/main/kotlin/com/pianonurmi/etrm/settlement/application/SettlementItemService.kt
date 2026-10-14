@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.PartyDetailsQuery
 import com.pianonurmi.etrm.referencedata.api.PartyType
@@ -148,6 +149,7 @@ class SettlementItemService(
     private val events: ApplicationEventPublisher,
     private val trades: TradeQuery,
     private val fixings: IndexFixings,
+    private val savepoints: Savepoints,
     /** Margined futures deliver at the final settlement price (ADR 0046). */
     private val clearing: ClearingQuery? = null,
 ) : SettlementItemCommand, SettlementItemQuery {
@@ -225,8 +227,18 @@ class SettlementItemService(
     @Transactional(readOnly = true)
     override fun item(id: UUID): SettlementItemView? = repository.find(id)
 
-    /** Prices the item and determines its VAT; anything missing parks it with the reason. */
+    /**
+     * Prices the item and determines its VAT; anything missing parks it with the reason. The lookups call other
+     * `@Transactional` services, whose `DomainException` would mark this transaction rollback-only even though it is
+     * caught here, so they run in a savepoint.
+     */
     private fun evaluate(item: SettlementItemView): SettlementItemView = try {
+        savepoints.attempt { priced(item) }
+    } catch (e: DomainException) {
+        item.needs(e.message ?: e.code)
+    }
+
+    private fun priced(item: SettlementItemView): SettlementItemView {
         val price = item.unitPrice ?: repository.priceFixing(item.scheduleId)?.price ?: futuresPrice(item) ?: indexPrice(item)
             ?: return item.needs("The price of trade ${item.tradeNumber} is not fixed yet")
         val net = Amounts.money(item.quantity * price)
@@ -236,7 +248,7 @@ class SettlementItemService(
         if (rule.treatment == VatTreatment.REVERSE_CHARGE_CROSS_BORDER && supply.customerVatNumber == null) {
             return item.needs("The customer has no VAT number; cross-border reverse charge needs one").copy(unitPrice = price, netAmount = net)
         }
-        item.copy(
+        return item.copy(
             unitPrice = price,
             netAmount = net,
             vatRuleCode = rule.code,
@@ -247,8 +259,6 @@ class SettlementItemService(
             status = SettlementItemStatus.OPEN,
             problem = null,
         )
-    } catch (e: DomainException) {
-        item.needs(e.message ?: e.code)
     }
 
     /** A margined future at its final settlement price; refused (the item parked) until that price is stored. */
