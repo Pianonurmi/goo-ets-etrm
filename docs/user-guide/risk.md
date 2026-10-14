@@ -16,6 +16,19 @@ Utilisation is measured on demand (**Measure now**) and by schedule. Open a limi
 utilisation, its breaches and a **Lifecycle** timeline. A breach opens a task to acknowledge or resolve it; the
 **Breaches** tab lists them, and **Open breaches only** hides the closed ones.
 
+### Incomplete and unmeasured limits
+
+A measurement that had to leave something out says so. Amounts in a currency with no exchange rate, and the
+potential future exposure of an option or delivery with no value or price, are left out of the figure; the limit
+and the counterparty exposure then show an **Incomplete** mark naming the currencies, and a hover text with the
+reasons. A limit keeps its last measured value rather than falling to zero, and the credit check of a trade says
+that it is incomplete. Add the missing rate or price and measure again.
+
+A GoO limit that could not be measured at all (for example when the allocation behind it cannot be solved) is
+**Could not be measured**. It keeps its last value, counts as a breach and opens a breach task, until it is measured
+again. A GoO concentration check that cannot run gives a `GOO_CONCENTRATION_NOT_CHECKED` warning on the trade
+instead of passing it silently.
+
 ## GoO limits
 
 Three limit types cap the risk of holding Guarantees of Origin that nothing uses. They apply to the whole legal

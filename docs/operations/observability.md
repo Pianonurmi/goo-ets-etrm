@@ -32,7 +32,7 @@ Names as Prometheus shows them (Micrometer turns dots into underscores and adds 
 | `etrm_registry_instructions_open` | gauge | `status` | Open registry instructions by status (`UNKNOWN` needs a person) |
 | `etrm_reconciliation_breaks_open` | gauge | | Open reconciliation breaks |
 | `etrm_marketdata_fx_age_days` | gauge | | Days since the newest FX rate |
-| `etrm_inventory_expiry_failures_total` | counter | | Lots the nightly expiry could not expire |
+| `etrm_inventory_expiry_failures_total` | counter | | Lots the nightly expiry could not expire (each also opens a `LOT_EXPIRY_FAILED` task) |
 | `http_server_requests_seconds` | histogram | `uri`, `status`, `exception` | API latency and outcomes, with SLO buckets |
 | `hikaricp_connections_*` | gauges | `pool` | Database pool: active, idle, pending, max |
 

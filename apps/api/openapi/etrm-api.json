@@ -1946,6 +1946,21 @@
           "exposure" : {
             "type" : "number"
           },
+          "incomplete" : {
+            "type" : "boolean"
+          },
+          "incompleteReasons" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "leftOutCurrencies" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "legalEntityId" : {
             "format" : "uuid",
             "type" : "string"
@@ -1971,7 +1986,7 @@
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "collateral", "counterpartyId", "currency", "exposure", "legalEntityId", "measuredAt", "mtm", "payablesNetted", "pfe", "receivables" ],
+        "required" : [ "collateral", "counterpartyId", "currency", "exposure", "incomplete", "incompleteReasons", "leftOutCurrencies", "legalEntityId", "measuredAt", "mtm", "payablesNetted", "pfe", "receivables" ],
         "type" : "object"
       },
       "CounterpartyView" : {
@@ -6077,6 +6092,21 @@
           "detail" : {
             "type" : [ "string", "null" ]
           },
+          "incomplete" : {
+            "type" : "boolean"
+          },
+          "incompleteReasons" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "leftOutCurrencies" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "limitId" : {
             "format" : "uuid",
             "type" : "string"
@@ -6086,7 +6116,7 @@
             "type" : "string"
           },
           "status" : {
-            "enum" : [ "OK", "WARNING", "BREACH" ],
+            "enum" : [ "OK", "WARNING", "BREACH", "NOT_MEASURED" ],
             "type" : "string"
           },
           "utilisation" : {
@@ -6096,7 +6126,7 @@
             "type" : "number"
           }
         },
-        "required" : [ "limitId", "measuredAt", "status", "utilisation", "value" ],
+        "required" : [ "incomplete", "incompleteReasons", "leftOutCurrencies", "limitId", "measuredAt", "status", "utilisation", "value" ],
         "type" : "object"
       },
       "LoadFactorView" : {

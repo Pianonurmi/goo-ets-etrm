@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.trade.application
 
 import com.pianonurmi.etrm.marketdata.api.FxRates
+import com.pianonurmi.etrm.platform.errors.DomainException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.StaleVersionException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -321,7 +322,7 @@ class TradeService(
         if (scheduled.compareTo(leg.quantity) != 0) throw ValidationException("Leg $legNo deliveries total $scheduled but leg quantity is ${leg.quantity}")
         leg.deliveries.forEach { d ->
             if (d.quantity.signum() <= 0) throw ValidationException("Leg $legNo delivery quantities must be positive")
-            if (d.deliveryDate !in d.deliveryWindow && d.deliveryDate != d.deliveryWindow.endExclusive) {
+            if (d.deliveryDate !in d.deliveryWindow) {
                 throw ValidationException("Leg $legNo delivery date ${d.deliveryDate} must lie within ${d.deliveryWindow}")
             }
         }
@@ -329,7 +330,8 @@ class TradeService(
 
     private fun buildLeg(family: ProductFamily, legalEntityId: UUID, counterpartyId: UUID, legNo: Int, leg: CaptureLeg): TradeLegView {
         if (leg.quantity.signum() <= 0) throw ValidationException("Leg $legNo quantity must be positive")
-        if (leg.price.signum() < 0) throw ValidationException("Leg $legNo price must not be negative")
+        // An index leg's price is its spread over the index, which may be a discount; a fixed price is never negative.
+        if (leg.priceType == PriceType.FIXED && leg.price.signum() < 0) throw ValidationException("Leg $legNo price must not be negative")
         checkSchedule(legNo, leg)
         leg.deliveryAccountId?.let { accountId ->
             val account = referenceData.requireRegistryAccount(accountId)
@@ -421,13 +423,25 @@ class TradeService(
         val current = locked(tradeId)
         authorise(current.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
         if (current.version != command.expectedVersion) throw StaleVersionException("Trade", tradeId, command.expectedVersion, current.version)
+        val next = TradeAggregate(current).amend(amendedState(current, command, runChecks = true))
+        // An intercompany trade and its mirror change together or not at all: the mirror is worked out first, so a
+        // refusal leaves both as they were.
+        val mirror = current.intercompanyLinkId?.let(::locked)
+        val mirrorNext = mirror?.let { amendedMirror(current, it, command) }
+        saveAmended(current, next, actor, command.reason)
+        if (mirror != null && mirrorNext != null) saveAmended(mirror, mirrorNext, actor, "${command.reason} (follows ${current.tradeNumber})")
+        return next
+    }
+
+    /** The trade as the amendment would leave it, before the lifecycle moves it back to approval. */
+    private fun amendedState(current: TradeView, command: AmendTrade, runChecks: Boolean): TradeView {
         val legs = command.legs?.let { optionLegsChecked(current.instrumentType, it) }?.mapIndexed {
             index,
             leg,
             ->
             buildLeg(current.productFamily, current.legalEntityId, current.counterpartyId, index + 1, leg)
         } ?: current.legs
-        val amended = current.copy(
+        return current.copy(
             tradeDate = command.tradeDate ?: current.tradeDate,
             brokerId = command.brokerId ?: current.brokerId,
             masterAgreementRef = command.masterAgreementRef ?: current.masterAgreementRef,
@@ -435,13 +449,41 @@ class TradeService(
             legs = legs,
             regulatory = command.regulatory ?: current.regulatory,
         ).let { withRegulatoryTerms(it, referenceData.requireLegalEntity(current.legalEntityId), keptUti = current.regulatory.uti) }
-            .let { it.copy(approvalFindings = runChecks(it)) }
+            .let { if (runChecks) it.copy(approvalFindings = runChecks(it)) else it }
+    }
+
+    private fun saveAmended(current: TradeView, next: TradeView, actor: String, reason: String) {
         val wasFirm = current.obligationsOpen
-        val next = TradeAggregate(current).amend(amended)
-        save(next, actor, command.reason)
+        save(next, actor, reason)
         events.publishEvent(TradeAmended(next, current.version))
         if (wasFirm) obligationsOf(current).forEach { events.publishEvent(DeliveryObligationClosed(it, "amended")) }
-        return next
+    }
+
+    /**
+     * The mirror of an intercompany trade after the same amendment, with the sides turned round. The mirror keeps its own
+     * registry accounts (they are its own, or its counterparty's, not the source's); a leg added by the amendment takes the
+     * source's delivery account as its counterparty account, as at capture. It is worked out like any amendment and, like
+     * the mirror at capture, without pre-trade checks. When the mirror cannot take the change (it has deliveries, an option
+     * leg decided, or is in a state that forbids it), the one-sided change is refused.
+     */
+    private fun amendedMirror(source: TradeView, mirror: TradeView, command: AmendTrade): TradeView = try {
+        val mirrorCommand = command.copy(
+            expectedVersion = mirror.version,
+            legs = command.legs?.mapIndexed { index, leg ->
+                val own = mirror.legs.getOrNull(index)
+                leg.copy(
+                    side = leg.side.opposite(),
+                    deliveryAccountId = own?.deliveryAccountId,
+                    counterpartyAccountId = if (own != null) own.counterpartyAccountId else leg.deliveryAccountId,
+                    counterpartyAccountRef = own?.counterpartyAccountRef,
+                )
+            },
+        )
+        TradeAggregate(mirror).amend(amendedState(mirror, mirrorCommand, runChecks = false))
+    } catch (e: DomainException) {
+        throw ValidationException(
+            "Trade ${source.tradeNumber} cannot be amended on its own: its intercompany mirror ${mirror.tradeNumber} refuses the change (${e.message})",
+        )
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -491,14 +533,32 @@ class TradeService(
         val current = locked(tradeId)
         authorise(current.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
         val next = TradeAggregate(current).cancel()
-        save(next, actorProvider.current().userId, "cancelled: $reason")
+        // The mirror of an intercompany trade is cancelled with it, or the cancellation is refused: one entity must not
+        // keep the obligation, exposure and position the other has cancelled.
+        val mirror = current.intercompanyLinkId?.let(::locked)?.takeIf { it.status != TradeStatus.CANCELLED }
+        val mirrorNext = mirror?.let { cancelledMirror(current, it) }
+        val actor = actorProvider.current().userId
+        saveCancelled(current, next, actor, reason)
+        if (mirror != null && mirrorNext != null) saveCancelled(mirror, mirrorNext, actor, "$reason (follows ${current.tradeNumber})")
+        return next
+    }
+
+    private fun cancelledMirror(source: TradeView, mirror: TradeView): TradeView = try {
+        TradeAggregate(mirror).cancel()
+    } catch (e: DomainException) {
+        throw ValidationException(
+            "Trade ${source.tradeNumber} cannot be cancelled on its own: its intercompany mirror ${mirror.tradeNumber} refuses it (${e.message})",
+        )
+    }
+
+    private fun saveCancelled(current: TradeView, next: TradeView, actor: String, reason: String) {
+        save(next, actor, "cancelled: $reason")
         events.publishEvent(TradeCancelled(next, reason))
         if (current.obligationsOpen) {
             obligationsOf(current).filter {
                 it.status != DeliveryStatus.DELIVERED
             }.forEach { events.publishEvent(DeliveryObligationClosed(it, "cancelled")) }
         }
-        return next
     }
 
     override fun recordDelivery(tradeId: UUID, command: RecordDelivery): TradeView {
