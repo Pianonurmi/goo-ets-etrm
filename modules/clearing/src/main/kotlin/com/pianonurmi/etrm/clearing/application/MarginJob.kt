@@ -2,12 +2,12 @@ package com.pianonurmi.etrm.clearing.application
 
 import com.pianonurmi.etrm.clearing.domain.ClearingRepository
 import com.pianonurmi.etrm.platform.jobs.JobRun
-import java.time.Clock
-import java.time.LocalDate
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.time.Clock
+import java.time.LocalDate
 
 /** Variation margin of the day for every active clearing account, after the exchange's settlement prices are in. */
 @Component

@@ -106,18 +106,29 @@ class JobMetrics(
     /** The longest gap among the next runs of a cron schedule, or the fixed delay or rate; null when disabled. */
     private fun expectedInterval(scheduled: Scheduled): Duration? {
         val cron = environment.resolvePlaceholders(scheduled.cron)
-        if (cron == Scheduled.CRON_DISABLED) return null
-        if (cron.isNotEmpty()) {
-            val zone = environment.resolvePlaceholders(scheduled.zone).takeIf { it.isNotEmpty() }?.let(ZoneId::of) ?: ZoneId.systemDefault()
-            val expression = CronExpression.parse(cron)
-            val runs = generateSequence(expression.next(ZonedDateTime.now(clock.withZone(zone)))) { expression.next(it) }.take(CRON_SAMPLE).toList()
-            return runs.zipWithNext { a, b -> Duration.between(a, b) }.maxOrNull()
+        return when {
+            cron == Scheduled.CRON_DISABLED -> null
+            cron.isNotEmpty() -> cronInterval(cron, environment.resolvePlaceholders(scheduled.zone))
+            else -> fixedInterval(scheduled)
         }
+    }
+
+    private fun cronInterval(cron: String, zoneText: String): Duration? {
+        val zone = zoneText.takeIf { it.isNotEmpty() }?.let(ZoneId::of) ?: ZoneId.systemDefault()
+        val expression = CronExpression.parse(cron)
+        val runs = generateSequence(expression.next(ZonedDateTime.now(clock.withZone(zone)))) { expression.next(it) }.take(CRON_SAMPLE).toList()
+        return runs.zipWithNext { a, b -> Duration.between(a, b) }.maxOrNull()
+    }
+
+    private fun fixedInterval(scheduled: Scheduled): Duration? {
+        val unit = scheduled.timeUnit.toChronoUnit()
         val fixed = listOf(scheduled.fixedRate, scheduled.fixedDelay).firstOrNull { it > 0 }
-        if (fixed != null) return Duration.of(fixed, scheduled.timeUnit.toChronoUnit())
         val text = listOf(scheduled.fixedRateString, scheduled.fixedDelayString).map(environment::resolvePlaceholders).firstOrNull { it.isNotEmpty() }
-            ?: return null
-        return text.toLongOrNull()?.let { Duration.of(it, scheduled.timeUnit.toChronoUnit()) } ?: Duration.parse(text)
+        return when {
+            fixed != null -> Duration.of(fixed, unit)
+            text == null -> null
+            else -> text.toLongOrNull()?.let { Duration.of(it, unit) } ?: Duration.parse(text)
+        }
     }
 
     private fun jobName(type: Class<*>, method: Method): String =

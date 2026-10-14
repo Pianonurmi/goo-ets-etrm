@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.support.DefaultListableBeanFactory
+import org.springframework.beans.factory.support.RootBeanDefinition
 import org.springframework.mock.env.MockEnvironment
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.scheduling.support.ScheduledTaskObservationContext
@@ -25,8 +26,10 @@ class JobMetricsTest {
     }
 
     private val meters = SimpleMeterRegistry()
-    private val beans = DefaultListableBeanFactory().apply { registerSingleton("jobs", Jobs()) }
-    private val start = Instant.parse("2026-10-14T10:00:00Z")
+    private val beans = DefaultListableBeanFactory().apply { registerBeanDefinition("jobs", RootBeanDefinition(Jobs::class.java)) }
+
+    // Eight weeks of weekday runs with no daylight saving change (that would make the weekend 71 or 73 hours).
+    private val start = Instant.parse("2026-05-04T10:00:00Z")
     private val metrics = JobMetrics(meters, MockEnvironment(), beans, Clock.fixed(start, ZoneOffset.UTC))
 
     private fun context(name: String) = ScheduledTaskObservationContext(Jobs(), Jobs::class.java.getMethod(name))
@@ -54,14 +57,14 @@ class JobMetricsTest {
         metrics.onStop(ok)
         failures("weekday-job") shouldBe 2.0
 
-        val failed = context("weekdays").apply { error = IllegalStateException("boom") }
+        val failed = context("weekdays").apply { setError(IllegalStateException("boom")) }
         metrics.onStart(failed)
         JobRun.lockAcquired()
         metrics.onStop(failed)
         failures("weekday-job") shouldBe 3.0
 
         // Another instance held the lock: no run here.
-        val skipped = context("weekdays").apply { error = IllegalStateException("not seen") }
+        val skipped = context("weekdays").apply { setError(IllegalStateException("not seen")) }
         metrics.onStart(skipped)
         metrics.onStop(skipped)
         failures("weekday-job") shouldBe 3.0

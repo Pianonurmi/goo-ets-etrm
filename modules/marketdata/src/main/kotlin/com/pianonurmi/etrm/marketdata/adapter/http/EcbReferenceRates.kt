@@ -7,6 +7,11 @@ import com.pianonurmi.etrm.marketdata.application.MarketDataSettings
 import com.pianonurmi.etrm.platform.jobs.JobRun
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
+import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.stereotype.Component
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -15,11 +20,6 @@ import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
 import java.time.Clock
 import java.time.LocalDate
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
-import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.ObjectProvider
-import org.springframework.scheduling.annotation.Scheduled
-import org.springframework.stereotype.Component
 
 /**
  * Pulls the ECB euro reference rates (published around 16:00 CET on TARGET working days) and imports them through

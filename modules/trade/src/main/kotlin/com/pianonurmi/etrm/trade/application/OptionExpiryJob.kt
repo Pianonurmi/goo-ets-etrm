@@ -1,12 +1,12 @@
 package com.pianonurmi.etrm.trade.application
 
 import com.pianonurmi.etrm.platform.jobs.JobRun
-import java.time.Clock
-import java.time.LocalDate
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.time.Clock
+import java.time.LocalDate
 
 /** Options expiring today and earlier, decided after the exchange's settlement prices and before the margin job. */
 @Component

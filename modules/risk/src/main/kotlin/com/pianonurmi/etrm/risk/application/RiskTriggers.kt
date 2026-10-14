@@ -12,13 +12,13 @@ import com.pianonurmi.etrm.trade.api.TradeCancelled
 import com.pianonurmi.etrm.trade.api.TradeConfirmed
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.valuation.api.ValuationRunSignedOff
-import java.util.UUID
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.util.UUID
 
 /** Risk's pre-trade check on every captured or amended trade. */
 @Component

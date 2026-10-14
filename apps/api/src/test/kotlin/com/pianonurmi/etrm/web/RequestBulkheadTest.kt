@@ -23,7 +23,14 @@ class RequestBulkheadTest {
         val inside = CountDownLatch(1)
         val release = CountDownLatch(1)
         val holding = Thread.ofVirtual().start {
-            bulkhead.doFilter(request("/api/v1/trades"), MockHttpServletResponse(), FilterChain { _, _ -> inside.countDown(); release.await() })
+            bulkhead.doFilter(
+                request("/api/v1/trades"),
+                MockHttpServletResponse(),
+                FilterChain { _, _ ->
+                    inside.countDown()
+                    release.await()
+                },
+            )
         }
         inside.await(5, TimeUnit.SECONDS) shouldBe true
 
