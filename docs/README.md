@@ -9,6 +9,7 @@
 | `integration/` | Registry integration (outbox, statement formats, Union Registry, breaks, API adapters), the generic registry REST contract, ECB reference rates, GL export, security |
 | `operations/` | Running the system: releases and image tags, observability, supply chain, Kubernetes and the Helm chart, database partitions and archiving, load testing, disaster recovery |
 | `security/` | Penetration test preparation: scope, accounts, rules of engagement |
+| `reviews/` | Whole-system reviews: the October 2026 enterprise readiness review with its findings and plan |
 | `ui/` | Web UI conventions and screens |
 | `roadmap.md` | Increment plan |
 | `plans/` | Detailed plans for upcoming increments |
