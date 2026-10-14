@@ -22,6 +22,10 @@ concurrency:
   group: ci-${{ github.ref }}${{ inputs.release_version && format('-release-{0}', inputs.release_version) || '' }}
   cancel-in-progress: true
 
+# The token reads the repository only; jobs that publish or release widen it themselves.
+permissions:
+  contents: read
+
 jobs:
   chart:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}

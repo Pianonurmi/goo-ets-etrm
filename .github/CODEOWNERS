@@ -1,0 +1,10 @@
+# Reviews required for the parts where a mistake costs money, data or access (docs/contributing.md).
+# Add a second maintainer next to the owner as soon as there is one.
+*                                        @Pianonurmi
+**/db/migration/**                       @Pianonurmi
+/apps/api/openapi/                       @Pianonurmi
+/apps/api/src/main/kotlin/com/pianonurmi/etrm/config/  @Pianonurmi
+/platform/src/main/kotlin/com/pianonurmi/etrm/platform/security/  @Pianonurmi
+/modules/ledger/                         @Pianonurmi
+/ops/                                    @Pianonurmi
+/.github/                                @Pianonurmi
