@@ -1,7 +1,7 @@
 # 8. Cross-cutting concepts
 
 - **Identifiers**: UUIDv7 everywhere (`Ids.newId()`); human-readable numbers for trades (`T-2026-000123`) and journal entries.
-- **Time**: instants in UTC; business periods as closed-open `LocalDateRange`; entity time zone for reporting only.
+- **Time** (ADR 0050): instants in UTC from the injected `Clock`, never `now()` without it (`TimeSourceTest` fails the build); business periods as closed-open `LocalDateRange`; business dates in the legal entity's zone, or the market's zone for exchange jobs; events carry when they happened, so a replay posts on the original date; tests use `TestClock`.
 - **Money and quantities**: `BigDecimal` value classes; certificates are whole MWh, allowances whole tCO2e; never floating point.
 - **Versioning and optimistic locking**: every mutable aggregate carries `version`; commands state the expected version; stale updates fail with HTTP 409.
 - **Bitemporality**: `reference_history` (master data), `trade_version` (trades), `certificate_lot_version` (lots) with transaction-time and valid-time periods.
@@ -9,8 +9,9 @@
 - **Events**: Spring application events implementing `DomainEvent`, published inside the writing transaction and delivered to in-process listeners (audit, ledger, allocation, workflow). Consumers are idempotent on `eventId`.
 - **Idempotency**: external-facing commands take idempotency keys (allocation plans, registry instructions, payments by bank reference, confirmations by reference); deliveries are unique per source key (ADR 0015); settlement items per delivery; journal postings per (event, rule).
 - **Segregation of duties**: approver ≠ requester for trades, plans, registry instructions, master data and bank account changes, VAT rules, invoices, confirmation overrides, break acceptance and netting agreement; enforced by the inbox (task four-eyes), in services and by database check constraints.
-- **Security**: OIDC resource server; roles from token claims; `dev`/`test` profiles accept `X-Actor`/`X-Roles` headers.
-- **Errors**: domain exceptions map to RFC 9457 problem details (404, 409, 422, 403, 400).
+- **Security**: OIDC resource server with audience validation; roles from token claims, never `SYSTEM` (kept for jobs and listeners) and `ADMIN` without business rights; access decided on the decoded, normalised path; a request without a principal acts as an anonymous actor with no roles; `dev`/`test` profiles accept `X-Actor`/`X-Roles` headers. Roles and entity scope are checked in services and controllers, and `OperationGuardsIT` drives every operation of the OpenAPI document as a minimal actor against a reviewed allow-list (ADR 0049).
+- **Errors**: domain exceptions map to RFC 9457 problem details (404, 409, 422, 403, 400) without internals; an unexpected error is logged with its stack and the trace id and answers 500.
+- **Nothing fails silently** (increment 14): a ledger listener runs in a savepoint and records what it cannot post as an unposted event with an inbox task and a replay job; a limit that cannot be measured is `NOT_MEASURED` and counts as a breach; an exposure with a currency left out says so (`incomplete`); a lot expiry runs per lot and parks a failure as a task; every scheduled job counts its failures (`etrm.jobs.failures`) and its last success, and the alert rules fire on them ([observability](../operations/observability.md)).
 - **Configuration as data**: posting rules, specificity weights, transfer routes, import formats and curve definitions live in tables with APIs.
 - **Approval inbox**: owning modules register task types (`TaskHandler`) and apply decisions in the same transaction (ADR 0011).
 - **Savepoints**: a caught domain exception from a transactional service would leave the transaction rollback-only; callers that tolerate a refusal (bulk decisions, delivery listeners) run the call in a savepoint (`Savepoints.attempt`).
@@ -41,11 +42,14 @@
   - A miss prepares the flow in the background; the pre-trade check then reports "not checked" and never holds up capture.
 - **Savepoints when one module measures through another** (ADR 0039, 0040):
   - Valuation computes the portfolio value, and risk the GoO measures, through `allocation.api` in `Savepoints.attempt`.
-  - When allocation is not available or cannot value the book, the portfolio value is left out or the limit reads zero with a note. The valuation run and the other limits go ahead unchanged.
+  - When allocation is not available or cannot value the book, the portfolio value is left out, or the limit is `NOT_MEASURED` and keeps its last value. The valuation run and the other limits go ahead unchanged.
   - The listener that marks plans stale when future supply changes works the same way and never fails the transaction that published the event.
 
 - **Web UI contract**: the UI is typed from the committed OpenAPI snapshot; an API change without a regenerated snapshot fails `OpenApiSnapshotIT`, and a renamed operation fails the web typecheck (ADR 0027).
 - **Role-aware UI**: actions and screens are offered by role through a table keyed by operation id; entity scope, four eyes and state rules stay on the server and come back as problems (ADR 0028).
 - **No arithmetic on money in the browser**: amounts are computed by the server, formatted in the UI and sent back as decimal strings.
 - **Accessibility**: WCAG 2.1 AA colour contrast is built into the theme (`app/contrast.ts`); Playwright runs axe on the main screens and fails on serious or critical findings.
-- **Browser security**: same-origin serving, a Content-Security-Policy without inline scripts (inline styles are allowed for Mantine's CSS variables), `Referrer-Policy` and `X-Frame-Options: DENY`; the end-to-end suite fails on any CSP violation.
+- **Browser security**: same-origin serving, a Content-Security-Policy without inline scripts (inline styles are allowed for Mantine's CSS variables), `Referrer-Policy` and `X-Frame-Options: DENY` (only the silent-renew page may be framed, by the application itself); tokens are kept in memory only (ADR 0026); the end-to-end suite fails on any CSP violation.
+- **Load and isolation**: requests run on virtual threads behind a concurrent-request limit (`RequestBulkhead`, 503 with `Retry-After` past it) and a short connection timeout, so an outage answers quickly instead of queueing; readiness does not include the database.
+- **Personal data**: events that leave the application carry no beneficiary data; what is kept where, for how long and how a request is handled is in [data protection](../operations/data-protection.md).
+- **Change safety** (ADR 0048, 0051): migrations are expand then contract, run by a pre-upgrade job as the schema owner while pods run as a runtime role; CI starts the previous release on the migrated schema; versions follow the support policy of ADR 0051.
