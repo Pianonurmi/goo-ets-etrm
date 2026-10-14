@@ -22,12 +22,14 @@ import com.pianonurmi.etrm.ledger.api.JournalLineView
 import com.pianonurmi.etrm.ledger.api.PeriodStatus
 import com.pianonurmi.etrm.ledger.api.PostingRuleView
 import com.pianonurmi.etrm.ledger.api.RuleLine
+import com.pianonurmi.etrm.ledger.domain.ChainedEntry
 import com.pianonurmi.etrm.ledger.domain.CommitmentMemo
 import com.pianonurmi.etrm.ledger.domain.CommitmentMemoRepository
 import com.pianonurmi.etrm.ledger.domain.CostLayer
 import com.pianonurmi.etrm.ledger.domain.CostLayerRepository
 import com.pianonurmi.etrm.ledger.domain.GlAccountRepository
 import com.pianonurmi.etrm.ledger.domain.GlExportRepository
+import com.pianonurmi.etrm.ledger.domain.JournalChain
 import com.pianonurmi.etrm.ledger.domain.JournalRepository
 import com.pianonurmi.etrm.ledger.domain.LineBalance
 import com.pianonurmi.etrm.ledger.domain.MemoMovementKind
@@ -157,32 +159,48 @@ class JooqJournalRepository(private val dsl: DSLContext) : JournalRepository {
             .set(JOURNAL_ENTRY.CREATED_AT, entry.createdAt)
             .set(JOURNAL_ENTRY.PREV_HASH, entry.prevHash)
             .set(JOURNAL_ENTRY.HASH, entry.hash)
+            .set(JOURNAL_ENTRY.CHAIN_VERSION, JournalChain.CURRENT.toShort())
             .execute()
+        // One statement for all lines: the deferred balance check then holds even without an enclosing transaction.
+        var lines = dsl.insertInto(
+            JOURNAL_LINE,
+            JOURNAL_LINE.ID,
+            JOURNAL_LINE.ENTRY_ID,
+            JOURNAL_LINE.LINE_NO,
+            JOURNAL_LINE.ACCOUNT_ID,
+            JOURNAL_LINE.DEBIT,
+            JOURNAL_LINE.CREDIT,
+            JOURNAL_LINE.CURRENCY,
+            JOURNAL_LINE.FX_RATE,
+            JOURNAL_LINE.BASE_DEBIT,
+            JOURNAL_LINE.BASE_CREDIT,
+            JOURNAL_LINE.DIMENSIONS,
+            JOURNAL_LINE.MEMO,
+        )
         entry.lines.forEach { l ->
-            dsl.insertInto(JOURNAL_LINE)
-                .set(JOURNAL_LINE.ID, Ids.newId())
-                .set(JOURNAL_LINE.ENTRY_ID, entry.id)
-                .set(JOURNAL_LINE.LINE_NO, l.lineNo)
-                .set(JOURNAL_LINE.ACCOUNT_ID, accountIds.getValue(l.accountCode))
-                .set(JOURNAL_LINE.DEBIT, l.debit)
-                .set(JOURNAL_LINE.CREDIT, l.credit)
-                .set(JOURNAL_LINE.CURRENCY, l.currency)
-                .set(JOURNAL_LINE.FX_RATE, l.fxRate)
-                .set(JOURNAL_LINE.BASE_DEBIT, l.baseDebit)
-                .set(JOURNAL_LINE.BASE_CREDIT, l.baseCredit)
-                .set(JOURNAL_LINE.DIMENSIONS, JSONB.jsonb(Json.mapper.writeValueAsString(l.dimensions)))
-                .set(JOURNAL_LINE.MEMO, l.memo)
-                .execute()
+            lines = lines.values(
+                Ids.newId(),
+                entry.id,
+                l.lineNo,
+                accountIds.getValue(l.accountCode),
+                l.debit,
+                l.credit,
+                l.currency,
+                l.fxRate,
+                l.baseDebit,
+                l.baseCredit,
+                JSONB.jsonb(Json.mapper.writeValueAsString(l.dimensions)),
+                l.memo,
+            )
         }
+        lines.execute()
     }
 
-    override fun markReversed(entryId: UUID, reversalId: UUID) {
-        dsl.update(JOURNAL_ENTRY)
-            .set(JOURNAL_ENTRY.STATUS, EntryStatus.REVERSED.name)
-            .set(JOURNAL_ENTRY.REVERSED_BY, reversalId)
-            .where(JOURNAL_ENTRY.ID.eq(entryId))
-            .execute()
-    }
+    override fun markReversed(entryId: UUID, reversalId: UUID): Boolean = dsl.update(JOURNAL_ENTRY)
+        .set(JOURNAL_ENTRY.STATUS, EntryStatus.REVERSED.name)
+        .set(JOURNAL_ENTRY.REVERSED_BY, reversalId)
+        .where(JOURNAL_ENTRY.ID.eq(entryId), JOURNAL_ENTRY.STATUS.eq(EntryStatus.POSTED.name), JOURNAL_ENTRY.REVERSED_BY.isNull)
+        .execute() == 1
 
     override fun find(id: UUID): JournalEntryView? = dsl.selectFrom(JOURNAL_ENTRY).where(JOURNAL_ENTRY.ID.eq(id)).fetchOne()?.let(::toView)
 
@@ -213,8 +231,10 @@ class JooqJournalRepository(private val dsl: DSLContext) : JournalRepository {
         .limit(limit)
         .fetch(::toView)
 
-    override fun allForEntity(legalEntityId: UUID): List<JournalEntryView> =
-        dsl.selectFrom(JOURNAL_ENTRY).where(JOURNAL_ENTRY.LEGAL_ENTITY_ID.eq(legalEntityId)).orderBy(JOURNAL_ENTRY.ENTRY_NUMBER).fetch(::toView)
+    override fun chain(legalEntityId: UUID): List<ChainedEntry> = dsl.selectFrom(JOURNAL_ENTRY)
+        .where(JOURNAL_ENTRY.LEGAL_ENTITY_ID.eq(legalEntityId))
+        .orderBy(JOURNAL_ENTRY.ENTRY_NUMBER)
+        .fetch { ChainedEntry(toView(it), it.chainVersion.toInt()) }
 
     override fun lockEntity(legalEntityId: UUID) {
         dsl.execute("SELECT pg_advisory_xact_lock(hashtext({0}))", DSL.`val`("ledger:$legalEntityId"))
