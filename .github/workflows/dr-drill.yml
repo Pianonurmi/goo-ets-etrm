@@ -6,6 +6,10 @@ on:
   schedule:
     - cron: "41 3 1 * *"
 
+# The token reads the repository only; jobs that publish or release widen it themselves.
+permissions:
+  contents: read
+
 jobs:
   drill:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}

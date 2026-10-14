@@ -15,11 +15,12 @@
 | 11 | Valuation depth: discount curves and discounted MtM, TIME and RATES in the P&L explain, carry interpolation of allowance forwards, cash flow hedge accounting (designation under four eyes, effectiveness, the hedging reserve at period end, reclassification) ([plan](plans/increment-11-valuation-depth.md)) | done (0.11.0) |
 | 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | done (0.12.0) |
 | 13 | Options on EUA futures: option terms on trades (call or put, strike, expiry, underlying future), a volatility curve signed off like other curves, Black-76 valuation with delta and vega and a VOL component in the explain, premiums in the ledger, exercise into the future or abandonment at expiry, delta-equivalent positions and exposure ([plan](plans/increment-13-eua-options.md)) | done (0.13.0) |
+| 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)) | planned |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
 book type, NRV, provision), VAT rules and PFE add-ons; the receiving GL's file specification; market data vendors for
-EUA futures and GoO marks; EMIR field layout and trade repository delegation; ETS deadline rules checked by compliance.
+EUA futures and GoO marks; EMIR field layout and trade repository delegation; ETS deadline rules checked by compliance. Each is tracked as an issue: penetration test [#16](https://github.com/Pianonurmi/goo-ets-etrm/issues/16), DR drill [#17](https://github.com/Pianonurmi/goo-ets-etrm/issues/17), registry specifications and code lists [#18](https://github.com/Pianonurmi/goo-ets-etrm/issues/18), sign-offs [#19](https://github.com/Pianonurmi/goo-ets-etrm/issues/19), GL, EMIR and market data [#20](https://github.com/Pianonurmi/goo-ets-etrm/issues/20), branch protection and a second maintainer [#21](https://github.com/Pianonurmi/goo-ets-etrm/issues/21).
 
 ## Increment 2 milestones
 
