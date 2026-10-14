@@ -70,9 +70,13 @@ class ShowcaseUsersTest {
     }
 
     @Test
-    fun `the throttle caps attempts across all users`() {
+    fun `the throttle caps failures across all users, but successful sign-ins never lock anyone out`() {
         val throttle = LoginThrottle(globalPerMinute = 3)
-        repeat(3) { throttle.retryAfter("u$it", "203.0.113.$it").shouldBeNull() }
+        repeat(10) { throttle.retryAfter("ok$it", "203.0.113.50").shouldBeNull() }
+        repeat(3) {
+            throttle.retryAfter("u$it", "203.0.113.$it").shouldBeNull()
+            throttle.failed("u$it", "203.0.113.$it")
+        }
         throttle.retryAfter("u9", "203.0.113.9").shouldNotBeNull()
     }
 }

@@ -12,14 +12,15 @@ import java.util.UUID
 
 /**
  * Refuses an API request that names a legal entity outside the caller's scope, as a query parameter or path
- * variable (`legalEntityId`, `holderEntityId`). It is a backstop for read endpoints keyed by entity;
+ * variable (`legalEntityId`, `holderEntityId`, and `holderId` when `holderType` is `LEGAL_ENTITY`). It is a backstop for read endpoints keyed by entity;
  * commands and unkeyed lists still check scope in their services.
  */
 class EntityScopeInterceptor(private val actors: ActorProvider) : HandlerInterceptor {
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
         @Suppress("UNCHECKED_CAST")
         val pathVariables = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE) as? Map<String, String> ?: emptyMap()
-        val named = ENTITY_PARAMETERS.flatMap { name -> request.getParameterValues(name).orEmpty().toList() + listOfNotNull(pathVariables[name]) }
+        val named = ENTITY_PARAMETERS.flatMap { name -> request.getParameterValues(name).orEmpty().toList() + listOfNotNull(pathVariables[name]) } +
+            (if (request.getParameter("holderType") == "LEGAL_ENTITY") request.getParameterValues("holderId").orEmpty().toList() else emptyList())
         if (named.isEmpty()) return true
         val actor = actors.current()
         named.mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }.forEach { actor.requireEntity(it) }

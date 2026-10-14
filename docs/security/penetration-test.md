@@ -60,7 +60,9 @@ access, what is out of bounds, and what we have already checked ourselves.
 
 | Control | Where |
 |---|---|
-| Role and entity checks on every command and read | `*GuardsIT`, `EntityScopeIT`, `SecuredChainIT` |
+| Role and entity checks on every command and read | `OperationGuardsIT` (every command, no roles), `*GuardsIT`, `EntityScopeIT`, `SecuredChainIT` |
+| Token validation: signature, expiry, issuer, audience, unsigned tokens | `TokenValidationIT` (Spring Boot's decoder against a stub key set) |
+| Encoded paths cannot bypass authentication | `EncodedPathIT` (every OpenAPI path, plain and percent-encoded, secured and showcase chains) |
 | Security headers: CSP without inline scripts, `frame-ancestors 'none'`, referrer policy, no framing | `SecurityConfiguration`, Playwright `hardening.spec.ts` (axe and CSP) |
 | Dependency and image vulnerabilities | Trivy gate on every build, weekly OWASP dependency check, SBOMs (`docs/operations/supply-chain.md`) |
 | Passive scan of the running application | ZAP baseline (`.github/workflows/zap.yml`, weekly), rules and accepted findings in `.zap/rules.tsv`. Last run on 2026-10-11 against the secured profile: 55 rules passed, no failures, one warning kept on purpose (CSP `style-src 'unsafe-inline'`, required by Mantine). |

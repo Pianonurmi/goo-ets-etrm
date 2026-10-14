@@ -3,6 +3,7 @@ package com.pianonurmi.etrm
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
@@ -79,6 +80,13 @@ class UiEndpointsIT {
         val badId = client.get().uri("/api/v1/trades/not-a-uuid").retrieve().toEntity(Map::class.java)
         badId.statusCode.value() shouldBe 400
         badId.body!!["type"] shouldBe "urn:etrm:problem:bad-request"
+
+        // A body of the wrong shape names the field, not the parser's internals.
+        val badBody = client.post().uri("/api/v1/trades").header("Content-Type", "application/json").body("""{"legs":"not a list"}""")
+            .retrieve().toEntity(Map::class.java)
+        badBody.statusCode.value() shouldBe 400
+        badBody.body!!["detail"].toString() shouldContain "legs"
+        badBody.body!!["detail"].toString() shouldNotContain "com.pianonurmi"
     }
 
     @Test

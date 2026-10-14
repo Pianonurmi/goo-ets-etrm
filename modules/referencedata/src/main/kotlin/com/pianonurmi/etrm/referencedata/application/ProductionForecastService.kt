@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.referencedata.application
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
+import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.text.Csv
@@ -9,6 +10,7 @@ import com.pianonurmi.etrm.referencedata.api.ExpectedProduction
 import com.pianonurmi.etrm.referencedata.api.ForecastImportResult
 import com.pianonurmi.etrm.referencedata.api.ForecastSource
 import com.pianonurmi.etrm.referencedata.api.LoadFactorView
+import com.pianonurmi.etrm.referencedata.api.OwnerType
 import com.pianonurmi.etrm.referencedata.api.ProductionDeviceView
 import com.pianonurmi.etrm.referencedata.api.ProductionForecastChanged
 import com.pianonurmi.etrm.referencedata.api.ProductionForecastCommand
@@ -100,6 +102,7 @@ class ProductionForecastService(
         val actor = actorProvider.current()
         actor.requireRole(Role.MIDDLE_OFFICE)
         val device = devices.findProductionDevice(command.deviceId) ?: throw NotFoundException("ProductionDevice", command.deviceId)
+        requireOwnerScope(actor, device)
         validate(command.expectedMwh, command.p90Mwh)
         val view = repository.upsert(device.id, command.month, command.expectedMwh, command.p90Mwh, ForecastSource.ENTERED, actor.userId)
         events.publishEvent(ProductionForecastChanged(device.id, listOf(command.month)))
@@ -120,6 +123,7 @@ class ProductionForecastService(
             try {
                 val row = parseRow(fields)
                 val device = devices.findProductionDeviceByGsrn(row.gsrn) ?: throw ValidationException("unknown device ${row.gsrn}")
+                requireOwnerScope(actor, device)
                 validate(row.expectedMwh, row.p90Mwh)
                 repository.upsert(device.id, row.month, row.expectedMwh, row.p90Mwh, ForecastSource.IMPORTED, actor.userId)
                 changed.getOrPut(device.id) { linkedSetOf() }.add(row.month)
@@ -173,5 +177,10 @@ class ProductionForecastService(
         private const val CSV_COLUMNS = 4
         private const val HEADER_FIRST_FIELD = "gsrn"
         private val KW_PER_MW = BigDecimal(1000)
+    }
+
+    /** Forecasts of an entity's own devices are entered within that entity's scope. */
+    private fun requireOwnerScope(actor: Actor, device: ProductionDeviceView) {
+        if (device.ownerType == OwnerType.LEGAL_ENTITY) actor.requireEntity(device.ownerId)
     }
 }

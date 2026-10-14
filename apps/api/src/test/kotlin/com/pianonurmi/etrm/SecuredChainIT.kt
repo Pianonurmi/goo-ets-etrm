@@ -97,6 +97,14 @@ class SecuredChainIT {
     }
 
     @Test
+    fun `the actuator on the application port is for administrators only`() {
+        client.get().uri("/actuator/health").retrieve().toBodilessEntity().statusCode.value() shouldBe 200
+        client.get().uri("/actuator/sbom").retrieve().toBodilessEntity().statusCode.value() shouldBe 401
+        client.get().uri("/actuator/sbom").header("Authorization", "Bearer trader-token").retrieve().toBodilessEntity()
+            .statusCode.value() shouldBe 403
+    }
+
+    @Test
     fun `an unknown api path is a 404 problem once authenticated`() {
         val response = client.get().uri("/api/v1/nope").header("Authorization", "Bearer trader-token").retrieve().toEntity(Map::class.java)
         response.statusCode.value() shouldBe 404

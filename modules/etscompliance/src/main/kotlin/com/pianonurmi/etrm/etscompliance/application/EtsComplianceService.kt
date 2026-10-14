@@ -351,7 +351,11 @@ class EtsComplianceService(
     }
 
     @Transactional(readOnly = true)
-    override fun freeAllocation(installationId: UUID, year: Int): FreeAllocationView? = freeAllocationOf(requireInstallation(installationId), year)
+    override fun freeAllocation(installationId: UUID, year: Int): FreeAllocationView? {
+        val installation = requireInstallation(installationId)
+        readable(installation.legalEntityId)
+        return freeAllocationOf(installation, year)
+    }
 
     @Transactional(readOnly = true)
     override fun surrenderRequests(installationId: UUID): List<SurrenderRequestView> {

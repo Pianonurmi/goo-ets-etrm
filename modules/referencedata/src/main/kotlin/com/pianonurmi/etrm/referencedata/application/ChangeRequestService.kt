@@ -137,7 +137,7 @@ class ChangeRequestService(
     fun reject(id: UUID, by: String, note: String?): ChangeRequestView = close(pending(id), ChangeRequestStatus.REJECTED, by, note)
 
     @Transactional(readOnly = true)
-    override fun changeRequest(id: UUID): ChangeRequestView? = repository.find(id)
+    override fun changeRequest(id: UUID): ChangeRequestView? = repository.find(id)?.also { actorProvider.current().requireEntity(it.legalEntityId) }
 
     @Transactional(readOnly = true)
     override fun changeRequests(status: ChangeRequestStatus?, entityType: ChangeEntityType?): List<ChangeRequestView> =

@@ -1,3 +1,6 @@
+# Like dev, the test profile authenticates nobody, so it listens on loopback only (ProfileGuard).
+server:
+  address: 127.0.0.1
 spring:
   datasource:
     # Every full-context test class caches its own context and pool; keep them small so they fit max_connections.

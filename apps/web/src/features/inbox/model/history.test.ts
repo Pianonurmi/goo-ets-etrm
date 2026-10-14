@@ -81,8 +81,8 @@ describe('decision checks', () => {
   });
 
   it('leaves out the second-person rule when the type has none', () => {
-    expect(decisionChecks(task, { fourEyes: false } as TaskType, { userId: 'trader', roles: ['ADMIN'] })).toEqual([
-      { key: 'role', ok: true },
-    ]);
+    expect(
+      decisionChecks(task, { fourEyes: false } as TaskType, { userId: 'trader', roles: ['MIDDLE_OFFICE'] }),
+    ).toEqual([{ key: 'role', ok: true }]);
   });
 });

@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { $api } from '@/shared/api/client';
 import type { Body } from '@/shared/api/types';
-import { Can } from '@/shared/auth/Can';
+import { Can, useCan } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { StatusBadge } from '@/shared/components/StatusBadge';
@@ -241,7 +241,11 @@ export function PartyDetails({ partyType, partyId }: { partyType: PartyType; par
   const path = { params: { path: { partyType, partyId } } };
   const addresses = $api.useQuery('get', '/api/v1/reference/parties/{partyType}/{partyId}/addresses', path);
   const vat = $api.useQuery('get', '/api/v1/reference/parties/{partyType}/{partyId}/vat-registrations', path);
-  const banks = $api.useQuery('get', '/api/v1/reference/parties/{partyType}/{partyId}/bank-accounts', path);
+  // Payment details are shown only to the roles that maintain or pay them; the API refuses everyone else.
+  const seesBanks = useCan('partyDetails_bankAccounts');
+  const banks = $api.useQuery('get', '/api/v1/reference/parties/{partyType}/{partyId}/bank-accounts', path, {
+    enabled: seesBanks,
+  });
   const add = (op: 'address' | 'vat' | 'bank', permission: Parameters<typeof Can>[0]['op'], label: string) => (
     <Can op={permission}>
       <Button size="compact-sm" variant="subtle" leftSection={<IconPlus size={14} />} onClick={() => setEditing(op)}>
@@ -285,29 +289,31 @@ export function PartyDetails({ partyType, partyId }: { partyType: PartyType; par
           ))}
         </Stack>
       </Section>
-      <Section
-        title={t('admin.bankAccounts')}
-        action={add('bank', 'partyDetails_requestBankAccountChange', t('admin.addBankAccount'))}
-        empty={banks.data?.length === 0 ? t('admin.noBankAccounts') : null}
-      >
-        <Table fz="sm" verticalSpacing={6}>
-          <Table.Tbody>
-            {(banks.data ?? []).map((row) => (
-              <Table.Tr key={row.id}>
-                <Table.Td ff="monospace">{row.iban}</Table.Td>
-                <Table.Td>{row.bic}</Table.Td>
-                <Table.Td>{row.currency}</Table.Td>
-                <Table.Td>
-                  <StatusBadge
-                    status={row.active ? 'ACTIVE' : 'INACTIVE'}
-                    label={row.active ? t('admin.active') : t('admin.inactive')}
-                  />
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </Section>
+      {seesBanks && (
+        <Section
+          title={t('admin.bankAccounts')}
+          action={add('bank', 'partyDetails_requestBankAccountChange', t('admin.addBankAccount'))}
+          empty={banks.data?.length === 0 ? t('admin.noBankAccounts') : null}
+        >
+          <Table fz="sm" verticalSpacing={6}>
+            <Table.Tbody>
+              {(banks.data ?? []).map((row) => (
+                <Table.Tr key={row.id}>
+                  <Table.Td ff="monospace">{row.iban}</Table.Td>
+                  <Table.Td>{row.bic}</Table.Td>
+                  <Table.Td>{row.currency}</Table.Td>
+                  <Table.Td>
+                    <StatusBadge
+                      status={row.active ? 'ACTIVE' : 'INACTIVE'}
+                      label={row.active ? t('admin.active') : t('admin.inactive')}
+                    />
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Section>
+      )}
       {editing === 'address' && (
         <AddressModal partyType={partyType} partyId={partyId} onClose={() => setEditing(null)} />
       )}

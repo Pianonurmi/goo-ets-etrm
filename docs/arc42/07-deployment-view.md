@@ -9,7 +9,7 @@
 | Events | Selected domain events to Kafka when `ETRM_KAFKA_ENABLED` (ADR 0029) | Managed Kafka, three replicas |
 | Build | Gradle, jOOQ codegen against a PostgreSQL service in CI | Same |
 
-Environment variables: `ETRM_DB_URL`, `ETRM_DB_USER`, `ETRM_DB_PASSWORD`, `ETRM_OIDC_ISSUER`; for the web UI
+Environment variables: `ETRM_DB_URL`, `ETRM_DB_USER`, `ETRM_DB_PASSWORD`, `ETRM_OIDC_ISSUER`, `ETRM_OIDC_AUDIENCE`; for the web UI
 `ETRM_OIDC_BROWSER_ISSUER` (when the browser reaches the identity provider under another URL), `ETRM_OIDC_WEB_CLIENT`
 (default `etrm-web`) and `ETRM_ENVIRONMENT` (label in the header); build-time `ETRM_CODEGEN_DB_URL`, `ETRM_TEST_DB_URL`.
 

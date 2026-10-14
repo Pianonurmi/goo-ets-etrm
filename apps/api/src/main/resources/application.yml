@@ -51,6 +51,8 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${ETRM_OIDC_ISSUER:http://localhost:8081/realms/etrm}
+          # Tokens must be issued for this API (the `aud` claim), not merely by the same identity provider.
+          audiences: ${ETRM_OIDC_AUDIENCE:etrm-api}
 
 etrm:
   migrations:

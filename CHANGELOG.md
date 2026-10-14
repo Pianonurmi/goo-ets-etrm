@@ -7,6 +7,31 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Security
+- **Tokens must be issued for this API.** The resource server checks the `aud` claim (`ETRM_OIDC_AUDIENCE`, default
+  `etrm-api`; Helm value `oidc.audience`). The development realm adds the audience with a mapper; an identity
+  provider in production needs the same before upgrading.
+- **Administrators no longer decide approvals.** ADMIN administers the inbox (assigns, escalates, cancels) but a
+  four-eyes decision needs one of the task's candidate roles held explicitly.
+- **Legal-entity scope everywhere.** The audit trail and the home activity feed are read only by users who see
+  every entity; bank accounts and the history of addresses, VAT numbers and bank accounts need a maintaining role;
+  history is kept for a fixed list of tables; books, registry accounts, a single journal entry, free allocation,
+  a change request, valuation submission and production forecasts check the entity.
+- **The actuator on the application port is for administrators**; probes and Prometheus use the management port.
+- **The `test` profile is held to the `dev` profile's rules** (loopback only, never with the public profiles).
+- **Request bodies with unknown properties are refused** instead of silently dropping the property, and a body
+  that does not parse names the failing field rather than the parser's internal message.
+- The showcase login throttle counts failures only, so successful sign-ins never lock anyone out, and its memory is
+  bounded. The FILE registry gateway uses only file-name-safe characters from an instruction key.
+
+### Added
+- `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
+  refused; `TokenValidationIT` checks signature, expiry, issuer, audience and unsigned tokens with Spring Boot's own
+  decoder.
+- The change process: `CODEOWNERS`, a pull request template, `SECURITY.md`, [contributing](docs/contributing.md)
+  and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
+  by default.
+
 ## [0.13.2] - 2026-10-14
 
 An accounting patch: three defects that put wrong figures in the books, found by the

@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.audit.adapter.rest
 import com.pianonurmi.etrm.audit.api.AuditEventView
 import com.pianonurmi.etrm.audit.api.AuditFilter
 import com.pianonurmi.etrm.audit.api.AuditQuery
+import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -18,9 +19,15 @@ import java.util.UUID
 @RequestMapping("/api/v1/audit")
 @Tag(name = "Audit", description = "Append-only audit trail of domain events and commands")
 class AuditController(private val query: AuditQuery, private val actorProvider: ActorProvider) {
-    /** The trail spans every entity and module: control functions read it, the front office does not. */
-    private fun requireReader() =
-        actorProvider.current().requireRole(Role.AUDITOR, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
+    /**
+     * The trail spans every entity and module and carries whole events (trades, invoices, beneficiaries): control
+     * functions read it, the front office does not, and only someone who sees every legal entity.
+     */
+    private fun requireReader() {
+        val actor = actorProvider.current()
+        actor.requireRole(Role.AUDITOR, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
+        if (!actor.seesAllEntities) throw ForbiddenException("The audit trail spans every legal entity; ${actor.userId} does not see them all")
+    }
 
     @GetMapping("/events")
     fun events(

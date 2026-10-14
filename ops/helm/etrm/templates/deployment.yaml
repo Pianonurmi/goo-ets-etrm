@@ -99,6 +99,8 @@ spec:
             - name: ETRM_OIDC_BROWSER_ISSUER
               value: {{ . | quote }}
             {{- end }}
+            - name: ETRM_OIDC_AUDIENCE
+              value: {{ required "oidc.audience is required" .Values.oidc.audience | quote }}
             - name: ETRM_OIDC_WEB_CLIENT
               value: {{ .Values.oidc.webClientId | quote }}
             - name: ETRM_KAFKA_ENABLED
