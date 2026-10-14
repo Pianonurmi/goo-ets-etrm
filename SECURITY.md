@@ -8,8 +8,15 @@ the UI footer) and the steps to reproduce. You will get an answer within five wo
 
 ## Supported versions
 
-The latest minor release and its patches. Fixes are released as patch versions (`X.Y.Z+1`) and listed under
-**Security** in `CHANGELOG.md`.
+Per [ADR 0051](docs/adr/0051-version-and-support-policy.md): the latest minor release, and the previous minor for 90
+days after its successor's release. Security fixes reach both lines as patch versions (`X.Y.Z+1`), listed under
+**Security** in `CHANGELOG.md` with what was exposed and since which version.
+
+| Version | Supported |
+|---|---|
+| 0.14.x | yes |
+| 0.13.x | security fixes until 90 days after the 0.14.0 release |
+| older | no |
 
 ## What is in place
 
