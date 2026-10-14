@@ -28,10 +28,10 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.header.writers.ContentSecurityPolicyHeaderWriter
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
 import org.springframework.security.web.header.writers.frameoptions.XFrameOptionsHeaderWriter
 import org.springframework.security.web.header.writers.frameoptions.XFrameOptionsHeaderWriter.XFrameOptionsMode
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher
-import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
 import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.web.context.request.RequestContextHolder
 import java.util.UUID
@@ -162,7 +162,6 @@ class SecurityConfiguration {
         fun browserHeaders(headers: HeadersConfigurer<HttpSecurity>, ui: UiProperties) {
             val silentRenew = RequestMatcher { request -> decodedPath(request) == SILENT_RENEW_PATH }
             val elsewhere = NegatedRequestMatcher(silentRenew)
-            headers.contentSecurityPolicy { it.disable() }
             headers.frameOptions { it.disable() }
             headers.addHeaderWriter(DelegatingRequestMatcherHeaderWriter(elsewhere, ContentSecurityPolicyHeaderWriter(contentSecurityPolicy(ui))))
             headers.addHeaderWriter(
