@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 
 /** Variation margin of the day for every active clearing account, after the exchange's settlement prices are in. */
 @Component
@@ -16,10 +17,15 @@ class MarginJob(private val clearing: ClearingService, private val repository: C
     @Scheduled(cron = "\${etrm.clearing.margin-cron:0 30 19 * * MON-FRI}", zone = "Europe/Berlin")
     @SchedulerLock(name = "clearing-margin", lockAtMostFor = "PT30M")
     fun run() {
-        val today = LocalDate.now(clock)
+        // The cron runs in Berlin, and so does the exchange's business day; the clock itself is UTC.
+        val today = LocalDate.now(clock.withZone(BERLIN))
         repository.accounts(null).filter { it.active }.forEach { account ->
             runCatching { clearing.computeMargin(account.id, today) }
                 .onFailure { log.warn("Variation margin of {} on {} not computed: {}", account.code, today, it.message) }
         }
+    }
+
+    private companion object {
+        val BERLIN: ZoneId = ZoneId.of("Europe/Berlin")
     }
 }
