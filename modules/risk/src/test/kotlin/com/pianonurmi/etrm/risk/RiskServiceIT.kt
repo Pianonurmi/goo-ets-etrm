@@ -8,6 +8,8 @@ import com.pianonurmi.etrm.allocation.api.SaleProjection
 import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.clearing.api.MarginCallQuery
 import com.pianonurmi.etrm.clearing.api.MarginPostedView
+import com.pianonurmi.etrm.marketdata.api.FxRateView
+import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.json.Json
@@ -65,6 +67,7 @@ import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -84,7 +87,21 @@ class RiskServiceIT {
     private val counterparty = UUID.randomUUID()
     private val unlimited = UUID.randomUUID()
     private var netting = false
+
+    /** EUR to USD; null means there is no USD rate at all. */
+    private var eurUsd: BigDecimal? = BigDecimal("1.10")
+    private val fx = mockk<FxRates> {
+        every { rate(any(), any(), any()) } answers {
+            val (date, from, to) = args.let { Triple(it[0] as LocalDate, it[1] as String, it[2] as String) }
+            when {
+                from == "EUR" && to == "USD" -> eurUsd?.let { FxRateView(date, from, to, it, "DIRECT", date) }
+                from == "USD" && to == "EUR" -> eurUsd?.let { FxRateView(date, from, to, BigDecimal.ONE.divide(it, 6, RoundingMode.HALF_EVEN), "INVERSE", date) }
+                else -> null
+            }
+        }
+    }
     private val openTrades = mutableListOf<TradeView>()
+    private val extraBalances = mutableListOf<CounterpartyBalance>()
     private val published = mutableListOf<Any>()
     private lateinit var risk: RiskService
     private lateinit var withGoo: (ObjectProvider<GooRiskQuery>?, ProductBucketQuery?) -> RiskService
@@ -131,6 +148,7 @@ class RiskServiceIT {
         val leg = mockk<TradeLegView> {
             every { option } returns OptionTerms(type, BigDecimal("75"), expiry, "EUAZ27")
             every { this@mockk.expiry } returns null
+            every { id } returns UUID.randomUUID()
             every { side } returns Side.BUY
             every { this@mockk.quantity } returns BigDecimal(quantity)
             every { priceCurrency } returns Currency.getInstance("EUR")
@@ -138,6 +156,7 @@ class RiskServiceIT {
         }
         return mockk {
             every { id } returns UUID.randomUUID()
+            every { tradeNumber } returns "T-OPT"
             every { legalEntityId } returns entity
             every { bookId } returns book
             every { counterpartyId } returns unlimited
@@ -159,7 +178,9 @@ class RiskServiceIT {
         TestDatabase.migrate("risk")
         user = "risk1"
         netting = false
+        eurUsd = BigDecimal("1.10")
         openTrades.clear()
+        extraBalances.clear()
         published.clear()
         val counterparties = listOf(
             counterpartyView(parent, "PARENT", null),
@@ -201,10 +222,12 @@ class RiskServiceIT {
         }
         openTrades += existing
         val settlement = mockk<SettlementReports> {
-            every { counterpartyBalances(entity) } returns listOf(
-                CounterpartyBalance(counterparty, SettlementDirection.RECEIVABLE, "EUR", BigDecimal("150"), BigDecimal("50")),
-                CounterpartyBalance(counterparty, SettlementDirection.PAYABLE, "EUR", BigDecimal("50"), BigDecimal.ZERO),
-            )
+            every { counterpartyBalances(entity) } answers {
+                listOf(
+                    CounterpartyBalance(counterparty, SettlementDirection.RECEIVABLE, "EUR", BigDecimal("150"), BigDecimal("50")),
+                    CounterpartyBalance(counterparty, SettlementDirection.PAYABLE, "EUR", BigDecimal("50"), BigDecimal.ZERO),
+                ) + extraBalances
+            }
         }
         val events = ApplicationEventPublisher { published += it }
         val actors = ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) }
@@ -220,7 +243,7 @@ class RiskServiceIT {
                 mockk(relaxed = true),
                 mockk(relaxed = true),
                 mockk(relaxed = true),
-                mockk(relaxed = true),
+                fx,
                 actors,
                 events,
                 clock,
@@ -239,7 +262,7 @@ class RiskServiceIT {
                 mockk(relaxed = true),
                 mockk(relaxed = true),
                 mockk(relaxed = true),
-                mockk(relaxed = true),
+                fx,
                 actors,
                 events,
                 clock,
@@ -467,10 +490,11 @@ class RiskServiceIT {
             it shouldNotContain "GOO_CONCENTRATION"
             it shouldContain "LIMIT_IN_BREACH"
         }
-        // Without allocation the GoO limits read zero, with a note, and nothing else fails.
+        // Without allocation the GoO limits are not measured (they keep their last value and count as breached), and nothing else fails.
         withGoo(mockk { every { ifAvailable } returns null }, buckets).evaluate(basis).let {
-            it.value.signum() shouldBe 0
-            it.detail shouldBe "GoO measures are not available"
+            it.status shouldBe UtilisationStatus.NOT_MEASURED
+            it.value.compareTo(BigDecimal("450")) shouldBe 0
+            it.detail shouldBe "not measured: GoO measures are not available"
         }
     }
 
@@ -548,6 +572,157 @@ class RiskServiceIT {
         // While the figures are being prepared the check says so, and does not block.
         ready = false
         gooRisk.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity } shouldBe listOf(FindingSeverity.INFO)
+    }
+
+    @Test
+    fun `exposure in a currency without a rate is flagged as incomplete, not left out silently`() {
+        extraBalances += CounterpartyBalance(counterparty, SettlementDirection.RECEIVABLE, "USD", BigDecimal("1100"), BigDecimal.ZERO)
+        risk.measureEntity(entity)
+        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+            it.incomplete shouldBe false
+            it.receivables shouldBe BigDecimal("1200.00") // 200 + 1 100 USD at 1.10
+        }
+
+        eurUsd = null
+        risk.measureEntity(entity)
+        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+            it.incomplete shouldBe true
+            it.leftOutCurrencies shouldBe listOf("USD")
+            it.incompleteReasons shouldBe listOf("no USD/EUR rate on 2026-10-10")
+            it.receivables shouldBe BigDecimal("200.00") // the USD receivable is not counted, and the exposure says so
+        }
+    }
+
+    @Test
+    fun `a credit limit keeps its last value when a rate is missing and the pre-trade check says it is incomplete`() {
+        val limit = approved(
+            RequestLimit(entity, LimitType.CREDIT_EXPOSURE, LimitScope(counterpartyId = counterparty), BigDecimal("10000"), "USD", reason = "in dollars"),
+        )
+        risk.measureEntity(entity).single { it.limitId == limit.id }.let {
+            it.value shouldBe BigDecimal("5170.00") // 4 700 EUR at 1.10
+            it.incomplete shouldBe false
+        }
+
+        eurUsd = null
+        risk.measureEntity(entity).single { it.limitId == limit.id }.let {
+            it.value shouldBe BigDecimal("5170.00") // not zero: the last measured value stays
+            it.incomplete shouldBe true
+            it.leftOutCurrencies shouldBe listOf("EUR")
+            it.status shouldBe UtilisationStatus.OK
+        }
+        risk.utilisation(limit.id)!!.incomplete shouldBe true
+
+        risk.preTradeFindings(trade(100, LocalDate.of(2026, 12, 10))).single().let {
+            it.code shouldBe "CREDIT_CHECK_INCOMPLETE"
+            it.severity shouldBe FindingSeverity.WARN
+            it.message shouldContain "incomplete"
+            it.message shouldContain "no EUR/USD rate"
+        }
+    }
+
+    @Test
+    fun `an option without a value counts at delta one but the position limit says it is incomplete`() {
+        val limit = approved(
+            RequestLimit(
+                entity,
+                LimitType.POSITION_NET,
+                LimitScope(productFamily = ProductFamily.EMISSION_ALLOWANCE),
+                BigDecimal(1500),
+                reason = "position",
+            ),
+        )
+        risk.evaluate(limit).let {
+            it.incomplete shouldBe false
+            it.value.compareTo(BigDecimal(1000)) shouldBe 0
+        }
+        // A put on 400 t cannot be valued (no volatility curve): it counts in full, as a sale, and the figure is marked.
+        openTrades += option(400, OptionType.PUT, LocalDate.of(2027, 3, 10))
+        risk.evaluate(limit).let {
+            it.value.compareTo(BigDecimal(600)) shouldBe 0
+            it.incomplete shouldBe true
+            it.incompleteReasons shouldBe listOf("option of trade T-OPT has no value: a delta of -1 is assumed")
+        }
+        // A valued call is complete again.
+        openTrades.removeLast()
+        openTrades += option(400, OptionType.CALL, LocalDate.of(2027, 3, 10))
+        risk.evaluate(limit).incomplete shouldBe false
+        openTrades.removeLast()
+
+        risk.preTradeFindings(option(3_000, OptionType.PUT, LocalDate.of(2027, 3, 10))).single { it.code == "POSITION_LIMIT" }.message shouldContain
+            "incomplete"
+    }
+
+    @Test
+    fun `a GoO limit that cannot be measured is NOT_MEASURED, keeps its last value and counts as a breach`() {
+        var failing = false
+        val goo = mockk<GooRiskQuery> {
+            every { basis(entity) } answers { if (failing) error("the flow is unavailable") else GooBasis(300, BigDecimal("450.00")) }
+            every { projectSale(any()) } returns SaleProjection(emptyList())
+        }
+        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, null)
+        val basis = gooRisk.approveLimit(
+            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis")).id,
+            "risk2",
+        )
+        gooRisk.evaluate(basis).let {
+            it.status shouldBe UtilisationStatus.OK
+            it.value.compareTo(BigDecimal("450")) shouldBe 0
+        }
+        gooRisk.breaches(entity, openOnly = true) shouldBe emptyList()
+
+        failing = true
+        gooRisk.evaluate(basis).let {
+            it.status shouldBe UtilisationStatus.NOT_MEASURED
+            it.value.compareTo(BigDecimal("450")) shouldBe 0 // the last measure, not zero
+            it.detail shouldBe "not measured: the flow is unavailable"
+        }
+        gooRisk.utilisation(basis.id)!!.status shouldBe UtilisationStatus.NOT_MEASURED
+        gooRisk.breaches(entity, openOnly = true).single().status shouldBe BreachStatus.OPEN
+        published.filterIsInstance<LimitBreached>().single { it.limit.id == basis.id }.utilisation.status shouldBe UtilisationStatus.NOT_MEASURED
+        gooRisk.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 100)).single { it.code == "LIMIT_NOT_MEASURED" }.message shouldContain "counts as in breach"
+
+        // Measured again, the breach closes.
+        failing = false
+        gooRisk.evaluate(basis).status shouldBe UtilisationStatus.OK
+        gooRisk.breaches(entity, openOnly = true) shouldBe emptyList()
+    }
+
+    @Test
+    fun `a concentration check that cannot run warns instead of passing the trade`() {
+        var failure = "vintages"
+        val goo = mockk<GooRiskQuery> {
+            every { vintages(any()) } answers { if (failure == "vintages") error("vintages unavailable") else emptyMap() }
+            every { concentration(any(), any(), any()) } answers { if (failure == "concentration") error("flow unavailable") else null }
+        }
+        val buckets = mockk<ProductBucketQuery> { every { buckets(true) } returns listOf(mockk { every { code } returns "NORDIC_HYDRO" }) }
+        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, buckets)
+        gooRisk.approveLimit(
+            gooRisk.requestLimit(
+                RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "NORDIC_HYDRO", productionYear = 2025), BigDecimal(1000), reason = "2025"),
+            ).id,
+            "risk2",
+        )
+        gooRisk.approveLimit(
+            gooRisk.requestLimit(
+                RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "NORDIC_HYDRO"), BigDecimal(1000), currency = "EUR", reason = "EUR"),
+            ).id,
+            "risk2",
+        )
+        val purchase = gooTrade(Side.BUY, "NORDIC_HYDRO", 200)
+
+        fun notChecked() = gooRisk.preTradeFindings(purchase).filter { it.code == "GOO_CONCENTRATION_NOT_CHECKED" }
+
+        // The vintage cannot be worked out for the 2025 limit; the other limit, in EUR, finds no mark for the bucket.
+        failure = "vintages"
+        notChecked().let { findings ->
+            findings shouldHaveSize 2
+            findings.map { it.severity }.toSet() shouldBe setOf(FindingSeverity.WARN)
+            findings.map { it.message }.single { it.contains("vintages unavailable") } shouldContain "not checked"
+            findings.map { it.message }.single { it.contains("no mark") } shouldContain "NORDIC_HYDRO"
+        }
+        // The mark cannot be read at all.
+        failure = "concentration"
+        notChecked().map { it.message }.single { it.contains("flow unavailable") } shouldContain "not checked"
     }
 
     private fun gooTrade(side: Side, bucket: String, quantity: Int): TradeView {

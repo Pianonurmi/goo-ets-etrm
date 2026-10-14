@@ -74,6 +74,7 @@ const TONES: Record<string, Tone> = {
   BREAKS: 'problem',
   BREACHED: 'problem',
   BREACH: 'problem',
+  NOT_MEASURED: 'problem',
   OVERDUE: 'problem',
   NEEDS_ATTENTION: 'problem',
   ERROR: 'problem',

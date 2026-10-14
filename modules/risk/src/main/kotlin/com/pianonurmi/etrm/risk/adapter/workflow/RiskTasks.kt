@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.risk.api.CreditSupportRequested
 import com.pianonurmi.etrm.risk.api.LimitBreachResolved
 import com.pianonurmi.etrm.risk.api.LimitBreached
 import com.pianonurmi.etrm.risk.api.LimitChangeRequested
+import com.pianonurmi.etrm.risk.api.UtilisationStatus
 import com.pianonurmi.etrm.risk.application.RiskService
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
@@ -142,7 +143,11 @@ class LimitBreachTasks(private val workflow: WorkflowCommand) : TaskHandler {
                 SUBJECT,
                 event.breach.id,
                 l.legalEntityId,
-                "${l.type} limit breached: ${event.utilisation.value.toPlainString()} against ${l.amount.toPlainString()} ${l.currency ?: ""}".trim(),
+                if (event.utilisation.status == UtilisationStatus.NOT_MEASURED) {
+                    "${l.type} limit could not be measured (last value ${event.utilisation.value.toPlainString()} against ${l.amount.toPlainString()} ${l.currency ?: ""})".trim()
+                } else {
+                    "${l.type} limit breached: ${event.utilisation.value.toPlainString()} against ${l.amount.toPlainString()} ${l.currency ?: ""}".trim()
+                },
                 "system",
                 mapOf("limitId" to l.id.toString(), "utilisation" to event.utilisation.utilisation.toPlainString(), "detail" to event.utilisation.detail),
             ),

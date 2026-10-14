@@ -96,6 +96,7 @@ describe('limits', () => {
 
   it('colours and caps utilisation', () => {
     expect(utilisationColor('BREACH')).toBe('red');
+    expect(utilisationColor('NOT_MEASURED')).toBe('red');
     expect(utilisationColor('WARNING')).toBe('orange');
     expect(utilisationColor(undefined)).toBe('gray');
     expect(utilisationBar(130)).toBe(100);

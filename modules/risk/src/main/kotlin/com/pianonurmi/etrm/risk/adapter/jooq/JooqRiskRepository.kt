@@ -133,6 +133,9 @@ class JooqRiskRepository(private val dsl: DSLContext) : RiskRepository {
             .set(COUNTERPARTY_EXPOSURE.EXPOSURE, exposure.exposure)
             .set(COUNTERPARTY_EXPOSURE.VALUATION_RUN_ID, exposure.valuationRunId)
             .set(COUNTERPARTY_EXPOSURE.MEASURED_AT, exposure.measuredAt)
+            .set(COUNTERPARTY_EXPOSURE.INCOMPLETE, exposure.incomplete)
+            .set(COUNTERPARTY_EXPOSURE.LEFT_OUT_CURRENCIES, exposure.leftOutCurrencies.toTypedArray())
+            .set(COUNTERPARTY_EXPOSURE.INCOMPLETE_REASONS, exposure.incompleteReasons.toTypedArray())
             .onConflict(COUNTERPARTY_EXPOSURE.LEGAL_ENTITY_ID, COUNTERPARTY_EXPOSURE.COUNTERPARTY_ID)
             .doUpdate()
             .set(COUNTERPARTY_EXPOSURE.CURRENCY, exposure.currency)
@@ -144,6 +147,9 @@ class JooqRiskRepository(private val dsl: DSLContext) : RiskRepository {
             .set(COUNTERPARTY_EXPOSURE.EXPOSURE, exposure.exposure)
             .set(COUNTERPARTY_EXPOSURE.VALUATION_RUN_ID, exposure.valuationRunId)
             .set(COUNTERPARTY_EXPOSURE.MEASURED_AT, exposure.measuredAt)
+            .set(COUNTERPARTY_EXPOSURE.INCOMPLETE, exposure.incomplete)
+            .set(COUNTERPARTY_EXPOSURE.LEFT_OUT_CURRENCIES, exposure.leftOutCurrencies.toTypedArray())
+            .set(COUNTERPARTY_EXPOSURE.INCOMPLETE_REASONS, exposure.incompleteReasons.toTypedArray())
             .execute()
     }
 
@@ -163,6 +169,9 @@ class JooqRiskRepository(private val dsl: DSLContext) : RiskRepository {
                 it.exposure,
                 it.valuationRunId,
                 it.measuredAt,
+                it.incomplete,
+                it.leftOutCurrencies.filterNotNull(),
+                it.incompleteReasons.filterNotNull(),
             )
         }
 
@@ -174,6 +183,9 @@ class JooqRiskRepository(private val dsl: DSLContext) : RiskRepository {
             .set(LIMIT_UTILISATION.STATUS, utilisation.status.name)
             .set(LIMIT_UTILISATION.DETAIL, utilisation.detail)
             .set(LIMIT_UTILISATION.MEASURED_AT, utilisation.measuredAt)
+            .set(LIMIT_UTILISATION.INCOMPLETE, utilisation.incomplete)
+            .set(LIMIT_UTILISATION.LEFT_OUT_CURRENCIES, utilisation.leftOutCurrencies.toTypedArray())
+            .set(LIMIT_UTILISATION.INCOMPLETE_REASONS, utilisation.incompleteReasons.toTypedArray())
             .onConflict(LIMIT_UTILISATION.LIMIT_ID)
             .doUpdate()
             .set(LIMIT_UTILISATION.VALUE, utilisation.value)
@@ -181,11 +193,24 @@ class JooqRiskRepository(private val dsl: DSLContext) : RiskRepository {
             .set(LIMIT_UTILISATION.STATUS, utilisation.status.name)
             .set(LIMIT_UTILISATION.DETAIL, utilisation.detail)
             .set(LIMIT_UTILISATION.MEASURED_AT, utilisation.measuredAt)
+            .set(LIMIT_UTILISATION.INCOMPLETE, utilisation.incomplete)
+            .set(LIMIT_UTILISATION.LEFT_OUT_CURRENCIES, utilisation.leftOutCurrencies.toTypedArray())
+            .set(LIMIT_UTILISATION.INCOMPLETE_REASONS, utilisation.incompleteReasons.toTypedArray())
             .execute()
     }
 
     override fun utilisation(limitId: UUID): LimitUtilisationView? = dsl.selectFrom(LIMIT_UTILISATION).where(LIMIT_UTILISATION.LIMIT_ID.eq(limitId)).fetchOne {
-        LimitUtilisationView(it.limitId, it.value, it.utilisation, UtilisationStatus.valueOf(it.status), it.detail, it.measuredAt)
+        LimitUtilisationView(
+            it.limitId,
+            it.value,
+            it.utilisation,
+            UtilisationStatus.valueOf(it.status),
+            it.detail,
+            it.measuredAt,
+            it.incomplete,
+            it.leftOutCurrencies.filterNotNull(),
+            it.incompleteReasons.filterNotNull(),
+        )
     }
 
     override fun openBreach(limitId: UUID): LimitBreachView? = dsl.selectFrom(LIMIT_BREACH)
