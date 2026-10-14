@@ -13,6 +13,7 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.client.ResourceAccessException
+import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
 import tools.jackson.core.type.TypeReference
 import java.net.ConnectException
@@ -200,6 +201,9 @@ class ApiRegistryGateway(
             } else {
                 GatewayResult.Unknown("No answer from the registry: ${ex.message}")
             }
+        } catch (ex: RestClientException) {
+            // The request went out but its answer could not be read (a body cut off or too slow): it may have been processed.
+            GatewayResult.Unknown("The registry's answer could not be read: ${ex.message}")
         }
     }
 

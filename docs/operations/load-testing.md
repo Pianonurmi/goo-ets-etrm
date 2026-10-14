@@ -1,6 +1,6 @@
 # Load testing
 
-`ops/load/etrm.js` is a [k6](https://k6.io) script with three scenarios, each a group of virtual users running
+`ops/load/etrm.js` is a [k6](https://k6.io) script with four scenarios, each a group of virtual users running
 in parallel for the whole test:
 
 | Scenario | What a user does | Tag |
@@ -8,14 +8,15 @@ in parallel for the whole test:
 | `reads` | trade search, lots of an entity, GoO position, ETS ladder, inbox and its counts, audit trail; an available-to-sell check (ADR 0036) | `kind:read`, `kind:check` |
 | `trades` | captures an EUA forward (trade approval task, EMIR fields, audit, events), then reads it back | `kind:write` |
 | `allocation` | allocation what-if for the entity: snapshot, problem build and greedy solve, nothing stored | `kind:solve` |
+| `batch` | month-end work while the desk trades: an ad hoc valuation run of the entity's book, the period end of the open month, the trial balance, the MTM report and the invoice export (review finding O9) | `kind:batch` |
 
 Profiles (`-e PROFILE=`):
 
-| Profile | Readers | Writers | Planners | Duration |
-|---|---|---|---|---|
-| `smoke` | 1 | 1 | 1 | 30 s |
-| `baseline` | 20 | 5 | 2 | 5 min |
-| `stress` | 80 | 20 | 4 | 10 min |
+| Profile | Readers | Writers | Planners | Batch | Duration |
+|---|---|---|---|---|---|
+| `smoke` | 1 | 1 | 1 | 1 | 30 s |
+| `baseline` | 20 | 5 | 2 | 1 | 5 min |
+| `stress` | 80 | 20 | 4 | 2 | 10 min |
 
 ## Thresholds
 
@@ -28,6 +29,7 @@ The run fails (k6 exit code 99) when one of these is missed.
 | Writes | p95 < 800 ms, p99 < 2 s |
 | Allocation what-if | p95 < 3 s |
 | Available to sell | p95 < 150 ms |
+| Batch (valuation, period end, reports, exports) | p95 < 10 s |
 | Checks | > 99 % pass |
 
 ## Running
@@ -80,3 +82,14 @@ target; the provider reads per device, so an entity with many devices is the cas
 
 The demo data is small: the what-if solves one obligation over 12 lot classes. Solver scale is measured separately
 by `AllocationBenchmarkTest` (`-Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000`).
+
+**Increment 14** (2026-10-14, `smoke`, on the shared 4-core development container while nothing else ran): 8 229
+requests, 274 req/s, no errors. Read p95 11 ms, write p95 28 ms, available-to-sell check p95 7 ms, what-if p95
+167 ms, batch p95 163 ms. Measured one by one on the same data (two entities, about 2 400 trades after the run):
+an ad hoc valuation run takes 0.15 s, the trial balance 35 ms, the MTM report and the invoice export 10 ms each.
+
+The demo data has no official valuation for the open month's last business day, so the scenario's period end is
+refused by its gate (422, counted as served): it measures the gates, not the postings. A full period end is
+measured by `MonthEndIT` and, for production volumes, has to be measured on a copy of production data. The first
+runs of this scenario found a defect: a lot reserved outside an allocation plan made every period end of its entity
+answer 500 (fixed in 0.14.0, `MonthEndIT` covers it).

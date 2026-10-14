@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.allocation.domain.flow.FlowDemand
 import com.pianonurmi.etrm.allocation.domain.flow.FlowGraph
 import com.pianonurmi.etrm.allocation.domain.flow.FlowState
 import com.pianonurmi.etrm.allocation.domain.flow.SupplyUnit
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.all
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
@@ -60,7 +61,10 @@ class FlowCoreTest {
         }
 
         runBlocking {
-            checkAll(PropTestConfig(iterations = 300, seed = 11), Arb.list(lotArb, 1..30), Arb.list(obligationArb, 1..14)) { lots, obligations ->
+            checkAll(PropTestConfig(iterations = 300, seed = PropertySeeds.seed(11L)), Arb.list(lotArb, 1..30), Arb.list(obligationArb, 1..14)) {
+                lots,
+                obligations,
+                ->
                 val problem = problem(lots, obligations)
                 val reference = Reference(problem)
                 val report = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now())
@@ -105,7 +109,10 @@ class FlowCoreTest {
         ) { c, q, p, k -> obligation(c, q, priority = p, constraints = k) }
         val greedy = com.pianonurmi.etrm.allocation.domain.GreedySolver(EngineFixtures::evaluate)
         runBlocking {
-            checkAll(PropTestConfig(iterations = 200, seed = 3), Arb.list(lotArb, 1..25), Arb.list(obligationArb, 1..10)) { lots, obligations ->
+            checkAll(PropTestConfig(iterations = 200, seed = PropertySeeds.seed(3L)), Arb.list(lotArb, 1..25), Arb.list(obligationArb, 1..10)) {
+                lots,
+                obligations,
+                ->
                 val keyed = problem(lots, obligations)
                 val unkeyed = AllocationProblem(keyed.classes, keyed.obligations, keyed.eligible, scoring = keyed::score)
                 greedy.solve(keyed) shouldBe greedy.solve(unkeyed)
@@ -157,7 +164,7 @@ class FlowCoreTest {
     fun `headroom is the largest extra demand that fits while every group keeps its flow`() {
         runBlocking {
             checkAll(
-                PropTestConfig(iterations = 300, seed = 5),
+                PropTestConfig(iterations = 300, seed = PropertySeeds.seed(5L)),
                 Arb.list(Arb.long(0, 60), 1..6),
                 Arb.list(Arb.bind(Arb.long(0, 80), Arb.long(1, 63)) { d, mask -> d to mask }, 1..5),
                 Arb.long(1, 63),
@@ -216,7 +223,7 @@ class FlowCoreTest {
     fun `several new demands together get the most that fits while every group keeps its flow`() {
         runBlocking {
             checkAll(
-                PropTestConfig(iterations = 300, seed = 6),
+                PropTestConfig(iterations = 300, seed = PropertySeeds.seed(6L)),
                 Arb.list(Arb.long(0, 60), 1..6),
                 Arb.list(Arb.bind(Arb.long(0, 80), Arb.long(1, 63)) { d, mask -> d to mask }, 1..4),
                 Arb.list(Arb.bind(Arb.long(0, 90), Arb.long(1, 63)) { d, mask -> d to mask }, 1..3),

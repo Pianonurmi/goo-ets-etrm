@@ -67,7 +67,7 @@ jobs:
       - name: Build the jar
         if: steps.key.outputs.present == 'true'
         run: ./gradlew :apps:api:bootJar -Petrm.skipWeb --no-daemon
-      - name: OWASP dependency check (fails on CVSS 9 or higher)
+      - name: OWASP dependency check (fails on CVSS 7 or higher)
         if: steps.key.outputs.present == 'true'
         run: |
           mkdir -p reports

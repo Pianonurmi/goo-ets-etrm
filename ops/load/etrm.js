@@ -14,11 +14,11 @@ const PROFILE = __ENV.PROFILE || 'baseline';
 
 const profiles = {
   // Smoke: one user each, to check the script against an environment.
-  smoke: { readers: 1, writers: 1, planners: 1, duration: '30s', think: 0 },
+  smoke: { readers: 1, writers: 1, planners: 1, batch: 1, duration: '30s', think: 0 },
   // Baseline: the expected peak of a trading desk and its operations team, each user pausing a second between actions.
-  baseline: { readers: 20, writers: 5, planners: 2, duration: '5m', think: 1 },
+  baseline: { readers: 20, writers: 5, planners: 2, batch: 1, duration: '5m', think: 1 },
   // Stress: four times the baseline users and no pauses, to find where latency bends.
-  stress: { readers: 80, writers: 20, planners: 4, duration: '10m', think: 0 },
+  stress: { readers: 80, writers: 20, planners: 4, batch: 2, duration: '10m', think: 0 },
 };
 const p = profiles[PROFILE] || fail(`unknown PROFILE ${PROFILE}`);
 const duration = __ENV.DURATION || p.duration;
@@ -28,6 +28,8 @@ export const options = {
     reads: { executor: 'constant-vus', vus: p.readers, duration, exec: 'reads' },
     trades: { executor: 'constant-vus', vus: p.writers, duration, exec: 'captureTrade' },
     allocation: { executor: 'constant-vus', vus: p.planners, duration, exec: 'whatIf' },
+    // Month-end work while the desk trades (review finding O9): valuation, period end, reports and exports.
+    batch: { executor: 'constant-vus', vus: p.batch, duration, exec: 'batch' },
   },
   // Service levels; the run fails when one is missed (exit code 99).
   thresholds: {
@@ -37,6 +39,8 @@ export const options = {
     'http_req_duration{kind:solve}': ['p(95)<3000'],
     // Available to sell (ADR 0036): a trial on prepared figures; the first call per entity prepares them.
     'http_req_duration{kind:check}': ['p(95)<150'],
+    // Batch work runs over the whole book of the entity: a valuation, the period end, a report or an export.
+    'http_req_duration{kind:batch}': ['p(95)<10000'],
     checks: ['rate>0.99'],
   },
 };
@@ -55,6 +59,9 @@ function headers(roles) {
 
 const READER = headers('MIDDLE_OFFICE,BACK_OFFICE,RISK,AUDITOR');
 const TRADER = headers('TRADER');
+const RISK = headers('RISK');
+const ACCOUNTANT = headers('ACCOUNTANT');
+const OPERATIONS = headers('BACK_OFFICE');
 
 function get(path, name) {
   const res = http.get(`${BASE}${path}`, { headers: READER, tags: { kind: 'read', name } });
@@ -151,4 +158,30 @@ export function whatIf(ctx) {
   // 422 when the entity has no open obligations left: the request was still served.
   check(res, { 'what-if served': (r) => r.status === 200 || r.status === 422 });
   sleep(p.think);
+}
+
+function batchCall(method, path, body, roleHeaders, name, ok) {
+  // The statuses listed as served are not failed requests (a period end refused by its gate still did its checks).
+  const params = { headers: roleHeaders, tags: { kind: 'batch', name }, responseCallback: http.expectedStatuses(...ok) };
+  const res = method === 'POST' ? http.post(`${BASE}${path}`, JSON.stringify(body), params) : http.get(`${BASE}${path}`, params);
+  check(res, { [`${name} served`]: (r) => ok.includes(r.status) });
+  return res;
+}
+
+export function batch(ctx) {
+  const today = new Date().toISOString().slice(0, 10);
+  const period = today.slice(0, 7);
+  group('batch', () => {
+    // An ad hoc valuation of the entity's whole book (curves, options, FX), stored as a draft run.
+    batchCall('POST', '/api/v1/valuation/runs', { legalEntityId: ctx.entityId, valuationDate: today, kind: 'ADHOC', note: 'load test' },
+      RISK, 'valuation run', [200, 201]);
+    // The period end of the open month; a re-run posts only differences. 422 when a gate refuses it (no official
+    // valuation for the period, a closed period): the measurement still ran.
+    batchCall('POST', '/api/v1/ledger/period-end/runs', { legalEntityId: ctx.entityId, period }, ACCOUNTANT, 'period end', [200, 201, 422]);
+    batchCall('GET', `/api/v1/reports/GL_TRIAL_BALANCE?legalEntityId=${ctx.entityId}&period=${period}&format=csv`, null, ACCOUNTANT,
+      'trial balance', [200]);
+    batchCall('GET', `/api/v1/reports/MTM_BY_TRADE?legalEntityId=${ctx.entityId}&format=csv`, null, RISK, 'mtm report', [200, 404, 422]);
+    batchCall('GET', `/api/v1/settlement/invoices/export?legalEntityId=${ctx.entityId}&format=csv`, null, OPERATIONS, 'invoice export', [200]);
+  });
+  sleep(Math.max(p.think, 1));
 }

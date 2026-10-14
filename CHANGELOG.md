@@ -92,6 +92,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   download keeps its object URL for ten seconds.
 
 ### Added
+- Property tests take their seed from `PropertySeeds`: fixed in a build, `-Detrm.proptest.seed=<n>` replays one, and a
+  nightly workflow runs them with random seeds. A ledger property test checks that foreign-currency entries balance
+  in base currency after rounding.
+- Concurrency tests for the plan approval and netting settlement row locks and the portfolio cache's single build.
+- A month-end load scenario (`batch`: valuation, period end, trial balance, MTM report, invoice export) with its own
+  threshold ([load testing](docs/operations/load-testing.md)).
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
   refused; `TokenValidationIT` checks signature, expiry, issuer, audience and unsigned tokens with Spring Boot's own
   decoder.
@@ -113,6 +119,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `etrm_ledger_unposted_open` counts what is waiting.
 
 ### Fixed
+- **A period end failed with an internal error when a lot was reserved outside an allocation plan** (a manual
+  reservation): the net realisable value test looked the reservation up as a plan and rolled the whole run back. It now
+  values such a lot at its vintage mark.
+- An answer from a registry API that arrives but cannot be read (a body cut off or too slow) is an unknown outcome,
+  resolved by a status query, as a timeout is; it was already never resent.
 - Foreign-currency entries balance in base currency: the cent left by rounding each line goes on the last line, and an
   entry that does not balance in base currency is refused.
 - Weighted-average costing reduces cost layers in whole units, so no fractional allowances remain in the layers.

@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.math.BigDecimal
+import java.time.Clock
 import java.time.LocalDate
 
 @RestController
@@ -43,6 +44,7 @@ class ProductController(
     private val futures: FuturesContractQuery,
     private val futuresCommand: FuturesContractCommand,
     private val actorProvider: ActorProvider,
+    private val clock: Clock,
 ) {
     /** Buckets decide which certificates count for which position: middle office maintains them. */
     private fun requireMaintainer() = actorProvider.current().requireRole(Role.MIDDLE_OFFICE)
@@ -56,7 +58,7 @@ class ProductController(
     @GetMapping("/buckets/hierarchy")
     fun bucketHierarchy(
         @RequestParam(required = false) asOf: LocalDate?,
-    ): BucketHierarchy = buckets.hierarchy(criteria.contextFor(asOf ?: LocalDate.now()))
+    ): BucketHierarchy = buckets.hierarchy(criteria.contextFor(asOf ?: LocalDate.now(clock)))
 
     @GetMapping("/buckets/{code}")
     fun bucket(

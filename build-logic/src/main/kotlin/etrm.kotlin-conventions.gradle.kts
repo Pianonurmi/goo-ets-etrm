@@ -73,6 +73,8 @@ tasks.withType<Test>().configureEach {
     }
     // `./gradlew test -Detrm.benchmark.lots=100000` sizes the allocation benchmark: pass those flags to the test JVM.
     systemProperties(providers.systemPropertiesPrefixedBy("etrm.benchmark.").get())
+    // `-Detrm.proptest.seed=<n>` replays a property-test failure, and the nightly run sets a random one.
+    systemProperties(providers.systemPropertiesPrefixedBy("etrm.proptest.").get())
     testLogging {
         events("failed", "skipped")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

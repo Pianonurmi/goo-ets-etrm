@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.product
 
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.api.criteria.BindContext
 import com.pianonurmi.etrm.product.api.criteria.BoundCriterion
@@ -140,7 +141,7 @@ class CriteriaImplicationTest {
     fun `claimed implications hold for every certificate`() {
         var proved = 0
         runBlocking {
-            checkAll(PropTestConfig(iterations = 3000), treeArb(2)) { narrow ->
+            checkAll(PropTestConfig(seed = PropertySeeds.seed(3000L), iterations = 3000), treeArb(2)) { narrow ->
                 val n = bind(narrow)
                 broadArb(narrow).samples().take(3).map { it.value }.forEach { broad ->
                     val b = bind(broad)

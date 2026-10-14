@@ -42,6 +42,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -61,6 +62,7 @@ class InventoryController(
     private val reconciliationQuery: ReconciliationQuery,
     private val reconciliationAccess: ReconciliationAccess,
     private val actorProvider: ActorProvider,
+    private val clock: Clock,
 ) {
     @GetMapping("/lots")
     fun lots(
@@ -101,7 +103,7 @@ class InventoryController(
     ): List<LotView> =
         lotQuery.search(
             body.holderEntityId,
-            criteria.bind(body.criterion, criteria.contextFor(body.deliveryDate ?: LocalDate.now())),
+            criteria.bind(body.criterion, criteria.contextFor(body.deliveryDate ?: LocalDate.now(clock))),
             body.statuses,
             body.limit,
         )
@@ -159,7 +161,7 @@ class InventoryController(
         val actor = actorProvider.current()
         actor.requireRole(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
         if (!actor.seesAllEntities) throw ForbiddenException("The expiry sweep covers every legal entity; ${actor.userId} does not see them all")
-        val today = LocalDate.now()
+        val today = LocalDate.now(clock)
         if (asOf != null && asOf.isAfter(today)) throw ValidationException("Lots cannot be expired ahead of today ($today)")
         return mapOf("expired" to lotCommand.expireDueLots(asOf ?: today))
     }
@@ -170,7 +172,7 @@ class InventoryController(
         @RequestParam(required = false) from: LocalDate?,
         @RequestParam(defaultValue = "18") months: Int,
     ) =
-        lotQuery.expiryLadder(holderEntityId, from ?: LocalDate.now(), months)
+        lotQuery.expiryLadder(holderEntityId, from ?: LocalDate.now(clock), months)
 
     /**
      * Checks the hash chains of the lot journal and the allowance movements; broken lots and holdings are named only

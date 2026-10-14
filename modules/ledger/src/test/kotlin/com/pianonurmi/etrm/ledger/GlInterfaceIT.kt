@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.text.Csv
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
@@ -221,7 +222,7 @@ class GlInterfaceIT {
     @OptIn(io.kotest.common.ExperimentalKotest::class)
     fun `the export's base amounts add up to the trial balance of the exported accounts`() {
         runBlocking {
-            checkAll(PropTestConfig(iterations = 15), Arb.list(Arb.int(1..1_000_000), 1..6)) { amounts ->
+            checkAll(PropTestConfig(seed = PropertySeeds.seed(15L), iterations = 15), Arb.list(Arb.int(1..1_000_000), 1..6)) { amounts ->
                 val e = entity()
                 amounts.forEachIndexed { i, cents ->
                     val amount = BigDecimal(cents).movePointLeft(2).toPlainString()

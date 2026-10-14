@@ -92,7 +92,8 @@ class ApiRegistryGatewayTest {
         baseUrl = "http://127.0.0.1:${server.address.port}/api",
         clientId = "etrm",
         tokenUrl = "http://127.0.0.1:${server.address.port}/token",
-        readTimeout = Duration.ofMillis(300),
+        // Generous, so a busy CI runner does not turn a quick stub answer into a timeout; the timeout cases use SHORT_TIMEOUT.
+        readTimeout = Duration.ofSeconds(10),
         retryBackoff = Duration.ofMillis(5),
         mapping = mapping,
         allowUnverified = allowUnverified,
@@ -168,9 +169,22 @@ class ApiRegistryGatewayTest {
             Thread.sleep(1_000)
             respond(it, 201, """{"id":"late"}""")
         }
-        gateway().execute(instruction()).shouldBeInstanceOf<GatewayResult.Unknown>()
+        gateway(settings = settings().copy(readTimeout = SHORT_TIMEOUT)).execute(instruction()).shouldBeInstanceOf<GatewayResult.Unknown>()
         val unreachable = settings().copy(baseUrl = "http://127.0.0.1:1/api", tokenUrl = null)
         gateway(settings = unreachable).execute(instruction()).shouldBeInstanceOf<GatewayResult.Retry>()
+    }
+
+    @Test
+    fun `an answer whose body cannot be read is unknown`() {
+        submitAnswer = { ex ->
+            // The headers arrive in time and the body does not, so the instruction may have been processed.
+            ex.responseHeaders.add("Content-Type", "application/json")
+            ex.sendResponseHeaders(201, 20)
+            ex.responseBody.flush()
+            Thread.sleep(1_000)
+            ex.responseBody.use { it.write("""{"id":"late-body"} """.toByteArray()) }
+        }
+        gateway(settings = settings().copy(readTimeout = SHORT_TIMEOUT)).execute(instruction()).shouldBeInstanceOf<GatewayResult.Unknown>()
     }
 
     @Test
@@ -204,5 +218,9 @@ class ApiRegistryGatewayTest {
         }
         gateway(draft, settings = settings("DRAFT_REGISTRY")).supports("FINGRID") shouldBe false
         gateway(draft, settings = settings("DRAFT_REGISTRY", allowUnverified = true)).supports("FINGRID") shouldBe true
+    }
+
+    private companion object {
+        val SHORT_TIMEOUT: Duration = Duration.ofMillis(300)
     }
 }

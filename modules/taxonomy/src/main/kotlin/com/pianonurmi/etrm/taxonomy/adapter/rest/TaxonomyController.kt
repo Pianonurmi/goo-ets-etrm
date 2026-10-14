@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import java.time.Clock
 import java.time.LocalDate
 
 @RestController
@@ -32,6 +33,7 @@ class TaxonomyController(
     private val query: TaxonomyQuery,
     private val command: TaxonomyCommand,
     private val actorProvider: ActorProvider,
+    private val clock: Clock,
 ) {
     /** Code sets drive eligibility and criteria everywhere: middle office maintains them. */
     private fun requireMaintainer() = actorProvider.current().requireRole(Role.MIDDLE_OFFICE)
@@ -76,7 +78,7 @@ class TaxonomyController(
                 name = body.name,
                 description = body.description,
                 externalCodes = body.externalCodes,
-                validFrom = body.validFrom ?: LocalDate.now(),
+                validFrom = body.validFrom ?: LocalDate.now(clock),
                 validTo = body.validTo,
             ),
         )

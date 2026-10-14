@@ -8,6 +8,7 @@ import com.pianonurmi.etrm.allocation.domain.Assignment
 import com.pianonurmi.etrm.allocation.domain.CpSatSolver
 import com.pianonurmi.etrm.allocation.domain.ExactSolverSettings
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
+import com.pianonurmi.etrm.platform.test.PropertySeeds
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.all
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.country
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
@@ -138,7 +139,7 @@ class ExactSolverTest {
             Arb.bind(Arb.element(countries), Arb.element(countries), Arb.long(10L..250L)) { a, b, q -> obligation(country(a, b), q) },
             1..5,
         )
-        checkAll(PropTestConfig(iterations = 40, seed = 6L), lots, obligations) { ls, os ->
+        checkAll(PropTestConfig(iterations = 40, seed = PropertySeeds.seed(6L)), lots, obligations) { ls, os ->
             val problem = problem(ls, os)
             val g = greedy.solve(problem)
             val x = exact.solve(problem)
