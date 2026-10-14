@@ -66,6 +66,8 @@ data class EventProperties(
     /** Partitions of each topic the application creates when externalisation is on. */
     val partitions: Int = 6,
     val replicas: Short = 1,
+    /** Off where topics are provisioned outside the application (and its user may not create them). */
+    val createTopics: Boolean = true,
 )
 
 @Configuration
@@ -85,7 +87,8 @@ class EventExternalizationConfig {
     @Bean
     @ConditionalOnBooleanProperty("spring.modulith.events.externalization.enabled")
     fun etrmTopics(properties: EventProperties): KafkaAdmin.NewTopics = KafkaAdmin.NewTopics(
-        *ExternalEvents.TOPICS.map { TopicBuilder.name(it).partitions(properties.partitions).replicas(properties.replicas.toInt()).build() }
+        *ExternalEvents.TOPICS.filter { properties.createTopics }
+            .map { TopicBuilder.name(it).partitions(properties.partitions).replicas(properties.replicas.toInt()).build() }
             .toTypedArray<NewTopic>(),
     )
 }

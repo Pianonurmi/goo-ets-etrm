@@ -9,7 +9,19 @@ spec:
   podSelector:
     matchLabels:
       {{- include "etrm.selectorLabels" . | nindent 6 }}
+  {{- if .Values.networkPolicy.egress }}
+  policyTypes: [Ingress, Egress]
+  egress:
+    # DNS, then the destinations listed in networkPolicy.egress (database, identity provider, registries, Kafka, OTLP).
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+  {{- else }}
   policyTypes: [Ingress]
+  {{- end }}
   ingress:
     # The ingress controller reaches the HTTP port.
     - from:

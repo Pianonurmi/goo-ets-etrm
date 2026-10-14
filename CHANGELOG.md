@@ -41,6 +41,21 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   the trail itself, and showcase sign-ins including failed ones. History rows name the user who made the change, and
   audit records carry the request's trace id.
 
+### Changed
+- **Migrations run before an upgrade, not in the pods** (review finding O1). The Helm chart runs the image with
+  `--migrate-only` in a `pre-install,pre-upgrade` Job as the schema owner; a failed migration stops the upgrade while
+  the running version keeps serving. The pods start with migrations off (`migrations.job: false` restores the old
+  behaviour). CI starts the previous release on every build's schema (ADR 0048).
+- **Chart** (O5, O6): a node drain takes one pod at a time (`podDisruptionBudget.maxUnavailable`); a running
+  scheduled job finishes before shutdown; `/tmp` is bounded (`tmpSizeLimit`); Kafka with SASL and without topic
+  creation (`kafka.createTopics` now defaults to off: create the topics before enabling Kafka); `ecb.enabled`;
+  application settings such as registry adapters through `config`; an optional egress policy
+  (`networkPolicy.egress`). See [Kubernetes](docs/operations/kubernetes.md).
+- **Point-in-time recovery is drilled** (O4): a monthly workflow restores a CloudNativePG cluster to a target time
+  on kind and checks the rows; the production cluster archives WAL at least every five minutes
+  (`archive_timeout`). [Disaster recovery](docs/operations/disaster-recovery.md) lists what to reconcile per
+  integration after a recovery.
+
 ### Added
 - `OperationGuardsIT` sends every command of the OpenAPI document as a signed-in user with no roles and expects it
   refused; `TokenValidationIT` checks signature, expiry, issuer, audience and unsigned tokens with Spring Boot's own
