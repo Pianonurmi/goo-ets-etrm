@@ -16,6 +16,7 @@ import com.pianonurmi.etrm.ledger.domain.CostLayerRepository
 import com.pianonurmi.etrm.ledger.domain.CostingEngine
 import com.pianonurmi.etrm.ledger.domain.CostingMethod
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
+import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.referencedata.api.AccountingPolicy
 import com.pianonurmi.etrm.referencedata.api.AllowanceCostingMethod
@@ -30,6 +31,7 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 /**
@@ -45,14 +47,16 @@ class LedgerEventListeners(
     private val lotQuery: LotQuery,
     private val tradeQuery: TradeQuery,
     private val clock: Clock,
+    /** Runs each listener in a savepoint and records what it could not post; not wired in some hand-wired tests. */
+    private val unposted: UnpostedEvents? = null,
     private val fixings: IndexFixings,
-) {
+) : PostingReplay {
     private val log = LoggerFactory.getLogger(LedgerEventListeners::class.java)
 
     @EventListener
-    fun on(event: LotReceived) {
+    fun on(event: LotReceived) = guard(event, event.lot.holderEntityId) {
         val lot = event.lot
-        val cost = lotCost(lot) ?: return
+        val cost = lotCost(lot) ?: return@guard
         ledger.post(
             facts(
                 lot.holderEntityId,
@@ -71,19 +75,37 @@ class LedgerEventListeners(
     }
 
     @EventListener
-    fun on(event: LotCancelled) = postLotDerecognition(event.lot, "LotCancelled", event.eventId, "Certificates cancelled for ${event.details.purpose}")
+    fun on(event: LotCancelled) = guard(event, event.lot.holderEntityId) {
+        // Dated when the registry cancelled the certificates, not when the event is processed (or replayed).
+        postLotDerecognition(
+            event.lot,
+            "LotCancelled",
+            event.eventId,
+            dateOf(event, event.lot.holderEntityId),
+            "Certificates cancelled for ${event.details.purpose}",
+        )
+    }
 
     @EventListener
-    fun on(event: LotExpired) = postLotDerecognition(event.lot, "LotExpired", event.eventId, "Certificates expired")
+    fun on(event: LotExpired) = guard(event, event.lot.holderEntityId) {
+        // Dated on the expiry date; the nightly job may run a day or more after it.
+        postLotDerecognition(
+            event.lot,
+            "LotExpired",
+            event.eventId,
+            minOf(event.lot.expiryDate, dateOf(event, event.lot.holderEntityId)),
+            "Certificates expired",
+        )
+    }
 
-    private fun postLotDerecognition(lot: LotView, type: String, eventId: UUID, description: String) {
+    private fun postLotDerecognition(lot: LotView, type: String, eventId: UUID, date: LocalDate, description: String) {
         val cost = lotCost(lot) ?: return
         ledger.post(
             facts(
                 lot.holderEntityId,
                 type,
                 eventId,
-                LocalDate.now(clock),
+                date,
                 lot.costCurrency ?: base(lot.holderEntityId),
                 "LOT",
                 lot.id.toString(),
@@ -96,10 +118,10 @@ class LedgerEventListeners(
     }
 
     @EventListener
-    fun on(event: AllocationLineConfirmed) {
+    fun on(event: AllocationLineConfirmed) = guard(event, event.obligation.holderEntityId) {
         val obligation = event.obligation
-        if (obligation.kind != ObligationKind.SALE && obligation.kind != ObligationKind.INTERCOMPANY) return
-        val lot = event.line.reservedLotId?.let(lotQuery::lot) ?: return
+        if (obligation.kind != ObligationKind.SALE && obligation.kind != ObligationKind.INTERCOMPANY) return@guard
+        val lot = event.line.reservedLotId?.let(lotQuery::lot) ?: return@guard
         val tradeObligation = obligation.sourceRef?.let(tradeQuery::obligation)
         val quantity = BigDecimal(event.line.quantityMwh)
         val amounts = buildMap {
@@ -119,7 +141,8 @@ class LedgerEventListeners(
                 obligation.holderEntityId,
                 "SaleDelivered",
                 event.eventId,
-                LocalDate.now(clock),
+                // Dated when the registry confirmed the delivery.
+                dateOf(event, obligation.holderEntityId),
                 tradeObligation?.priceCurrency?.currencyCode ?: base(obligation.holderEntityId),
                 "ALLOCATION_LINE",
                 event.line.id.toString(),
@@ -133,8 +156,9 @@ class LedgerEventListeners(
         )
     }
 
+    /** Not replay-safe: the listener moves cost layers as well as posting, which a second run would repeat. */
     @EventListener
-    fun on(event: HoldingChanged) {
+    fun on(event: HoldingChanged) = guard(event, event.holding.holderEntityId, replaySafe = false) {
         val holding = event.holding
         val movement = event.movement
         val entity = referenceData.requireLegalEntity(holding.holderEntityId)
@@ -224,6 +248,28 @@ class LedgerEventListeners(
             consumption.consumed.forEach { (layer, qty) -> costLayers.reduce(layer.id, qty) }
             if (consumption.cost.signum() > 0) amounts["correctionLoss"] = consumption.cost
         }
+    }
+
+    override fun replay(event: DomainEvent): Boolean {
+        when (event) {
+            is LotReceived -> on(event)
+            is LotCancelled -> on(event)
+            is LotExpired -> on(event)
+            is AllocationLineConfirmed -> on(event)
+            is HoldingChanged -> on(event)
+            else -> return false
+        }
+        return true
+    }
+
+    private fun guard(event: DomainEvent, legalEntityId: UUID, replaySafe: Boolean = true, body: () -> Unit) {
+        unposted?.guard(event, legalEntityId, replaySafe, body) ?: body()
+    }
+
+    /** The business date of an event in the legal entity's time zone, never after today. */
+    private fun dateOf(event: DomainEvent, entityId: UUID): LocalDate {
+        val zone = ZoneId.of(referenceData.requireLegalEntity(entityId).timeZone)
+        return minOf(LocalDate.ofInstant(event.occurredAt, zone), LocalDate.now(clock.withZone(zone)))
     }
 
     private fun lotCost(lot: LotView): BigDecimal? = lot.costBasisPerMwh?.takeIf {

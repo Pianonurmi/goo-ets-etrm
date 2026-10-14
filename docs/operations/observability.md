@@ -21,7 +21,7 @@ Names as Prometheus shows them (Micrometer turns dots into underscores and adds 
 | `etrm_jobs_failures_total` | counter | `job_name` | A scheduled job failed, as a whole or for one subject (entity, curve, account, lot) |
 | `etrm_jobs_last_success_seconds` | gauge | `job_name` | When the job last completed (epoch seconds) |
 | `etrm_jobs_expected_interval_seconds` | gauge | `job_name` | How often the job is expected to complete |
-| `etrm_integrity_chain_ok` | gauge | `chain` | 1 when the nightly verification found the chain intact, 0 when not |
+| `etrm_integrity_chain_ok` | gauge | `chain` | 1 when the nightly verification found the chain intact, 0 when not ([tamper evidence](database.md#tamper-evidence)) |
 | `etrm_ledger_unposted_open` | gauge | | Events the ledger could not post, waiting in the inbox |
 | `etrm_events_publications_incomplete` | gauge | | Domain events not yet delivered to their listeners or Kafka |
 | `etrm_events_publications_parked` | gauge | | Publications that failed `etrm.events.max-attempts` times and wait for an administrator |
@@ -48,11 +48,14 @@ The chart's `PrometheusRule` (`prometheusRule.enabled=true`, with the labels you
 | `EtrmHighErrorRate` | critical | More than 2 % of requests answer 5xx for 10 minutes |
 | `EtrmSlowRequests` | warning | p95 latency above 1 s for 15 minutes |
 | `EtrmDatabasePoolSaturated` | warning | More than 5 requests wait for a connection for 5 minutes |
+| `EtrmDatabaseUnreachable` | critical | More than 10 requests timed out waiting for a connection in 5 minutes, for 5 minutes |
+| `EtrmRequestsShed` | warning | Requests refused at the concurrent request limit for 10 minutes |
 | `EtrmJobFailed` | warning | A job failure in the last hour |
 | `EtrmJobNotRun` | warning | A job has not completed for twice its interval |
 | `EtrmHashChainBroken` | critical | The nightly verification found a broken chain |
 | `EtrmLedgerUnposted` | warning | Events have waited for the ledger for an hour |
 | `EtrmEventPublicationsStuck` | warning | Events have not been delivered for 30 minutes |
+| `EtrmEventPublicationsParked` | critical | A publication failed too often and waits for an administrator |
 | `EtrmDefaultPartitionRows` | warning | Rows in a default partition |
 | `EtrmRegistryDispatchLag` | warning | Instructions wait more than 10 minutes to be sent |
 | `EtrmRegistryInstructionsUnknown` | critical | An instruction's outcome has been unknown for 30 minutes |

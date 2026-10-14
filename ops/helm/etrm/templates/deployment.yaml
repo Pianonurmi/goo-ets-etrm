@@ -121,6 +121,13 @@ spec:
                   name: {{ .Values.database.existingSecret }}
                   key: {{ .Values.database.passwordKey }}
             {{- end }}
+            {{- if .Values.integrity.signingKeySecret }}
+            - name: ETRM_INTEGRITY_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.integrity.signingKeySecret }}
+                  key: {{ .Values.integrity.signingKeyKey }}
+            {{- end }}
             - name: ETRM_OIDC_ISSUER
               value: {{ .Values.oidc.issuer | quote }}
             {{- with .Values.oidc.browserIssuer }}

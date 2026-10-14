@@ -30,6 +30,12 @@ database:
   runtimeSecret: etrm-db-runtime
   url: jdbc:postgresql://etrm-db-rw:5432/etrm
 
+integrity:
+  # Secret holding the key that signs the daily chain-head digest (docs/operations/database.md#tamper-evidence).
+  # Empty: the digest is stored unsigned.
+  signingKeySecret: ""
+  signingKeyKey: signing-key
+
 oidc:
   # Issuer the API validates tokens against, and the one the browser signs in with if it differs.
   issuer: https://login.example.com/realms/etrm

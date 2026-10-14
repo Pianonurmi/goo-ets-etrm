@@ -58,10 +58,23 @@ class HardCloseGates(
                     else -> null
                 }
             }
-            HardCloseGate.PERIOD_END_RUN -> if (periodEnd.runs(legalEntityId, period.toString()).isEmpty()) "the period end has not been run" else null
+            HardCloseGate.PERIOD_END_RUN -> {
+                val lastRun = periodEnd.runs(legalEntityId, period.toString()).maxOfOrNull { it.runAt }
+                // A posting after the last run (other than the period end's own) is not in its measurements.
+                val lastPosting = journal.entries(legalEntityId, period.toString(), null, Int.MAX_VALUE)
+                    .filterNot { it.eventType.startsWith(PERIOD_END_EVENT_PREFIX) }
+                    .maxOfOrNull { it.createdAt }
+                when {
+                    lastRun == null -> "the period end has not been run"
+                    lastPosting != null && lastPosting.isAfter(lastRun) -> "entries were posted after the last period end run; run it again"
+                    else -> null
+                }
+            }
         }
     }
 }
+
+private const val PERIOD_END_EVENT_PREFIX = "PeriodEnd"
 
 /**
  * The general ledger side of the sub-ledger (ADR 0024): export delivery, acknowledgement and rejection, GL balances

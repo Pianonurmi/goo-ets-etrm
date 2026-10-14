@@ -69,6 +69,8 @@ class LedgerService(
     private val glInterface: GlInterfaceRepository,
     /** Checks before a hard close (ADR 0024); none when not wired (hand-wired tests). */
     private val gates: HardCloseGates? = null,
+    /** Records rules that apply but cannot post (review finding F4); none when not wired (hand-wired tests). */
+    private val unposted: UnpostedEvents? = null,
 ) : LedgerCommand, LedgerQuery {
     // ----------------------------------------------------------------------------------------------------------
     // Posting
@@ -95,6 +97,12 @@ class LedgerService(
         journal.lockEntity(facts.legalEntityId)
         return applicable.mapNotNull { rule ->
             facts.eventId?.let { journal.findByEvent(it, rule.ruleCode) }?.let { return@mapNotNull it }
+            val missing = rule.lines.map { it.amount }.distinct().filter { key -> facts.amounts[key]?.let { it.signum() < 0 } ?: true }
+            if (missing.isNotEmpty()) {
+                // The rule applies but cannot post: record it for the ledger's attention instead of posting nothing silently.
+                unposted?.missingAmount(facts, rule.ruleCode, missing)
+                return@mapNotNull null
+            }
             val drafts = EntryBuilder.draft(rule, facts) ?: return@mapNotNull null
             val lines = drafts.mapIndexed { index, d ->
                 val account = chart[d.accountCode] ?: throw ValidationException("Rule ${rule.ruleCode} references unknown account ${d.accountCode}")
@@ -204,11 +212,12 @@ class LedgerService(
         eventId: UUID?,
         description: String,
         currency: String,
-        lines: List<JournalLineView>,
+        drafted: List<JournalLineView>,
         manual: Boolean,
         status: EntryStatus = EntryStatus.POSTED,
         reversalOf: UUID? = null,
     ): JournalEntryView {
+        val lines = EntryBuilder.balanceBase(drafted)
         EntryBuilder.requireBalanced(lines)
         val period = EntryBuilder.periodOf(postingDate)
         EntryBuilder.requireOpen(periods.find(legalEntityId, period), manual)

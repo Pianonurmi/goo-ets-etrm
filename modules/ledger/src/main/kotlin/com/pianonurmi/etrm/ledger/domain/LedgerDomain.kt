@@ -35,6 +35,8 @@ object RuleSelector {
  * Builds a balanced entry from a rule and facts. Returns null when an amount fact is missing or negative, or when all
  * amounts are zero; zero lines are left out (e.g. no VAT line on a reverse-charged invoice).
  */
+private val CENT = BigDecimal("0.01")
+
 object EntryBuilder {
     data class Draft(val accountCode: String, val side: PostingSide, val amount: BigDecimal, val memo: String?)
 
@@ -52,10 +54,39 @@ object EntryBuilder {
         val debit = lines.sumOf { it.debit }
         val credit = lines.sumOf { it.credit }
         if (debit.compareTo(credit) != 0) throw ValidationException("Journal entry is unbalanced: debit $debit, credit $credit")
+        val baseDebit = lines.sumOf { it.baseDebit }
+        val baseCredit = lines.sumOf { it.baseCredit }
+        if (baseDebit.compareTo(
+                baseCredit,
+            ) != 0
+        ) {
+            throw ValidationException("Journal entry is unbalanced in base currency: debit $baseDebit, credit $baseCredit")
+        }
         if (lines.isEmpty()) throw ValidationException("Journal entry has no lines")
         lines.forEach {
             if (it.debit.signum() < 0 || it.credit.signum() < 0) throw ValidationException("Negative amounts are not allowed; post a reversal instead")
             if (it.debit.signum() > 0 && it.credit.signum() > 0) throw ValidationException("A line may be debit or credit, not both")
+        }
+    }
+
+    /**
+     * Base amounts are rounded per line, so a foreign-currency entry with several lines can be a cent off in base
+     * currency (review finding D7). The difference goes on the last line of the larger side; more than a cent per
+     * line is not rounding, and is refused.
+     */
+    fun balanceBase(lines: List<JournalLineView>): List<JournalLineView> {
+        val difference = lines.sumOf { it.baseDebit } - lines.sumOf { it.baseCredit }
+        if (difference.signum() == 0) return lines
+        if (difference.abs() > CENT * BigDecimal(lines.size)) {
+            throw ValidationException("Journal entry is unbalanced in base currency by $difference")
+        }
+        val index = if (difference.signum() > 0) lines.indexOfLast { it.baseDebit.signum() > 0 } else lines.indexOfLast { it.baseCredit.signum() > 0 }
+        return lines.mapIndexed { i, line ->
+            when {
+                i != index -> line
+                difference.signum() > 0 -> line.copy(baseDebit = line.baseDebit - difference)
+                else -> line.copy(baseCredit = line.baseCredit + difference)
+            }
         }
     }
 
@@ -109,15 +140,20 @@ object CostingEngine {
             CostingMethod.WEIGHTED_AVERAGE -> {
                 val totalCost = openLayers.sumOf { it.unitCost * it.remainingQuantity }
                 val average = totalCost.divide(available, 10, RoundingMode.HALF_EVEN)
-                // Reduce layers proportionally so the average is preserved for later consumption.
-                val taken = openLayers.map { layer -> layer to (layer.remainingQuantity * quantity).divide(available, 3, RoundingMode.DOWN) }
-                    .filter { it.second.signum() > 0 }
-                    .toMutableList()
-                val rounding = quantity - taken.sumOf { it.second }
-                if (rounding.signum() > 0 && taken.isNotEmpty()) {
-                    val (layer, qty) = taken.last()
-                    taken[taken.size - 1] = layer to (qty + rounding)
+                // Reduce layers in proportion so the average is preserved for later consumption, in whole units:
+                // allowances and certificates are whole, so each layer gets its floored share and the units left over
+                // go to the layers with the largest remainders (review finding F10).
+                val shares = openLayers.map { layer -> layer to (layer.remainingQuantity * quantity).divide(available, 10, RoundingMode.HALF_EVEN) }
+                val floors = shares.map { (layer, share) -> layer to share.setScale(0, RoundingMode.DOWN).min(layer.remainingQuantity) }
+                var left = quantity - floors.sumOf { it.second }
+                val amounts = floors.associate { (layer, qty) -> layer.id to qty }.toMutableMap()
+                shares.sortedByDescending { (_, share) -> share - share.setScale(0, RoundingMode.DOWN) }.forEach { (layer, _) ->
+                    if (left.signum() > 0 && amounts.getValue(layer.id) < layer.remainingQuantity) {
+                        amounts[layer.id] = amounts.getValue(layer.id) + BigDecimal.ONE.min(left)
+                        left -= BigDecimal.ONE.min(left)
+                    }
                 }
+                val taken = openLayers.map { it to amounts.getValue(it.id) }.filter { it.second.signum() > 0 }
                 Consumption((average * quantity).setScale(2, RoundingMode.HALF_EVEN), currency, taken)
             }
         }

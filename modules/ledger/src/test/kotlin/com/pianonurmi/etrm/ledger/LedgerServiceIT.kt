@@ -118,7 +118,7 @@ class LedgerServiceIT {
             mockk<LotQuery>(relaxed = true),
             mockk<TradeQuery>(relaxed = true),
             clock,
-            IndexFixings { _, _ -> null },
+            fixings = IndexFixings { _, _ -> null },
         )
         entityId = referenceData.createLegalEntity(CreateLegalEntity("LEDGER-CO", "Ledger Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
         wacEntityId = referenceData.createLegalEntity(
@@ -322,7 +322,7 @@ class LedgerServiceIT {
                 mockk<LotQuery> { every { lot(sold.id) } returns sold },
                 mockk<TradeQuery> { every { obligation(scheduleId) } returns delivery },
                 clock,
-                fixings,
+                fixings = fixings,
             )
             val lineId = UUID.randomUUID()
             val line = mockk<AllocationLineView>(relaxed = true) {
@@ -357,7 +357,9 @@ class LedgerServiceIT {
         )
         val wac = CostingEngine.consume(layers, BigDecimal(50), CostingMethod.WEIGHTED_AVERAGE)
         wac.cost shouldBe BigDecimal("750.00")
-        wac.consumed.sumOf { it.second } shouldBe BigDecimal("50.000")
+        wac.consumed.sumOf { it.second } shouldBe BigDecimal(50)
+        // Whole units only (review finding F10): one unit out of two equal layers comes from one of them, not half from each.
+        CostingEngine.consume(layers, BigDecimal.ONE, CostingMethod.WEIGHTED_AVERAGE).consumed.map { it.second } shouldBe listOf(BigDecimal.ONE)
         CostingEngine.consume(layers, BigDecimal(150), CostingMethod.FIFO).cost shouldBe BigDecimal("2000.00")
         shouldThrow<ValidationException> { CostingEngine.consume(layers, BigDecimal(201), CostingMethod.FIFO) }
     }
