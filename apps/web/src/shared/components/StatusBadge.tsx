@@ -1,4 +1,5 @@
 import { Badge, type BadgeProps } from '@mantine/core';
+import i18n from '@/app/i18n';
 import { TONE_COLOR, type Tone } from '@/app/tokens';
 
 /**
@@ -90,8 +91,13 @@ export function toneOf(status: string): Tone {
   return 'neutral';
 }
 
-/** `PENDING_APPROVAL` → `Pending approval`. */
+/**
+ * The catalogue's text for an enum constant (`status.PENDING_APPROVAL` → `Pending approval`). A constant the
+ * catalogue does not know yet is spelled out from its name; a test keeps the API's constants in the catalogue.
+ */
 export function statusLabel(status: string): string {
+  const key = `status.${status}`;
+  if (status && i18n.exists(key)) return i18n.t(key);
   const words = status.replace(/_/g, ' ').toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

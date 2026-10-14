@@ -44,6 +44,7 @@ import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
+import { oneOf } from '@/shared/urlParams';
 import { glExportCsvUrl, glExportFileName, hasContent } from './model/glExport';
 import { parseGlBalances, previousPeriod } from './model/glBalances';
 
@@ -559,7 +560,7 @@ function GlInterface({ entityId, period }: { entityId: string; period: string })
                 {(exports.data ?? []).map((row) => (
                   <Table.Tr key={row.id}>
                     <Table.Td>{row.exportSeq}</Table.Td>
-                    <Table.Td>{row.kind}</Table.Td>
+                    <Table.Td>{statusLabel(row.kind ?? '')}</Table.Td>
                     <Table.Td>{row.format}</Table.Td>
                     <Table.Td ta="right">{row.entryCount}</Table.Td>
                     <Table.Td>
@@ -842,7 +843,7 @@ function Policies({ entityId }: { entityId: string }) {
             <Table.Tbody>
               {(mtm.data ?? []).map((policy) => (
                 <Table.Tr key={policy.id}>
-                  <Table.Td>{policy.bookType}</Table.Td>
+                  <Table.Td>{statusLabel(policy.bookType)}</Table.Td>
                   <Table.Td>{t(`monthEnd.treatments.${policy.treatment}`)}</Table.Td>
                   <Table.Td>{policy.legalEntityId ? t('monthEnd.entityPolicy') : t('monthEnd.groupPolicy')}</Table.Td>
                   <Table.Td>{signed(policy.signedOffBy, policy.signedOffAt)}</Table.Td>
@@ -886,7 +887,7 @@ export function MonthEndPage() {
   const { entity } = useEntity();
   const [params, setParams] = useSearchParams();
   const period = params.get('period') ?? previousPeriod(new Date());
-  const tab = params.get('tab') ?? 'close';
+  const tab = oneOf(params.get('tab'), ['close', 'gl', 'policies'] as const, 'close');
   const set = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);

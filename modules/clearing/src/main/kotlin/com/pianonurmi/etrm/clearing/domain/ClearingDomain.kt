@@ -23,6 +23,9 @@ interface ClearingRepository {
 
     fun runs(accountId: UUID, from: LocalDate, to: LocalDate): List<MarginRunView>
 
+    /** The business dates after [date] that have a current run, earliest first. */
+    fun laterRunDates(accountId: UUID, date: LocalDate): List<LocalDate>
+
     fun run(id: UUID): MarginRunView?
 
     fun nextVersion(accountId: UUID, businessDate: LocalDate): Int

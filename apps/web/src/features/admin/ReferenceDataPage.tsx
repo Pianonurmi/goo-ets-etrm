@@ -739,7 +739,9 @@ function CounterpartyDrawer({ counterpartyId, onClose }: { counterpartyId: strin
                   { label: t('admin.recordVersion'), value: counterparty.version },
                   {
                     label: t('admin.masterAgreements'),
-                    value: counterparty.masterAgreements.map((a) => `${a.type} ${a.reference}`).join(', ') || '–',
+                    value:
+                      counterparty.masterAgreements.map((a) => `${statusLabel(a.type)} ${a.reference}`).join(', ') ||
+                      '–',
                   },
                 ]}
               />

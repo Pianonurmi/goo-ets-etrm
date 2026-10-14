@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    # Other branches are built by their pull request; building them on push as well ran every check twice.
+    branches: ["main", "release/**"]
     # A release: vX.Y.Z publishes the image under its version and creates the GitHub release (docs/operations/releases.md).
     tags: ["v*"]
   pull_request:
@@ -31,10 +32,10 @@ jobs:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v3.16.2
       # Into the job's own directory (no sudo on a self-hosted runner), checked against the release's checksum.
@@ -86,7 +87,7 @@ jobs:
       sha: ${{ steps.release.outputs.sha }}
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
         env:
           POSTGRES_USER: etrm
           POSTGRES_PASSWORD: etrm
@@ -111,7 +112,7 @@ jobs:
             echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
             echo "ETRM_TEST_DB_URL=jdbc:postgresql://localhost:$port/etrm_test"
           } >> "$GITHUB_ENV"
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
       # A release is a vX.Y.Z tag push or a call from the Release workflow; its version must match the files.
@@ -126,18 +127,18 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [[ -n "$version" ]]; then ops/release/check-version.sh "$version"; fi
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: |
             25
             21
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
       - name: Create test databases
@@ -153,7 +154,7 @@ jobs:
           (cd apps/web && npm run sbom)
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reports
           path: |
@@ -175,9 +176,17 @@ jobs:
           E2E_SHOWCASE_DB_URL: jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_showcase_e2e
           ETRM_JAVA: ${{ env.JAVA_HOME_25_X64 }}/bin/java
         run: npm run e2e
+      # A rolling upgrade runs the previous release on this build's migrations (ADR 0048).
+      - name: Previous release on the migrated schema
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JAVA: ${{ env.JAVA_HOME_25_X64 }}/bin/java
+        run: |
+          PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_compat;"
+          ops/release/compat-check.sh apps/api/build/libs/api.jar "jdbc:postgresql://localhost:$DB_PORT/etrm_compat"
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright
           path: |
@@ -192,21 +201,21 @@ jobs:
             --label org.opencontainers.image.revision="${{ steps.release.outputs.sha }}" \
             --label org.opencontainers.image.created="$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
       - name: Image vulnerabilities (report critical and high)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: goo-ets-etrm:${{ github.sha }}
           format: table
           exit-code: "0"
           severity: CRITICAL,HIGH
           trivyignores: .trivyignore
-      - name: Image vulnerabilities (fail on critical with a fix available)
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Image vulnerabilities (fail on critical or high with a fix available)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: goo-ets-etrm:${{ github.sha }}
           format: table
           exit-code: "1"
           ignore-unfixed: true
-          severity: CRITICAL
+          severity: CRITICAL,HIGH
           trivyignores: .trivyignore
           skip-setup-trivy: true
       - name: Publish the image (main and release tags)
@@ -225,14 +234,14 @@ jobs:
           done
       - name: Upload the jar (releases only)
         if: steps.release.outputs.version != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: jar
           path: apps/api/build/libs/api.jar
           retention-days: 7
       - name: Image SBOM
         if: always()
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: goo-ets-etrm:${{ github.sha }}
           format: cyclonedx
@@ -241,7 +250,7 @@ jobs:
           skip-setup-trivy: true
       - name: Upload SBOMs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom
           path: |
@@ -259,14 +268,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ needs.build.outputs.release-version }}
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: sbom
           path: dist/sbom
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: jar
           path: dist/jar

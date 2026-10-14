@@ -32,6 +32,8 @@ export default defineConfig({
   outputDir: 'build/test-results',
   use: {
     baseURL,
+    // Formats are asserted as en-GB whatever the machine's language (W7: the UI follows the browser's locale).
+    locale: 'en-GB',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

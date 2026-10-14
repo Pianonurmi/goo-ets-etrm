@@ -47,6 +47,32 @@ kafka:
   enabled: false
   bootstrapServers: ""
   topicReplicas: 3
+  # Let the application create its topics; off where topics are provisioned by the platform team.
+  createTopics: false
+  # e.g. SASL_SSL with SCRAM-SHA-512; jaasSecret holds the sasl.jaas.config line under jaasKey.
+  securityProtocol: ""
+  saslMechanism: ""
+  jaasSecret: ""
+  jaasKey: sasl.jaas.config
+
+ecb:
+  # Pull the ECB reference rates on working days (needs egress to www.ecb.europa.eu).
+  enabled: false
+
+migrations:
+  # Run migrations in a pre-install/pre-upgrade Job as the schema owner, not in the pods (ADR 0048).
+  job: true
+  timeoutSeconds: 1800
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+# Further application settings, written to /etc/etrm/application.yml, for example registry adapters
+# (docs/operations/kubernetes.md#registry-adapters). Secrets go into extraEnv from a Secret, never here.
+config: {}
 
 tracing:
   # OTLP endpoint of the OpenTelemetry collector, e.g. http://otel-collector.observability:4318/v1/traces
@@ -83,7 +109,11 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
 
 podDisruptionBudget:
-  minAvailable: 1
+  # One pod at a time, however many the autoscaler runs.
+  maxUnavailable: 1
+
+# /tmp of each pod; the exact solver unpacks about 70 MB there at each container start.
+tmpSizeLimit: 512Mi
 
 # Files the registry FILE channel writes for manual pickup. With more than one replica use a ReadWriteMany claim.
 registryOutbox:
@@ -94,6 +124,8 @@ registryOutbox:
 
 networkPolicy:
   enabled: true
+  # Egress rules (NetworkPolicyEgressRule); empty: egress is not restricted. DNS is always allowed when set.
+  egress: []
   # Namespaces allowed to reach the HTTP port (the ingress controller) and the management port (Prometheus).
   ingressNamespace: ingress-nginx
   monitoringNamespace: monitoring

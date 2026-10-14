@@ -64,7 +64,10 @@ changes and reconciliation breaks.
   guarantees of origin, tCO2e for allowances).
 - Periods are shown as from–to, where the end date is not included (a delivery window `2026-01-01 – 2027-01-01`
   is the calendar year 2026).
-- Times are in UTC.
+- Numbers and dates follow the language of your browser (`1,234.50` in English, `1 234,50` in Finnish), and times of
+  day are shown in the time zone of the selected legal entity with its short name (for example `14:30 EEST`).
+- A list that stops at the number of rows it asked for says so above the table ("Showing the first 2,000 rows");
+  narrow the filters to see the rest. Longer lists that page have **Load more**.
 
 ## Where next
 

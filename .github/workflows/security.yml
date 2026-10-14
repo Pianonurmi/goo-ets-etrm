@@ -1,7 +1,8 @@
 name: Security
 
 # Weekly OWASP dependency check of the jar and the web lockfile against the NVD. Needs the repository secret
-# NVD_API_KEY (free key from nvd.nist.gov); without it the job explains that and stops.
+# NVD_API_KEY (free key from nvd.nist.gov); without it the job fails, so a check that cannot run is not mistaken
+# for a pass. It fails on a CVSS score of 7 or more.
 on:
   schedule:
     - cron: "17 4 * * 1"
@@ -21,7 +22,7 @@ jobs:
       ETRM_DB_PASSWORD: etrm
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
         env:
           POSTGRES_USER: etrm
           POSTGRES_PASSWORD: etrm
@@ -46,21 +47,22 @@ jobs:
         id: key
         run: |
           if [ -z "$NVD_API_KEY" ]; then
-            echo "NVD_API_KEY is not set; add it as a repository secret to run the dependency check."
-            echo "present=false" >> "$GITHUB_OUTPUT"
+            # A check that cannot run is a failed check, not a passed one (review finding S8).
+            echo "::error::NVD_API_KEY is not set; add it as a repository secret to run the dependency check."
+            exit 1
           else
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.key.outputs.present == 'true'
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         if: steps.key.outputs.present == 'true'
         with:
           distribution: temurin
           java-version: |
             25
             21
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         if: steps.key.outputs.present == 'true'
       - name: Build the jar
         if: steps.key.outputs.present == 'true'
@@ -72,10 +74,10 @@ jobs:
           docker run --rm -v "$PWD:/src" -v "$HOME/.dependency-check:/usr/share/dependency-check/data" \
             owasp/dependency-check:12.1.0 \
             --project goo-ets-etrm --scan /src/apps/api/build/libs/api.jar --scan /src/apps/web/package-lock.json \
-            --nvdApiKey "$NVD_API_KEY" --format HTML --format JSON --failOnCVSS 9 --out /src/reports
+            --nvdApiKey "$NVD_API_KEY" --format HTML --format JSON --failOnCVSS 7 --out /src/reports
       - name: Upload report
         if: always() && steps.key.outputs.present == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-check
           path: reports/

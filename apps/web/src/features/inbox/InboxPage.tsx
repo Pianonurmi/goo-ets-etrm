@@ -27,6 +27,7 @@ import { TableSkeleton } from '@/shared/components/Skeletons';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { oneOf } from '@/shared/urlParams';
 import { useInvalidateWorkflow, useTaskTypes } from './hooks';
 import { decisionBlock, isOverdue, reasonRequired, type Decision, type Task } from './model/decisions';
 import { span } from './model/time';
@@ -37,20 +38,18 @@ const STATUSES = ['OPEN', 'APPROVED', 'REJECTED', 'ACKNOWLEDGED', 'COMPLETED', '
 const SORTS = ['DUE', 'REQUESTED', 'PRIORITY'] as const;
 const CENTERED = { display: 'flex', alignItems: 'center' };
 const OVERDUE_ROW: RowStyle = { boxShadow: 'inset 3px 0 0 var(--etrm-loss)' };
-type Status = (typeof STATUSES)[number];
-type Sort = (typeof SORTS)[number];
 
 /** Inbox filters live in the URL, so a filtered inbox can be bookmarked and shared. */
 function useInboxFilters() {
   const [params, setParams] = useSearchParams();
   const filters = {
-    status: (params.get('status') ?? 'OPEN') as Status,
+    status: oneOf(params.get('status'), STATUSES, 'OPEN'),
     types: params.getAll('type'),
     actionable: params.get('actionable') !== 'false',
     mine: params.get('mine') === 'true',
     overdue: params.get('overdue') === 'true',
     entityOnly: params.get('entityOnly') === 'true',
-    sort: (params.get('sort') ?? 'DUE') as Sort,
+    sort: oneOf(params.get('sort'), SORTS, 'DUE'),
   };
   const update = (changes: Partial<typeof filters>) => {
     const next = { ...filters, ...changes };

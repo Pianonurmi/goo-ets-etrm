@@ -54,6 +54,22 @@ import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
 
+/** A credit note has a negative total; what is left of it is owed to the counterparty (or by it) and is refunded or netted. */
+private val InvoiceView.isCreditNote: Boolean get() = grossTotal.signum() < 0
+
+/** The side of the books that a settled invoice or credit note belongs to, seen from the counterparty's payment. */
+private fun PaymentDirection.settles(invoice: InvoiceView): Boolean = (settles == invoice.direction) != invoice.isCreditNote
+
+/** Whole tokens of a text: letters and digits, upper case; invoice numbers match as token sequences ("INV-12" is not in "INV-123"). */
+private fun tokens(text: String): List<String> = text.uppercase().split(NON_ALPHANUMERIC).filter { it.isNotEmpty() }
+
+private val NON_ALPHANUMERIC = Regex("[^\\p{L}\\p{N}]+")
+
+private fun mentions(remittance: List<String>, reference: String): Boolean {
+    val wanted = tokens(reference)
+    return wanted.isNotEmpty() && remittance.windowed(wanted.size).any { it == wanted }
+}
+
 /**
  * Settles invoices: every payment, credit note and netting applies through here, so outstanding amounts, payment
  * status and the trade's SETTLED status follow from the allocations.
@@ -68,37 +84,40 @@ class InvoiceSettlement(
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
 ) {
-    /** Applies up to [amount] to the invoice; returns what was applied (zero when nothing is outstanding). */
+    /**
+     * Applies up to [amount] (a positive magnitude) to the invoice; returns what was applied (zero when nothing is
+     * outstanding). A credit note's balance is negative: what is refunded or netted against it is applied the same way.
+     */
     fun apply(
         invoiceId: UUID,
         amount: BigDecimal,
         kind: AllocationKind,
         by: String,
         payment: PaymentView? = null,
-        creditNoteId: UUID? = null,
+        creditNote: InvoiceView? = null,
         nettingId: UUID? = null,
     ): BigDecimal {
         val invoice = invoices.find(invoiceId, forUpdate = true) ?: throw NotFoundException("Invoice", invoiceId)
         if (invoice.status != InvoiceStatus.ISSUED) throw IllegalStateTransitionException("Invoice $invoiceId", invoice.status.name, "settled")
-        val applied = amount.min(invoice.outstanding)
+        val applied = amount.min(invoice.outstanding.abs())
         if (applied.signum() <= 0) return BigDecimal.ZERO.setScale(2)
-        val allocation = AllocationView(Ids.newId(), invoiceId, kind, applied, payment?.id, creditNoteId, nettingId, by, clock.instant())
+        val allocation = AllocationView(Ids.newId(), invoiceId, kind, applied, payment?.id, creditNote?.id, nettingId, by, clock.instant())
         allocations.insert(allocation)
-        val paid = invoice.paidAmount + applied
+        val paid = if (invoice.isCreditNote) invoice.paidAmount - applied else invoice.paidAmount + applied
         val next = invoice.copy(
             paidAmount = paid,
-            paymentStatus = if (paid.compareTo(invoice.grossTotal) >= 0) PaymentStatus.PAID else PaymentStatus.PARTIALLY_PAID,
+            paymentStatus = if (paid.abs().compareTo(invoice.grossTotal.abs()) >= 0) PaymentStatus.PAID else PaymentStatus.PARTIALLY_PAID,
         )
         invoices.update(next)
-        events.publishEvent(InvoiceSettled(next, allocation, payment))
-        if (next.paymentStatus == PaymentStatus.PAID) settleTrades(next)
+        events.publishEvent(InvoiceSettled(next, allocation, payment, creditNote))
+        if (next.paymentStatus == PaymentStatus.PAID && !next.isCreditNote) settleTrades(next)
         return applied
     }
 
     /** A credit note settles the invoice it reverses; it is itself fully used. */
     fun applyCreditNote(creditNote: InvoiceView, by: String) {
         val original = creditNote.originalInvoiceId ?: return
-        val applied = apply(original, creditNote.grossTotal.negate(), AllocationKind.CREDIT_NOTE, by, creditNoteId = creditNote.id)
+        val applied = apply(original, creditNote.grossTotal.negate(), AllocationKind.CREDIT_NOTE, by, creditNote = creditNote)
         // What the original no longer needed stays on the credit note, to be refunded or netted.
         val used = applied.negate()
         val current = invoices.find(creditNote.id, forUpdate = true)!!
@@ -232,12 +251,12 @@ class PaymentService(
         return payment
     }
 
-    /** Invoice numbers (ours, or the supplier's for outgoing payments) quoted in the remittance information. */
+    /** Invoice numbers (ours, or the supplier's for outgoing payments) quoted in the remittance information, as whole tokens. */
     private fun byRemittance(command: RecordPayment, currency: String): List<InvoiceView> {
-        val text = command.remittanceInfo?.uppercase() ?: return emptyList()
+        val text = tokens(command.remittanceInfo ?: return emptyList())
         return invoices.find(InvoiceFilter(legalEntityId = command.legalEntityId, statuses = setOf(InvoiceStatus.ISSUED), limit = 10_000))
-            .filter { it.currency == currency && it.direction == command.direction.settles && it.paymentStatus != PaymentStatus.PAID }
-            .filter { inv -> listOfNotNull(inv.number, inv.counterpartyInvoiceRef).any { text.contains(it.uppercase()) } }
+            .filter { it.currency == currency && command.direction.settles(it) && it.paymentStatus != PaymentStatus.PAID }
+            .filter { inv -> listOfNotNull(inv.number, inv.counterpartyInvoiceRef).any { mentions(text, it) } }
             .sortedBy { it.dueDate }
     }
 
@@ -245,7 +264,7 @@ class PaymentService(
         if (invoice.legalEntityId != payment.legalEntityId || invoice.currency != payment.currency) {
             throw ValidationException("Invoice ${invoice.number} is not in ${payment.currency} for this legal entity")
         }
-        if (invoice.direction != payment.direction.settles) throw ValidationException("A ${payment.direction} payment cannot settle invoice ${invoice.number}")
+        if (!payment.direction.settles(invoice)) throw ValidationException("A ${payment.direction} payment cannot settle invoice ${invoice.number}")
         if (payment.counterpartyId != null && payment.counterpartyId != invoice.counterpartyId) {
             throw ValidationException("Invoice ${invoice.number} is with another counterparty")
         }
@@ -260,7 +279,9 @@ class PaymentService(
 
 /**
  * Netting: receivables and payables with one counterparty in one currency are offset; only the net amount moves.
- * The counterparty's agreement is recorded by a second person, and settlement needs the net payment.
+ * Credit notes count on the side that owes the money: a sales credit note is a claim of the counterparty, a purchase
+ * credit note one of ours. The counterparty's agreement is recorded by a second person, and settlement needs the net
+ * payment. The amounts are those outstanding when the statement was prepared: a payment applied since refuses it.
  */
 @Service
 @Transactional
@@ -282,11 +303,11 @@ class NettingService(
         val open = invoices.find(
             InvoiceFilter(command.legalEntityId, command.counterpartyId, statuses = setOf(InvoiceStatus.ISSUED), limit = 10_000),
         ).filter {
-            it.currency == command.currency.uppercase() && it.outstanding.signum() > 0 && it.id !in taken &&
+            it.currency == command.currency.uppercase() && it.outstanding.signum() != 0 && it.id !in taken &&
                 (it.dueDate == null || it.dueDate <= command.valueDate)
         }
-        val receivable = open.filter { it.direction == SettlementDirection.RECEIVABLE }.sumOf { it.outstanding }
-        val payable = open.filter { it.direction == SettlementDirection.PAYABLE }.sumOf { it.outstanding }
+        val receivable = open.filter { weClaim(it) }.sumOf { it.outstanding.abs() }
+        val payable = open.filterNot { weClaim(it) }.sumOf { it.outstanding.abs() }
         if (receivable.signum() == 0 || payable.signum() == 0) throw ValidationException("Netting needs open invoices in both directions")
         val id = Ids.newId()
         val document = documents.renderPdf(
@@ -305,9 +326,9 @@ class NettingService(
                     "lines" to open.map {
                         mapOf(
                             "number" to (it.counterpartyInvoiceRef?.let { ref -> "${it.number} ($ref)" } ?: it.number),
-                            "direction" to if (it.direction == SettlementDirection.RECEIVABLE) "We claim" else "You claim",
+                            "direction" to if (weClaim(it)) "We claim" else "You claim",
                             "dueDate" to it.dueDate.toString(),
-                            "amount" to it.outstanding.toPlainString(),
+                            "amount" to it.outstanding.abs().toPlainString(),
                         )
                     },
                     "receivable" to receivable.toPlainString(),
@@ -327,7 +348,7 @@ class NettingService(
             receivableTotal = receivable,
             payableTotal = payable,
             netAmount = receivable - payable,
-            invoices = open.associate { it.id to it.outstanding },
+            invoices = open.associate { it.id to it.outstanding.abs() },
             counterpartyRef = null,
             settlementPaymentId = null,
             documentId = document.id,
@@ -344,6 +365,7 @@ class NettingService(
         val statement = locked(statementId)
         if (statement.status != NettingStatus.DRAFT) throw IllegalStateTransitionException("Netting statement", statement.status.name, "AGREED")
         if (statement.createdBy == actor) throw SegregationOfDutiesException("The person who prepared the statement may not record its agreement")
+        requireUnchanged(statement)
         val agreed = statement.copy(status = NettingStatus.AGREED, agreedBy = actor, counterpartyRef = counterpartyRef?.trim(), version = statement.version + 1)
         statements.update(agreed)
         return agreed
@@ -364,18 +386,20 @@ class NettingService(
                 throw ValidationException("Payment ${payment.bankReference} is not the unapplied ${expected.name.lowercase()} net amount of the statement")
             }
         }
+        requireUnchanged(statement)
         // The smaller side is offset in full against the larger; the larger side's remainder is paid by the net payment.
         val offset = statement.receivableTotal.min(statement.payableTotal)
-        val byDirection = statement.invoices.keys.map { invoices.find(it)!! }.groupBy { it.direction }
-        listOf(SettlementDirection.RECEIVABLE, SettlementDirection.PAYABLE).forEach { direction ->
+        val bySide = statement.invoices.keys.map { invoices.find(it)!! }.groupBy { weClaim(it) }
+        listOf(true, false).forEach { ours ->
             var remaining = offset
-            byDirection[direction].orEmpty().sortedBy { it.dueDate }.forEach { invoice ->
+            bySide[ours].orEmpty().sortedBy { it.dueDate }.forEach { invoice ->
                 if (remaining.signum() > 0) remaining -= settlement.apply(invoice.id, remaining, AllocationKind.NETTING, actor, nettingId = statement.id)
             }
         }
         payment?.let { p ->
             var unapplied = p.unappliedAmount
-            byDirection[p.direction.settles].orEmpty().sortedBy { it.dueDate }.forEach { invoice ->
+            // An incoming net payment settles what we claim, an outgoing one what the counterparty claims.
+            bySide[p.direction == PaymentDirection.INCOMING].orEmpty().sortedBy { it.dueDate }.forEach { invoice ->
                 if (unapplied.signum() > 0) unapplied -= settlement.apply(invoice.id, unapplied, AllocationKind.PAYMENT, actor, payment = p)
             }
             payments.updateUnapplied(p.id, unapplied)
@@ -402,6 +426,22 @@ class NettingService(
 
     @Transactional(readOnly = true)
     override fun statements(legalEntityId: UUID, counterpartyId: UUID?): List<NettingStatementView> = statements.list(legalEntityId, counterpartyId)
+
+    /** Whether the invoice or credit note is money the counterparty owes us (a receivable, or a purchase credit note). */
+    private fun weClaim(invoice: InvoiceView): Boolean = (invoice.direction == SettlementDirection.RECEIVABLE) != invoice.isCreditNote
+
+    /** The statement settles the amounts it captured; an invoice paid, credited or netted since needs a new statement. */
+    private fun requireUnchanged(statement: NettingStatementView) {
+        statement.invoices.forEach { (id, captured) ->
+            val invoice = invoices.find(id) ?: throw NotFoundException("Invoice", id)
+            if (invoice.status != InvoiceStatus.ISSUED || invoice.outstanding.abs().compareTo(captured) != 0) {
+                throw ValidationException(
+                    "Invoice ${invoice.number} changed after the statement was prepared (${captured.toPlainString()} outstanding then, " +
+                        "${invoice.outstanding.abs().toPlainString()} now); cancel the statement and prepare a new one",
+                )
+            }
+        }
+    }
 
     private fun locked(id: UUID): NettingStatementView = statements.find(id, forUpdate = true) ?: throw NotFoundException("NettingStatement", id)
 
