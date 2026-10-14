@@ -36,6 +36,7 @@ import com.pianonurmi.etrm.ledger.domain.PeriodEndRepository
 import com.pianonurmi.etrm.ledger.domain.PeriodRepository
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
+import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -100,6 +101,8 @@ class PeriodEndService(
     private val hedges: HedgeService? = null,
     /** Cleared futures are settled daily by variation margin (ADR 0046) and carry no unrealised MtM. */
     private val clearing: ClearingQuery? = null,
+    /** Index fixings price a reserved lot's index-priced sale; without them such a sale gives no firm price. */
+    private val fixings: IndexFixings? = null,
 ) : PeriodEndCommand, PeriodEndQuery {
     /** What one run is working with. */
     private class Context(val entity: LegalEntityView, val period: YearMonth, val runId: UUID) {
@@ -285,7 +288,7 @@ class PeriodEndService(
         ?.lines?.firstOrNull { it.reservedLotId == lot.id }
         ?.let { obligations.obligation(it.obligationId)?.sourceRef }
         ?.let(trades::obligation)
-        ?.let { sale -> convert(ctx, sale.price, sale.priceCurrency.currencyCode) }
+        ?.let { sale -> deliveredUnitPrice(sale, fixings)?.let { convert(ctx, it, sale.priceCurrency.currencyCode) } }
 
     /** Allowances held as inventory at the lower of cost and spot less cost to sell; intangible allowances are not tested here. */
     private fun allowanceNrv(ctx: Context) {
@@ -420,7 +423,9 @@ class PeriodEndService(
                 val foreign = journal.balance(ctx.entity.id, account, ctx.end, currency = currency)
                 val dims = mapOf("revaluedCurrency" to currency)
                 val revalued = journal.balance(ctx.entity.id, account, ctx.end, FX_EVENT, dimensions = dims).baseNet
-                val booked = foreign.baseNet + revalued
+                // Realised FX on settled items is booked in base currency on the same account (SettlementPostings).
+                val realised = journal.balance(ctx.entity.id, account, ctx.end, REALISED_FX_EVENT, dimensions = dims).baseNet
+                val booked = foreign.baseNet + revalued + realised
                 val rate = fxRates.rate(ctx.end, currency, ctx.base)?.rate
                 if (rate == null) {
                     ctx.warnings += "No $currency/${ctx.base} rate on ${ctx.end}; account $account not revalued"
@@ -609,6 +614,7 @@ class PeriodEndService(
         const val PROVISION_EVENT = "PeriodEndProvision"
         const val GRANT_EVENT = "PeriodEndGrantRelease"
         const val FX_EVENT = "PeriodEndFxRevaluation"
+        const val REALISED_FX_EVENT = "RealisedFx"
         const val ALLOWANCE_KEY = "ALLOWANCE:"
     }
 }
