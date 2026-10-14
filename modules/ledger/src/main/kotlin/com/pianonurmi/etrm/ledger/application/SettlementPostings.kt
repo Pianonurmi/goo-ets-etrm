@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.ledger.application
 
 import com.pianonurmi.etrm.ledger.api.PostingFacts
+import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.settlement.api.AllocationKind
 import com.pianonurmi.etrm.settlement.api.InvoiceIssued
@@ -22,9 +23,15 @@ import java.util.UUID
  * the delivery postings.
  */
 @Component
-class SettlementPostings(private val ledger: LedgerService, private val referenceData: ReferenceDataQuery) {
+class SettlementPostings(
+    private val ledger: LedgerService,
+    private val referenceData: ReferenceDataQuery,
+    private val unposted: UnpostedEvents? = null,
+) : PostingReplay {
     @EventListener
-    fun on(event: InvoiceIssued) {
+    fun on(event: InvoiceIssued) = guard(event, event.invoice.legalEntityId) { handle(event) }
+
+    private fun handle(event: InvoiceIssued) {
         val invoice = event.invoice
         val credit = invoice.grossTotal.signum() < 0
         ledger.post(
@@ -50,7 +57,9 @@ class SettlementPostings(private val ledger: LedgerService, private val referenc
     }
 
     @EventListener
-    fun on(event: PaymentRecorded) {
+    fun on(event: PaymentRecorded) = guard(event, event.payment.legalEntityId) { handle(event) }
+
+    private fun handle(event: PaymentRecorded) {
         val p = event.payment
         ledger.post(
             PostingFacts(
@@ -75,7 +84,9 @@ class SettlementPostings(private val ledger: LedgerService, private val referenc
      * realises the exchange difference between the two dates.
      */
     @EventListener
-    fun on(event: InvoiceSettled) {
+    fun on(event: InvoiceSettled) = guard(event, event.invoice.legalEntityId) { handle(event) }
+
+    private fun handle(event: InvoiceSettled) {
         val invoice = event.invoice
         val allocation = event.allocation
         if (allocation.kind == AllocationKind.CREDIT_NOTE) {
@@ -139,5 +150,19 @@ class SettlementPostings(private val ledger: LedgerService, private val referenc
                 dimensions = dimensionsOf(invoice) + ("revaluedCurrency" to invoice.currency),
             ),
         )
+    }
+
+    override fun replay(event: DomainEvent): Boolean {
+        when (event) {
+            is InvoiceIssued -> on(event)
+            is PaymentRecorded -> on(event)
+            is InvoiceSettled -> on(event)
+            else -> return false
+        }
+        return true
+    }
+
+    private fun guard(event: DomainEvent, legalEntityId: UUID?, body: () -> Unit) {
+        unposted?.guard(event, legalEntityId, body = body) ?: body()
     }
 }

@@ -114,8 +114,8 @@ class GlInterfaceIT {
         ),
     )
 
-    private fun periodEndRun(entity: UUID) = periodEnd.insertRun(
-        PeriodEndRunView(UUID.randomUUID(), entity, september.toString(), 1, null, emptyList(), emptyList(), emptyList(), "accountant1", Instant.EPOCH),
+    private fun periodEndRun(entity: UUID, at: Instant = clock.instant(), seq: Int = 1) = periodEnd.insertRun(
+        PeriodEndRunView(UUID.randomUUID(), entity, september.toString(), seq, null, emptyList(), emptyList(), emptyList(), "accountant1", at),
     )
 
     @Test
@@ -191,7 +191,10 @@ class GlInterfaceIT {
         gl.markDelivered(export.id).status shouldBe GlExportStatus.DELIVERED
         gl.hardCloseBlockers(e, september) shouldBe listOf("export ${export.exportSeq} is DELIVERED, not acknowledged", "the period end has not been run")
         gl.acknowledge(export.id, "FI-DOC-4711").acknowledgementRef shouldBe "FI-DOC-4711"
-        periodEndRun(e)
+        // A run older than the last posting did not measure it (review finding F11).
+        periodEndRun(e, clock.instant().minusSeconds(60))
+        gl.hardCloseBlockers(e, september) shouldBe listOf("entries were posted after the last period end run; run it again")
+        periodEndRun(e, seq = 2)
         ledger.closePeriod(e, september, hard = true).status shouldBe PeriodStatus.CLOSED
     }
 

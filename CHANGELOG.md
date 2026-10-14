@@ -41,6 +41,23 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - The change process: `CODEOWNERS`, a pull request template, `SECURITY.md`, [contributing](docs/contributing.md)
   and the [branch protection](docs/operations/branch-protection.md) ruleset; workflows run with a read-only token
   by default.
+- **Events the ledger cannot post wait in the inbox** (`LEDGER_ATTENTION`, for accountants). A posting listener now
+  runs in a savepoint: when it fails (no FX rate, too few cost layers) the delivery, registry confirmation or payment
+  still commits, and the event is recorded for the ledger's attention instead of failing the business transaction.
+  A posting rule that applies but lacks an amount (an index price not fixed yet) is recorded the same way instead of
+  posting nothing silently. An hourly job retries what can be retried and closes the task once it posts; the
+  accountant can also retry from the task, or dismiss it with a reason after a manual journal. The gauge
+  `etrm_ledger_unposted_open` counts what is waiting.
+
+### Fixed
+- Foreign-currency entries balance in base currency: the cent left by rounding each line goes on the last line, and an
+  entry that does not balance in base currency is refused.
+- Weighted-average costing reduces cost layers in whole units, so no fractional allowances remain in the layers.
+- Cancellations, expiries and deliveries are dated when they happened (the registry's confirmation, the expiry date)
+  rather than when the event was processed.
+- The hard close's period-end gate refuses a run older than the last posting of the period, and the release of the
+  free-allocation grant reads the deferred grant net of any debit. Period end warns when MtM booked under an earlier
+  treatment stays booked after the policy changed to disclosure only.
 
 ### Fixed
 - **A settlement item that could not be evaluated failed the delivery's commit.** Parking an item whose counterparty
