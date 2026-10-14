@@ -723,6 +723,93 @@ class SettlementIT {
         payments.payment(net.id)!!.unappliedAmount.signum() shouldBe 0
     }
 
+    private fun nettingFixture(code: String): Pair<InvoiceView, UUID> {
+        val sale = issuedSale(code, quantity = 1_000, price = "2.00", netting = true)
+        val cp = sale.counterpartyId
+        delivered(cp, side = Side.BUY, quantity = 300, price = "1.10")
+        user = "billing"
+        val purchase = invoices.registerPurchaseInvoice(
+            RegisterPurchaseInvoice(entity, cp, "$code-SUP", LocalDate.of(2026, 10, 7), "EUR", BigDecimal("330.00"), BigDecimal("84.15")),
+        )
+        invoices.submit(purchase.id)
+        invoices.approve(purchase.id, "controller")
+        return sale to cp
+    }
+
+    @Test
+    fun `a statement is refused when a payment changed an invoice after it was prepared, at agreement and at settlement`() {
+        val (sale, cp) = nettingFixture("NET-STALE")
+        user = "billing"
+        val stale = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        // A partial payment is applied to the sale between preparation and agreement.
+        payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                BigDecimal("500.00"),
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                "BANK-ST-1",
+                invoiceIds = listOf(sale.id),
+            ),
+        )
+        user = "controller"
+        shouldThrow<ValidationException> { netting.agree(stale.id, "THEIR-OK") }.message shouldContain sale.number!!
+        user = "billing"
+        netting.cancel(stale.id, "invoice paid in part")
+
+        // A new statement is agreed, and then another payment arrives before it is settled.
+        val fresh = netting.prepare(PrepareNetting(entity, cp, "EUR", LocalDate.of(2026, 11, 30)))
+        fresh.receivableTotal.compareTo(BigDecimal("2010.00")) shouldBe 0
+        user = "controller"
+        netting.agree(fresh.id, "THEIR-OK").status shouldBe NettingStatus.AGREED
+        user = "billing"
+        val net = payments.record(
+            RecordPayment(entity, PaymentDirection.INCOMING, BigDecimal("1595.85"), "EUR", LocalDate.of(2026, 11, 30), "BANK-ST-2", counterpartyId = cp),
+        )
+        payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                BigDecimal("100.00"),
+                "EUR",
+                LocalDate.of(2026, 10, 21),
+                "BANK-ST-3",
+                invoiceIds = listOf(sale.id),
+            ),
+        )
+        shouldThrow<ValidationException> { netting.settle(fresh.id, net.id) }.message shouldContain sale.number
+        netting.statement(fresh.id)!!.status shouldBe NettingStatus.AGREED
+    }
+
+    @Test
+    fun `a remittance names an invoice only by its whole number, not by a longer number that contains it`() {
+        val invoice = issuedSale("TOKEN-CP", quantity = 100)
+        user = "billing"
+        // The number followed by one more digit, or preceded by a letter, is another reference.
+        listOf("Payment for ${invoice.number}3", "ref X${invoice.number}").forEachIndexed { i, text ->
+            val unmatched = payments.record(
+                RecordPayment(entity, PaymentDirection.INCOMING, invoice.grossTotal, "EUR", LocalDate.of(2026, 10, 20), "BANK-TOK-$i", remittanceInfo = text),
+            )
+            unmatched.unappliedAmount.compareTo(invoice.grossTotal) shouldBe 0
+            invoices.invoice(invoice.id)!!.paidAmount.signum() shouldBe 0
+        }
+        // The number between other words and punctuation is the same reference.
+        val matched = payments.record(
+            RecordPayment(
+                entity,
+                PaymentDirection.INCOMING,
+                invoice.grossTotal,
+                "EUR",
+                LocalDate.of(2026, 10, 20),
+                "BANK-TOK-9",
+                remittanceInfo = "Invoice (${invoice.number}), thanks",
+            ),
+        )
+        matched.unappliedAmount.signum() shouldBe 0
+        invoices.invoice(invoice.id)!!.paymentStatus shouldBe PaymentStatus.PAID
+    }
+
     @Test
     fun `reports show ageing, expected cash, VAT by treatment and the EC sales list`() {
         val overdue = issuedSale("AGE-CP", quantity = 10)
