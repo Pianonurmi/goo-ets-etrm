@@ -12,6 +12,9 @@ Micrometer with the Prometheus registry. `GET /actuator/prometheus` serves them.
   percentiles and SLO burn can be computed in Prometheus.
 - Application meters include `etrm.reconciliation.breaks.open` (registry dispatcher) and the outbox and dispatcher
   timings of the registry module.
+- `etrm.integrity.chain.ok{chain}` is 1 when the nightly verification found the chain intact and 0 when it did not,
+  for the audit seals, the lot journal, the allowance movements and the journal
+  ([tamper evidence](database.md#tamper-evidence)).
 
 ## Traces
 

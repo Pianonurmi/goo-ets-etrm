@@ -31,9 +31,26 @@ interface AuditQuery {
     fun events(filter: AuditFilter): List<AuditEventView>
 
     fun event(eventId: UUID): AuditEventView?
+
+    /** Checks the seal chain over the audit trail (review finding S6). */
+    fun verifyTrail(): AuditTrailCheck
+}
+
+/**
+ * Result of checking the audit trail: [brokenSeqs] are audit rows whose seal does not verify (changed, removed, or
+ * a broken link); [unsealed] counts rows older than the sealing delay that have no seal yet.
+ */
+data class AuditTrailCheck(val brokenSeqs: List<Long>, val unsealed: Long, val head: String?) {
+    val ok: Boolean get() = brokenSeqs.isEmpty() && unsealed == 0L
 }
 
 /** Explicit audit record for commands that do not produce a domain event (e.g. exports, logins, searches). */
 interface AuditCommand {
     fun record(action: String, aggregateType: String?, aggregateRef: String?, details: Map<String, Any?> = emptyMap()): AuditEventView
+
+    /**
+     * Seals committed audit rows that have no seal yet and returns how many; a job does this every minute. [catchUp]
+     * also looks beyond the last two days, for rows left unsealed while the job did not run.
+     */
+    fun seal(catchUp: Boolean = false): Int
 }

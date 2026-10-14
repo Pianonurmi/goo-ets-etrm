@@ -60,6 +60,9 @@ etrm:
     # The schema owner (migrations, partitions); requests then run as ETRM_DB_USER with table rights only.
     user: ${ETRM_DB_MIGRATION_USER:}
     password: ${ETRM_DB_MIGRATION_PASSWORD:}
+  integrity:
+    # Signs the daily chain-head digest (HMAC-SHA256); without it the digest is stored unsigned.
+    signing-key: ${ETRM_INTEGRITY_SIGNING_KEY:}
   ui:
     # Browser sign-in (ADR 0026): Authorization Code with PKCE against the public client etrm-web.
     auth-mode: OIDC
