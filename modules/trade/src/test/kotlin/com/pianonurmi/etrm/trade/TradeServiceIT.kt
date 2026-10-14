@@ -62,10 +62,13 @@ import com.pianonurmi.etrm.trade.api.OptionExpired
 import com.pianonurmi.etrm.trade.api.OptionOutcome
 import com.pianonurmi.etrm.trade.api.OptionTerms
 import com.pianonurmi.etrm.trade.api.OptionType
+import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
+import com.pianonurmi.etrm.trade.api.TradeAmended
 import com.pianonurmi.etrm.trade.api.TradeApprovalCheck
+import com.pianonurmi.etrm.trade.api.TradeCancelled
 import com.pianonurmi.etrm.trade.api.TradeConfirmed
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
@@ -73,6 +76,7 @@ import com.pianonurmi.etrm.trade.api.UtiSource
 import com.pianonurmi.etrm.trade.application.OptionExpiryService
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -655,6 +659,101 @@ class TradeServiceIT {
         trades.requireTrade(mirror.id).status shouldBe TradeStatus.CONFIRMED
         trades.openObligations(entityB, Side.BUY).map { it.tradeNumber }.distinct() shouldBe listOf(mirror.tradeNumber)
         shouldThrow<ValidationException> { trades.capture(gooSale(counterparty = icoB)) }
+    }
+
+    @Test
+    fun `amending an intercompany trade amends its mirror, and cancelling it cancels both`() {
+        currentUser = "trader1"
+        val trade = trades.capture(gooSale(quantity = 300, counterparty = icoB, mirrorBook = bookB))
+        val stored = trades.requireTrade(trade.id)
+        val mirrorId = stored.intercompanyLinkId!!
+        val mirrorBefore = trades.requireTrade(mirrorId)
+
+        val repriced = gooSale(quantity = 400, counterparty = icoB, mirrorBook = bookB).legs.map { it.copy(price = BigDecimal("2.10")) }
+        trades.amend(trade.id, AmendTrade(expectedVersion = stored.version, reason = "re-priced", legs = repriced, externalRef = "BROKER-77"))
+
+        val mirror = trades.requireTrade(mirrorId)
+        mirror.version shouldBe mirrorBefore.version + 1
+        mirror.status shouldBe TradeStatus.PENDING_APPROVAL
+        mirror.externalRef shouldBe "BROKER-77"
+        mirror.legs.single().let {
+            it.side shouldBe Side.BUY
+            it.quantity.compareTo(BigDecimal(400)) shouldBe 0
+            it.price.compareTo(BigDecimal("2.10")) shouldBe 0
+            it.deliveries.sumOf { d -> d.quantity }.compareTo(BigDecimal(400)) shouldBe 0
+            // Its own accounts stay: entity A's account is still the counterparty account of the mirror.
+            it.counterpartyAccountId shouldBe accountA
+        }
+        mirror.regulatory.uti shouldBe trades.requireTrade(trade.id).regulatory.uti
+        published.filterIsInstance<TradeAmended>().filter { it.trade.id == mirrorId } shouldHaveSize 1
+
+        // Amending the mirror turns the sides round the other way and reaches the original.
+        val fromMirror = repriced.map {
+            it.copy(side = Side.BUY, price = BigDecimal("2.05"), deliveryAccountId = null, counterpartyAccountId = accountA, counterpartyAccountRef = null)
+        }
+        trades.amend(mirrorId, AmendTrade(expectedVersion = mirror.version, reason = "back", legs = fromMirror))
+        trades.requireTrade(trade.id).legs.single().let {
+            it.side shouldBe Side.SELL
+            it.price.compareTo(BigDecimal("2.05")) shouldBe 0
+            it.deliveryAccountId shouldBe accountA
+        }
+
+        trades.cancel(trade.id, "no deal")
+        trades.requireTrade(trade.id).status shouldBe TradeStatus.CANCELLED
+        trades.requireTrade(mirrorId).status shouldBe TradeStatus.CANCELLED
+        published.filterIsInstance<TradeCancelled>().map { it.trade.id } shouldContainAll listOf(trade.id, mirrorId)
+    }
+
+    @Test
+    fun `a change the mirror of an intercompany trade cannot take is refused for both`() {
+        currentUser = "trader1"
+        val trade = trades.capture(gooSale(quantity = 300, counterparty = icoB, mirrorBook = bookB))
+        val mirrorId = trades.requireTrade(trade.id).intercompanyLinkId!!
+        currentUser = "approver"
+        trades.approve(trade.id)
+        trades.approve(mirrorId)
+        trades.confirm(trade.id, ConfirmTrade("ICO-CONF-2"))
+        val mirror = trades.requireTrade(mirrorId)
+        mirror.status shouldBe TradeStatus.CONFIRMED
+        val first = mirror.legs.single().deliveries.first()
+        trades.recordDelivery(mirrorId, RecordDelivery(first.id, BigDecimal(50), LocalDate.of(2026, 9, 1), "TX-IC-1"))
+
+        // The mirror has a delivery recorded, so it cannot be amended, and neither can the original alone.
+        val original = trades.requireTrade(trade.id)
+        currentUser = "trader1"
+        shouldThrow<ValidationException> {
+            trades.amend(trade.id, AmendTrade(expectedVersion = original.version, reason = "re-price", legs = gooSale(300, icoB, bookB).legs.map { it.copy(price = BigDecimal("2.10")) }))
+        }.message shouldContain mirror.tradeNumber
+        trades.requireTrade(trade.id).let {
+            it.version shouldBe original.version
+            it.status shouldBe TradeStatus.CONFIRMED
+        }
+
+        // Fully delivered, the mirror cannot be cancelled, so the original is not cancelled on its own.
+        currentUser = "approver"
+        trades.recordDelivery(mirrorId, RecordDelivery(first.id, BigDecimal(100), LocalDate.of(2026, 9, 2), "TX-IC-2"))
+        trades.recordDelivery(mirrorId, RecordDelivery(mirror.legs.single().deliveries.last().id, BigDecimal(150), LocalDate.of(2026, 9, 3), "TX-IC-3"))
+        trades.requireTrade(mirrorId).status shouldBe TradeStatus.DELIVERED
+        currentUser = "trader1"
+        shouldThrow<ValidationException> { trades.cancel(trade.id, "too late") }.message shouldContain mirror.tradeNumber
+        trades.requireTrade(trade.id).status shouldBe TradeStatus.CONFIRMED
+    }
+
+    @Test
+    fun `an index leg may carry a negative spread, a fixed price may not, and a delivery lies inside its window`() {
+        currentUser = "trader1"
+        val sale = gooSale()
+        val leg = sale.legs.single()
+        val indexed = trades.capture(sale.copy(legs = listOf(leg.copy(priceType = PriceType.INDEX, priceIndex = "GOO_NORDIC_HYDRO", price = BigDecimal("-0.15")))))
+        indexed.legs.single().price.compareTo(BigDecimal("-0.15")) shouldBe 0
+        shouldThrow<ValidationException> { trades.capture(sale.copy(legs = listOf(leg.copy(price = BigDecimal("-0.15"))))) }.message shouldContain "must not be negative"
+
+        // Windows are closed-open: a delivery date on the exclusive end is outside the window.
+        val first = leg.deliveries.first()
+        shouldThrow<ValidationException> {
+            trades.capture(sale.copy(legs = listOf(leg.copy(deliveries = listOf(first.copy(deliveryDate = first.deliveryWindow.endExclusive), leg.deliveries.last())))))
+        }.message shouldContain "must lie within"
+        trades.capture(sale.copy(legs = listOf(leg.copy(deliveries = listOf(first.copy(deliveryDate = first.deliveryWindow.endExclusive.minusDays(1)), leg.deliveries.last())))))
     }
 
     @Test
