@@ -20,7 +20,7 @@
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
 book type, NRV, provision), VAT rules and PFE add-ons; the receiving GL's file specification; market data vendors for
-EUA futures and GoO marks; EMIR field layout and trade repository delegation; ETS deadline rules checked by compliance.
+EUA futures and GoO marks; EMIR field layout and trade repository delegation; ETS deadline rules checked by compliance. Each is tracked as an issue: penetration test [#16](https://github.com/Pianonurmi/goo-ets-etrm/issues/16), DR drill [#17](https://github.com/Pianonurmi/goo-ets-etrm/issues/17), registry specifications and code lists [#18](https://github.com/Pianonurmi/goo-ets-etrm/issues/18), sign-offs [#19](https://github.com/Pianonurmi/goo-ets-etrm/issues/19), GL, EMIR and market data [#20](https://github.com/Pianonurmi/goo-ets-etrm/issues/20), branch protection and a second maintainer [#21](https://github.com/Pianonurmi/goo-ets-etrm/issues/21).
 
 ## Increment 2 milestones
 
