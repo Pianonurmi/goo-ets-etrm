@@ -18,7 +18,7 @@ tomcat = "11.0.26"
 jackson3 = "3.1.7"
 jackson2 = "2.22.3"
 # Above kafka-clients' 1.10.1 (CVE-2026-106451). Drop when Kafka depends on 1.11.4 or later.
-lz4-java = "1.11.4"
+lz4-java = "1.12.0"
 roaringbitmap = "1.6.24"
 uuid-generator = "5.2.0"
 json-schema-validator = "3.0.8"
