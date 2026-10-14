@@ -247,6 +247,7 @@ class DemoDesk(private val api: DemoClient, private val calendar: DemoCalendar) 
     }
 
     /** An EUA option on [future] (ADR 0047): [lots] of the future at [strike], for [premium] a tonne, expiring on [expiry]. */
+    @Suppress("LongParameterList") // the request's fields
     fun euaOption(
         entity: DemoEntity,
         clearingId: String,
