@@ -21,6 +21,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - **The `test` profile is held to the `dev` profile's rules** (loopback only, never with the public profiles).
 - **Request bodies with unknown properties are refused** instead of silently dropping the property, and a body
   that does not parse names the failing field rather than the parser's internal message.
+- Jackson 3.1.7 and 2.22.3 and lz4-java 1.11.4 ahead of Spring Boot and Kafka (CVE-2026-89407, CVE-2026-68497,
+  CVE-2026-106451); the image scan now fails the build on high vulnerabilities with a fix, not only critical ones.
 - The showcase login throttle counts failures only, so successful sign-ins never lock anyone out, and its memory is
   bounded. The FILE registry gateway uses only file-name-safe characters from an instruction key.
 
