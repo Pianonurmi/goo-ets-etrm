@@ -7,11 +7,13 @@ import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.DomainException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.PartyDetailsQuery
@@ -110,7 +112,7 @@ class VatRuleService(
     override fun approve(ruleId: UUID, by: String): VatRuleView {
         val rule = repository.find(ruleId, forUpdate = true) ?: throw NotFoundException("VatRule", ruleId)
         if (rule.status != VatRuleStatus.DRAFT) throw IllegalStateTransitionException("VatRule ${rule.code}", rule.status.name, "APPROVED")
-        if (rule.createdBy == by) throw SegregationOfDutiesException("A VAT rule cannot be approved by the person who proposed it")
+        SecondPerson.require(by, rule.createdBy) { "A VAT rule cannot be approved by the person who proposed it" }
         val approved = rule.copy(status = VatRuleStatus.APPROVED, approvedBy = by)
         repository.update(approved)
         events.publishEvent(VatRuleApproved(approved))
@@ -201,7 +203,7 @@ class SettlementItemService(
 
     override fun fixPrice(command: FixPrice): List<SettlementItemView> {
         val actor = actorProvider.current()
-        actor.requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
+        actor.requireRole(Roles.OPERATIONS)
         if (command.price.signum() < 0) throw ValidationException("Price must not be negative")
         val items = repository.forSchedule(command.scheduleId)
         val currency = items.firstOrNull()?.currency

@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.document.api.RenderPdf
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -364,7 +365,7 @@ class NettingService(
         val actor = actor()
         val statement = locked(statementId)
         if (statement.status != NettingStatus.DRAFT) throw IllegalStateTransitionException("Netting statement", statement.status.name, "AGREED")
-        if (statement.createdBy == actor) throw SegregationOfDutiesException("The person who prepared the statement may not record its agreement")
+        SecondPerson.require(actor, statement.createdBy) { "The person who prepared the statement may not record its agreement" }
         requireUnchanged(statement)
         val agreed = statement.copy(status = NettingStatus.AGREED, agreedBy = actor, counterpartyRef = counterpartyRef?.trim(), version = statement.version + 1)
         statements.update(agreed)

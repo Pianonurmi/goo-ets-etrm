@@ -4,9 +4,11 @@ import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.DomainException
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.platform.paging.page
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
@@ -117,9 +119,7 @@ class WorkflowService(
         actor.requireEntity(task.legalEntityId)
         if (decision !in definition.allowedDecisions) throw ValidationException("${task.type} tasks cannot be decided with $decision")
         if (!isCandidate(actor, task)) throw ForbiddenException("User ${actor.userId} may not decide ${task.type} tasks")
-        if (definition.fourEyes && actor.userId == task.requestedBy) {
-            throw SegregationOfDutiesException("Task $taskId cannot be decided by its requester (${actor.userId})")
-        }
+        if (definition.fourEyes) SecondPerson.require(actor.userId, task.requestedBy) { "Task $taskId cannot be decided by its requester (${actor.userId})" }
         if (decision in definition.reasonRequiredFor && reason.isNullOrBlank()) throw ValidationException("A $decision decision needs a reason")
 
         val decided = save(
@@ -261,8 +261,7 @@ class WorkflowService(
         val actor = actorProvider.current()
         filter.legalEntityId?.let { actor.requireEntity(it) }
         val rows = repository.page(filter, actor, now())
-        val items = rows.take(filter.limit)
-        val next = if (rows.size > filter.limit) InboxCursor.encode(filter.sort, items.last()) else null
+        val (items, next) = rows.page(filter.limit) { InboxCursor.encode(filter.sort, it) }
         return InboxPage(items, next)
     }
 

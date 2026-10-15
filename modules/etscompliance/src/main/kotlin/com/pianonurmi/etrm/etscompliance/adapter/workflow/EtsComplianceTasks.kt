@@ -10,6 +10,7 @@ import com.pianonurmi.etrm.etscompliance.application.EtsComplianceService
 import com.pianonurmi.etrm.etscompliance.domain.EtsComplianceRepository
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
 import com.pianonurmi.etrm.workflow.api.DecisionOutcome
@@ -88,7 +89,7 @@ class ComplianceDeadlineTasks(
         taskType = TYPE,
         ownerModule = "etscompliance",
         displayName = "ETS compliance deadline",
-        candidateRoles = setOf(Role.MIDDLE_OFFICE, Role.BACK_OFFICE),
+        candidateRoles = Roles.OPERATIONS,
         fourEyes = false,
         allowedDecisions = setOf(Decision.ACKNOWLEDGE),
         reasonRequiredFor = emptySet(),

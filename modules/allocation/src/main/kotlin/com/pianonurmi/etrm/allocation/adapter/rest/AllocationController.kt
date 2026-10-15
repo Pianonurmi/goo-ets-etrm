@@ -21,7 +21,7 @@ import com.pianonurmi.etrm.allocation.api.PortfolioView
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
 import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.platform.security.ActorProvider
-import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -120,7 +120,7 @@ class AllocationController(
      */
     private fun obligationOperator(holderEntityId: java.util.UUID) {
         val actor = actorProvider.current()
-        actor.requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
+        actor.requireRole(Roles.OPERATIONS)
         actor.requireEntity(holderEntityId)
     }
 

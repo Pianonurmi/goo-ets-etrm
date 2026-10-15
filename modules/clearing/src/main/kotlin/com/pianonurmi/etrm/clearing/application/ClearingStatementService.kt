@@ -17,12 +17,14 @@ import com.pianonurmi.etrm.clearing.domain.MarginReconciliation
 import com.pianonurmi.etrm.clearing.domain.StatementFile
 import com.pianonurmi.etrm.platform.crypto.HashChain
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
@@ -49,7 +51,7 @@ class ClearingStatementService(
 ) : ClearingStatementCommand, ClearingStatementQuery {
     override fun importStatements(accountId: UUID, fileName: String?, csv: String): StatementImportView {
         val actor = actorProvider.current()
-        actor.requireRole(Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
+        actor.requireRole(Roles.OPERATIONS)
         val account = accounts.account(accountId) ?: throw NotFoundException("ClearingAccount", accountId)
         actor.requireEntity(account.legalEntityId)
         if (!account.active) throw ValidationException("Clearing account ${account.code} is closed")
@@ -186,7 +188,7 @@ class ClearingStatementService(
         val open = repository.clearingBreak(breakId, lock = true) ?: throw NotFoundException("ClearingBreak", breakId)
         if (open.status != ClearingBreakStatus.OPEN) throw ValidationException("The break of ${open.businessDate} is ${open.status}")
         if (reason.isNullOrBlank()) throw ValidationException("Say why the member's figures are accepted")
-        if (decidedBy == open.openedBy) throw SegregationOfDutiesException("The break is accepted by someone other than who imported the statement")
+        SecondPerson.require(decidedBy, open.openedBy) { "The break is accepted by someone other than who imported the statement" }
         val accepted = open.copy(status = ClearingBreakStatus.ACCEPTED, closedBy = decidedBy, closedAt = clock.instant(), resolution = reason.trim())
         repository.updateBreak(accepted)
         events.publishEvent(ClearingBreakClosed(accepted))

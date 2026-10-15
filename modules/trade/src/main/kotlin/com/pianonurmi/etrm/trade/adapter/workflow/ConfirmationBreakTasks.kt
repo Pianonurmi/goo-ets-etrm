@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.trade.adapter.workflow
 
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.trade.api.ConfirmationClosed
 import com.pianonurmi.etrm.trade.api.ConfirmationMismatched
 import com.pianonurmi.etrm.trade.api.ConfirmationStatus
@@ -37,7 +38,7 @@ class ConfirmationBreakTasks(
         taskType = TYPE,
         ownerModule = "trade",
         displayName = "Confirmation break",
-        candidateRoles = setOf(Role.MIDDLE_OFFICE, Role.BACK_OFFICE),
+        candidateRoles = Roles.OPERATIONS,
         defaultSla = Duration.ofHours(24),
         escalationRoles = setOf(Role.MIDDLE_OFFICE),
         defaultPriority = 70,

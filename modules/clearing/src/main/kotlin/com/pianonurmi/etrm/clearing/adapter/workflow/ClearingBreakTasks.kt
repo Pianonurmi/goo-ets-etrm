@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.clearing.api.ClearingBreakStatus
 import com.pianonurmi.etrm.clearing.application.ClearingStatementService
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
 import com.pianonurmi.etrm.workflow.api.DecisionOutcome
@@ -35,7 +36,7 @@ class ClearingBreakTasks(
         taskType = TYPE,
         ownerModule = "clearing",
         displayName = "Clearing statement break",
-        candidateRoles = setOf(Role.BACK_OFFICE, Role.MIDDLE_OFFICE),
+        candidateRoles = Roles.OPERATIONS,
         allowedDecisions = setOf(Decision.APPROVE),
         reasonRequiredFor = setOf(Decision.APPROVE),
         defaultSla = Duration.ofHours(24),

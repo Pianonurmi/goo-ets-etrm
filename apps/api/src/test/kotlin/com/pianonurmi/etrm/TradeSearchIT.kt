@@ -46,6 +46,6 @@ class TradeSearchIT {
             .body("items.size()", equalTo(1)).body("items[0].id", equalTo(ids[1]))
         s.asUser("scoped", "TRADER").header("X-Entities", s.entityId).get("/api/v1/trades/search?limit=500").then().statusCode(200)
             .body("items.findAll { it.id == '$otherId' }.size()", equalTo(0))
-        s.asUser("trader").get("/api/v1/trades/search?cursor=garbage").then().statusCode(400)
+        s.asUser("trader").get("/api/v1/trades/search?cursor=garbage").then().statusCode(422)
     }
 }

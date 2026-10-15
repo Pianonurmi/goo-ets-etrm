@@ -33,6 +33,7 @@ import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
 import com.pianonurmi.etrm.inventory.api.HoldingChanged
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -177,7 +178,7 @@ class EtsComplianceService(
     fun approveVerified(recordId: UUID, by: String): EmissionRecordView {
         val record = repository.emission(recordId, lock = true) ?: throw NotFoundException("EmissionRecord", recordId)
         if (record.status != EmissionStatus.PENDING_APPROVAL) throw ValidationException("Emissions record ${record.id} is ${record.status}")
-        if (record.recordedBy == by) throw SegregationOfDutiesException("Verified emissions are approved by someone other than who recorded them")
+        SecondPerson.require(by, record.recordedBy) { "Verified emissions are approved by someone other than who recorded them" }
         repository.emissions(record.installationId, record.complianceYear)
             .filter { it.kind == EmissionKind.VERIFIED && it.status == EmissionStatus.APPROVED }
             .forEach { repository.setEmissionStatus(it.id, EmissionStatus.SUPERSEDED) }

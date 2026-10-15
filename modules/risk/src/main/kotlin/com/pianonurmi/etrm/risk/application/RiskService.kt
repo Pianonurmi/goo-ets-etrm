@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -181,7 +182,7 @@ class RiskService(
     fun approveLimit(id: UUID, by: String): RiskLimitView {
         val limit = repository.limit(id, lock = true) ?: throw NotFoundException("RiskLimit", id)
         if (limit.status != LimitStatus.PENDING_APPROVAL) throw ValidationException("Limit $id is ${limit.status}")
-        if (limit.requestedBy == by) throw SegregationOfDutiesException("A limit is approved by someone other than who requested it")
+        SecondPerson.require(by, limit.requestedBy) { "A limit is approved by someone other than who requested it" }
         val now = clock.instant()
         limit.replaces?.let { replaced ->
             repository.setLimitStatus(replaced, LimitStatus.RETIRED, null, null)
@@ -234,7 +235,7 @@ class RiskService(
     fun approveCreditSupport(id: UUID, by: String): CreditSupportView {
         val support = repository.creditSupport(id, lock = true) ?: throw NotFoundException("CreditSupport", id)
         if (support.status != CreditSupportStatus.PENDING_APPROVAL) throw ValidationException("Credit support $id is ${support.status}")
-        if (support.requestedBy == by) throw SegregationOfDutiesException("Credit support is approved by someone other than who recorded it")
+        SecondPerson.require(by, support.requestedBy) { "Credit support is approved by someone other than who recorded it" }
         val now = clock.instant()
         repository.setCreditSupportStatus(id, CreditSupportStatus.ACTIVE, by, now)
         return support.copy(status = CreditSupportStatus.ACTIVE, approvedBy = by, approvedAt = now)

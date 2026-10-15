@@ -9,6 +9,7 @@ import com.pianonurmi.etrm.inventory.api.ReconciliationCommand
 import com.pianonurmi.etrm.inventory.api.ReconciliationQuery
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
@@ -109,7 +110,7 @@ class BreakAcceptanceTasks(
         taskType = TYPE,
         ownerModule = "registry",
         displayName = "Reconciliation break acceptance",
-        candidateRoles = setOf(Role.BACK_OFFICE, Role.MIDDLE_OFFICE),
+        candidateRoles = Roles.OPERATIONS,
         defaultSla = Duration.ofDays(1),
         escalationRoles = setOf(Role.MIDDLE_OFFICE),
         defaultPriority = 55,

@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.document.api.RenderPdf
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -189,7 +190,7 @@ class ConfirmationService(
     /** Second person accepts the counterparty's confirmation despite the differences; the trade is confirmed. */
     fun override(confirmationId: UUID, by: String, note: String?): ConfirmationView {
         val theirs = openMismatch(confirmationId)
-        if (theirs.createdBy == by) throw SegregationOfDutiesException("The person who received the confirmation may not override it")
+        SecondPerson.require(by, theirs.createdBy) { "The person who received the confirmation may not override it" }
         val overridden = close(theirs.copy(status = ConfirmationStatus.OVERRIDDEN, decidedBy = by, note = note))
         confirmTrade(theirs, "OVERRIDE", by)
         return overridden

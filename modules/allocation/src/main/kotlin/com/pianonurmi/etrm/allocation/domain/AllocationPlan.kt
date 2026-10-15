@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.allocation.api.AllocationPlanView
 import com.pianonurmi.etrm.allocation.api.LineStatus
 import com.pianonurmi.etrm.allocation.api.PlanStatus
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import java.time.Instant
 import java.util.UUID
@@ -16,7 +17,7 @@ class AllocationPlan(state: AllocationPlanView) {
 
     fun approve(approver: String, at: Instant): AllocationPlanView {
         require(PlanStatus.PROPOSED)
-        if (approver == state.proposedBy) throw SegregationOfDutiesException("Plan ${state.id} cannot be approved by the user who proposed it ($approver)")
+        SecondPerson.require(approver, state.proposedBy) { "Plan ${state.id} cannot be approved by the user who proposed it ($approver)" }
         return transition(state.copy(status = PlanStatus.APPROVED, approvedBy = approver, approvedAt = at))
     }
 

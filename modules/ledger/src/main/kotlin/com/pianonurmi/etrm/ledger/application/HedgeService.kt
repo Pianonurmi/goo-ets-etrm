@@ -20,6 +20,7 @@ import com.pianonurmi.etrm.ledger.api.RequestHedgeDiscontinuation
 import com.pianonurmi.etrm.ledger.domain.Effectiveness
 import com.pianonurmi.etrm.ledger.domain.HedgeRepository
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -189,7 +190,7 @@ class HedgeService(
     /** From the designation task: locks the forward price and the instruments' value, and issues the documentation. */
     fun approveDesignation(id: UUID, by: String): HedgeRelationshipView {
         val hedge = pending(id)
-        if (hedge.requestedBy == by) throw SegregationOfDutiesException("A hedge is approved by someone other than who proposed it")
+        SecondPerson.require(by, hedge.requestedBy) { "A hedge is approved by someone other than who proposed it" }
         val date = LocalDate.now(clock)
         val forward = valuations.forwardValue(hedge.legalEntityId, date, terms(hedge.item, BigDecimal.ONE, BigDecimal.ZERO))
             ?: throw ValidationException("No official forward price of the hedged item on $date; sign off the curve first")
@@ -251,7 +252,7 @@ class HedgeService(
     fun approveDiscontinuation(id: UUID, by: String): HedgeRelationshipView {
         val hedge = discontinuing(id)
         val request = hedge.discontinuation!!
-        if (request.requestedBy == by) throw SegregationOfDutiesException("A discontinuation is approved by someone other than who requested it")
+        SecondPerson.require(by, request.requestedBy) { "A discontinuation is approved by someone other than who requested it" }
         val frozen = if (request.stillExpected) {
             repository.measurements(
                 id,

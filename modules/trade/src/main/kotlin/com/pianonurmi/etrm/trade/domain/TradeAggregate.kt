@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.trade.domain
 
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
@@ -25,8 +26,8 @@ class TradeAggregate(state: TradeView) {
 
     fun approve(approver: String, at: Instant): TradeView {
         requireStatus(TradeStatus.PENDING_APPROVAL)
-        if (approver == state.trader || approver == state.createdBy) {
-            throw SegregationOfDutiesException("Trade ${state.tradeNumber} cannot be approved by its trader or the user who captured it ($approver)")
+        SecondPerson.require(approver, state.trader, state.createdBy) {
+            "Trade ${state.tradeNumber} cannot be approved by its trader or the user who captured it ($approver)"
         }
         return transition(state.copy(status = TradeStatus.APPROVED, approvedBy = approver, approvedAt = at))
     }

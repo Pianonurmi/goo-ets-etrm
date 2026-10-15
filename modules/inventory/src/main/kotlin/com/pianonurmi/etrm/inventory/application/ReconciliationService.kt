@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.inventory.domain.RangeArithmetic
 import com.pianonurmi.etrm.inventory.domain.ReconciliationRepository
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -199,7 +200,7 @@ class ReconciliationService(
         if (current.status != BreakStatus.PENDING_ACCEPTANCE) {
             throw IllegalStateTransitionException("ReconciliationBreak", current.status.name, if (accept) "ACCEPTED" else "INVESTIGATING")
         }
-        if (current.acceptanceRequestedBy == by) throw SegregationOfDutiesException("The person asking to accept a break may not approve it")
+        SecondPerson.require(by, current.acceptanceRequestedBy) { "The person asking to accept a break may not approve it" }
         if (accept) {
             val resolution = listOfNotNull(current.resolution, note?.takeIf { it.isNotBlank() }?.let { "approved: $it" }).joinToString("; ")
             return close(current.copy(status = BreakStatus.ACCEPTED, resolution = resolution), by)
