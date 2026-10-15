@@ -3,6 +3,30 @@
 # and a nightly base backup to object storage. The operator creates the secret etrm-db-app (jdbc-uri, username,
 # password) that the Helm chart reads by default, and the services etrm-db-rw (primary) and etrm-db-ro (replicas).
 # Fill in the object store, the credentials secret and the storage class for the target cluster.
+#
+# Backups and WAL archiving go through the Barman Cloud plugin (CloudNativePG 1.26 or later, which removes the
+# built-in barmanObjectStore in 1.31). Install cert-manager, then the plugin in the operator's namespace:
+#   kubectl apply -f https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.1/manifest.yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: etrm-backups
+spec:
+  retentionPolicy: 35d
+  configuration:
+    destinationPath: s3://etrm-backups/etrm-db
+    s3Credentials:
+      accessKeyId:
+        name: etrm-backup-credentials
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: etrm-backup-credentials
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -58,21 +82,11 @@ spec:
     enablePodAntiAffinity: true
   monitoring:
     enablePodMonitor: true
-  backup:
-    retentionPolicy: 35d
-    barmanObjectStore:
-      destinationPath: s3://etrm-backups/etrm-db
-      s3Credentials:
-        accessKeyId:
-          name: etrm-backup-credentials
-          key: ACCESS_KEY_ID
-        secretAccessKey:
-          name: etrm-backup-credentials
-          key: ACCESS_SECRET_KEY
-      wal:
-        compression: gzip
-      data:
-        compression: gzip
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: etrm-backups
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
@@ -82,5 +96,8 @@ spec:
   # Seconds field first (six-field cron): 01:15 UTC, after the end-of-day jobs.
   schedule: "0 15 1 * * *"
   backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
   cluster:
     name: etrm-db

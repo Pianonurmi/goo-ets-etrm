@@ -4,7 +4,8 @@
 # exactly the rows written before the target are back, and reports the time of each step and the archiving lag.
 #
 # Runs against the current kubectl context (a kind cluster in CI, .github/workflows/cnpg-drill.yml) with the
-# CloudNativePG operator installed. moto's S3 server stands in for the object store.
+# CloudNativePG operator and its Barman Cloud plugin installed, as in production (ops/k8s/postgres-cluster.yaml).
+# moto's S3 server stands in for the object store.
 #
 # Usage: ops/dr/cnpg-drill.sh [report file]
 set -euo pipefail
@@ -61,18 +62,20 @@ for _ in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:19000/ && break
 curl -fsS -X PUT http://127.0.0.1:19000/drill
 step "Object store ready"
 
-store() {
-  cat <<EOF
-      destinationPath: s3://drill/
-      endpointURL: http://objectstore.$ns.svc:9000
-      s3Credentials:
-        accessKeyId: {name: drill-s3, key: ACCESS_KEY_ID}
-        secretAccessKey: {name: drill-s3, key: ACCESS_SECRET_KEY}
-      wal: {compression: gzip}
-EOF
-}
-
+plugin=barman-cloud.cloudnative-pg.io
 kubectl -n "$ns" apply -f - <<EOF
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata: {name: drill-store}
+spec:
+  configuration:
+    destinationPath: s3://drill/
+    endpointURL: http://objectstore.$ns.svc:9000
+    s3Credentials:
+      accessKeyId: {name: drill-s3, key: ACCESS_KEY_ID}
+      secretAccessKey: {name: drill-s3, key: ACCESS_SECRET_KEY}
+    wal: {compression: gzip}
+---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata: {name: drill-db}
@@ -84,9 +87,10 @@ spec:
     parameters:
       # A quiet database still archives a segment this often (production: 5min, ops/k8s/postgres-cluster.yaml).
       archive_timeout: 60s
-  backup:
-    barmanObjectStore:
-$(store)
+  plugins:
+    - name: $plugin
+      isWALArchiver: true
+      parameters: {barmanObjectName: drill-store}
 EOF
 kubectl -n "$ns" wait cluster/drill-db --for=condition=Ready --timeout=600s
 step "Source cluster ready"
@@ -98,6 +102,8 @@ kind: Backup
 metadata: {name: drill-base}
 spec:
   cluster: {name: drill-db}
+  method: plugin
+  pluginConfiguration: {name: $plugin}
 EOF
 kubectl -n "$ns" wait backup/drill-base --for=jsonpath='{.status.phase}'=completed --timeout=600s
 step "Base backup"
@@ -134,8 +140,9 @@ spec:
         targetTime: "$target"
   externalClusters:
     - name: drill-db
-      barmanObjectStore:
-$(store | sed 's/^/  /')
+      plugin:
+        name: $plugin
+        parameters: {barmanObjectName: drill-store, serverName: drill-db}
 EOF
 kubectl -n "$ns" wait cluster/drill-restore --for=condition=Ready --timeout=900s
 step "Recovered cluster ready"
@@ -148,7 +155,7 @@ step "Recovered rows verified"
 {
   echo "# CloudNativePG point-in-time recovery drill"
   echo
-  echo "$(date -u +%Y-%m-%d), CloudNativePG $(kubectl -n cnpg-system get deploy cnpg-controller-manager -o jsonpath='{.spec.template.spec.containers[0].image}'), $pg_image."
+  echo "$(date -u +%Y-%m-%d), CloudNativePG $(kubectl -n cnpg-system get deploy cnpg-controller-manager -o jsonpath='{.spec.template.spec.containers[0].image}'), Barman Cloud plugin $(kubectl -n cnpg-system get deploy barman-cloud -o jsonpath='{.spec.template.spec.containers[0].image}'), $pg_image."
   echo "Recovery target $target; the damaging writes were archived $lag s after they were made (archive_timeout 60 s)."
   echo
   echo "| Step | Seconds |"
