@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.reporting
 
 import com.pianonurmi.etrm.allocation.api.GiveAwayLine
+import com.pianonurmi.etrm.ledger.fixtures.NoHedges
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.money.QuantityUnit
@@ -189,6 +190,7 @@ class ReportingServiceIT {
                     ),
                 )
             },
+            hedges = NoHedges,
         )
         reporting = ReportingService(catalogue, repository, emir, tradeQuery, actors, { published += it }, clock)
         every { valuations.results(RUN, null) } answers {

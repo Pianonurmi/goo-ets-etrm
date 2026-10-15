@@ -99,9 +99,9 @@ class AllocationService(
     private val savepoints: Savepoints,
     solverSettings: AllocationSolverSettings = AllocationSolverSettings(),
     pricingSettings: AllocationPricingSettings = AllocationPricingSettings(),
-    /** Purchases and expected issuance (ADR 0038); null in hand-wired tests that have none. */
-    private val futureSupply: FutureSupplyProvider? = null,
-    private val referenceData: ReferenceDataQuery? = null,
+    /** Purchases and expected issuance (ADR 0038). */
+    private val futureSupply: FutureSupplyProvider,
+    private val referenceData: ReferenceDataQuery,
 ) : AllocationCommand, AllocationQuery {
     private val log = LoggerFactory.getLogger(AllocationService::class.java)
     private val greedy: Solver = GreedySolver(criteria::evaluate)
@@ -154,7 +154,7 @@ class AllocationService(
         val snapshot = lotQuery.snapshot(command.holderEntityId)
         val softReserved = plans.activeSoftReservations(command.holderEntityId, now)
         // Plans count on supply still to come at its cautious figure (P90), for obligations it arrives in time for.
-        val future = if (command.futureSupply) futureSupply?.supply(command.holderEntityId, Quantile.P90).orEmpty() else emptyList()
+        val future = if (command.futureSupply) futureSupply.supply(command.holderEntityId, Quantile.P90) else emptyList()
         val built = problemBuilder.build(snapshot, open, softReserved, command.asOf ?: LocalDate.now(clock), future = future)
         val problem = built.problem
         val solved = solverFor(command.solver).solveDetailed(problem)
@@ -380,7 +380,7 @@ class AllocationService(
 
     @EventListener
     fun on(event: ProductionForecastChanged) {
-        val gsrn = referenceData?.productionDevice(event.deviceId)?.gsrn ?: return
+        val gsrn = referenceData.productionDevice(event.deviceId)?.gsrn ?: return
         event.months.forEach { futureSupplyChanged("issuance:$gsrn:$it", "forecast of $gsrn for $it changed") }
     }
 

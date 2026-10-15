@@ -68,6 +68,7 @@ class JournalIntegrityIT {
         val dsl = TestDatabase.dsl
         val publisher = ApplicationEventPublisher { }
         val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), TaxonomyService(JooqTaxonomyRepository(dsl), publisher), publisher)
+        val unposted = LedgerWiring.unposted(dsl, publisher)
         ledger = LedgerService(
             JooqGlAccountRepository(dsl),
             JooqPostingRuleRepository(dsl),
@@ -80,6 +81,8 @@ class JournalIntegrityIT {
             publisher,
             clock,
             JooqGlInterfaceRepository(dsl),
+            gates = LedgerWiring.gates(dsl),
+            unposted = unposted,
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         entityId = referenceData.createLegalEntity(CreateLegalEntity("INTEGRITY-CO", "Integrity Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id

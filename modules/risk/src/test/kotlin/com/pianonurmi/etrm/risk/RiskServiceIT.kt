@@ -8,6 +8,8 @@ import com.pianonurmi.etrm.allocation.api.SaleProjection
 import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.clearing.api.MarginCallQuery
 import com.pianonurmi.etrm.clearing.api.MarginPostedView
+import com.pianonurmi.etrm.clearing.fixtures.NoClearing
+import com.pianonurmi.etrm.clearing.fixtures.NoMarginCalls
 import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
@@ -16,7 +18,9 @@ import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
@@ -105,9 +109,12 @@ class RiskServiceIT {
     private val openTrades = mutableListOf<TradeView>()
     private val extraBalances = mutableListOf<CounterpartyBalance>()
     private val extraResults = mutableListOf<ValuationResultView>()
+
+    /** No product buckets: limits in these tests name none outside the GoO cases, which bring their own. */
+    private val noBuckets = mockk<ProductBucketQuery> { every { buckets(true) } returns emptyList() }
     private val published = mutableListOf<Any>()
     private lateinit var risk: RiskService
-    private lateinit var withGoo: (ObjectProvider<GooRiskQuery>?, ProductBucketQuery?) -> RiskService
+    private lateinit var withGoo: (ObjectProvider<GooRiskQuery>, ProductBucketQuery) -> RiskService
     private lateinit var withClearing: (ClearingQuery, MarginCallQuery) -> RiskService
     private lateinit var carryOver: CreditLimitCarryOver
 
@@ -253,8 +260,12 @@ class RiskServiceIT {
                 actors,
                 events,
                 clock,
-                goo = goo,
-                buckets = buckets,
+                Providers.none(),
+                goo,
+                buckets,
+                Savepoints.NONE,
+                NoClearing,
+                NoMarginCalls,
             )
         }
         withClearing = { clearing, margin ->
@@ -272,11 +283,15 @@ class RiskServiceIT {
                 actors,
                 events,
                 clock,
-                clearing = clearing,
-                margin = margin,
+                Providers.none(),
+                Providers.none(),
+                noBuckets,
+                Savepoints.NONE,
+                clearing,
+                margin,
             )
         }
-        risk = withGoo(null, null)
+        risk = withGoo(Providers.none(), noBuckets)
         carryOver = CreditLimitCarryOver(repository, referenceData, clock)
     }
 
@@ -679,7 +694,7 @@ class RiskServiceIT {
             every { basis(entity) } answers { if (failing) error("the flow is unavailable") else GooBasis(300, BigDecimal("450.00")) }
             every { projectSale(any()) } returns SaleProjection(emptyList())
         }
-        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, null)
+        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, noBuckets)
         val basis = gooRisk.approveLimit(
             gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis")).id,
             "risk2",

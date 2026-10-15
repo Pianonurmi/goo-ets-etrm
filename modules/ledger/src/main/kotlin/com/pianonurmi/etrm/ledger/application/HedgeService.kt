@@ -51,12 +51,18 @@ import java.time.temporal.ChronoUnit
 import java.util.Currency
 import java.util.UUID
 
+/** What period end needs of the cash flow hedges: the reserve each one requires on a valuation run (ADR 0045). */
+fun interface HedgePositions {
+    fun positions(legalEntityId: UUID, run: ValuationRunView, warnings: MutableList<String>): List<HedgeService.HedgePosition>
+}
+
 /**
  * Cash flow hedge accounting (ADR 0045): relationships between hedging trades and a forecast purchase or sale,
  * designated and discontinued by one accountant and approved by another, measured on every official valuation run by
  * the lower of the instruments' change and a hypothetical derivative, and split at period end into the hedging reserve
  * and profit or loss ([PeriodEndService]).
  */
+
 @Service
 @Transactional
 class HedgeService(
@@ -68,8 +74,8 @@ class HedgeService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
-    private val savepoints: Savepoints = Savepoints.NONE,
-) : HedgeCommand, HedgeQuery {
+    private val savepoints: Savepoints,
+) : HedgeCommand, HedgeQuery, HedgePositions {
     private val log = LoggerFactory.getLogger(HedgeService::class.java)
 
     override fun requestDesignation(command: RequestHedgeDesignation): HedgeRelationshipView {
@@ -349,7 +355,7 @@ class HedgeService(
      * requires. Active hedges reserve their effective portion; a discontinued one keeps its frozen reserve while its
      * instruments are open. A hedge without a price for its hypothetical derivative reserves nothing and is reported.
      */
-    fun positions(legalEntityId: UUID, run: ValuationRunView, warnings: MutableList<String>): List<HedgePosition> =
+    override fun positions(legalEntityId: UUID, run: ValuationRunView, warnings: MutableList<String>): List<HedgePosition> =
         repository.hedges(legalEntityId, setOf(HedgeStatus.ACTIVE, HedgeStatus.DISCONTINUED))
             .filter { it.designationDate != null && !run.valuationDate.isBefore(it.designationDate) }
             .mapNotNull { hedge ->

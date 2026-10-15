@@ -14,6 +14,7 @@ import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
@@ -152,6 +153,7 @@ class TradeServiceIT {
                 fx,
                 "EUR",
                 futures,
+                Providers.none(),
             )
         }
         trades = tradeService(BigDecimal.ZERO, mockk<FxRates>(relaxed = true))

@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.allocation.api.AllocationLineView
 import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.ObligationQuery
 import com.pianonurmi.etrm.clearing.api.ClearingQuery
+import com.pianonurmi.etrm.clearing.fixtures.NoClearing
 import com.pianonurmi.etrm.document.api.DocumentCommand
 import com.pianonurmi.etrm.etscompliance.api.EmissionKind
 import com.pianonurmi.etrm.etscompliance.api.EmissionRecordView
@@ -58,6 +59,7 @@ import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.AllowanceProductView
 import com.pianonurmi.etrm.product.api.BoundBuckets
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
@@ -139,6 +141,7 @@ class PeriodEndIT {
         val dsl = TestDatabase.dsl
         val publisher = ApplicationEventPublisher { }
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), TaxonomyService(JooqTaxonomyRepository(dsl), publisher), publisher)
+        val unposted = LedgerWiring.unposted(dsl, publisher)
         ledger = LedgerService(
             JooqGlAccountRepository(dsl),
             JooqPostingRuleRepository(dsl),
@@ -151,9 +154,14 @@ class PeriodEndIT {
             publisher,
             clock,
             JooqGlInterfaceRepository(dsl),
+            gates = LedgerWiring.gates(dsl),
+            unposted = unposted,
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
-        listeners = LedgerEventListeners(ledger, JooqCostLayerRepository(dsl), referenceData, mockk(relaxed = true), mockk(relaxed = true), clock) { _, _ ->
+        listeners = LedgerEventListeners(ledger, JooqCostLayerRepository(dsl), referenceData, mockk(relaxed = true), mockk(relaxed = true), clock, unposted) {
+            _,
+            _,
+            ->
             null
         }
 
@@ -226,10 +234,13 @@ class PeriodEndIT {
             actor,
             publisher,
             clock,
+            // No hedges here: the hedge tests use [withHedges].
+            hedges = { _, _, _ -> emptyList() },
             clearing = mockk<ClearingQuery> { every { marginedTradeIds(any()) } answers { marginedTrades[firstArg()].orEmpty() } },
+            fixings = { _, _ -> null },
         )
         val documents = mockk<DocumentCommand> { every { renderPdf(any()) } returns mockk { every { id } returns UUID.randomUUID() } }
-        hedges = HedgeService(JooqHedgeRepository(dsl), trades, valuations, documents, referenceData, actor, publisher, clock)
+        hedges = HedgeService(JooqHedgeRepository(dsl), trades, valuations, documents, referenceData, actor, publisher, clock, Savepoints.NONE)
         withHedges = PeriodEndService(
             ledger,
             JooqJournalRepository(dsl),
@@ -252,6 +263,8 @@ class PeriodEndIT {
             publisher,
             clock,
             hedges,
+            NoClearing,
+            { _, _ -> null },
         )
     }
 

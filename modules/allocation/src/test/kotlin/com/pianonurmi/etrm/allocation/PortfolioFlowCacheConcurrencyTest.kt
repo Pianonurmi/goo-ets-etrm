@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.allocation
 
 import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.allocation.application.AllocationHeadroomSettings
+import com.pianonurmi.etrm.allocation.application.FutureSupplyProvider
 import com.pianonurmi.etrm.allocation.application.PortfolioFlowCache
 import com.pianonurmi.etrm.allocation.application.PreparedFlow
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
@@ -20,6 +21,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.springframework.transaction.support.TransactionOperations
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.Instant
@@ -91,7 +93,18 @@ class PortfolioFlowCacheConcurrencyTest {
         }
         val plans = mockk<AllocationPlanRepository> { every { byEntity(entity, any()) } returns emptyList() }
         val builder = ProblemBuilder(FixturePorts.Criteria, buckets, FixturePorts.routes(), GooMarks { _, _, _ -> BigDecimal("1.50") })
-        return PortfolioFlowCache(obligations, plans, builder, buckets, lotQuery, clock, settings = AllocationHeadroomSettings(warmOnMiss = false))
+        return PortfolioFlowCache(
+            obligations,
+            plans,
+            builder,
+            buckets,
+            lotQuery,
+            clock,
+            TransactionOperations.withoutTransaction(),
+            AllocationHeadroomSettings(warmOnMiss = false),
+            // No purchases or forecasts: the held tier is all there is.
+            mockk<FutureSupplyProvider> { every { supply(any(), any()) } returns emptyList() },
+        )
     }
 
     /** Starts [READERS] readers released together by a barrier; each returns its flow or the failure. */

@@ -95,6 +95,7 @@ class GlInterfaceIT {
             clock,
             repository,
             gates,
+            LedgerWiring.unposted(dsl, publisher),
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         gl = GlInterfaceService(repository, gates, ledger, actor, publisher, clock)

@@ -17,9 +17,12 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
+import com.pianonurmi.etrm.product.fixtures.NoFuturesContracts
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
@@ -269,6 +272,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { published += it },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+            Providers.none(),
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
     }
 
@@ -367,6 +373,8 @@ class ValuationServiceIT {
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
             mockk<ObjectProvider<PortfolioValueQuery>> { every { ifAvailable } returns allocation },
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
         val run0 = withPortfolio.submit(withPortfolio.run(entity, first, RunKind.EOD).id)
         user = "risk2"
@@ -444,6 +452,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+            Providers.none(),
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
 
         // Delivered on 1 October and the fixing is overdue: no value, rather than the forward standing in for it.
@@ -515,6 +526,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+            Providers.none(),
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
     }
 
@@ -615,7 +629,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-13T18:00:00Z"), ZoneOffset.UTC),
-            futures = futures,
+            Providers.none(),
+            Savepoints.NONE,
+            futures,
         )
         return call to options
     }

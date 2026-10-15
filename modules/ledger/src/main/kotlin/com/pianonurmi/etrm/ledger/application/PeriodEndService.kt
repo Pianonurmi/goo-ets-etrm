@@ -97,12 +97,12 @@ class PeriodEndService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
-    /** Cash flow hedges (ADR 0045); none in tests that wire the service by hand. */
-    private val hedges: HedgeService? = null,
+    /** Cash flow hedges (ADR 0045). */
+    private val hedges: HedgePositions,
     /** Cleared futures are settled daily by variation margin (ADR 0046) and carry no unrealised MtM. */
-    private val clearing: ClearingQuery? = null,
-    /** Index fixings price a reserved lot's index-priced sale; without them such a sale gives no firm price. */
-    private val fixings: IndexFixings? = null,
+    private val clearing: ClearingQuery,
+    /** Index fixings price a reserved lot's index-priced sale. */
+    private val fixings: IndexFixings,
 ) : PeriodEndCommand, PeriodEndQuery {
     /** What one run is working with. */
     private class Context(val entity: LegalEntityView, val period: YearMonth, val runId: UUID) {
@@ -161,11 +161,11 @@ class PeriodEndService(
 
     private fun mtm(ctx: Context, valuationRunId: UUID) {
         val all = valuations.results(valuationRunId)
-        val margined = clearing?.marginedTradeIds(ctx.entity.id).orEmpty()
+        val margined = clearing.marginedTradeIds(ctx.entity.id)
         val results = all.filter { it.status == ResultStatus.OK && it.mtmBase != null && (margined.isEmpty() || it.tradeId !in margined) }
         val excluded = all.size - results.size
         if (excluded > 0) ctx.warnings += "$excluded delivery schedules of the valuation have no MtM (missing price, rate or bucket, or excluded)"
-        val hedged = hedges?.let { h -> valuations.run(valuationRunId)?.let { h.positions(ctx.entity.id, it, ctx.warnings) } }.orEmpty()
+        val hedged = valuations.run(valuationRunId)?.let { hedges.positions(ctx.entity.id, it, ctx.warnings) }.orEmpty()
         // The designated proportion of a hedging trade is accounted for by its hedge, the rest by its book type.
         val designated = hedged.flatMap { p -> p.hedge.instruments.map { it.tradeId to it.proportion } }
             .groupBy({ it.first }, { it.second })

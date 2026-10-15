@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.config
 
+import com.pianonurmi.etrm.platform.db.ModuleOrder
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.InitializingBean
@@ -62,28 +63,8 @@ data class MigrationProperties(
     val password: String? = null,
 ) {
     companion object {
-        val DEFAULT_ORDER = listOf(
-            "platform",
-            "document",
-            "referencedata",
-            "taxonomy",
-            "product",
-            "marketdata",
-            "trade",
-            "inventory",
-            "allocation",
-            "registry",
-            "etscompliance",
-            "position",
-            "settlement",
-            "clearing",
-            "valuation",
-            "ledger",
-            "risk",
-            "reporting",
-            "workflow",
-            "audit",
-        )
+        /** The application migrates in the one order the tests use too ([ModuleOrder]). */
+        val DEFAULT_ORDER: List<String> = ModuleOrder.modules
     }
 }
 
