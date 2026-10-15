@@ -11,6 +11,8 @@ perl -0pi -e 's|<components>.*</components>|<components>\n   </components>|s' gr
 
 # Every configuration, and the tasks that resolve their own at execution time (compilers, detekt, ktlint, the
 # SBOM), so their artifacts are recorded too. The web UI has no Gradle dependencies; npm locks its own.
-./gradlew -Petrm.skipWeb --write-verification-metadata sha256 --write-locks "$@" \
+# --refresh-dependencies makes Gradle read every POM again: metadata it serves from its own cache is otherwise
+# never recorded, and a build with another cache (CI) then fails on it.
+./gradlew -Petrm.skipWeb --refresh-dependencies --write-verification-metadata sha256 --write-locks "$@" \
   resolveAndLockAll :build-logic:resolveAndLockAll \
   assemble -x :apps:web:assemble detekt ktlintCheck :apps:api:cyclonedxDirectBom
