@@ -10,6 +10,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ### Security
 - PostgreSQL JDBC driver 42.7.14 (GHSA-rhp9-mr79-r74h, GHSA-f64h-wr5q-3qf3). The application uses neither
   `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
+- **Gradle dependency locking and verification metadata** (review finding S8): every configuration is locked and
+  every downloaded artifact is checked against `gradle/verification-metadata.xml`. A workflow refreshes both, and the
+  npm lock file, on Dependabot pull requests ([supply chain](docs/operations/supply-chain.md#pinning)).
 
 ### Added
 - **Beneficiary register** (review finding S7). A cancellation's beneficiary is recorded once in the register, and the

@@ -7,6 +7,8 @@ on:
     # A release: vX.Y.Z publishes the image under its version and creates the GitHub release (docs/operations/releases.md).
     tags: ["v*"]
   pull_request:
+  # The Dependabot lock refresh (dependabot-refresh.yml) starts CI on the commit it pushed.
+  workflow_dispatch:
   # The Release workflow (release.yml) runs this one for the commit it has tagged.
   workflow_call:
     inputs:
@@ -127,6 +129,20 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [[ -n "$version" ]]; then ops/release/check-version.sh "$version"; fi
+      # The wrapper refuses a Gradle distribution whose checksum differs from distributionSha256Sum; this checks the
+      # pin against the checksum Gradle publishes (docs/operations/supply-chain.md#pinning).
+      - name: Gradle distribution checksum
+        run: |
+          url=$(sed -n 's/^distributionUrl=//p' gradle/wrapper/gradle-wrapper.properties | sed 's/\\:/:/g')
+          published=$(curl -fsSL "$url.sha256")
+          pinned=$(sed -n 's/^distributionSha256Sum=//p' gradle/wrapper/gradle-wrapper.properties)
+          if [[ -z "$pinned" ]]; then
+            echo "::error::distributionSha256Sum is not set; Gradle publishes $published for $url"
+            exit 1
+          elif [[ "$pinned" != "$published" ]]; then
+            echo "::error::distributionSha256Sum $pinned differs from the published $published for $url"
+            exit 1
+          fi
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
