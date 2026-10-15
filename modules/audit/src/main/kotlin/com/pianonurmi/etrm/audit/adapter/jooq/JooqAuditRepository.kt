@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.audit.adapter.jooq
 
+import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditArchiveCut.AUDIT_ARCHIVE_CUT
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditEvent.AUDIT_EVENT
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditSeal.AUDIT_SEAL
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.records.AuditEventRecord
@@ -75,6 +76,16 @@ class JooqAuditRepository(private val dsl: DSLContext) : AuditRepository {
     ).let { (it as Number).toLong() }
 
     override fun sealHead(): String? = dsl.select(AUDIT_SEAL.HASH).from(AUDIT_SEAL).orderBy(AUDIT_SEAL.POSITION.desc()).limit(1).fetchOne(AUDIT_SEAL.HASH)
+
+    override fun archiveCut(): Instant? = dsl.select(DSL.max(AUDIT_ARCHIVE_CUT.CUT)).from(AUDIT_ARCHIVE_CUT).fetchOne(0, Instant::class.java)
+
+    override fun declareArchiveCut(cut: Instant, recordedBy: String, reason: String) {
+        dsl.insertInto(AUDIT_ARCHIVE_CUT)
+            .set(AUDIT_ARCHIVE_CUT.CUT, cut)
+            .set(AUDIT_ARCHIVE_CUT.RECORDED_BY, recordedBy)
+            .set(AUDIT_ARCHIVE_CUT.REASON, reason)
+            .execute()
+    }
 
     private val schema = DSL.name(AUDIT_EVENT.schema!!.name)
 

@@ -52,9 +52,12 @@ import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
@@ -212,6 +215,42 @@ class InventoryServiceIT {
             listOf("LotReceived", "LotReserved", "LotReleased", "LotTransferStarted", "LotTransferFailed", "LotTransferStarted", "LotTransferred")
         lots.verifyJournal().shouldBeEmpty()
         lots.history(reserved.id).zipWithNext().forEach { (a, b) -> b.prevHash shouldBe a.hash }
+    }
+
+    @Test
+    fun `a lot's chain verifies from its anchor once the events before an archive cut are gone`() {
+        val archived = receive("FI-2026-0900", 90_000, 90_099)
+        val ref = UUID.randomUUID()
+        lots.reserve(archived.id, null, ref)
+        val cut = lots.history(archived.id).last().recordedAt.plusNanos(1_000)
+        lots.release(archived.id, ref)
+        val later = receive("FI-2026-0901", 91_000, 91_099)
+        lots.reserve(later.id, null, UUID.randomUUID())
+
+        lots.anchorJournal(cut) shouldBeGreaterThanOrEqual 1
+        // Other tests' lots share the journal: only this test's events go, and the one removed after the cut comes back.
+        TestDatabase.dataSource.connection.use { c ->
+            fun run(vararg sql: String) {
+                c.createStatement().use { st ->
+                    st.execute("SET session_replication_role = replica")
+                    sql.forEach(st::execute)
+                    st.execute("SET session_replication_role = origin")
+                }
+            }
+            run("DELETE FROM etrm_inventory.lot_event WHERE lot_id = '${archived.id}' AND recorded_at < '$cut'")
+            lots.history(archived.id).map { it.eventType } shouldBe listOf("LotReleased")
+            lots.verifyJournal() shouldNotContain archived.id
+
+            // After the cut, a missing event still breaks the chain.
+            val first = lots.history(later.id).first().seq
+            run(
+                "CREATE TEMP TABLE kept AS SELECT * FROM etrm_inventory.lot_event WHERE seq = $first",
+                "DELETE FROM etrm_inventory.lot_event WHERE seq = $first",
+            )
+            lots.verifyJournal() shouldContain later.id
+            run("INSERT INTO etrm_inventory.lot_event OVERRIDING SYSTEM VALUE SELECT * FROM kept", "DROP TABLE kept")
+            lots.verifyJournal() shouldNotContain later.id
+        }
     }
 
     @Test

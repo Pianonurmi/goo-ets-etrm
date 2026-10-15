@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.Period
 import java.time.ZoneOffset
 import java.util.HexFormat
 import java.util.UUID
@@ -28,9 +29,16 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/** `etrm.integrity.*`: the key that signs the daily chain-head digest (`ETRM_INTEGRITY_SIGNING_KEY`). */
+/**
+ * `etrm.integrity.*`: the key that signs the daily chain-head digest (`ETRM_INTEGRITY_SIGNING_KEY`), and the minimum
+ * age of an archive cut.
+ */
 @ConfigurationProperties("etrm.integrity")
-data class IntegrityProperties(val signingKey: String? = null)
+data class IntegrityProperties(
+    val signingKey: String? = null,
+    /** How old an archive cut must at least be; the longest retention of the books by default (data-protection.md). */
+    val archiveMinAge: Period = Period.ofYears(10),
+)
 
 @Configuration
 @EnableConfigurationProperties(IntegrityProperties::class)
@@ -45,6 +53,7 @@ data class ChainReport(
     val lotsBroken: List<UUID>,
     val holdingsBroken: List<UUID>,
     val journalBroken: Map<String, List<UUID>>,
+    val archiveCut: Instant? = null,
 ) {
     val ok: Boolean
         get() = auditBroken.isEmpty() && auditUnsealed == 0L && lotsBroken.isEmpty() && holdingsBroken.isEmpty() &&
@@ -96,6 +105,7 @@ class ChainVerificationJob(
             lotsBroken = lots.verifyJournal(),
             holdingsBroken = holdings.verifyMovements(),
             journalBroken = referenceData.legalEntities().associate { it.code to ledger.verifyJournal(it.id) },
+            archiveCut = auditQuery.archiveCut(),
         )
         status["audit"] = flag(report.auditBroken.isEmpty() && report.auditUnsealed == 0L)
         status["lots"] = flag(report.lotsBroken.isEmpty())
@@ -132,6 +142,7 @@ class ChainVerificationJob(
         "lotsBroken" to report.lotsBroken.take(MAX_LISTED),
         "holdingsBroken" to report.holdingsBroken.take(MAX_LISTED),
         "journalBroken" to report.journalBroken.filterValues { it.isNotEmpty() }.mapValues { it.value.take(MAX_LISTED) },
+        "archiveCut" to report.archiveCut?.toString(),
     )
 
     /** The digest: the heads and results as canonical JSON, with an HMAC-SHA256 over it when a key is configured. */

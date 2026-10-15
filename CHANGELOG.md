@@ -17,6 +17,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   (`POST /api/v1/inventory/beneficiaries/{id}/erasure`), and an auditor approves it in the inbox (`BENEFICIARY_ERASURE`).
   The approval removes the name and identifier from the register, the lots, the registry instructions and the
   obligations ([data protection](docs/operations/data-protection.md)).
+- **Archive cuts.** An administrator declares that audit and lot journal rows before a month may be archived
+  (`POST /api/v1/admin/integrity/archive-cuts`, at least `etrm.integrity.archive-min-age` old, ten years by default).
+  The chains must verify first, and the lot journal is anchored at the cut. Afterwards the old partitions can be
+  dropped and the chains still verify; a missing row after the cut is still reported.
 
 ### Changed
 - **Records that cannot forget no longer keep a beneficiary's name or identifier:** the lot journal, the audit trail,

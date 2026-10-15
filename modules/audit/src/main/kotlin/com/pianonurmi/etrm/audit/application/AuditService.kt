@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.audit.api.AuditEventView
 import com.pianonurmi.etrm.audit.api.AuditFilter
 import com.pianonurmi.etrm.audit.api.AuditQuery
 import com.pianonurmi.etrm.audit.api.AuditTrailCheck
+import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.eventType
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -18,6 +19,9 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.core.type.TypeReference
 import java.time.Clock
+import java.time.Instant
+import java.time.YearMonth
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -86,6 +90,21 @@ class AuditService(
         head = repository.sealHead(),
     )
 
+    @Transactional(readOnly = true)
+    override fun archiveCut(): Instant? = repository.archiveCut()
+
+    @Transactional
+    override fun declareArchiveCut(cut: Instant, reason: String) {
+        if (reason.isBlank()) throw ValidationException("An archive cut needs a reason")
+        if (cut != YearMonth.from(cut.atZone(ZoneOffset.UTC)).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant()) {
+            throw ValidationException("An archive cut is the first instant of a UTC month, as the partitions are")
+        }
+        repository.archiveCut()?.let { if (!cut.isAfter(it)) throw ValidationException("Archive cuts only move forward; the latest is $it") }
+        val actor = actorProvider.current().userId
+        repository.declareArchiveCut(cut, actor, reason)
+        record(ARCHIVE_CUT_EVENT, "AuditTrail", cut.toString(), mapOf("cut" to cut.toString(), "reason" to reason))
+    }
+
     @Transactional
     override fun seal(catchUp: Boolean): Int = repository.sealPending(SEAL_BATCH, if (catchUp) CATCH_UP_DAYS else RECENT_DAYS)
 
@@ -102,6 +121,7 @@ class AuditService(
     }
 }
 
+private const val ARCHIVE_CUT_EVENT = "AuditArchiveCutDeclared"
 private val SEALING_DELAY = java.time.Duration.ofMinutes(10)
 private const val SEAL_BATCH = 50_000
 private const val RECENT_DAYS = 2
@@ -121,4 +141,8 @@ interface AuditRepository {
     fun unsealedBefore(recordedBefore: java.time.Instant): Long
 
     fun sealHead(): String?
+
+    fun archiveCut(): java.time.Instant?
+
+    fun declareArchiveCut(cut: java.time.Instant, recordedBy: String, reason: String)
 }
