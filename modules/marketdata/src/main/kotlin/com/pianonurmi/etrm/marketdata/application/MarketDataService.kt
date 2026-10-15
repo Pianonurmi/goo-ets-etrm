@@ -40,6 +40,7 @@ import com.pianonurmi.etrm.marketdata.domain.StoredFxRate
 import com.pianonurmi.etrm.platform.crypto.HashChain
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -249,7 +250,7 @@ class MarketDataService(
         if (note.isBlank()) throw ValidationException("Say why the price is right")
         val quote = quotes.find(quoteId) ?: throw NotFoundException("Quote", quoteId)
         if (quote.quality != QuoteQuality.SUSPECT) throw ValidationException("Quote ${quote.id} is ${quote.quality}")
-        if (quote.recordedBy == actor.userId) throw SegregationOfDutiesException("A suspect price is acknowledged by someone other than who recorded it")
+        SecondPerson.require(actor.userId, quote.recordedBy) { "A suspect price is acknowledged by someone other than who recorded it" }
         quotes.acknowledge(quoteId, actor.userId, note)
         return quotes.find(quoteId)!!
     }

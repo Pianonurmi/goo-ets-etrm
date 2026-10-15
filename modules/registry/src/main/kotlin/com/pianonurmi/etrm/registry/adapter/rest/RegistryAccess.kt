@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.referencedata.api.HolderType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import org.springframework.stereotype.Component
@@ -37,7 +38,7 @@ class RegistryAccess(
     fun submitterForAccount(accountId: UUID): Actor = submitter(holderOf(accountId))
 
     /** Transfer routes and other settings shared by every entity. */
-    fun maintainer(): Actor = actorProvider.current().also { it.requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE) }
+    fun maintainer(): Actor = actorProvider.current().also { it.requireRole(Roles.OPERATIONS) }
 
     /** A statement of one of the entity's accounts. */
     fun importer(accountId: UUID?): Actor = actorProvider.current().also {

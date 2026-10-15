@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.document.api.RenderPdf
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -164,7 +165,7 @@ class InvoiceService(
     fun approve(invoiceId: UUID, by: String): InvoiceView {
         val invoice = locked(invoiceId)
         if (invoice.status != InvoiceStatus.PENDING_APPROVAL) throw IllegalStateTransitionException("Invoice $invoiceId", invoice.status.name, "ISSUED")
-        if (invoice.submittedBy == by) throw SegregationOfDutiesException("An invoice cannot be approved by the person who submitted it")
+        SecondPerson.require(by, invoice.submittedBy) { "An invoice cannot be approved by the person who submitted it" }
         val entity = referenceData.requireLegalEntity(invoice.legalEntityId)
         val counterparty = referenceData.requireCounterparty(invoice.counterpartyId)
         val us = snapshot(PartyType.LEGAL_ENTITY, entity.id, entity.name, entity.country, entity.vatNumber, entity.lei, invoice.taxPointDate)

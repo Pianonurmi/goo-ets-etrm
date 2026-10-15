@@ -8,6 +8,7 @@ import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -223,7 +224,7 @@ class ValuationService(
     fun signOff(runId: UUID, by: String, note: String?): ValuationRunView {
         val run = repository.run(runId, lock = true) ?: throw NotFoundException("ValuationRun", runId)
         if (run.status != RunStatus.PENDING_SIGN_OFF) throw ValidationException("Run ${run.id} is ${run.status}")
-        if (run.createdBy == by) throw SegregationOfDutiesException("A valuation is signed off by someone other than who ran it")
+        SecondPerson.require(by, run.createdBy) { "A valuation is signed off by someone other than who ran it" }
         if (run.exceptions > 0 && note.isNullOrBlank()) throw ValidationException("Signing off a run with ${run.exceptions} exceptions needs a reason")
         val now = clock.instant()
         val previous = repository.official(run.legalEntityId, run.valuationDate, orEarlier = false)

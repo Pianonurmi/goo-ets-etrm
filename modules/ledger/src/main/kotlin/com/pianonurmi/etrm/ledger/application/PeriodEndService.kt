@@ -38,6 +38,7 @@ import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -559,7 +560,7 @@ class PeriodEndService(
     /** From the approval task: the change applies and counts as signed off by the approver. */
     fun applyPolicyChange(changeId: UUID, by: String) {
         val change = pending(changeId)
-        if (change.requestedBy == by) throw SegregationOfDutiesException("A policy change is approved by someone other than who requested it")
+        SecondPerson.require(by, change.requestedBy) { "A policy change is approved by someone other than who requested it" }
         val now = clock.instant()
         val c = change.change
         when (change.kind) {

@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.marketdata.domain.QuoteRepository
 import com.pianonurmi.etrm.platform.crypto.HashChain
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -255,7 +256,7 @@ class CurveService(
     fun signOff(snapshotId: UUID, by: String): CurveSnapshotView {
         val snapshot = curves.snapshot(snapshotId, lock = true) ?: throw NotFoundException("CurveSnapshot", snapshotId)
         if (snapshot.status != SnapshotStatus.PENDING_SIGN_OFF) throw ValidationException("Snapshot ${snapshot.id} is ${snapshot.status}")
-        if (snapshot.builtBy == by) throw SegregationOfDutiesException("A curve is signed off by someone other than who built it")
+        SecondPerson.require(by, snapshot.builtBy) { "A curve is signed off by someone other than who built it" }
         val now = clock.instant()
         val previous = curves.official(snapshot.curveCode, snapshot.asOfDate, null, null)
         previous?.let { curves.supersede(it.id, now) }

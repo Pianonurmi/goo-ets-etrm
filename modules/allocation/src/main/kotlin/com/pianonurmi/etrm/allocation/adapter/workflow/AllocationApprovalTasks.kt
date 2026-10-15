@@ -8,6 +8,7 @@ import com.pianonurmi.etrm.allocation.api.AllocationStale
 import com.pianonurmi.etrm.allocation.api.PlanStatus
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
 import com.pianonurmi.etrm.workflow.api.DecisionOutcome
@@ -27,7 +28,7 @@ class AllocationApprovalTasks(private val workflow: WorkflowCommand, private val
         taskType = TYPE,
         ownerModule = "allocation",
         displayName = "Allocation plan approval",
-        candidateRoles = setOf(Role.MIDDLE_OFFICE, Role.BACK_OFFICE),
+        candidateRoles = Roles.OPERATIONS,
         defaultSla = Duration.ofHours(8),
         escalationRoles = setOf(Role.MIDDLE_OFFICE),
         defaultPriority = 60,

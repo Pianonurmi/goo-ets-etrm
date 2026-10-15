@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.clearing.domain.ClearingRepository
 import com.pianonurmi.etrm.clearing.domain.ClearingStatementRepository
 import com.pianonurmi.etrm.clearing.domain.MarginCallRepository
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -79,11 +80,7 @@ class MarginCallService(
     fun decide(callId: UUID, decidedBy: String, pay: Boolean, reason: String?): MarginCallView {
         val call = repository.call(callId, lock = true) ?: throw NotFoundException("MarginCall", callId)
         if (call.status != MarginCallStatus.OPEN) throw ValidationException("The margin call of ${call.businessDate} is ${call.status}")
-        if (decidedBy == call.requestedBy) {
-            throw SegregationOfDutiesException(
-                "A margin call is paid or disputed by someone other than who imported its statement",
-            )
-        }
+        SecondPerson.require(decidedBy, call.requestedBy) { "A margin call is paid or disputed by someone other than who imported its statement" }
         if (!pay && reason.isNullOrBlank()) throw ValidationException("Say why the margin call is disputed")
         val decided = call.copy(
             status = if (pay) MarginCallStatus.PAID else MarginCallStatus.DISPUTED,

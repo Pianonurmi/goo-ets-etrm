@@ -10,6 +10,7 @@ import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.domain.BeneficiaryRepository
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -57,7 +58,7 @@ class BeneficiaryService(
         val beneficiary = require(id)
         if (beneficiary.erasedAt != null) return beneficiary
         val requestedBy = beneficiary.erasureRequestedBy ?: throw ConflictException("Erasure of beneficiary $id was not requested")
-        if (requestedBy == approvedBy) throw ValidationException("The erasure of beneficiary $id needs a second person")
+        SecondPerson.require(approvedBy, requestedBy) { "The erasure of beneficiary $id needs a second person" }
         repository.erase(id, approvedBy, clock.instant())
         events.publishEvent(BeneficiaryErased(id))
         return require(id)

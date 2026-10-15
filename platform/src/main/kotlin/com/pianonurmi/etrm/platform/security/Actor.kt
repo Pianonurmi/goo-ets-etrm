@@ -37,6 +37,8 @@ data class Actor(
         }
     }
 
+    fun requireRole(allowed: Collection<Role>) = requireRole(*allowed.toTypedArray())
+
     companion object {
         val SYSTEM: Actor = Actor("system", "System", setOf(Role.SYSTEM), allEntities = true)
 
@@ -61,4 +63,10 @@ enum class Role {
 /** Resolves the current actor from the execution context (security context, job runner, test). */
 fun interface ActorProvider {
     fun current(): Actor
+}
+
+/** Role groups that several modules check the same way. */
+object Roles {
+    /** Middle and back office: the operations of trades, deliveries, settlement and compliance. */
+    val OPERATIONS: Set<Role> = setOf(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
 }

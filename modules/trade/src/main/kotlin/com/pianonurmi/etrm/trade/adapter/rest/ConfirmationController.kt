@@ -1,7 +1,7 @@
 package com.pianonurmi.etrm.trade.adapter.rest
 
 import com.pianonurmi.etrm.platform.security.ActorProvider
-import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.trade.api.ConfirmationCommand
 import com.pianonurmi.etrm.trade.api.ConfirmationFilter
 import com.pianonurmi.etrm.trade.api.ConfirmationQuery
@@ -32,7 +32,7 @@ class ConfirmationController(
     private val actorProvider: ActorProvider,
 ) {
     /** Receiving the counterparty's confirmation: middle or back office (the trade's entity is checked in the service). */
-    private fun requireReceiver() = actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
+    private fun requireReceiver() = actorProvider.current().requireRole(Roles.OPERATIONS)
 
     /** Counterparty confirmations to work on: received, mismatched or disputed by default. */
     @GetMapping("/api/v1/confirmations")

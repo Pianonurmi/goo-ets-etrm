@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.platform.json.Json
+import com.pianonurmi.etrm.platform.paging.page
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.RegistryInstruction.REGISTRY_INSTRUCTION
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.StatementFormat.STATEMENT_FORMAT
 import com.pianonurmi.etrm.registry.adapter.jooq.generated.tables.TransferRoute.TRANSFER_ROUTE
@@ -139,8 +140,7 @@ class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryI
             .orderBy(REGISTRY_INSTRUCTION.CREATED_AT.desc(), REGISTRY_INSTRUCTION.ID.desc())
             .limit(limit + 1)
             .fetch(::toView)
-        val items = rows.take(limit)
-        val next = if (rows.size > limit) items.last().let { InstructionCursor(it.createdAt, it.id).encode() } else null
+        val (items, next) = rows.page(limit) { InstructionCursor(it.createdAt, it.id).encode() }
         return InstructionPage(items, next)
     }
 

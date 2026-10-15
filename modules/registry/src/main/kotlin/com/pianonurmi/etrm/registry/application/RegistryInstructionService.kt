@@ -13,6 +13,7 @@ import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.ActorProvider
@@ -150,7 +151,7 @@ class RegistryInstructionService(
     /** Second-person approval of a manual instruction (from the inbox). */
     fun approve(instructionId: UUID, by: String): RegistryInstructionView {
         val current = locked(instructionId)
-        if (current.submittedBy == by) throw com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException("Instruction submitter may not approve it")
+        SecondPerson.require(by, current.submittedBy) { "Instruction submitter may not approve it" }
         val approved = RegistryInstruction(current).approved(by, now())
         save(approved, null)
         return proceed(approved)

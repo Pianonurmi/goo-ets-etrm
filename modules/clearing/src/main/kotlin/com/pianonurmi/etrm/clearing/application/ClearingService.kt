@@ -22,6 +22,7 @@ import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
@@ -65,7 +66,7 @@ class ClearingService(
 
     override fun createAccount(command: CreateClearingAccount): ClearingAccountView {
         val actor = actorProvider.current()
-        actor.requireRole(Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
+        actor.requireRole(Roles.OPERATIONS)
         actor.requireEntity(command.legalEntityId)
         referenceData.requireLegalEntity(command.legalEntityId)
         val house = referenceData.requireCounterparty(command.clearingHouseId)

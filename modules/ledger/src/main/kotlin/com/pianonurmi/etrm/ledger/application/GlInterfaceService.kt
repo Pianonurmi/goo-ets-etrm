@@ -18,6 +18,7 @@ import com.pianonurmi.etrm.ledger.domain.GlInterfaceRepository
 import com.pianonurmi.etrm.ledger.domain.JournalRepository
 import com.pianonurmi.etrm.ledger.domain.PeriodEndRepository
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -195,7 +196,7 @@ class GlInterfaceService(
     /** From the approval task: the rule takes effect and its new version is kept in the history. */
     fun applyRuleChange(changeId: UUID, by: String) {
         val change = pendingRuleChange(changeId)
-        if (change.requestedBy == by) throw SegregationOfDutiesException("A posting rule change is approved by someone other than who requested it")
+        SecondPerson.require(by, change.requestedBy) { "A posting rule change is approved by someone other than who requested it" }
         val applied = ledger.applyRule(change.change)
         repository.insertRuleVersion(
             PostingRuleVersionView(applied.ruleCode, applied.legalEntityId, applied.version, change.change, change.id, clock.instant()),
