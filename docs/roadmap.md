@@ -16,7 +16,7 @@
 | 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | done (0.12.0) |
 | 13 | Options on EUA futures: option terms on trades (call or put, strike, expiry, underlying future), a volatility curve signed off like other curves, Black-76 valuation with delta and vega and a VOL component in the explain, premiums in the ledger, exercise into the future or abandonment at expiry, delta-equivalent positions and exposure ([plan](plans/increment-13-eua-options.md)) | done (0.13.0) |
 | 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0140) | done (0.14.0) |
-| 15 | Maintainability: Spring slices per module, the large services split, module API value types, the clock in repositories and events, build inputs and dependency locking, roles in the OpenAPI document, and the items increment 14 handed over ([plan](plans/increment-15-maintainability.md)) | planned |
+| 15 | Maintainability: Spring slices per module, the large services split, module API value types, the clock in repositories and events, build inputs and dependency locking, roles in the OpenAPI document, and the items increment 14 handed over ([plan](plans/increment-15-maintainability.md)) | in progress |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -201,3 +201,17 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M7 | Web: tokens in memory, silent renewal, keyboard grids, version conflicts with merge, limit notices, locale and time zones | done |
 | M8 | Close: arc42 sections 5 and 8 with a generated module diagram, ADRs 0048–0051, status per finding, increment 15 outlined, release 0.14.0 | done |
 
+
+## Increment 15: maintainability
+
+| Milestone | Content | Status |
+|---|---|---|
+| M6 | Handed over by increment 14: mirror confirmation after approval, account changes reaching the mirror, MtM status in credit exposure, the month average retried after month end, the margin cascade stopping with a stale mark | planned |
+| M0 | Test seams: one module order, non-null ports with test fakes, wiring factories in `testFixtures`, Spring slices for the savepoint paths | planned |
+| M3 | Time and data: the clock in repositories and events, `TimeSourceTest` over tests, beneficiary data out of the chains, verification from a checkpoint | planned |
+| M2 | Module APIs and shared rules: `SecondPerson`, `Roles.OPERATIONS`, one cursor codec, keyset paging for invoices, payments and results, value types and sealed limit scopes, GL accounts by rule role | planned |
+| M1 | Large services split by responsibility and detekt tightened | planned |
+| M4 | Build and supply chain: jOOQ codegen inputs, configuration cache, the demo seeder out of the production jar, dependency locking and verification, lock files refreshed on Dependabot branches | planned |
+| M5 | Web: `x-roles` in the OpenAPI document and generated permissions, large pages split, client error telemetry, coverage ratchet | planned |
+| M7 | Operations: CloudNativePG Barman Cloud plugin; the dedicated-environment load run when the environment exists | planned |
+| M8 | Close and release 0.15.0 | planned |
