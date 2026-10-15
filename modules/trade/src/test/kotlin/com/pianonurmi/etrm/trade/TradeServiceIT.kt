@@ -77,8 +77,8 @@ import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.trade.api.UtiSource
 import com.pianonurmi.etrm.trade.application.OptionExpiryService
-import com.pianonurmi.etrm.trade.application.TradeService
 import com.pianonurmi.etrm.trade.fixtures.TradeWiring
+import com.pianonurmi.etrm.trade.fixtures.WiredTrades
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainAll
@@ -107,13 +107,13 @@ class TradeServiceIT {
     private val publisher = ApplicationEventPublisher { published += it }
     private var currentUser = "trader1"
     private var override: Actor? = null
-    private lateinit var tradeService: (BigDecimal, FxRates) -> TradeService
-    private lateinit var checkedService: (TradeApprovalCheck) -> TradeService
+    private lateinit var tradeService: (BigDecimal, FxRates) -> WiredTrades
+    private lateinit var checkedService: (TradeApprovalCheck) -> WiredTrades
     private lateinit var futures: FuturesContractService
     private lateinit var referenceDataService: ReferenceDataService
     private val actor = ActorProvider { override ?: Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE), allEntities = true) }
 
-    private lateinit var trades: TradeService
+    private lateinit var trades: WiredTrades
     private lateinit var entityA: UUID
     private lateinit var entityB: UUID
     private lateinit var bookA: UUID
@@ -559,7 +559,7 @@ class TradeServiceIT {
                 }
             }
         }
-        val expiries = OptionExpiryService(JooqTradeRepository(TestDatabase.dsl), trades, marketData, futures)
+        val expiries = OptionExpiryService(JooqTradeRepository(TestDatabase.dsl), trades, trades.capture, trades.lifecycle, marketData, futures)
 
         fun confirmed(side: Side, terms: OptionTerms): TradeView {
             currentUser = "trader1"

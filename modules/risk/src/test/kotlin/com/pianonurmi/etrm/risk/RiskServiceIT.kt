@@ -39,7 +39,6 @@ import com.pianonurmi.etrm.risk.api.RequestLimit
 import com.pianonurmi.etrm.risk.api.RiskLimitView
 import com.pianonurmi.etrm.risk.api.UtilisationStatus
 import com.pianonurmi.etrm.risk.application.CreditLimitCarryOver
-import com.pianonurmi.etrm.risk.application.RiskService
 import com.pianonurmi.etrm.settlement.api.CounterpartyBalance
 import com.pianonurmi.etrm.settlement.api.SettlementDirection
 import com.pianonurmi.etrm.settlement.api.SettlementReports
@@ -113,9 +112,9 @@ class RiskServiceIT {
     /** No product buckets: limits in these tests name none outside the GoO cases, which bring their own. */
     private val noBuckets = mockk<ProductBucketQuery> { every { buckets(true) } returns emptyList() }
     private val published = mutableListOf<Any>()
-    private lateinit var risk: RiskService
-    private lateinit var withGoo: (ObjectProvider<GooRiskQuery>, ProductBucketQuery) -> RiskService
-    private lateinit var withClearing: (ClearingQuery, MarginCallQuery) -> RiskService
+    private lateinit var risk: RiskServices
+    private lateinit var withGoo: (ObjectProvider<GooRiskQuery>, ProductBucketQuery) -> RiskServices
+    private lateinit var withClearing: (ClearingQuery, MarginCallQuery) -> RiskServices
     private lateinit var carryOver: CreditLimitCarryOver
 
     private fun counterpartyView(id: UUID, code: String, parentId: UUID?, limit: BigDecimal? = null) = mockk<CounterpartyView> {
@@ -250,26 +249,28 @@ class RiskServiceIT {
         val actors = ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) }
         val repository = JooqRiskRepository(TestDatabase.dsl)
 
-        fun service(goo: ObjectProvider<GooRiskQuery>, buckets: ProductBucketQuery, clearing: ClearingQuery, margin: MarginCallQuery) = RiskService(
-            repository,
-            referenceData,
-            trades,
-            valuations,
-            settlement,
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            fx,
+        fun service(goo: ObjectProvider<GooRiskQuery>, buckets: ProductBucketQuery, clearing: ClearingQuery, margin: MarginCallQuery) = riskServices(
+            RiskPorts(
+                repository,
+                referenceData,
+                trades,
+                valuations,
+                settlement,
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                fx,
+                buckets,
+                clearing,
+                margin,
+                goo,
+                Providers.none(),
+            ),
             actors,
             events,
             clock,
-            Providers.none(),
-            goo,
-            buckets,
             Savepoints.NONE,
-            clearing,
-            margin,
         )
         withGoo = { goo, buckets -> service(goo, buckets, NoClearing, NoMarginCalls) }
         withClearing = { clearing, margin -> service(Providers.none(), noBuckets, clearing, margin) }
@@ -278,8 +279,8 @@ class RiskServiceIT {
     }
 
     private fun approved(request: RequestLimit): RiskLimitView {
-        val limit = risk.requestLimit(request)
-        return risk.approveLimit(limit.id, "risk2")
+        val limit = risk.lifecycle.requestLimit(request)
+        return risk.lifecycle.approveLimit(limit.id, "risk2")
     }
 
     private fun creditLimit(amount: String, cp: UUID = counterparty, replaces: UUID? = null) =
@@ -295,17 +296,17 @@ class RiskServiceIT {
 
     @Test
     fun `a limit takes effect only when someone else in risk approves it, replacing the one it names`() {
-        val requested = risk.requestLimit(creditLimit("5000"))
+        val requested = risk.lifecycle.requestLimit(creditLimit("5000"))
         requested.status shouldBe LimitStatus.PENDING_APPROVAL
-        risk.limits(entity) shouldBe emptyList()
-        shouldThrow<SegregationOfDutiesException> { risk.approveLimit(requested.id, "risk1") }
-        val first = risk.approveLimit(requested.id, "risk2")
+        risk.queries.limits(entity) shouldBe emptyList()
+        shouldThrow<SegregationOfDutiesException> { risk.lifecycle.approveLimit(requested.id, "risk1") }
+        val first = risk.lifecycle.approveLimit(requested.id, "risk2")
         val second = approved(creditLimit("6000", replaces = first.id))
-        risk.limits(entity).map { it.id } shouldBe listOf(second.id)
-        risk.limit(first.id)!!.status shouldBe LimitStatus.RETIRED
-        shouldThrow<ValidationException> { risk.requestLimit(creditLimit("1", replaces = first.id)) }
+        risk.queries.limits(entity).map { it.id } shouldBe listOf(second.id)
+        risk.queries.limit(first.id)!!.status shouldBe LimitStatus.RETIRED
+        shouldThrow<ValidationException> { risk.lifecycle.requestLimit(creditLimit("1", replaces = first.id)) }
         shouldThrow<ValidationException> {
-            risk.requestLimit(
+            risk.lifecycle.requestLimit(
                 RequestLimit(null, LimitType.POSITION_NET, LimitScope(productFamily = ProductFamily.EMISSION_ALLOWANCE), BigDecimal.TEN, reason = "x"),
             )
         }
@@ -313,11 +314,13 @@ class RiskServiceIT {
 
     @Test
     fun `exposure is positive MtM plus receivables plus PFE less collateral, netted under a netting agreement`() {
-        val support = risk.requestCreditSupport(RequestCreditSupport(entity, counterparty, CreditSupportKind.CASH_RECEIVED, BigDecimal("1000"), "EUR", today))
-        risk.approveCreditSupport(support.id, "risk2")
-        risk.measureEntity(entity)
+        val support = risk.lifecycle.requestCreditSupport(
+            RequestCreditSupport(entity, counterparty, CreditSupportKind.CASH_RECEIVED, BigDecimal("1000"), "EUR", today),
+        )
+        risk.lifecycle.approveCreditSupport(support.id, "risk2")
+        risk.measurement.measureEntity(entity)
         // 300 MtM + 200 receivables + 70000 x 6% PFE (two months) - 1000 cash received
-        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+        risk.queries.exposures(entity).single { it.counterpartyId == counterparty }.let {
             it.mtm shouldBe BigDecimal("300.00")
             it.receivables shouldBe BigDecimal("200.00")
             it.pfe shouldBe BigDecimal("4200.00")
@@ -325,8 +328,8 @@ class RiskServiceIT {
             it.exposure shouldBe BigDecimal("3700.00")
         }
         netting = true
-        risk.measureEntity(entity)
-        risk.exposures(entity).single { it.counterpartyId == counterparty }.exposure shouldBe BigDecimal("3550.00") // 200 + 200 - 50 + 4200 - 1000
+        risk.measurement.measureEntity(entity)
+        risk.queries.exposures(entity).single { it.counterpartyId == counterparty }.exposure shouldBe BigDecimal("3550.00") // 200 + 200 - 50 + 4200 - 1000
     }
 
     @Test
@@ -340,9 +343,9 @@ class RiskServiceIT {
         }
         risk = withClearing(clearing, margin)
         val limit = approved(RequestLimit(entity, LimitType.MARGIN_LIQUIDITY, LimitScope(), BigDecimal("6000"), "EUR", reason = "Cash tied up at ECC"))
-        val measured = risk.measureEntity(entity)
+        val measured = risk.measurement.measureEntity(entity)
         // No MtM or PFE on the future; 200 receivables, and the 5 000 initial margin and 1 000 cash the house holds.
-        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+        risk.queries.exposures(entity).single { it.counterpartyId == counterparty }.let {
             it.mtm shouldBe BigDecimal("0.00")
             it.pfe shouldBe BigDecimal("0.00")
             it.collateral shouldBe BigDecimal("-6000.00")
@@ -352,42 +355,44 @@ class RiskServiceIT {
             it.value shouldBe BigDecimal("7000.00")
             it.status shouldBe UtilisationStatus.BREACH
         }
-        shouldThrow<ValidationException> { risk.requestLimit(RequestLimit(entity, LimitType.MARGIN_LIQUIDITY, LimitScope(), BigDecimal("1"), reason = "x")) }
+        shouldThrow<ValidationException> {
+            risk.lifecycle.requestLimit(RequestLimit(entity, LimitType.MARGIN_LIQUIDITY, LimitScope(), BigDecimal("1"), reason = "x"))
+        }
     }
 
     @Test
     fun `a breach opens when exposure exceeds the limit and closes when a higher limit is approved`() {
         val limit = approved(creditLimit("3000"))
-        risk.measureEntity(entity).single { it.limitId == limit.id }.status shouldBe UtilisationStatus.BREACH // 4700
+        risk.measurement.measureEntity(entity).single { it.limitId == limit.id }.status shouldBe UtilisationStatus.BREACH // 4700
         published.filterIsInstance<LimitBreached>() shouldHaveSize 1
-        risk.measureEntity(entity)
+        risk.measurement.measureEntity(entity)
         published.filterIsInstance<LimitBreached>() shouldHaveSize 1
-        risk.breaches(entity).single().status shouldBe BreachStatus.OPEN
+        risk.queries.breaches(entity).single().status shouldBe BreachStatus.OPEN
 
         approved(creditLimit("6000", replaces = limit.id))
         published.filterIsInstance<LimitBreachResolved>() shouldHaveSize 1
-        risk.measureEntity(entity).single().status shouldBe UtilisationStatus.OK // 4700 of 6000 is below the 80% warning level
-        risk.breaches(entity, openOnly = true) shouldBe emptyList()
+        risk.measurement.measureEntity(entity).single().status shouldBe UtilisationStatus.OK // 4700 of 6000 is below the 80% warning level
+        risk.queries.breaches(entity, openOnly = true) shouldBe emptyList()
     }
 
     @Test
     fun `a limit on the group parent covers its subsidiaries`() {
         val group = approved(creditLimit("10000", cp = parent))
-        risk.measureEntity(entity).single { it.limitId == group.id }.value shouldBe BigDecimal("4700.00")
+        risk.measurement.measureEntity(entity).single { it.limitId == group.id }.value shouldBe BigDecimal("4700.00")
     }
 
     @Test
     fun `the pre-trade check asks for risk approval when the trade's PFE takes exposure over the limit`() {
         approved(creditLimit("8000"))
-        risk.measureEntity(entity)
+        risk.measurement.measureEntity(entity)
         val small = trade(100, LocalDate.of(2026, 12, 10))
-        risk.preTradeFindings(small).map { it.severity } shouldBe emptyList<FindingSeverity>() // 4700 + 420
+        risk.checks.preTradeFindings(small).map { it.severity } shouldBe emptyList<FindingSeverity>() // 4700 + 420
         val large = trade(1000, LocalDate.of(2027, 6, 10))
-        risk.preTradeFindings(large).single().let {
+        risk.checks.preTradeFindings(large).single().let {
             it.code shouldBe "CREDIT_LIMIT"
             it.severity shouldBe FindingSeverity.REQUIRES_RISK_APPROVAL // 4700 + 70000 x 10%
         }
-        risk.preTradeFindings(trade(10, today, cp = unlimited)).single().code shouldBe "NO_CREDIT_LIMIT"
+        risk.checks.preTradeFindings(trade(10, today, cp = unlimited)).single().code shouldBe "NO_CREDIT_LIMIT"
     }
 
     @Test
@@ -404,25 +409,25 @@ class RiskServiceIT {
                 reason = "position",
             ),
         )
-        val findings = risk.preTradeFindings(trade(600, LocalDate.of(2028, 1, 15))).map { it.code }
+        val findings = risk.checks.preTradeFindings(trade(600, LocalDate.of(2028, 1, 15))).map { it.code }
         findings shouldContain "TENOR_LIMIT"
         findings shouldContain "POSITION_LIMIT" // 1000 open + 600
-        risk.preTradeFindings(trade(400, LocalDate.of(2027, 3, 15))).map { it.code }.filter { it != "NO_CREDIT_LIMIT" } shouldBe emptyList()
+        risk.checks.preTradeFindings(trade(400, LocalDate.of(2027, 3, 15))).map { it.code }.filter { it != "NO_CREDIT_LIMIT" } shouldBe emptyList()
 
         // An option counts its delta-equivalent (ADR 0047): a call on 2 000 t at delta 0.4 is 800 t, so 1 800 in all.
         val expiry = LocalDate.of(2027, 3, 10)
-        risk.preTradeFindings(option(2_000, OptionType.CALL, expiry)).map { it.code } shouldContain "POSITION_LIMIT"
-        risk.preTradeFindings(option(1_000, OptionType.CALL, expiry)).map { it.code } shouldNotContain "POSITION_LIMIT"
+        risk.checks.preTradeFindings(option(2_000, OptionType.CALL, expiry)).map { it.code } shouldContain "POSITION_LIMIT"
+        risk.checks.preTradeFindings(option(1_000, OptionType.CALL, expiry)).map { it.code } shouldNotContain "POSITION_LIMIT"
         // A put that cannot be valued counts in full, as a sale: 1 000 − 400.
-        risk.preTradeFindings(option(400, OptionType.PUT, expiry)).map { it.code } shouldNotContain "POSITION_LIMIT"
-        risk.preTradeFindings(option(3_000, OptionType.PUT, expiry)).map { it.code } shouldContain "POSITION_LIMIT"
+        risk.checks.preTradeFindings(option(400, OptionType.PUT, expiry)).map { it.code } shouldNotContain "POSITION_LIMIT"
+        risk.checks.preTradeFindings(option(3_000, OptionType.PUT, expiry)).map { it.code } shouldContain "POSITION_LIMIT"
     }
 
     @Test
     fun `counterparty credit limits from reference data are carried over once`() {
         carryOver.carryOver() shouldBe 1
         carryOver.carryOver() shouldBe 0
-        risk.limits(null).single().let {
+        risk.queries.limits(null).single().let {
             it.scope.counterpartyId shouldBe unlimited
             it.amount shouldBe BigDecimal("250000.00")
             it.legalEntityId shouldBe null
@@ -442,18 +447,24 @@ class RiskServiceIT {
         }
         val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, buckets)
 
-        fun approved(request: RequestLimit) = gooRisk.approveLimit(gooRisk.requestLimit(request).id, "risk2")
+        fun approved(request: RequestLimit) = gooRisk.lifecycle.approveLimit(gooRisk.lifecycle.requestLimit(request).id, "risk2")
 
         // Scope rules: the bucket must exist, the horizon is required, an expiry limit is in MWh, books cannot be split.
         shouldThrow<ValidationException> {
-            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "MOON_HYDRO"), BigDecimal(1000), reason = "x"))
-        }
-        shouldThrow<ValidationException> { gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(), BigDecimal(100), reason = "x")) }
-        shouldThrow<ValidationException> {
-            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(horizonDays = 60), BigDecimal(100), currency = "EUR", reason = "x"))
+            gooRisk.lifecycle.requestLimit(
+                RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "MOON_HYDRO"), BigDecimal(1000), reason = "x"),
+            )
         }
         shouldThrow<ValidationException> {
-            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(bookId = book), BigDecimal(100), reason = "x"))
+            gooRisk.lifecycle.requestLimit(RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(), BigDecimal(100), reason = "x"))
+        }
+        shouldThrow<ValidationException> {
+            gooRisk.lifecycle.requestLimit(
+                RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(horizonDays = 60), BigDecimal(100), currency = "EUR", reason = "x"),
+            )
+        }
+        shouldThrow<ValidationException> {
+            gooRisk.lifecycle.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(bookId = book), BigDecimal(100), reason = "x"))
         }
 
         val concentration =
@@ -471,13 +482,13 @@ class RiskServiceIT {
         val expiry = approved(RequestLimit(entity, LimitType.GOO_EXPIRY, LimitScope(horizonDays = 60), BigDecimal(100), reason = "expiry"))
         val basis = approved(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis"))
 
-        gooRisk.evaluate(concentration).let {
+        gooRisk.measurement.evaluate(concentration).let {
             it.value.compareTo(BigDecimal(900)) shouldBe 0
             it.status shouldBe UtilisationStatus.WARNING
         }
-        gooRisk.evaluate(inEur).value.compareTo(BigDecimal("1800")) shouldBe 0
-        gooRisk.evaluate(expiry).status shouldBe UtilisationStatus.BREACH
-        gooRisk.evaluate(basis).value.compareTo(BigDecimal("450")) shouldBe 0
+        gooRisk.measurement.evaluate(inEur).value.compareTo(BigDecimal("1800")) shouldBe 0
+        gooRisk.measurement.evaluate(expiry).status shouldBe UtilisationStatus.BREACH
+        gooRisk.measurement.evaluate(basis).value.compareTo(BigDecimal("450")) shouldBe 0
         // Externalised to Kafka (ADR 0029): the new type and scope fields are additive in the event's JSON.
         val breached = published.filterIsInstance<LimitBreached>().single { it.limit.id == expiry.id }
         Json.mapper.writeValueAsString(breached).let {
@@ -487,14 +498,16 @@ class RiskServiceIT {
 
         // A purchase of Nordic hydro adds to the free certificates once delivered: 900 + 200 is over 1000.
         val purchase = gooTrade(Side.BUY, "NORDIC_HYDRO", 200)
-        gooRisk.preTradeFindings(purchase).filter { it.code == "GOO_CONCENTRATION" }.map { it.severity } shouldContain FindingSeverity.REQUIRES_RISK_APPROVAL
+        gooRisk.checks.preTradeFindings(purchase).filter {
+            it.code == "GOO_CONCENTRATION"
+        }.map { it.severity } shouldContain FindingSeverity.REQUIRES_RISK_APPROVAL
         // A sale adds nothing to it, but GoO trades are told about GoO limits already in breach.
-        gooRisk.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 200)).map { it.code }.let {
+        gooRisk.checks.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 200)).map { it.code }.let {
             it shouldNotContain "GOO_CONCENTRATION"
             it shouldContain "LIMIT_IN_BREACH"
         }
         // Without allocation the GoO limits are not measured (they keep their last value and count as breached), and nothing else fails.
-        withGoo(mockk { every { ifAvailable } returns null }, buckets).evaluate(basis).let {
+        withGoo(mockk { every { ifAvailable } returns null }, buckets).measurement.evaluate(basis).let {
             it.status shouldBe UtilisationStatus.NOT_MEASURED
             it.value.compareTo(BigDecimal("450")) shouldBe 0
             it.detail shouldBe "not measured: GoO measures are not available"
@@ -521,11 +534,11 @@ class RiskServiceIT {
         }
         val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, buckets)
 
-        fun approved(request: RequestLimit) = gooRisk.approveLimit(gooRisk.requestLimit(request).id, "risk2")
+        fun approved(request: RequestLimit) = gooRisk.lifecycle.approveLimit(gooRisk.lifecycle.requestLimit(request).id, "risk2")
 
         // A vintage scopes GoO limits only, and is a plausible year.
         shouldThrow<ValidationException> {
-            gooRisk.requestLimit(
+            gooRisk.lifecycle.requestLimit(
                 RequestLimit(
                     entity,
                     LimitType.POSITION_NET,
@@ -536,7 +549,7 @@ class RiskServiceIT {
             )
         }
         shouldThrow<ValidationException> {
-            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(productionYear = 1990), BigDecimal(10), reason = "x"))
+            gooRisk.lifecycle.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(productionYear = 1990), BigDecimal(10), reason = "x"))
         }
 
         val vintage = approved(
@@ -548,7 +561,7 @@ class RiskServiceIT {
                 reason = "hydro 2025",
             ),
         )
-        gooRisk.evaluate(vintage).let {
+        gooRisk.measurement.evaluate(vintage).let {
             it.value.compareTo(BigDecimal(400)) shouldBe 0
             it.status shouldBe UtilisationStatus.BREACH
             it.detail shouldContain "vintage 2025"
@@ -557,34 +570,34 @@ class RiskServiceIT {
         Json.mapper.writeValueAsString(published.filterIsInstance<LimitBreached>().single { it.limit.id == vintage.id }) shouldContain "\"productionYear\":2025"
 
         // A purchase counts against a vintage limit only when its deliveries are marked at that vintage.
-        gooRisk.preTradeFindings(gooTrade(Side.BUY, "NORDIC_HYDRO", 200)).filter { it.code == "GOO_CONCENTRATION" }.map { it.severity } shouldContain
+        gooRisk.checks.preTradeFindings(gooTrade(Side.BUY, "NORDIC_HYDRO", 200)).filter { it.code == "GOO_CONCENTRATION" }.map { it.severity } shouldContain
             FindingSeverity.REQUIRES_RISK_APPROVAL
         markedAt = 2026
-        gooRisk.preTradeFindings(gooTrade(Side.BUY, "NORDIC_HYDRO", 200)).map { it.code } shouldNotContain "GOO_CONCENTRATION"
+        gooRisk.checks.preTradeFindings(gooTrade(Side.BUY, "NORDIC_HYDRO", 200)).map { it.code } shouldNotContain "GOO_CONCENTRATION"
         markedAt = 2025
 
         // A sale that would hand over 700 EUR of premium: 450 + 700 is over the entity's 1 000, 150 + 700 is a warning for 2025.
         val basis = approved(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis"))
         val basis2025 =
             approved(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(productionYear = 2025), BigDecimal(1000), currency = "EUR", reason = "basis 2025"))
-        gooRisk.evaluate(basis)
-        gooRisk.evaluate(basis2025).value.compareTo(BigDecimal("150")) shouldBe 0
+        gooRisk.measurement.evaluate(basis)
+        gooRisk.measurement.evaluate(basis2025).value.compareTo(BigDecimal("150")) shouldBe 0
         val sale = gooTrade(Side.SELL, "EU_RENEWABLE", 200)
-        gooRisk.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity }.toSet() shouldBe
+        gooRisk.checks.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity }.toSet() shouldBe
             setOf(FindingSeverity.REQUIRES_RISK_APPROVAL, FindingSeverity.WARN)
         // While the figures are being prepared the check says so, and does not block.
         ready = false
-        gooRisk.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity } shouldBe listOf(FindingSeverity.INFO)
+        gooRisk.checks.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity } shouldBe listOf(FindingSeverity.INFO)
     }
 
     @Test
     fun `a trade the valuation could not price leaves the exposure incomplete, naming the trade`() {
-        risk.measureEntity(entity)
-        risk.exposures(entity).single { it.counterpartyId == counterparty }.incomplete shouldBe false
+        risk.measurement.measureEntity(entity)
+        risk.queries.exposures(entity).single { it.counterpartyId == counterparty }.incomplete shouldBe false
 
         extraResults += mtm(UUID.randomUUID(), null, ResultStatus.MISSING_PRICE, "T-NOPRICE")
-        risk.measureEntity(entity)
-        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+        risk.measurement.measureEntity(entity)
+        risk.queries.exposures(entity).single { it.counterpartyId == counterparty }.let {
             it.incomplete shouldBe true
             it.incompleteReasons shouldBe listOf("MtM of T-NOPRICE not valued: MISSING_PRICE")
             it.mtm shouldBe BigDecimal("300.00") // the priced trades still count
@@ -594,15 +607,15 @@ class RiskServiceIT {
     @Test
     fun `exposure in a currency without a rate is flagged as incomplete, not left out silently`() {
         extraBalances += CounterpartyBalance(counterparty, SettlementDirection.RECEIVABLE, "USD", BigDecimal("1100"), BigDecimal.ZERO)
-        risk.measureEntity(entity)
-        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+        risk.measurement.measureEntity(entity)
+        risk.queries.exposures(entity).single { it.counterpartyId == counterparty }.let {
             it.incomplete shouldBe false
             it.receivables shouldBe BigDecimal("1200.00") // 200 + 1 100 USD at 1.10
         }
 
         eurUsd = null
-        risk.measureEntity(entity)
-        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+        risk.measurement.measureEntity(entity)
+        risk.queries.exposures(entity).single { it.counterpartyId == counterparty }.let {
             it.incomplete shouldBe true
             it.leftOutCurrencies shouldBe listOf("USD")
             it.incompleteReasons shouldBe listOf("no USD/EUR rate on 2026-10-10")
@@ -615,21 +628,21 @@ class RiskServiceIT {
         val limit = approved(
             RequestLimit(entity, LimitType.CREDIT_EXPOSURE, LimitScope(counterpartyId = counterparty), BigDecimal("10000"), "USD", reason = "in dollars"),
         )
-        risk.measureEntity(entity).single { it.limitId == limit.id }.let {
+        risk.measurement.measureEntity(entity).single { it.limitId == limit.id }.let {
             it.value shouldBe BigDecimal("5170.00") // 4 700 EUR at 1.10
             it.incomplete shouldBe false
         }
 
         eurUsd = null
-        risk.measureEntity(entity).single { it.limitId == limit.id }.let {
+        risk.measurement.measureEntity(entity).single { it.limitId == limit.id }.let {
             it.value shouldBe BigDecimal("5170.00") // not zero: the last measured value stays
             it.incomplete shouldBe true
             it.leftOutCurrencies shouldBe listOf("EUR")
             it.status shouldBe UtilisationStatus.OK
         }
-        risk.utilisation(limit.id)!!.incomplete shouldBe true
+        risk.queries.utilisation(limit.id)!!.incomplete shouldBe true
 
-        risk.preTradeFindings(trade(100, LocalDate.of(2026, 12, 10))).single().let {
+        risk.checks.preTradeFindings(trade(100, LocalDate.of(2026, 12, 10))).single().let {
             it.code shouldBe "CREDIT_CHECK_INCOMPLETE"
             it.severity shouldBe FindingSeverity.WARN
             it.message shouldContain "incomplete"
@@ -648,13 +661,13 @@ class RiskServiceIT {
                 reason = "position",
             ),
         )
-        risk.evaluate(limit).let {
+        risk.measurement.evaluate(limit).let {
             it.incomplete shouldBe false
             it.value.compareTo(BigDecimal(1000)) shouldBe 0
         }
         // A put on 400 t cannot be valued (no volatility curve): it counts in full, as a sale, and the figure is marked.
         openTrades += option(400, OptionType.PUT, LocalDate.of(2027, 3, 10))
-        risk.evaluate(limit).let {
+        risk.measurement.evaluate(limit).let {
             it.value.compareTo(BigDecimal(600)) shouldBe 0
             it.incomplete shouldBe true
             it.incompleteReasons shouldBe listOf("option of trade T-OPT has no value: a delta of -1 is assumed")
@@ -662,10 +675,10 @@ class RiskServiceIT {
         // A valued call is complete again.
         openTrades.removeLast()
         openTrades += option(400, OptionType.CALL, LocalDate.of(2027, 3, 10))
-        risk.evaluate(limit).incomplete shouldBe false
+        risk.measurement.evaluate(limit).incomplete shouldBe false
         openTrades.removeLast()
 
-        risk.preTradeFindings(option(3_000, OptionType.PUT, LocalDate.of(2027, 3, 10))).single { it.code == "POSITION_LIMIT" }.message shouldContain
+        risk.checks.preTradeFindings(option(3_000, OptionType.PUT, LocalDate.of(2027, 3, 10))).single { it.code == "POSITION_LIMIT" }.message shouldContain
             "incomplete"
     }
 
@@ -677,32 +690,32 @@ class RiskServiceIT {
             every { projectSale(any()) } returns SaleProjection(emptyList())
         }
         val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, noBuckets)
-        val basis = gooRisk.approveLimit(
-            gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis")).id,
+        val basis = gooRisk.lifecycle.approveLimit(
+            gooRisk.lifecycle.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis")).id,
             "risk2",
         )
-        gooRisk.evaluate(basis).let {
+        gooRisk.measurement.evaluate(basis).let {
             it.status shouldBe UtilisationStatus.OK
             it.value.compareTo(BigDecimal("450")) shouldBe 0
         }
-        gooRisk.breaches(entity, openOnly = true) shouldBe emptyList()
+        gooRisk.queries.breaches(entity, openOnly = true) shouldBe emptyList()
 
         failing = true
-        gooRisk.evaluate(basis).let {
+        gooRisk.measurement.evaluate(basis).let {
             it.status shouldBe UtilisationStatus.NOT_MEASURED
             it.value.compareTo(BigDecimal("450")) shouldBe 0 // the last measure, not zero
             it.detail shouldBe "not measured: the flow is unavailable"
         }
-        gooRisk.utilisation(basis.id)!!.status shouldBe UtilisationStatus.NOT_MEASURED
-        gooRisk.breaches(entity, openOnly = true).single().status shouldBe BreachStatus.OPEN
+        gooRisk.queries.utilisation(basis.id)!!.status shouldBe UtilisationStatus.NOT_MEASURED
+        gooRisk.queries.breaches(entity, openOnly = true).single().status shouldBe BreachStatus.OPEN
         published.filterIsInstance<LimitBreached>().single { it.limit.id == basis.id }.utilisation.status shouldBe UtilisationStatus.NOT_MEASURED
-        gooRisk.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 100)).single { it.code == "LIMIT_NOT_MEASURED" }.message shouldContain
+        gooRisk.checks.preTradeFindings(gooTrade(Side.SELL, "NORDIC_HYDRO", 100)).single { it.code == "LIMIT_NOT_MEASURED" }.message shouldContain
             "counts as in breach"
 
         // Measured again, the breach closes.
         failing = false
-        gooRisk.evaluate(basis).status shouldBe UtilisationStatus.OK
-        gooRisk.breaches(entity, openOnly = true) shouldBe emptyList()
+        gooRisk.measurement.evaluate(basis).status shouldBe UtilisationStatus.OK
+        gooRisk.queries.breaches(entity, openOnly = true) shouldBe emptyList()
     }
 
     @Test
@@ -714,8 +727,8 @@ class RiskServiceIT {
         }
         val buckets = mockk<ProductBucketQuery> { every { buckets(true) } returns listOf(mockk { every { code } returns "NORDIC_HYDRO" }) }
         val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, buckets)
-        gooRisk.approveLimit(
-            gooRisk.requestLimit(
+        gooRisk.lifecycle.approveLimit(
+            gooRisk.lifecycle.requestLimit(
                 RequestLimit(
                     entity,
                     LimitType.GOO_CONCENTRATION,
@@ -726,15 +739,15 @@ class RiskServiceIT {
             ).id,
             "risk2",
         )
-        gooRisk.approveLimit(
-            gooRisk.requestLimit(
+        gooRisk.lifecycle.approveLimit(
+            gooRisk.lifecycle.requestLimit(
                 RequestLimit(entity, LimitType.GOO_CONCENTRATION, LimitScope(bucketCode = "NORDIC_HYDRO"), BigDecimal(1000), currency = "EUR", reason = "EUR"),
             ).id,
             "risk2",
         )
         val purchase = gooTrade(Side.BUY, "NORDIC_HYDRO", 200)
 
-        fun notChecked() = gooRisk.preTradeFindings(purchase).filter { it.code == "GOO_CONCENTRATION_NOT_CHECKED" }
+        fun notChecked() = gooRisk.checks.preTradeFindings(purchase).filter { it.code == "GOO_CONCENTRATION_NOT_CHECKED" }
 
         // The vintage cannot be worked out for the 2025 limit; the other limit, in EUR, finds no mark for the bucket.
         failure = "vintages"
