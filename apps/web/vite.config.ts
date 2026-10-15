@@ -41,9 +41,18 @@ export default defineConfig({
     testTimeout: 15_000,
     coverage: {
       provider: 'v8',
-      include: ['src/shared/**', 'src/features/**/model/**'],
-      exclude: ['src/shared/api/schema.d.ts', 'src/shared/auth/permissions.generated.ts', 'src/**/*.test.*'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.d.ts', 'src/**/*.generated.ts', 'src/**/*.test.*', 'src/test/**', 'src/main.tsx'],
       reporter: ['text-summary', 'lcov'],
+      // A ratchet: the build fails below these floors, and a local run raises them to the new whole percentage
+      // when coverage grows (commit the change). CI never rewrites them.
+      thresholds: {
+        autoUpdate: process.env.CI ? false : (next: number) => Math.floor(next),
+        statements: 73,
+        branches: 69,
+        functions: 64,
+        lines: 73,
+      },
       reportsDirectory: 'build/coverage',
     },
   },
