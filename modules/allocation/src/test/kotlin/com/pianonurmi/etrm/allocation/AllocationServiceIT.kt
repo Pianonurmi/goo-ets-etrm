@@ -98,7 +98,6 @@ import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeView
-import com.pianonurmi.etrm.trade.application.TradeService
 import com.pianonurmi.etrm.trade.fixtures.TradeWiring
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty

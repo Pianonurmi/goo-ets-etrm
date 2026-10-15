@@ -16,6 +16,7 @@ import com.pianonurmi.etrm.trade.api.OptionType
 import com.pianonurmi.etrm.trade.api.RegulatoryTerms
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeLegView
+import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.trade.domain.TradeRepository
@@ -35,7 +36,9 @@ import java.util.UUID
 @Transactional
 class OptionExpiryService(
     private val repository: TradeRepository,
-    private val trades: TradeService,
+    private val trades: TradeQuery,
+    private val capture: TradeCapture,
+    private val lifecycle: TradeLifecycle,
     private val marketData: MarketDataQuery,
     private val futures: FuturesContractQuery,
 ) {
@@ -67,7 +70,7 @@ class OptionExpiryService(
                 OptionType.PUT -> settlement < terms.strike
             }
             val future = if (inTheMoney) {
-                trades.captureConfirmed(exercise(trade, leg), "exercise of ${trade.tradeNumber} leg ${leg.legNo}", "exercise of ${trade.tradeNumber}")
+                capture.captureConfirmed(exercise(trade, leg), "exercise of ${trade.tradeNumber} leg ${leg.legNo}", "exercise of ${trade.tradeNumber}")
             } else {
                 null
             }
@@ -78,7 +81,7 @@ class OptionExpiryService(
                 futureTradeId = future?.id,
                 futureTradeNumber = future?.tradeNumber,
             )
-            trade = trades.recordExpiry(trade.id, leg.legNo, outcome, future)
+            trade = lifecycle.recordExpiry(trade.id, leg.legNo, outcome, future)
         }
         return trade
     }

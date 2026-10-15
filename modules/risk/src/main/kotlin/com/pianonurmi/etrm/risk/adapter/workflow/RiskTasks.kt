@@ -7,7 +7,7 @@ import com.pianonurmi.etrm.risk.api.LimitBreachResolved
 import com.pianonurmi.etrm.risk.api.LimitBreached
 import com.pianonurmi.etrm.risk.api.LimitChangeRequested
 import com.pianonurmi.etrm.risk.api.UtilisationStatus
-import com.pianonurmi.etrm.risk.application.RiskService
+import com.pianonurmi.etrm.risk.application.RiskLimitService
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
 import com.pianonurmi.etrm.workflow.api.DecisionOutcome
@@ -25,7 +25,7 @@ import java.time.Duration
 @Component
 class LimitChangeTasks(
     private val workflow: WorkflowCommand,
-    @Lazy private val risk: RiskService,
+    @Lazy private val risk: RiskLimitService,
 ) : TaskHandler {
     override val definition = TaskTypeDefinition(
         taskType = TYPE,
@@ -73,7 +73,7 @@ class LimitChangeTasks(
 @Component
 class CreditSupportTasks(
     private val workflow: WorkflowCommand,
-    @Lazy private val risk: RiskService,
+    @Lazy private val risk: RiskLimitService,
 ) : TaskHandler {
     override val definition = TaskTypeDefinition(
         taskType = TYPE,

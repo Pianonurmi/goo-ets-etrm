@@ -11,7 +11,7 @@ import com.pianonurmi.etrm.risk.api.RequestLimit
 import com.pianonurmi.etrm.risk.api.RiskCommand
 import com.pianonurmi.etrm.risk.api.RiskLimitView
 import com.pianonurmi.etrm.risk.api.RiskQuery
-import com.pianonurmi.etrm.risk.application.RiskService
+import com.pianonurmi.etrm.risk.application.RiskQueries
 import com.pianonurmi.etrm.trade.api.ApprovalFinding
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
@@ -31,7 +31,7 @@ import java.util.UUID
 class RiskController(
     private val query: RiskQuery,
     private val command: RiskCommand,
-    private val risk: RiskService,
+    private val risk: RiskQueries,
 ) {
     @GetMapping("/limits")
     fun limits(

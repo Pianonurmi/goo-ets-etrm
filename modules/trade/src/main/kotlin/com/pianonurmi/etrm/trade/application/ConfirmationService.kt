@@ -35,6 +35,7 @@ import com.pianonurmi.etrm.trade.api.TradeAmended
 import com.pianonurmi.etrm.trade.api.TradeApproved
 import com.pianonurmi.etrm.trade.api.TradeCaptured
 import com.pianonurmi.etrm.trade.api.TradeFilter
+import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.trade.domain.ConfirmationMatcher
@@ -78,7 +79,8 @@ class ConfirmationConfiguration
 @Transactional
 class ConfirmationService(
     private val repository: ConfirmationRepository,
-    private val trades: TradeService,
+    private val trades: TradeQuery,
+    private val lifecycle: TradeLifecycle,
     private val referenceData: ReferenceDataQuery,
     private val documents: DocumentCommand,
     private val actorProvider: ActorProvider,
@@ -269,7 +271,7 @@ class ConfirmationService(
 
     private fun confirmTrade(theirs: ConfirmationView, method: String, actor: String) {
         val trade = trades.requireTrade(theirs.tradeId)
-        if (trade.confirmedAt == null) trades.confirmAs(trade.id, ConfirmTrade(theirs.reference!!, method), actor)
+        if (trade.confirmedAt == null) lifecycle.confirmAs(trade.id, ConfirmTrade(theirs.reference!!, method), actor)
     }
 
     private fun close(view: ConfirmationView): ConfirmationView {

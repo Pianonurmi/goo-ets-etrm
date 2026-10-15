@@ -23,9 +23,9 @@ import java.util.UUID
 /** Risk's pre-trade check on every captured or amended trade. */
 @Component
 class RiskApprovalCheck(
-    @Lazy private val risk: RiskService,
+    @Lazy private val checks: PreTradeChecks,
 ) : TradeApprovalCheck {
-    override fun check(trade: TradeView): List<ApprovalFinding> = risk.preTradeFindings(trade)
+    override fun check(trade: TradeView): List<ApprovalFinding> = checks.preTradeFindings(trade)
 }
 
 /**
@@ -34,7 +34,7 @@ class RiskApprovalCheck(
  * savepoint and a failure is logged; the daily job measures everything again.
  */
 @Component
-class RiskTriggers(private val risk: RiskService, private val savepoints: Savepoints, private val referenceData: ReferenceDataQuery) {
+class RiskTriggers(private val risk: LimitMeasurement, private val savepoints: Savepoints, private val referenceData: ReferenceDataQuery) {
     private val log = LoggerFactory.getLogger(RiskTriggers::class.java)
 
     @EventListener
