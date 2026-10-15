@@ -58,7 +58,7 @@ jobs:
       - name: Create the database
         run: PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_docs;"
       - name: Boot jar
-        run: ./gradlew :apps:api:bootJar --no-daemon
+        run: ./gradlew :apps:api:showcaseJar --no-daemon
       - name: Install Playwright browser
         working-directory: apps/web
         run: npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium

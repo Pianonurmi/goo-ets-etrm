@@ -7,6 +7,8 @@ on:
     # A release: vX.Y.Z publishes the image under its version and creates the GitHub release (docs/operations/releases.md).
     tags: ["v*"]
   pull_request:
+  # The Dependabot lock refresh (dependabot-refresh.yml) starts CI on the commit it pushed.
+  workflow_dispatch:
   # The Release workflow (release.yml) runs this one for the commit it has tagged.
   workflow_call:
     inputs:
@@ -127,6 +129,20 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [[ -n "$version" ]]; then ops/release/check-version.sh "$version"; fi
+      # The wrapper refuses a Gradle distribution whose checksum differs from distributionSha256Sum; this checks the
+      # pin against the checksum Gradle publishes (docs/operations/supply-chain.md#pinning).
+      - name: Gradle distribution checksum
+        run: |
+          url=$(sed -n 's/^distributionUrl=//p' gradle/wrapper/gradle-wrapper.properties | sed 's/\\:/:/g')
+          published=$(curl -fsSL "$url.sha256")
+          pinned=$(sed -n 's/^distributionSha256Sum=//p' gradle/wrapper/gradle-wrapper.properties)
+          if [[ -z "$pinned" ]]; then
+            echo "::error::distributionSha256Sum is not set; Gradle publishes $published for $url"
+            exit 1
+          elif [[ "$pinned" != "$published" ]]; then
+            echo "::error::distributionSha256Sum $pinned differs from the published $published for $url"
+            exit 1
+          fi
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
@@ -163,8 +179,9 @@ jobs:
             **/build/test-results/**
             apps/api/build/spring-modulith-docs/**
           retention-days: 7
-      - name: Boot jar
-        run: ./gradlew :apps:api:bootJar --no-daemon
+      # api.jar for production; api-showcase.jar adds the demo seeder for the public demo and the end-to-end tests.
+      - name: Boot jars
+        run: ./gradlew :apps:api:bootJar :apps:api:showcaseJar --no-daemon
       # The system libraries come with the self-hosted runner (ops/runner/provision.sh); hosted runners install them.
       - name: Install Playwright browser
         working-directory: apps/web
@@ -184,7 +201,7 @@ jobs:
           JAVA: ${{ env.JAVA_HOME_25_X64 }}/bin/java
         run: |
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_compat;"
-          ops/release/compat-check.sh apps/api/build/libs/api.jar "jdbc:postgresql://localhost:$DB_PORT/etrm_compat"
+          ops/release/compat-check.sh apps/api/build/libs/api-showcase.jar "jdbc:postgresql://localhost:$DB_PORT/etrm_compat"
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -197,10 +214,13 @@ jobs:
       - name: Build container image
         run: |
           version=$(sed -n 's/^version=//p' gradle.properties)
-          docker build -t "goo-ets-etrm:${{ github.sha }}" -f ops/Dockerfile \
-            --label org.opencontainers.image.version="$version" \
-            --label org.opencontainers.image.revision="${{ steps.release.outputs.sha }}" \
-            --label org.opencontainers.image.created="$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
+          labels=(--label org.opencontainers.image.version="$version"
+            --label org.opencontainers.image.revision="${{ steps.release.outputs.sha }}"
+            --label org.opencontainers.image.created="$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+          docker build -t "goo-ets-etrm:${{ github.sha }}" -f ops/Dockerfile "${labels[@]}" .
+          # The showcase image: the same image with the demo seeder's jar (ops/demo); the scans below cover its layers.
+          docker build -t "goo-ets-etrm-showcase:${{ github.sha }}" -f ops/Dockerfile \
+            --build-arg JAR=apps/api/build/libs/api-showcase.jar "${labels[@]}" .
       - name: Image vulnerabilities (report critical and high)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -232,6 +252,8 @@ jobs:
           for tag in $(ops/release/image-tags.sh "$ref" "${{ steps.release.outputs.sha }}"); do
             docker tag "goo-ets-etrm:${{ github.sha }}" "$image:$tag"
             docker push "$image:$tag"
+            docker tag "goo-ets-etrm-showcase:${{ github.sha }}" "$image-showcase:$tag"
+            docker push "$image-showcase:$tag"
           done
       - name: Upload the jar (releases only)
         if: steps.release.outputs.version != ''

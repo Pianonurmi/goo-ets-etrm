@@ -10,6 +10,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ### Security
 - PostgreSQL JDBC driver 42.7.14 (GHSA-rhp9-mr79-r74h, GHSA-f64h-wr5q-3qf3). The application uses neither
   `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
+- **Gradle dependency locking and verification metadata** (review finding S8): every configuration is locked and
+  every downloaded artifact is checked against `gradle/verification-metadata.xml`. A workflow refreshes both, and the
+  npm lock file, on Dependabot pull requests ([supply chain](docs/operations/supply-chain.md#pinning)).
 
 ### Added
 - **Beneficiary register** (review finding S7). A cancellation's beneficiary is recorded once in the register, and the
@@ -26,6 +29,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
 
 ### Changed
+- **The demo seeder is no longer in the production jar and image.** `bootJar` builds the application alone;
+  `showcaseJar` (`api-showcase.jar`) adds the seeder, and CI publishes it as `ghcr.io/pianonurmi/goo-ets-etrm-showcase`.
+  The public demo (`ops/demo`) now pulls that image: set `ETRM_IMAGE` to it if your `.env` names the old one.
 - **Records that cannot forget no longer keep a beneficiary's name or identifier:** the lot journal, the audit trail,
   the lots' version history and the instructions' event history keep only the `beneficiaryRef`. Rows written before
   this version keep their copy.

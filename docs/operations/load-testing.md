@@ -36,7 +36,7 @@ The run fails (k6 exit code 99) when one of these is missed.
 
 ```bash
 # The application with the demo data (dev personas), quieter logs than the dev default:
-SPRING_PROFILES_ACTIVE=dev,demo java -jar apps/api/build/libs/api.jar \
+SPRING_PROFILES_ACTIVE=dev,demo java -jar apps/api/build/libs/api-showcase.jar \
   --logging.level.com.pianonurmi.etrm=INFO --logging.level.org.jooq=INFO
 k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=baseline ops/load/etrm.js
 # or without installing k6:
