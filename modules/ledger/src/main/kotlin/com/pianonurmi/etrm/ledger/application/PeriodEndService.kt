@@ -26,6 +26,8 @@ import com.pianonurmi.etrm.ledger.api.PolicyChangeStatus
 import com.pianonurmi.etrm.ledger.api.PolicyChangeView
 import com.pianonurmi.etrm.ledger.api.PolicyKind
 import com.pianonurmi.etrm.ledger.api.PostingFacts
+import com.pianonurmi.etrm.ledger.api.PostingRuleView
+import com.pianonurmi.etrm.ledger.api.PostingSide
 import com.pianonurmi.etrm.ledger.api.RequestPolicyChange
 import com.pianonurmi.etrm.ledger.domain.CostLayerRepository
 import com.pianonurmi.etrm.ledger.domain.CostingMethod
@@ -34,6 +36,7 @@ import com.pianonurmi.etrm.ledger.domain.JournalRepository
 import com.pianonurmi.etrm.ledger.domain.PeriodEndMath
 import com.pianonurmi.etrm.ledger.domain.PeriodEndRepository
 import com.pianonurmi.etrm.ledger.domain.PeriodRepository
+import com.pianonurmi.etrm.ledger.domain.RuleAccounts
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.IndexFixings
@@ -106,7 +109,7 @@ class PeriodEndService(
     private val fixings: IndexFixings,
 ) : PeriodEndCommand, PeriodEndQuery {
     /** What one run is working with. */
-    private class Context(val entity: LegalEntityView, val period: YearMonth, val runId: UUID) {
+    private class Context(val entity: LegalEntityView, val period: YearMonth, val runId: UUID, val rules: List<PostingRuleView>) {
         val base: String = entity.baseCurrency.currencyCode
         val end: LocalDate = period.atEndOfMonth()
         val nextDay: LocalDate = period.plusMonths(1).atDay(1)
@@ -130,7 +133,7 @@ class PeriodEndService(
             ?: throw ValidationException("No official valuation of $lastBusinessDay for ${entity.code}; sign off the valuation run first")
         ledger.lockEntity(legalEntityId)
         ledger.ensureChartOfAccounts(legalEntityId)
-        val ctx = Context(entity, period, Ids.newId())
+        val ctx = Context(entity, period, Ids.newId(), ledger.rules(legalEntityId))
         mtm(ctx, valuation.id)
         gooNrv(ctx)
         allowanceNrv(ctx)
@@ -180,8 +183,21 @@ class PeriodEndService(
             val liability = values.filter { it.signum() < 0 }.fold(BigDecimal.ZERO, BigDecimal::add).negate()
             val policy = PeriodEndMath.treatment(policies, ctx.entity.id, bookType)
             val dims = mapOf("bookType" to bookType.name)
-            val bookedAsset = journal.balance(ctx.entity.id, "1800", ctx.end, MTM_EVENT, dimensions = dims).baseNet
-            val bookedLiability = journal.balance(ctx.entity.id, "2800", ctx.end, MTM_EVENT, dimensions = dims).baseNet.negate()
+            val bookedAsset = journal.balance(
+                ctx.entity.id,
+                account(ctx, MTM_EVENT, PostingSide.DEBIT, "assetIncrease"),
+                ctx.end,
+                MTM_EVENT,
+                dimensions = dims,
+            ).baseNet
+            val bookedLiability =
+                journal.balance(
+                    ctx.entity.id,
+                    account(ctx, MTM_EVENT, PostingSide.CREDIT, "liabilityIncrease"),
+                    ctx.end,
+                    MTM_EVENT,
+                    dimensions = dims,
+                ).baseNet.negate()
             if (values.isEmpty() && bookedAsset.signum() == 0 && bookedLiability.signum() == 0) return@forEach
             if (policy != null && !policy.signedOff && values.isNotEmpty()) ctx.warnings += "MtM policy for $bookType is not signed off by accounting"
             if (!PeriodEndMath.posts(policy)) {
@@ -226,16 +242,19 @@ class PeriodEndService(
         val ineffective = value - reserve
         val dims = mapOf("hedge" to position.hedge.number)
 
-        fun booked(account: String) = journal.balance(ctx.entity.id, account, ctx.end, HEDGE_EVENT, dimensions = dims).baseNet
+        fun booked(side: PostingSide, amount: String) =
+            journal.balance(ctx.entity.id, account(ctx, HEDGE_EVENT, side, amount), ctx.end, HEDGE_EVENT, dimensions = dims).baseNet
+        val bookedReserve = booked(PostingSide.CREDIT, "reserveIncrease").negate()
+        val bookedGain = booked(PostingSide.CREDIT, "gainIncrease").negate()
+        val bookedLoss = booked(PostingSide.DEBIT, "lossIncrease")
         val moves = listOf(
-            "asset" to PeriodEndMath.movement(value.max(BigDecimal.ZERO), booked("1800")),
-            "liability" to PeriodEndMath.movement(value.negate().max(BigDecimal.ZERO), booked("2800").negate()),
-            "reserve" to PeriodEndMath.movement(reserve, booked("2950").negate()),
-            "gain" to PeriodEndMath.movement(ineffective.max(BigDecimal.ZERO), booked("3500").negate()),
-            "loss" to PeriodEndMath.movement(ineffective.negate().max(BigDecimal.ZERO), booked("4500")),
+            "asset" to PeriodEndMath.movement(value.max(BigDecimal.ZERO), booked(PostingSide.DEBIT, "assetIncrease")),
+            "liability" to PeriodEndMath.movement(value.negate().max(BigDecimal.ZERO), booked(PostingSide.CREDIT, "liabilityIncrease").negate()),
+            "reserve" to PeriodEndMath.movement(reserve, bookedReserve),
+            "gain" to PeriodEndMath.movement(ineffective.max(BigDecimal.ZERO), bookedGain),
+            "loss" to PeriodEndMath.movement(ineffective.negate().max(BigDecimal.ZERO), bookedLoss),
         )
-        val bookedReserve = booked("2950").negate()
-        val bookedPl = booked("3500").negate() - booked("4500")
+        val bookedPl = bookedGain - bookedLoss
         val amounts = moves.flatMap { (name, m) -> listOf("${name}Increase" to m.first, "${name}Decrease" to m.second) }.toMap()
         val reversal = moves.flatMap { (name, m) -> listOf("${name}Increase" to m.second, "${name}Decrease" to m.first) }.toMap()
         val number = position.hedge.number
@@ -261,7 +280,7 @@ class PeriodEndService(
         val policy = effectiveNrvPolicy(ctx.entity.id)
         val live = lots.lots(LotFilter(holderEntityId = ctx.entity.id, statuses = LotStatus.LIVE, limit = Int.MAX_VALUE))
             .filter { (it.costBasisPerMwh?.signum() ?: 0) > 0 }
-        if (live.isEmpty() && booked(ctx, "1490").signum() == 0) return
+        if (live.isEmpty() && booked(ctx, nrvAccount(ctx, "GOO")).signum() == 0) return
         if (!policy.signedOff) ctx.warnings += "Net realisable value policy is not signed off by accounting"
         val costToSell = convert(ctx, policy.gooCostToSellPerMwh, policy.currency) ?: BigDecimal.ZERO
         val bound = buckets.bind(criteria.contextFor(ctx.end))
@@ -283,7 +302,7 @@ class PeriodEndService(
             }
         }
         if (unpriced > 0) ctx.warnings += "$unpriced certificate lots have no price or rate and are not tested for net realisable value"
-        nrvPosting(ctx, "GOO", "1490", required)
+        nrvPosting(ctx, "GOO", required)
     }
 
     /** The contract price of the sale a reserved lot is planned for, in base currency. */
@@ -313,15 +332,22 @@ class PeriodEndService(
                 total + PeriodEndMath.writeDown(carrying, layers.sumOf { it.remainingQuantity }, spot - costToSell)
             }
         }
-        nrvPosting(ctx, "ALLOWANCE", "1491", required)
+        nrvPosting(ctx, "ALLOWANCE", required)
     }
 
-    private fun nrvPosting(ctx: Context, asset: String, account: String, required: BigDecimal) {
-        val booked = booked(ctx, account)
+    private fun nrvPosting(ctx: Context, asset: String, required: BigDecimal) {
+        val booked = booked(ctx, nrvAccount(ctx, asset))
         val (up, down) = PeriodEndMath.movement(required, booked)
         post(ctx, NRV_EVENT, ctx.end, "Write-down to net realisable value ($asset)", mapOf("increase" to up, "decrease" to down), mapOf("asset" to asset))
         ctx.components += component(PeriodEndComponentKind.NRV, asset, required, booked, up - down)
     }
+
+    /** The valuation allowance the NRV rule for [asset] writes down. */
+    private fun nrvAccount(ctx: Context, asset: String) = account(ctx, NRV_EVENT, PostingSide.CREDIT, "increase", mapOf("asset" to asset))
+
+    /** The account the period end's own rule for [eventType] posts [amount] to on [side] (ADR 0008). */
+    private fun account(ctx: Context, eventType: String, side: PostingSide, amount: String, attributes: Map<String, String> = emptyMap()) =
+        RuleAccounts.account(ctx.rules, ctx.entity.id, eventType, ctx.end, side, amount, attributes)
 
     /** Credit balance of a valuation allowance from period-end postings. */
     private fun booked(ctx: Context, account: String): BigDecimal = journal.balance(ctx.entity.id, account, ctx.end, NRV_EVENT).baseNet.negate()
@@ -356,7 +382,7 @@ class PeriodEndService(
     private fun emissionProvision(ctx: Context) {
         val years = listOf(ctx.period.year - 1, ctx.period.year).map { emissions(ctx, it) }
         val outstanding = years.sumOf { it.outstanding }
-        val booked = journal.balance(ctx.entity.id, "2300", ctx.end).baseNet.negate()
+        val booked = journal.balance(ctx.entity.id, account(ctx, PROVISION_EVENT, PostingSide.CREDIT, "increase"), ctx.end).baseNet.negate()
         if (outstanding == 0L && booked.signum() == 0) return
         val products = catalogue.allowanceProducts(activeOnly = false).filter { it.jurisdiction == EU_ETS }.map { it.code }.toSet()
         val layers = costLayers.openAll(ctx.entity.id, ALLOWANCE_KEY).filter { it.assetKey.substringAfterLast(':') in products }
@@ -395,8 +421,10 @@ class PeriodEndService(
         listOf(ctx.period.year - 1, ctx.period.year).forEach { year ->
             val dims = mapOf("complianceYear" to year.toString())
             // Net of any debit to the deferred grant (a correction or reversal), not its credits alone.
-            val deferred = journal.balance(ctx.entity.id, "2400", ctx.end, "HoldingChanged", dimensions = dims).baseNet.negate()
-            val booked = journal.balance(ctx.entity.id, "4210", ctx.end, GRANT_EVENT, dimensions = dims).baseNet.negate()
+            val deferredAccount = account(ctx, GRANT_EVENT, PostingSide.DEBIT, "increase")
+            val deferred = journal.balance(ctx.entity.id, deferredAccount, ctx.end, "HoldingChanged", dimensions = dims).baseNet.negate()
+            val booked = journal.balance(ctx.entity.id, account(ctx, GRANT_EVENT, PostingSide.CREDIT, "increase"), ctx.end, GRANT_EVENT, dimensions = dims)
+                .baseNet.negate()
             if (deferred.signum() == 0 && booked.signum() == 0) return@forEach
             val e = emissions(ctx, year)
             val share = PeriodEndMath.grantReleaseShare(e.toDate, e.annual, year, ctx.period)
@@ -426,7 +454,7 @@ class PeriodEndService(
     // ----------------------------------------------------------------------------------------------------------
 
     private fun fxRevaluation(ctx: Context) {
-        listOf("1510", "2210").forEach { account ->
+        RuleAccounts.conditionValues(ctx.rules, ctx.entity.id, FX_EVENT, ctx.end, "account").forEach { account ->
             journal.currencies(ctx.entity.id, account, ctx.end).filter { it != ctx.base }.forEach { currency ->
                 val foreign = journal.balance(ctx.entity.id, account, ctx.end, currency = currency)
                 val dims = mapOf("revaluedCurrency" to currency)

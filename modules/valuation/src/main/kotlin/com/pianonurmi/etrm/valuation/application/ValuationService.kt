@@ -12,6 +12,8 @@ import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.platform.paging.Cursor
+import com.pianonurmi.etrm.platform.paging.page
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.tx.Savepoints
@@ -44,6 +46,7 @@ import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.RunStatus
 import com.pianonurmi.etrm.valuation.api.ValuationCommand
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
+import com.pianonurmi.etrm.valuation.api.ValuationResultPage
 import com.pianonurmi.etrm.valuation.api.ValuationResultView
 import com.pianonurmi.etrm.valuation.api.ValuationRunRejected
 import com.pianonurmi.etrm.valuation.api.ValuationRunSignedOff
@@ -54,6 +57,7 @@ import com.pianonurmi.etrm.valuation.domain.Mtm
 import com.pianonurmi.etrm.valuation.domain.OptionRight
 import com.pianonurmi.etrm.valuation.domain.PnlExplainer
 import com.pianonurmi.etrm.valuation.domain.PortfolioExplainer
+import com.pianonurmi.etrm.valuation.domain.ResultKey
 import com.pianonurmi.etrm.valuation.domain.ValuationRepository
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
@@ -530,6 +534,19 @@ class ValuationService(
     }
 
     @Transactional(readOnly = true)
+    override fun resultPage(runId: UUID, bookId: UUID?, limit: Int, cursor: String?): ValuationResultPage {
+        if (limit !in 1..MAX_RESULT_PAGE) throw ValidationException("limit must be 1..$MAX_RESULT_PAGE")
+        val run = repository.run(runId) ?: throw NotFoundException("ValuationRun", runId)
+        readable(run.legalEntityId)
+        val after = cursor?.let {
+            Cursor.decode(it, RESULT_KEY_PARTS) { p -> ResultKey(p[0], p[1].toInt(), LocalDate.parse(p[2]), UUID.fromString(p[3])) }
+        }
+        val (items, next) = repository.resultPage(runId, bookId, limit, after)
+            .page(limit) { Cursor.encode(it.tradeNumber, it.legNo, it.deliveryDate, it.scheduleId) }
+        return ValuationResultPage(items, next)
+    }
+
+    @Transactional(readOnly = true)
     override fun official(legalEntityId: UUID, date: LocalDate, orEarlier: Boolean): ValuationRunView? {
         readable(legalEntityId)
         return repository.official(legalEntityId, date, orEarlier)
@@ -650,3 +667,6 @@ class ValuationService(
         const val YEAR_SCALE = 8
     }
 }
+
+private const val MAX_RESULT_PAGE = 1000
+private const val RESULT_KEY_PARTS = 4

@@ -48,4 +48,16 @@ class TradeSearchIT {
             .body("items.findAll { it.id == '$otherId' }.size()", equalTo(0))
         s.asUser("trader").get("/api/v1/trades/search?cursor=garbage").then().statusCode(422)
     }
+
+    @Test
+    fun `invoices and payments are listed a page at a time, and a bad cursor is refused`() {
+        val s = ApiScenario(port).referenceData()
+        s.asUser("accountant", "ACCOUNTANT").get("/api/v1/settlement/invoices/search?legalEntityId=${s.entityId}&limit=5").then().statusCode(200)
+            .body("items.size()", equalTo(0)).body("nextCursor", nullValue())
+        s.asUser("accountant", "ACCOUNTANT").get("/api/v1/settlement/payments/search?legalEntityId=${s.entityId}&limit=5").then().statusCode(200)
+            .body("items.size()", equalTo(0))
+        s.asUser("accountant", "ACCOUNTANT").get("/api/v1/settlement/invoices/search?legalEntityId=${s.entityId}&cursor=garbage").then().statusCode(422)
+        s.asUser("accountant", "ACCOUNTANT").get("/api/v1/settlement/payments/search?legalEntityId=${s.entityId}&limit=0").then().statusCode(422)
+        s.asUser("trader", "TRADER").get("/api/v1/settlement/invoices/search?legalEntityId=${s.entityId}").then().statusCode(403)
+    }
 }

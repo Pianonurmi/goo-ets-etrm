@@ -6,7 +6,9 @@ increment status.
 
 ## Build and test
 
-The build needs PostgreSQL even before tests: jOOQ sources are generated from a Flyway-migrated database.
+The build needs PostgreSQL even before tests: jOOQ sources are generated from a Flyway-migrated database. `generateJooq`
+migrates the codegen database itself and takes the migration folders as inputs, so it reruns only when a migration
+changes. The configuration cache is on; build logic must not capture script objects in task actions.
 
 ```bash
 docker compose -f ops/docker-compose.yml up -d postgres   # creates etrm, etrm_codegen, etrm_test, etrm_e2e (user etrm/etrm)

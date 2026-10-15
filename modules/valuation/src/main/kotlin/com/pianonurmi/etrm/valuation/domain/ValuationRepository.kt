@@ -21,6 +21,9 @@ interface ValuationRepository {
 
     fun results(runId: UUID, bookId: UUID?): List<ValuationResultView>
 
+    /** Up to [limit] + 1 results after [after], in the order of [results]. */
+    fun resultPage(runId: UUID, bookId: UUID?, limit: Int, after: ResultKey?): List<ValuationResultView>
+
     fun official(legalEntityId: UUID, date: LocalDate, orEarlier: Boolean, before: Boolean = false): ValuationRunView?
 
     fun setStatus(id: UUID, status: RunStatus, signedOffBy: String? = null, at: Instant? = null, note: String? = null)
@@ -39,3 +42,6 @@ interface ValuationRepository {
     /** Explained portfolio moves of official runs dated after [from] up to [to], oldest first. */
     fun portfolioExplains(legalEntityId: UUID, from: LocalDate, to: LocalDate): List<PortfolioExplainStep>
 }
+
+/** A result's place in a run's list: trade number, leg, delivery date and schedule. */
+data class ResultKey(val tradeNumber: String, val legNo: Int, val deliveryDate: java.time.LocalDate, val scheduleId: UUID)

@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.valuation.api.PortfolioExplainView
 import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.ValuationCommand
 import com.pianonurmi.etrm.valuation.api.ValuationQuery
+import com.pianonurmi.etrm.valuation.api.ValuationResultPage
 import com.pianonurmi.etrm.valuation.api.ValuationResultView
 import com.pianonurmi.etrm.valuation.api.ValuationRunView
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -55,6 +56,15 @@ class ValuationController(private val query: ValuationQuery, private val command
         @PathVariable id: UUID,
         @RequestParam(required = false) bookId: UUID?,
     ): List<ValuationResultView> = query.results(id, bookId)
+
+    /** A run's results a page at a time; `cursor` is the previous page's `nextCursor`. */
+    @GetMapping("/runs/{id}/results/search")
+    fun searchResults(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) bookId: UUID?,
+        @RequestParam(defaultValue = "200") limit: Int,
+        @RequestParam(required = false) cursor: String?,
+    ): ValuationResultPage = query.resultPage(id, bookId, limit, cursor)
 
     @GetMapping("/official")
     fun official(

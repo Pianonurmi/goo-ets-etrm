@@ -163,7 +163,8 @@
     "confirm": "Confirm",
     "reason": "Reason",
     "save": "Save",
-    "invalidJson": "Not valid JSON"
+    "invalidJson": "Not valid JSON",
+    "shown": "{{count}} shown"
   },
   "inbox": {
     "title": "Approval inbox",
