@@ -55,6 +55,7 @@ import java.util.UUID
 
 @Service
 @Transactional
+@Suppress("LongParameterList") // the ledger's own repositories, rates and the period checks every posting passes
 class LedgerService(
     private val accounts: GlAccountRepository,
     private val rules: PostingRuleRepository,
@@ -202,6 +203,7 @@ class LedgerService(
         return reversal
     }
 
+    @Suppress("LongParameterList") // the journal entry's header fields, written once
     private fun write(
         legalEntityId: UUID,
         postingDate: LocalDate,
@@ -252,6 +254,7 @@ class LedgerService(
         return entry
     }
 
+    @Suppress("LongParameterList") // the journal line's fields, written once
     private fun line(
         no: Int,
         account: GlAccountView,

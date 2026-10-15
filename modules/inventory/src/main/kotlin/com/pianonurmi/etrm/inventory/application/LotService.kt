@@ -63,6 +63,7 @@ import java.util.UUID
 
 @Service
 @Transactional
+@Suppress("TooManyFunctions") // one function per lot operation of LotCommand and LotQuery, each a small journal write
 class LotService(
     private val lots: LotRepository,
     private val journal: LotEventJournal,

@@ -74,7 +74,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Things that need a second person: curve snapshots, valuation runs, verified emissions, risk limits and credit support, accounting policies and posting rule changes. Each goes through its own `TaskHandler`; the service also refuses requester = approver.
 - A module that must influence another without depending on it offers an SPI in the owner's `api`, for example `trade.api.TradeApprovalCheck`, implemented by risk. The owner resolves it lazily (`ObjectProvider`) so no cycle forms.
 - Market data: rates go through `FxRates` and prices through `CurveQuery` / `GooMarks` / `IndexFixings`. Nothing else stores prices.
-- Period end (`PeriodEndService`) and similar measurements post the difference between the required balance and what is booked, so a re-run is idempotent. Use the adjustment path (`LedgerService.postAdjustment`).
+- Period end (`PeriodEndRun`, one `PeriodEndStep` per component) and similar measurements post the difference between the required balance and what is booked, so a re-run is idempotent. Use the adjustment path (`LedgerService.postAdjustment`).
 - Reports are entries in `ReportCatalogue`. Every run is logged with its content hash. Add a report there, with its roles.
 - The OpenAPI document is a contract (ADR 0027): after changing a controller or a view, run `./gradlew :apps:api:updateOpenApiSnapshot` and commit `apps/api/openapi/etrm-api.json`. Operation ids are `<controller>_<method>`, so keep handler names unique per controller and stable.
 - Allocation commands check roles and entity scope in the service: propose and what-if for TRADER, MIDDLE_OFFICE or BACK_OFFICE; approve and reject for MIDDLE_OFFICE or BACK_OFFICE (never the proposer); cancel for all three.
@@ -123,7 +123,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 
 ## Lint
 
-Kotlin warnings are errors. detekt config is `config/detekt/detekt.yml` (max line length 160). ktlint follows `.editorconfig`. Run `./gradlew ktlintFormat detekt` before pushing.
+Kotlin warnings are errors. detekt config is `config/detekt/detekt.yml` (max line length 160; services too: at most 9 constructor dependencies, 24 functions, 500 lines). Split a growing service by responsibility behind the module API; an exception is a `@Suppress` at the class with the reason. ktlint follows `.editorconfig`. Run `./gradlew ktlintFormat detekt` before pushing.
 
 ## Commits
 

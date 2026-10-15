@@ -16,6 +16,7 @@ import java.util.UUID
  * Persistence port for master data. Master records are plain immutable views; business rules live in
  * [ReferenceDataPolicies] and the application service, which keeps the CRUD-heavy module small.
  */
+@Suppress("TooManyFunctions") // one read and one write per master data table
 interface ReferenceDataRepository {
     fun findLegalEntity(id: UUID): LegalEntityView?
 

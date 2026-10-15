@@ -60,6 +60,7 @@ import java.util.UUID
  */
 @Service
 @Transactional
+@Suppress("LongParameterList") // invoices draw on items, numbering, VAT, parties, documents and rates
 class InvoiceService(
     private val repository: InvoiceRepository,
     private val items: SettlementItemRepository,
@@ -360,6 +361,7 @@ class InvoiceService(
 
     private data class Group(val counterpartyId: UUID, val currency: String, val direction: SettlementDirection, val treatment: VatTreatment)
 
+    @Suppress("LongParameterList") // the invoice header fields, written once
     private fun draft(
         kind: InvoiceKind,
         legalEntityId: UUID,

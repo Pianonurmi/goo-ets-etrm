@@ -2,7 +2,7 @@ package com.pianonurmi.etrm.ledger.adapter.workflow
 
 import com.pianonurmi.etrm.ledger.api.PolicyChangeRequested
 import com.pianonurmi.etrm.ledger.api.PolicyKind
-import com.pianonurmi.etrm.ledger.application.PeriodEndService
+import com.pianonurmi.etrm.ledger.application.AccountingPolicyService
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
@@ -21,7 +21,7 @@ import java.time.Duration
 @Component
 class AccountingPolicyTasks(
     private val workflow: WorkflowCommand,
-    @Lazy private val periodEnd: PeriodEndService,
+    @Lazy private val periodEnd: AccountingPolicyService,
 ) : TaskHandler {
     override val definition = TaskTypeDefinition(
         taskType = TYPE,

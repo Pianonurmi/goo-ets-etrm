@@ -45,6 +45,7 @@ import java.util.UUID
 
 @Service
 @Transactional(readOnly = true)
+@Suppress("TooManyFunctions") // create, change and read of each master data kind; each function is small
 class ReferenceDataService(
     private val repository: ReferenceDataRepository,
     private val taxonomy: TaxonomyQuery,

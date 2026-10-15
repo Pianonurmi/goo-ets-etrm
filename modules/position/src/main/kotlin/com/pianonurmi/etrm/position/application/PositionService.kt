@@ -38,6 +38,7 @@ private const val EU_ETS = "EU_ETS"
 
 @Service
 @Transactional(readOnly = true)
+@Suppress("LongParameterList") // positions read the books of every module they net
 class PositionService(
     private val lots: LotQuery,
     private val holdings: AllowanceHoldingQuery,

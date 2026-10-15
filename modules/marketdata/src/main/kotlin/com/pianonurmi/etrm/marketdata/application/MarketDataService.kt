@@ -66,6 +66,7 @@ import java.util.UUID
 @Service
 @Transactional
 @EnableConfigurationProperties(MarketDataSettings::class)
+@Suppress("LongParameterList") // one repository per kind of market data the service imports and reads
 class MarketDataService(
     private val instruments: InstrumentRepository,
     private val quotes: QuoteRepository,

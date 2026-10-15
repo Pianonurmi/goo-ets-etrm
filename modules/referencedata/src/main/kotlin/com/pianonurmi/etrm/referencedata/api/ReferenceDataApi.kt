@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
+@Suppress("TooManyFunctions") // the read side of all master data other modules look up
 interface ReferenceDataQuery {
     fun legalEntity(id: UUID): LegalEntityView?
 

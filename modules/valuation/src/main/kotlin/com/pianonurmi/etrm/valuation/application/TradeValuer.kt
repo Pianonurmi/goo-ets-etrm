@@ -62,6 +62,7 @@ import com.pianonurmi.etrm.valuation.domain.ValuationRepository
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -72,200 +73,31 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
- * Values the remaining quantity of every open trade per delivery schedule against official curves, discounted to the
- * payment date (ADR 0044): MtM = q × (market − contract) × DF, q signed by side, the market price converted into the
- * contract currency and the result into the entity's base currency at the valuation date's rates. DF comes from the
- * contract currency's official discount curve (1 without one); futures are margined daily and not discounted. Index
- * legs not yet fixed are worth their spread; formula legs are left out. Options are valued by Black-76 until they
- * expire (ADR 0047).
+ * Values the remaining quantity of a trade per delivery schedule against official curves, discounted to the payment
+ * date (ADR 0044): MtM = q × (market − contract) × DF, q signed by side, the market price converted into the contract
+ * currency and the result into the entity's base currency at the valuation date's rates. DF comes from the contract
+ * currency's official discount curve (1 without one); futures are margined daily and not discounted. Index legs not
+ * yet fixed are worth their spread; formula legs are left out. Options are valued by Black-76 until they expire (ADR
+ * 0047).
  */
-@Service
-@Transactional
-class ValuationService(
-    private val repository: ValuationRepository,
-    private val trades: TradeQuery,
+@Component
+class TradeValuer(
     private val curves: CurveQuery,
     private val fx: FxRates,
     private val fixings: IndexFixings,
     private val discounting: DiscountFactors,
     private val criteria: CriteriaService,
-    private val referenceData: ReferenceDataQuery,
-    private val actorProvider: ActorProvider,
-    private val events: ApplicationEventPublisher,
-    private val clock: Clock,
-    private val portfolioValues: ObjectProvider<PortfolioValueQuery>,
-    private val savepoints: Savepoints,
     /** Underlying futures of options. */
     private val futures: FuturesContractQuery,
-) : ValuationQuery, ValuationCommand {
-    private val log = LoggerFactory.getLogger(ValuationService::class.java)
-
-    override fun run(legalEntityId: UUID, date: LocalDate, kind: RunKind, note: String?): ValuationRunView {
-        val actor = actorProvider.current()
-        actor.requireRole(Role.RISK, Role.MIDDLE_OFFICE, Role.SYSTEM)
-        actor.requireEntity(legalEntityId)
-        val entity = referenceData.requireLegalEntity(legalEntityId)
-        val open = trades.trades(TradeFilter(legalEntityId = legalEntityId, statuses = VALUED, limit = MAX_TRADES))
-        val runId = Ids.newId()
-        val books = mutableMapOf<UUID, BookType>()
-        val discount = discounter(date)
-        val valued = open.flatMap { trade ->
-            value(runId, trade, date, entity.baseCurrency.currencyCode, discount) { books.getOrPut(it) { referenceData.requireBook(it).bookType } }
-        }
-        val portfolio = portfolioOf(runId, legalEntityId, date, entity.baseCurrency.currencyCode, valued)
-        val results = portfolio?.let { withCheapestToDeliver(valued, it, date) } ?: valued
-        val run = ValuationRunView(
-            id = runId,
-            legalEntityId = legalEntityId,
-            valuationDate = date,
-            kind = kind,
-            status = RunStatus.DRAFT,
-            baseCurrency = entity.baseCurrency.currencyCode,
-            totalMtmBase = results.mapNotNull { it.mtmBase }.fold(BigDecimal.ZERO, BigDecimal::add).setScale(2),
-            exceptions = results.count { it.status != ResultStatus.OK && it.status != ResultStatus.EXCLUDED },
-            inputs = results.filter { it.curveCode != null }.associate { it.curveCode!! to it.snapshotId.toString() } +
-                results.filter { it.discountCurveCode != null }.associate { it.discountCurveCode!! to it.discountSnapshotId.toString() } +
-                results.mapNotNull { it.option }.associate { it.volCurveCode to it.volSnapshotId.toString() },
-            note = note,
-            createdBy = actor.userId,
-            createdAt = clock.instant(),
-            signedOffBy = null,
-            signedOffAt = null,
-            signOffNote = null,
-            supersededAt = null,
-        )
-        repository.insert(run, results)
-        portfolio?.let(repository::insertPortfolio)
-        return run
-    }
-
-    /**
-     * The run's portfolio value (ADR 0039, management view): allocation's value of the held book at the run date's
-     * prices, plus the GoO trades' MtM in EUR. None when allocation is not available or cannot value the book (never
-     * failing the run), or when the base currency has no rate to EUR.
-     */
-    private fun portfolioOf(runId: UUID, legalEntityId: UUID, date: LocalDate, base: String, results: List<ValuationResultView>): PortfolioBridgeView? {
-        val query = portfolioValues.ifAvailable ?: return null
-        val value = try {
-            savepoints.attempt { query.value(legalEntityId, date) }
-        } catch (e: RuntimeException) {
-            log.warn("Portfolio value of {} on {} could not be computed", legalEntityId, date, e)
-            null
-        } ?: return null
-        val toEur = if (base == EUR) BigDecimal.ONE else fx.rate(date, base, EUR)?.rate ?: return null
-        val tradeMtm = (
-            results.filter { it.productFamily == ProductFamily.GUARANTEE_OF_ORIGIN }
-                .mapNotNull { it.mtmBase }.fold(BigDecimal.ZERO, BigDecimal::add) * toEur
-        ).setScale(2, RoundingMode.HALF_UP)
-        return PortfolioBridgeView(
-            runId = runId,
-            legalEntityId = legalEntityId,
-            valuationDate = date,
-            currency = value.currency,
-            heldMwh = value.heldMwh,
-            inventoryValue = value.inventoryValueEur,
-            tradeMtm = tradeMtm,
-            giveAway = value.giveAwayEur,
-            transferFees = value.transferFeesEur,
-            expiryHaircut = value.expiryHaircutEur,
-            portfolioValue = value.netEur + tradeMtm,
-            allocatedMwh = value.allocatedMwh,
-            shortfallMwh = value.shortfallMwh,
-            unpricedMwh = value.unpricedMwh,
-            stamp = value.stamp,
-            computedAt = value.computedAt,
-            buckets = value.byBucket.map { PortfolioBucketRow(it.bucketCode, it.productionYear, it.heldMwh, it.valueEur, it.allocatedMwh) },
-            obligations = value.byObligation.map {
-                PortfolioObligationRow(
-                    obligationId = it.obligationId,
-                    scheduleId = it.sourceRef,
-                    tradeRef = it.tradeRef,
-                    bucketCode = it.bucketCode,
-                    vintageYear = it.vintageYear,
-                    demandMwh = it.demandMwh,
-                    allocatedMwh = it.allocatedMwh,
-                    cheapestToDeliverEur = it.cheapestToDeliverEur,
-                    saleMarkEur = it.saleMarkEur,
-                    giveAwayEur = it.giveAwayEur,
-                    transferFeesEur = it.transferFeesEur,
-                )
-            },
-            priorRunId = null,
-            explain = emptyMap(),
-        )
-    }
-
-    /**
-     * A GoO sale valued against the certificates that deliver it instead of its bucket curve: the cheapest-to-deliver
-     * price (EUR per MWh) in the contract currency, and the MtM on it. Shown only; the official MtM is unchanged.
-     */
-    private fun withCheapestToDeliver(results: List<ValuationResultView>, portfolio: PortfolioBridgeView, date: LocalDate): List<ValuationResultView> {
-        val ctd = portfolio.obligations.filter {
-            it.scheduleId != null && it.cheapestToDeliverEur != null
-        }.associate { it.scheduleId!! to it.cheapestToDeliverEur!! }
-        return results.map { result ->
-            val price = ctd[result.scheduleId]
-            if (price == null || result.contractPrice == null || result.fxToBase == null) return@map result
-            val inContract = if (result.contractCurrency == EUR) BigDecimal.ONE else fx.rate(date, EUR, result.contractCurrency)?.rate ?: return@map result
-            val mtm = result.quantity * (price * inContract - result.contractPrice) * (result.discountFactor ?: BigDecimal.ONE)
-            result.copy(ctdPriceEur = price, ctdMtmBase = (mtm * result.fxToBase).setScale(2, RoundingMode.HALF_UP))
-        }
-    }
-
-    override fun submit(runId: UUID): ValuationRunView {
-        val actor = actorProvider.current()
-        actor.requireRole(Role.RISK, Role.MIDDLE_OFFICE, Role.SYSTEM)
-        val run = repository.run(runId, lock = true) ?: throw NotFoundException("ValuationRun", runId)
-        actor.requireEntity(run.legalEntityId)
-        if (run.status != RunStatus.DRAFT) throw ValidationException("Run ${run.id} is ${run.status}")
-        repository.setStatus(runId, RunStatus.PENDING_SIGN_OFF)
-        val submitted = repository.run(runId)!!
-        events.publishEvent(ValuationRunSubmitted(submitted))
-        return submitted
-    }
-
-    /** From the sign-off task: the run becomes official for its date and its P&L explain against the previous one is kept. */
-    fun signOff(runId: UUID, by: String, note: String?): ValuationRunView {
-        val run = repository.run(runId, lock = true) ?: throw NotFoundException("ValuationRun", runId)
-        if (run.status != RunStatus.PENDING_SIGN_OFF) throw ValidationException("Run ${run.id} is ${run.status}")
-        SecondPerson.require(by, run.createdBy) { "A valuation is signed off by someone other than who ran it" }
-        if (run.exceptions > 0 && note.isNullOrBlank()) throw ValidationException("Signing off a run with ${run.exceptions} exceptions needs a reason")
-        val now = clock.instant()
-        val previous = repository.official(run.legalEntityId, run.valuationDate, orEarlier = false)
-        previous?.let { repository.supersede(it.id, now) }
-        repository.setStatus(runId, RunStatus.OFFICIAL, by, now, note)
-        val prior = repository.official(run.legalEntityId, run.valuationDate, orEarlier = true, before = true)
-        if (prior != null) {
-            val rows = PnlExplainer.explain(repository.results(prior.id, null), repository.results(runId, null), roller(run.valuationDate), ::cancelled)
-            repository.insertExplain(runId, prior.id, rows)
-            val before = repository.portfolio(prior.id)
-            val now = repository.portfolio(runId)
-            if (before != null && now != null) repository.insertPortfolioExplain(runId, prior.id, PortfolioExplainer.explain(before, now))
-        }
-        val official = repository.run(runId)!!
-        events.publishEvent(ValuationRunSignedOff(official, previous?.id))
-        return official
-    }
-
-    fun reject(runId: UUID, reason: String?): ValuationRunView {
-        val run = repository.run(runId, lock = true) ?: throw NotFoundException("ValuationRun", runId)
-        if (run.status != RunStatus.PENDING_SIGN_OFF) throw ValidationException("Run ${run.id} is ${run.status}")
-        repository.setStatus(runId, RunStatus.REJECTED)
-        val rejected = repository.run(runId)!!
-        events.publishEvent(ValuationRunRejected(rejected, reason))
-        return rejected
-    }
-
-    private fun cancelled(tradeId: UUID): Boolean = trades.trade(tradeId)?.status == TradeStatus.CANCELLED
-
+) {
     /** Discount factors of one valuation date, read once per currency and payment date. */
-    private fun discounter(date: LocalDate): (String, LocalDate) -> DiscountFactor {
+    fun discounter(date: LocalDate): (String, LocalDate) -> DiscountFactor {
         val memo = HashMap<Pair<String, LocalDate>, DiscountFactor>()
         return { currency, payDate -> memo.getOrPut(currency to payDate) { discounting.discountFactor(currency, payDate, date) } }
     }
 
     /** The earlier result's discount curve seen from [date], for the later result's payment: the explain's TIME step. */
-    private fun roller(date: LocalDate): (ValuationResultView, ValuationResultView) -> BigDecimal {
+    fun roller(date: LocalDate): (ValuationResultView, ValuationResultView) -> BigDecimal {
         val memo = HashMap<Pair<UUID, LocalDate>, BigDecimal>()
         return { r0, r1 ->
             val snapshot = r0.discountSnapshotId
@@ -278,11 +110,7 @@ class ValuationService(
         }
     }
 
-    // ----------------------------------------------------------------------------------------------------------
-    // Pricing
-    // ----------------------------------------------------------------------------------------------------------
-
-    private fun value(
+    fun value(
         runId: UUID,
         trade: TradeView,
         date: LocalDate,
@@ -352,7 +180,7 @@ class ValuationService(
     )
 
     /** A schedule that cannot be valued, with the reason. */
-    private class Unpriced(val status: ResultStatus, val year: Int?, reason: String) : RuntimeException(reason)
+    class Unpriced(val status: ResultStatus, val year: Int?, reason: String) : RuntimeException(reason)
 
     private fun price(
         draft: ValuationResultView,
@@ -429,7 +257,7 @@ class ValuationService(
      * volatility for the expiry, the years to expiry (ACT/365) and the discount factor to expiry. Its market price is
      * the option's value per tonne, its contract price the premium paid: MtM = q × (value − premium).
      */
-    private fun pricedOption(
+    fun pricedOption(
         draft: ValuationResultView,
         leg: TradeLegView,
         terms: OptionTerms,
@@ -507,95 +335,7 @@ class ValuationService(
     private fun fixedIndex(leg: TradeLegView, deliveryDate: LocalDate, date: LocalDate): BigDecimal? =
         leg.priceIndex?.takeIf { !deliveryDate.isAfter(date) }?.let { fixings.fixing(it, deliveryDate)?.value }
 
-    // ----------------------------------------------------------------------------------------------------------
-    // Queries
-    // ----------------------------------------------------------------------------------------------------------
-
-    private fun readable(legalEntityId: UUID) {
-        val actor = actorProvider.current()
-        actor.requireRole(Role.RISK, Role.MIDDLE_OFFICE, Role.ACCOUNTANT, Role.AUDITOR, Role.TRADER, Role.SYSTEM)
-        actor.requireEntity(legalEntityId)
-    }
-
-    @Transactional(readOnly = true)
-    override fun run(id: UUID): ValuationRunView? = repository.run(id)?.also { readable(it.legalEntityId) }
-
-    @Transactional(readOnly = true)
-    override fun runs(legalEntityId: UUID, from: LocalDate, to: LocalDate): List<ValuationRunView> {
-        readable(legalEntityId)
-        return repository.runs(legalEntityId, from, to)
-    }
-
-    @Transactional(readOnly = true)
-    override fun results(runId: UUID, bookId: UUID?): List<ValuationResultView> {
-        val run = repository.run(runId) ?: throw NotFoundException("ValuationRun", runId)
-        readable(run.legalEntityId)
-        return repository.results(runId, bookId)
-    }
-
-    @Transactional(readOnly = true)
-    override fun resultPage(runId: UUID, bookId: UUID?, limit: Int, cursor: String?): ValuationResultPage {
-        if (limit !in 1..MAX_RESULT_PAGE) throw ValidationException("limit must be 1..$MAX_RESULT_PAGE")
-        val run = repository.run(runId) ?: throw NotFoundException("ValuationRun", runId)
-        readable(run.legalEntityId)
-        val after = cursor?.let {
-            Cursor.decode(it, RESULT_KEY_PARTS) { p -> ResultKey(p[0], p[1].toInt(), LocalDate.parse(p[2]), UUID.fromString(p[3])) }
-        }
-        val (items, next) = repository.resultPage(runId, bookId, limit, after)
-            .page(limit) { Cursor.encode(it.tradeNumber, it.legNo, it.deliveryDate, it.scheduleId) }
-        return ValuationResultPage(items, next)
-    }
-
-    @Transactional(readOnly = true)
-    override fun official(legalEntityId: UUID, date: LocalDate, orEarlier: Boolean): ValuationRunView? {
-        readable(legalEntityId)
-        return repository.official(legalEntityId, date, orEarlier)
-    }
-
-    @Transactional(readOnly = true)
-    override fun portfolio(runId: UUID): PortfolioBridgeView? {
-        val run = repository.run(runId) ?: throw NotFoundException("ValuationRun", runId)
-        readable(run.legalEntityId)
-        return repository.portfolio(runId)
-    }
-
-    override fun portfolioExplain(legalEntityId: UUID, from: LocalDate, to: LocalDate): PortfolioExplainView {
-        readable(legalEntityId)
-        if (to.isBefore(from)) throw ValidationException("The period ends before it starts")
-        val steps = repository.portfolioExplains(legalEntityId, from, to)
-        val totals = PortfolioCause.entries.associateWith { cause -> steps.mapNotNull { it.causes[cause] }.fold(BigDecimal.ZERO, BigDecimal::add) }
-        val realised = portfolioValues.ifAvailable?.let { query ->
-            // Plans approved after the first day up to and including the last, like the runs.
-            runCatching { savepoints.attempt { query.realisedGiveAway(legalEntityId, from.plusDays(1), to.plusDays(1)).totalEur } }.getOrNull()
-        }
-        return PortfolioExplainView(legalEntityId, from, to, EUR, steps, totals, realised)
-    }
-
-    override fun explain(legalEntityId: UUID, from: LocalDate, to: LocalDate): PnlExplainView? {
-        readable(legalEntityId)
-        val r0 = repository.official(legalEntityId, from, orEarlier = true) ?: return null
-        val r1 = repository.official(legalEntityId, to, orEarlier = true) ?: return null
-        val rows = PnlExplainer.explain(repository.results(r0.id, null), repository.results(r1.id, null), roller(r1.valuationDate), ::cancelled)
-        val components = ExplainComponent.entries.associateWith { c -> rows.filter { it.component == c }.fold(BigDecimal.ZERO) { s, r -> s + r.amountBase } }
-            .filterValues { it.signum() != 0 }
-        return PnlExplainView(
-            legalEntityId,
-            r0.id,
-            r1.id,
-            r0.valuationDate,
-            r1.valuationDate,
-            r1.baseCurrency,
-            r0.totalMtmBase,
-            r1.totalMtmBase,
-            components,
-            rows,
-        )
-    }
-
-    @Transactional(readOnly = true)
-    override fun forwardValue(legalEntityId: UUID, date: LocalDate, terms: ForwardTerms): ForwardValue? {
-        readable(legalEntityId)
-        val base = referenceData.requireLegalEntity(legalEntityId).baseCurrency.currencyCode
+    fun forwardValue(base: String, date: LocalDate, terms: ForwardTerms): ForwardValue? {
         val market = when (terms.productFamily) {
             ProductFamily.EMISSION_ALLOWANCE -> terms.allowanceProductCode?.let { curves.forwardPrice(it, terms.deliveryDate, date) }
             ProductFamily.GUARANTEE_OF_ORIGIN -> terms.bucketCode?.let { curves.vintagePrice(it, terms.productionYear ?: terms.deliveryDate.year, date) }
@@ -608,9 +348,7 @@ class ValuationService(
         return ForwardValue(marketContract, df.value, Mtm.money(value), Mtm.money(value * toBase), base)
     }
 
-    @Transactional(readOnly = true)
-    override fun optionValuation(legalEntityId: UUID, date: LocalDate, leg: TradeLegView): OptionValuation? {
-        readable(legalEntityId)
+    fun optionValuation(date: LocalDate, leg: TradeLegView): OptionValuation? {
         val terms = leg.option?.takeIf { !it.expiryDate.isBefore(date) && leg.expiry == null } ?: return null
         val currency = leg.priceCurrency.currencyCode
         val draft = ValuationResultView(
@@ -650,23 +388,8 @@ class ValuationService(
         }
     }
 
-    @Transactional(readOnly = true)
-    override fun tradeMtm(tradeId: UUID, date: LocalDate): List<ValuationResultView> {
-        val trade = trades.trade(tradeId) ?: throw NotFoundException("Trade", tradeId)
-        readable(trade.legalEntityId)
-        val base = referenceData.requireLegalEntity(trade.legalEntityId).baseCurrency.currencyCode
-        val bookType = referenceData.requireBook(trade.bookId).bookType
-        return value(UUID(0, 0), trade, date, base, discounter(date)) { bookType }
-    }
-
     private companion object {
-        const val EUR = "EUR"
-        val VALUED = setOf(TradeStatus.APPROVED, TradeStatus.CONFIRMED, TradeStatus.PARTIALLY_DELIVERED)
-        const val MAX_TRADES = 100_000
         val DAYS_A_YEAR = BigDecimal(365)
         const val YEAR_SCALE = 8
     }
 }
-
-private const val MAX_RESULT_PAGE = 1000
-private const val RESULT_KEY_PARTS = 4
