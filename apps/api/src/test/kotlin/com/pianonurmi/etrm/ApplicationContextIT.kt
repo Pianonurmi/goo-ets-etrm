@@ -12,6 +12,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.web.client.RestClient
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
@@ -26,6 +27,10 @@ class ApplicationContextIT {
 
     @LocalServerPort
     private var port: Int = 0
+
+    /** The application's clock (ADR 0050): dates sent to it are its dates. */
+    @Autowired
+    private lateinit var clock: Clock
 
     @Autowired
     private lateinit var lockProvider: LockProvider
@@ -43,7 +48,7 @@ class ApplicationContextIT {
 
     @Test
     fun `scheduled jobs take cluster-wide locks`() {
-        val config = LockConfiguration(Instant.now(), "context-it-lock", Duration.ofMinutes(1), Duration.ZERO)
+        val config = LockConfiguration(clock.instant(), "context-it-lock", Duration.ofMinutes(1), Duration.ZERO)
         val first = lockProvider.lock(config)
         first.isPresent shouldBe true
         lockProvider.lock(config).isPresent shouldBe false

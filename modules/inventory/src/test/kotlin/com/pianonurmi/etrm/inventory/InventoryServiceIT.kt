@@ -256,7 +256,7 @@ class InventoryServiceIT {
     @Test
     fun `corrections are bitemporal and expiry sweep closes due lots`() {
         val lot = receive("FI-2026-0020", 30_000, 30_049, month = YearMonth.of(2025, 1), effectiveAt = Instant.parse("2025-02-15T10:00:00Z"))
-        val before = Instant.now()
+        val before = TestDatabase.transactionTime()
         Thread.sleep(5)
         val effective = Instant.parse("2026-01-01T00:00:00Z")
         val corrected = lots.correct(
@@ -264,10 +264,16 @@ class InventoryServiceIT {
             LotCorrection(labels = setOf("EKOENERGY", "BRA_MILJOVAL"), reason = "label certificate received", effectiveAt = effective),
         )
         corrected.version shouldBe 2
-        (lots.asOf(lot.id, Instant.now(), before)?.get("labels") as List<*>) shouldBe listOf("EKOENERGY")
-        (lots.asOf(lot.id, Instant.now(), Instant.now())?.get("labels") as List<*>) shouldBe listOf("BRA_MILJOVAL", "EKOENERGY")
-        (lots.asOf(lot.id, Instant.parse("2025-12-01T00:00:00Z"), Instant.now())?.get("labels") as List<*>) shouldBe listOf("EKOENERGY")
-        lots.asOf(lot.id, Instant.parse("2025-01-01T00:00:00Z"), Instant.now()) shouldBe null
+        (lots.asOf(lot.id, TestDatabase.transactionTime(), before)?.get("labels") as List<*>) shouldBe listOf("EKOENERGY")
+        (
+            lots.asOf(
+                lot.id,
+                TestDatabase.transactionTime(),
+                TestDatabase.transactionTime(),
+            )?.get("labels") as List<*>
+        ) shouldBe listOf("BRA_MILJOVAL", "EKOENERGY")
+        (lots.asOf(lot.id, Instant.parse("2025-12-01T00:00:00Z"), TestDatabase.transactionTime())?.get("labels") as List<*>) shouldBe listOf("EKOENERGY")
+        lots.asOf(lot.id, Instant.parse("2025-01-01T00:00:00Z"), TestDatabase.transactionTime()) shouldBe null
 
         lot.expiryDate shouldBe LocalDate.of(2026, 2, 1)
         lots.expireDueLots(LocalDate.of(2026, 1, 31)) shouldBe 0

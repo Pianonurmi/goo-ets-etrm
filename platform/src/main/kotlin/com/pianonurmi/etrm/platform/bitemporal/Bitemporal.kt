@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.platform.bitemporal
 
+import com.pianonurmi.etrm.platform.time.ApplicationClock
 import java.time.Instant
 import java.time.LocalDate
 
@@ -30,7 +31,7 @@ data class TransactionPeriod(val recordedAt: Instant, val supersededAt: Instant?
 /** Query coordinates for as-of reporting: "what did we believe at [knownAt] about the state on [effectiveOn]". */
 data class AsOf(val effectiveOn: LocalDate, val knownAt: Instant) {
     companion object {
-        fun now(effectiveOn: LocalDate): AsOf = AsOf(effectiveOn, Instant.now())
+        fun now(effectiveOn: LocalDate): AsOf = AsOf(effectiveOn, ApplicationClock.instant())
     }
 }
 

@@ -192,7 +192,7 @@ class JooqReconciliationRepository(private val dsl: DSLContext) : Reconciliation
     override fun updateStatementStatus(id: UUID, status: StatementStatus) {
         dsl.update(REGISTRY_STATEMENT)
             .set(REGISTRY_STATEMENT.STATUS, status.name)
-            .set(REGISTRY_STATEMENT.RECONCILED_AT, Instant.now())
+            .set(REGISTRY_STATEMENT.RECONCILED_AT, DSL.currentInstant())
             .where(REGISTRY_STATEMENT.ID.eq(id))
             .execute()
     }

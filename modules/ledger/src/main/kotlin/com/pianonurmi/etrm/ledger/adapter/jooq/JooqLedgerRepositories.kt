@@ -119,7 +119,7 @@ class JooqPostingRuleRepository(private val dsl: DSLContext) : PostingRuleReposi
                 .set(POSTING_RULE.EFFECTIVE_FROM, rule.effectiveFrom)
                 .set(POSTING_RULE.ACTIVE, rule.active)
                 .set(POSTING_RULE.VERSION, existing.version + 1)
-                .set(POSTING_RULE.UPDATED_AT, java.time.Instant.now())
+                .set(POSTING_RULE.UPDATED_AT, DSL.currentInstant())
                 .where(POSTING_RULE.ID.eq(existing.id))
                 .execute()
         }
@@ -494,7 +494,7 @@ class JooqSeedRepository(private val dsl: DSLContext) : SeedRepository {
             .onConflict(LEDGER_SEED.NAME)
             .doUpdate()
             .set(LEDGER_SEED.VERSION, version)
-            .set(LEDGER_SEED.APPLIED_AT, java.time.Instant.now())
+            .set(LEDGER_SEED.APPLIED_AT, DSL.currentInstant())
             .execute()
     }
 }

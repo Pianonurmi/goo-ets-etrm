@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
+import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -52,7 +53,16 @@ class ProductionForecastServiceIT {
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(TestDatabase.dsl), publisher)
         val repository = JooqReferenceDataRepository(TestDatabase.dsl)
         devices = ReferenceDataService(repository, taxonomy, publisher)
-        forecasts = ProductionForecastService(JooqProductionForecastRepository(TestDatabase.dsl), repository, taxonomy, publisher, ActorProvider { actor })
+        forecasts = ProductionForecastService(
+            JooqProductionForecastRepository(TestDatabase.dsl),
+            repository,
+            taxonomy,
+            publisher,
+            ActorProvider {
+                actor
+            },
+            Clock.systemUTC(),
+        )
     }
 
     @BeforeEach

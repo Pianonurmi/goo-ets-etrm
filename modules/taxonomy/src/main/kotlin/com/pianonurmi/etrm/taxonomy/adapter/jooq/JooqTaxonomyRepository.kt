@@ -73,7 +73,7 @@ class JooqTaxonomyRepository(private val dsl: DSLContext) : TaxonomyRepository {
         .set(TAXONOMY_NODE.EXTERNAL_CODES, JSONB.jsonb(Json.mapper.writeValueAsString(node.externalCodes)))
         .set(TAXONOMY_NODE.VALID_TO, node.validPeriod.validTo)
         .set(TAXONOMY_NODE.VERSION, expectedVersion + 1)
-        .set(TAXONOMY_NODE.UPDATED_AT, Instant.now())
+        .set(TAXONOMY_NODE.UPDATED_AT, DSL.currentInstant())
         .where(TAXONOMY_NODE.ID.eq(node.id), TAXONOMY_NODE.VERSION.eq(expectedVersion))
         .execute() == 1
 

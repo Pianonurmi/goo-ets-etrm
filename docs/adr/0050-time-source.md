@@ -25,3 +25,18 @@ Europe/Berlin that dated their work in the clock's zone (UTC).
 ## Consequences
 - Period-end, expiry and delivery dates are reproducible in tests and under replay.
 - Existing direct calls are removed module by module; the rule lists the remaining exceptions.
+
+## Amendment (increment 15, M3)
+- **No exceptions in production code.** Row stamps the application never reads (`updated_at`, `approved_at`,
+  `reconciled_at` and the like) are written as the database's transaction time (`DSL.currentInstant()`), as the
+  decision above already says of `recorded_at`. A time the application reads back (a production forecast's
+  `recordedAt`) comes from the service's clock.
+- **Event time and `AsOf.now` read `ApplicationClock`** (platform), which the application's `Clock` bean installs at
+  start-up. Passing the clock into every one of the 134 places that publish an event would add a parameter to each
+  for no difference in behaviour; a test that moves time can install its `TestClock` there too.
+- **Tests follow the rule.** `TimeSourceTest` scans the test sources and fixtures as well: tests take time from a
+  `TestClock`, a fixed instant, the application's `Clock` bean, or `TestDatabase.transactionTime()` when they compare
+  with what the database recorded. The only exceptions are token tests, which Spring Security validates against the
+  system clock.
+- **Invoices are dated in the entity's time zone**, and the static specificity of criteria is computed in decimals
+  (a table of log2(40 / n) replaces the floating-point logarithm), so a bucket's order is the same on every machine.

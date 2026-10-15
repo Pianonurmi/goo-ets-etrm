@@ -88,7 +88,7 @@ class JooqProductBucketRepository(private val dsl: DSLContext) : ProductBucketRe
         .set(PRODUCT_BUCKET.SORT_ORDER, bucket.sortOrder)
         .set(PRODUCT_BUCKET.ACTIVE, bucket.active)
         .set(PRODUCT_BUCKET.VERSION, bucket.version)
-        .set(PRODUCT_BUCKET.UPDATED_AT, Instant.now())
+        .set(PRODUCT_BUCKET.UPDATED_AT, DSL.currentInstant())
         .where(PRODUCT_BUCKET.ID.eq(bucket.id), PRODUCT_BUCKET.VERSION.eq(expectedVersion))
         .execute() == 1
 
