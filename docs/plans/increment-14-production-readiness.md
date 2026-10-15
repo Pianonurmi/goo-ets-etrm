@@ -62,7 +62,7 @@ D, O, F, P, C, W) refer to the review.
 ## Delivered
 
 Every milestone landed through its own pull request with green CI (#24–#43). What each finding came to is in the
-review's [status table](../reviews/2026-10-enterprise-readiness.md#status-after-0140). Differences from the plan:
+review's [status table](../reviews/2026-10-enterprise-readiness.md#status-after-0150). Differences from the plan:
 
 - **Not done, moved to increment 15:** Gradle dependency locking and verification metadata (Dependabot does not
   maintain them); beneficiary data out of hash-chained rows; Vitest coverage over the whole tree with a ratchet

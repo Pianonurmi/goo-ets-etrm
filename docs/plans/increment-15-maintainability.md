@@ -1,6 +1,6 @@
 # Increment 15: maintainability
 
-**Status: in progress.** Follows [increment 14](increment-14-production-readiness.md) (0.14.0).
+**Status: delivered in 0.15.0.** Follows [increment 14](increment-14-production-readiness.md) (0.14.0).
 
 ## Context
 
@@ -172,6 +172,49 @@ Each item gets a test that fails before the fix.
 - **CloudNativePG** moves to the Barman Cloud plugin before operator 1.31; the chart and `ops/k8s/postgres-cluster.yaml` use the plugin's `ObjectStore`.
 - **The PITR drill** runs against the plugin.
 - **Load tests:** the run against the NFR table on a dedicated environment (`stress` and the batch scenario included, [load testing](../operations/load-testing.md)) needs that environment from the owner. Until then the CI smoke profile stays.
+
+## Delivered
+
+Every milestone landed through its own pull request with green CI: M6 (#52), M0 (#53, #55), M3 (#54, #56, #58),
+M2 (#57, #60), M1 (#63, #64, #65), M4 (#59, #61, #62), M5 (#66, #67, #68, #70, #71), M7 (#69). What each finding came
+to is in the review's [status table](../reviews/2026-10-enterprise-readiness.md#status-after-0150).
+
+What the code looks like at the close (0.15.0), against the table in the context:
+
+| Measure | At 0.14.0 | At 0.15.0 |
+|---|---|---|
+| The six large services | 519 to 886 lines each | Split by responsibility behind the same module APIs; the largest application class is 514 lines (`InvoiceService`) |
+| Optional ports defaulting to `null` | 19 | 1 (`LotService`'s transaction manager, which hand-wired tests leave out) |
+| Hand-wired setups with `@Suppress("LongMethod")` | 8 | 3; the others call `testFixtures` wiring factories |
+| Migration order in tests | 36 hand-written lists | `ModuleOrder` in `platform`; `TestDatabase.migrate` sorts and refuses unknown names |
+| detekt | `LongParameterList` ignored `@Service`; `TooManyFunctions` 40; `LargeClass` 800 | `@Service` counted (constructors up to 9 parameters); `TooManyFunctions` 25; `LargeClass` 500 outside tests; 27 exceptions, each with a reason |
+| Web role table | written by hand | generated from `x-roles` in the OpenAPI document |
+| Vitest coverage | `shared` and feature models | the whole tree, with floors that only rise |
+
+Differences from the plan:
+
+- **Not done, decided against:**
+  - **`Currency` and `YearMonth` in the api types, sealed limit scopes.** They would change the generated web types and dozens of callers for no change in behaviour.
+  - **Per-module `@ApplicationModuleTest` slices.** The savepoint paths are tested with a full context from `apps/api`, where the wiring they depend on lives.
+  - **`Specificity` as scaled integers.** It stays a `BigDecimal`; it is a weight, never booked.
+- **Done differently:**
+  - **Archive cuts** (#58) instead of a signed checkpoint: the cut is declared after the chains verify, the lot journal is anchored at it, and the nightly digest names it.
+  - **The demo seeder** moved to a `demo` source set and a second jar (`api-showcase.jar`) rather than a separate module.
+  - **`LargeClass`** leaves test sources out: integration tests are long by nature.
+- **Not done, open for the next increment:**
+  - `UnsafeCallOnNullableType` with a shrinking baseline.
+  - From the review's increment 14 leftovers:
+    - D11 rest: propose without the entity lock, workflow open, PDF rendering in a transaction, lot journal verification, the cross-schema migration, unkeyed manual deliveries.
+    - O5: an HPA on request rate.
+    - O6: asynchronous long operations and a measured memory figure.
+    - O7: the open-circuit flag, PDF limits and report retention.
+    - C8: concurrency tests for the remaining row locks.
+    - C11: the rest.
+    - W4: end-to-end journeys that create their own data.
+  - The load run on a dedicated environment still needs that environment from the owner (M7).
+- **Kept on purpose:**
+  - 43 `formatMoney` calls that format into text (labels, notices, CSV) rather than into a cell.
+  - React Router's functional updates do not compose within one event: a second `useUrlState` change in the same handler starts from the same query as the first, so a handler makes one change (documented on the hook).
 
 ## Outside the code
 

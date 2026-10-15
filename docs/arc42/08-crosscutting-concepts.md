@@ -1,7 +1,7 @@
 # 8. Cross-cutting concepts
 
 - **Identifiers**: UUIDv7 everywhere (`Ids.newId()`); human-readable numbers for trades (`T-2026-000123`) and journal entries.
-- **Time** (ADR 0050): instants in UTC from the injected `Clock`, never `now()` without it (`TimeSourceTest` fails the build); business periods as closed-open `LocalDateRange`; business dates in the legal entity's zone, or the market's zone for exchange jobs; events carry when they happened, so a replay posts on the original date; tests use `TestClock`.
+- **Time** (ADR 0050): instants in UTC from the injected `Clock`, never `now()` without it (`TimeSourceTest` fails the build); business periods as closed-open `LocalDateRange`; business dates in the legal entity's zone, or the market's zone for exchange jobs; events carry when they happened, so a replay posts on the original date; repositories and event metadata take the time from the caller or the clock; tests use `TestClock`, and `TimeSourceTest` covers them too.
 - **Money and quantities**: `BigDecimal` value classes; certificates are whole MWh, allowances whole tCO2e; never floating point.
 - **Versioning and optimistic locking**: every mutable aggregate carries `version`; commands state the expected version; stale updates fail with HTTP 409.
 - **Bitemporality**: `reference_history` (master data), `trade_version` (trades), `certificate_lot_version` (lots) with transaction-time and valid-time periods.
@@ -46,10 +46,12 @@
   - The listener that marks plans stale when future supply changes works the same way and never fails the transaction that published the event.
 
 - **Web UI contract**: the UI is typed from the committed OpenAPI snapshot; an API change without a regenerated snapshot fails `OpenApiSnapshotIT`, and a renamed operation fails the web typecheck (ADR 0027).
-- **Role-aware UI**: actions and screens are offered by role through a table keyed by operation id; entity scope, four eyes and state rules stay on the server and come back as problems (ADR 0028).
+- **Role-aware UI**: actions and screens are offered by role through a table keyed by operation id, generated from the roles each handler declares (`@AllowedRoles`, published as `x-roles`); entity scope, four eyes and state rules stay on the server and come back as problems (ADR 0028).
+- **Client errors**: the browser reports what it could not handle, with the trace id of the last API response; the server logs, rate-limits and counts the reports. Source maps are built hidden and kept out of the jar, as a CI artifact.
 - **No arithmetic on money in the browser**: amounts are computed by the server, formatted in the UI and sent back as decimal strings.
 - **Accessibility**: WCAG 2.1 AA colour contrast is built into the theme (`app/contrast.ts`); Playwright runs axe on the main screens and fails on serious or critical findings.
 - **Browser security**: same-origin serving, a Content-Security-Policy without inline scripts (inline styles are allowed for Mantine's CSS variables), `Referrer-Policy` and `X-Frame-Options: DENY` (only the silent-renew page may be framed, by the application itself); tokens are kept in memory only (ADR 0026); the end-to-end suite fails on any CSP violation.
 - **Load and isolation**: requests run on virtual threads behind a concurrent-request limit (`RequestBulkhead`, 503 with `Retry-After` past it) and a short connection timeout, so an outage answers quickly instead of queueing; readiness does not include the database.
-- **Personal data**: events that leave the application carry no beneficiary data; what is kept where, for how long and how a request is handled is in [data protection](../operations/data-protection.md).
+- **Personal data**: events that leave the application carry no beneficiary data, and hash-chained rows keep only a reference into the beneficiary register, which an approved erasure clears. Archive cuts let old partitions of the audit trail and the lot journal be dropped while the chains still verify. What is kept where, for how long and how a request is handled is in [data protection](../operations/data-protection.md).
+- **Supply chain**: every Gradle configuration is locked and every artifact checked against `gradle/verification-metadata.xml`; a workflow refreshes them on Dependabot branches ([supply chain](../operations/supply-chain.md)).
 - **Change safety** (ADR 0048, 0051): migrations are expand then contract, run by a pre-upgrade job as the schema owner while pods run as a runtime role; CI starts the previous release on the migrated schema; versions follow the support policy of ADR 0051.

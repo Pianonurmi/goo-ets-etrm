@@ -15,8 +15,8 @@
 | 11 | Valuation depth: discount curves and discounted MtM, TIME and RATES in the P&L explain, carry interpolation of allowance forwards, cash flow hedge accounting (designation under four eyes, effectiveness, the hedging reserve at period end, reclassification) ([plan](plans/increment-11-valuation-depth.md)) | done (0.11.0) |
 | 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | done (0.12.0) |
 | 13 | Options on EUA futures: option terms on trades (call or put, strike, expiry, underlying future), a volatility curve signed off like other curves, Black-76 valuation with delta and vega and a VOL component in the explain, premiums in the ledger, exercise into the future or abandonment at expiry, delta-equivalent positions and exposure ([plan](plans/increment-13-eua-options.md)) | done (0.13.0) |
-| 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0140) | done (0.14.0) |
-| 15 | Maintainability: Spring slices per module, the large services split, module API value types, the clock in repositories and events, build inputs and dependency locking, roles in the OpenAPI document, and the items increment 14 handed over ([plan](plans/increment-15-maintainability.md)) | in progress |
+| 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0150) | done (0.14.0) |
+| 15 | Maintainability: the defects increment 14 handed over, test seams, the clock in repositories and events, a beneficiary register and archive cuts, shared four-eyes and paging rules, the large services split and detekt tightened, build inputs, the demo seeder out of the production jar, dependency locking, roles in the OpenAPI document, the web pages split, client error reports, a coverage ratchet and backups through the Barman Cloud plugin ([plan](plans/increment-15-maintainability.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0150) | done (0.15.0) |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -206,12 +206,12 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 
 | Milestone | Content | Status |
 |---|---|---|
-| M6 | Handed over by increment 14: mirror confirmation after approval, account changes reaching the mirror, MtM status in credit exposure, the month average retried after month end, the margin cascade stopping with a stale mark | planned |
-| M0 | Test seams: one module order, non-null ports with test fakes, wiring factories in `testFixtures`, Spring slices for the savepoint paths | planned |
-| M3 | Time and data: the clock in repositories and events, `TimeSourceTest` over tests, beneficiary data out of the chains, verification from a checkpoint | planned |
-| M2 | Module APIs and shared rules: `SecondPerson`, `Roles.OPERATIONS`, one cursor codec, keyset paging for invoices, payments and results, value types and sealed limit scopes, GL accounts by rule role | planned |
-| M1 | Large services split by responsibility and detekt tightened | planned |
-| M4 | Build and supply chain: jOOQ codegen inputs, configuration cache, the demo seeder out of the production jar, dependency locking and verification, lock files refreshed on Dependabot branches | planned |
-| M5 | Web: `x-roles` in the OpenAPI document and generated permissions, large pages split, client error telemetry, coverage ratchet | planned |
-| M7 | Operations: CloudNativePG Barman Cloud plugin; the dedicated-environment load run when the environment exists | planned |
-| M8 | Close and release 0.15.0 | planned |
+| M6 | Handed over by increment 14: mirror confirmation after approval, account changes reaching the mirror, MtM status in credit exposure, the month average retried after month end, the margin cascade stopping with a stale mark (#52) | done |
+| M0 | Test seams: one module order, required ports with test fakes, wiring factories in `testFixtures`, savepoint tests under Spring (#53, #55) | done |
+| M3 | Time and data: the clock in repositories and events, `TimeSourceTest` over tests, a beneficiary register with erasure, archive cuts for the audit trail and the lot journal (#54, #56, #58) | done |
+| M2 | Shared rules: `SecondPerson`, `Roles.OPERATIONS`, one keyset cursor, keyset paging for invoices, payments and results, period-end accounts from the posting rules (#57, #60) | done |
+| M1 | Large services split by responsibility behind the same module APIs, detekt tightened (#63, #64, #65) | done |
+| M4 | Build and supply chain: jOOQ codegen inputs, configuration cache, the demo seeder out of the production jar, dependency locking and verification, lock files refreshed on Dependabot branches (#59, #61, #62) | done |
+| M5 | Web: `x-roles` in the OpenAPI document and generated permissions, one URL state hook, amounts through `Money`, coverage over the whole tree with a ratchet, client error reports, large pages split (#66, #67, #68, #70, #71) | done |
+| M7 | Operations: backups and the point-in-time recovery drill through the Barman Cloud plugin (#69); the dedicated-environment load run waits for the environment | done |
+| M8 | Close: arc42 sections 5 and 8, status per finding, the plan's delivered section, release 0.15.0 | done |

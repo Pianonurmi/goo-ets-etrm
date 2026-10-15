@@ -140,6 +140,14 @@ com.pianonurmi.etrm.<module>
 Database: schema `etrm_<module>`, migrations under `src/main/resources/db/migration/<module>`, jOOQ sources
 generated at build time from the migrated schema.
 
+The application layer is cut by responsibility (increment 15). Where a module's API is one interface, a facade
+implements it and delegates to the classes that do the work, so callers in other modules do not change. For example,
+trade has `TradeCommands` over capture, amendment, lifecycle and queries, and ledger has `PeriodEndCommands` over the
+period-end run and its ordered steps. detekt keeps the pieces small: at most 25 functions per class, 500 lines, and
+nine constructor parameters. The few exceptions carry `@Suppress` with a reason. A module whose services other
+modules' tests need publishes a wiring factory in its `testFixtures` (for example `WiredTrades`), so tests build it
+the same way everywhere.
+
 ## Web UI (`apps/web`)
 
 A single-page application served by the API jar from the same origin (ADR 0025). It holds no business rules: the
@@ -161,6 +169,7 @@ flowchart LR
 |---|---|
 | `src/app` | Boot (UI config, sign-in), providers, lazy routes, navigation filtered by role, command palette (mod+K), accessible theme |
 | `src/shared/api` | `openapi-fetch` client and TanStack Query hooks typed from `apps/api/openapi/etrm-api.json` (ADR 0027), problem errors, downloads |
-| `src/shared/auth` | OIDC with PKCE or dev personas (ADR 0026), session (`/me`), permissions keyed by operation id (ADR 0028) |
-| `src/features/*` | Screens per area: inbox, trades, confirmations, criteria, inventory, allocation, positions, registry, reconciliation, settlement, market data, valuation, risk, ETS, ledger, month end, reports, admin, audit. Pure logic lives in `model/` with unit tests |
+| `src/shared/auth` | OIDC with PKCE or dev personas (ADR 0026), session (`/me`), permissions keyed by operation id and generated from `x-roles` in the OpenAPI document (ADR 0028) |
+| `src/shared/telemetry` | Uncaught errors and unhandled rejections reported to `/api/v1/client-errors` with the last trace id |
+| `src/features/*` | Screens per area: inbox, trades, confirmations, criteria, inventory, allocation, positions, registry, reconciliation, settlement, market data, valuation, risk, ETS, ledger, month end, reports, admin, audit. A page keeps its header, KPIs and tab list; each tab, drawer and modal is a file, shared queries sit in `hooks.ts`. Pure logic lives in `model/` with unit tests |
 | `e2e/` | Playwright journeys against the jar with demo data, accessibility (axe) and CSP checks |
