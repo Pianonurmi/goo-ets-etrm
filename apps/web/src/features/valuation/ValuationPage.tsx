@@ -25,12 +25,16 @@ import { CardSkeleton, TableSkeleton } from '@/shared/components/Skeletons';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal, formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { LoadMore } from '@/shared/grid/LoadMore';
 import { useBooks } from '@/features/trades/hooks';
 import { signOffSteps } from '@/features/marketdata/model/lifecycle';
 import { oneOf } from '@/shared/urlParams';
 import { explainBars } from './model/explain';
 import { OfficialRun } from './OfficialRun';
 import { PortfolioExplain, PortfolioTab } from './PortfolioTab';
+
+/** Results fetched per page of a run's result list. */
+const RESULT_PAGE = 200;
 
 type Run = Schema<'ValuationRunView'>;
 type Result = Schema<'ValuationResultView'>;
@@ -392,9 +396,17 @@ export function RunDetailPage() {
   const run = $api.useQuery('get', '/api/v1/valuation/runs/{id}', { params: { path: { id: runId } } });
   const books = useBooks(run.data?.legalEntityId);
   const [bookId, setBookId] = useState<string | null>(null);
-  const results = $api.useQuery('get', '/api/v1/valuation/runs/{id}/results', {
-    params: { path: { id: runId }, query: { bookId: bookId ?? undefined } },
-  });
+  const results = $api.useInfiniteQuery(
+    'get',
+    '/api/v1/valuation/runs/{id}/results/search',
+    { params: { path: { id: runId }, query: { bookId: bookId ?? undefined, limit: RESULT_PAGE } } },
+    {
+      initialPageParam: null as string | null,
+      getNextPageParam: (page) => page.nextCursor ?? undefined,
+      pageParamName: 'cursor',
+    },
+  );
+  const resultRows = useMemo(() => results.data?.pages.flatMap((page) => page.items) ?? [], [results.data]);
   const task = $api.useQuery(
     'get',
     '/api/v1/workflow/tasks',
@@ -616,13 +628,14 @@ export function RunDetailPage() {
                 <TableSkeleton />
               ) : (
                 <DataGrid<Result>
-                  rowData={results.data ?? []}
+                  rowData={resultRows}
                   columnDefs={columns}
                   rowId={(r) => r.scheduleId}
                   height={460}
                   overlayNoRowsTemplate={t('common.empty')}
                 />
               )}
+              <LoadMore query={results} shown={resultRows.length} testId="result-count" />
             </QueryState>
           </Stack>
         </Tabs.Panel>

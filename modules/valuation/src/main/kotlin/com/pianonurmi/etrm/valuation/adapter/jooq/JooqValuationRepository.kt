@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.RunStatus
 import com.pianonurmi.etrm.valuation.api.ValuationResultView
 import com.pianonurmi.etrm.valuation.api.ValuationRunView
+import com.pianonurmi.etrm.valuation.domain.ResultKey
 import com.pianonurmi.etrm.valuation.domain.ValuationRepository
 import org.jooq.DSLContext
 import org.jooq.JSONB
@@ -123,6 +124,19 @@ class JooqValuationRepository(private val dsl: DSLContext) : ValuationRepository
         .where(VALUATION_RESULT.RUN_ID.eq(runId))
         .and(bookId?.let { VALUATION_RESULT.BOOK_ID.eq(it) } ?: DSL.noCondition())
         .orderBy(VALUATION_RESULT.TRADE_NUMBER, VALUATION_RESULT.LEG_NO, VALUATION_RESULT.DELIVERY_DATE)
+        .fetch(::toResult)
+
+    override fun resultPage(runId: UUID, bookId: UUID?, limit: Int, after: ResultKey?): List<ValuationResultView> = dsl.selectFrom(VALUATION_RESULT)
+        .where(VALUATION_RESULT.RUN_ID.eq(runId))
+        .and(bookId?.let { VALUATION_RESULT.BOOK_ID.eq(it) } ?: DSL.noCondition())
+        .and(
+            after?.let {
+                DSL.row(VALUATION_RESULT.TRADE_NUMBER, VALUATION_RESULT.LEG_NO, VALUATION_RESULT.DELIVERY_DATE, VALUATION_RESULT.SCHEDULE_ID)
+                    .gt(it.tradeNumber, it.legNo, it.deliveryDate, it.scheduleId)
+            } ?: DSL.noCondition(),
+        )
+        .orderBy(VALUATION_RESULT.TRADE_NUMBER, VALUATION_RESULT.LEG_NO, VALUATION_RESULT.DELIVERY_DATE, VALUATION_RESULT.SCHEDULE_ID)
+        .limit(limit + 1)
         .fetch(::toResult)
 
     override fun official(legalEntityId: UUID, date: LocalDate, orEarlier: Boolean, before: Boolean): ValuationRunView? = dsl.selectFrom(VALUATION_RUN)

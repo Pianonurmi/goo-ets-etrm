@@ -21,6 +21,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   (`POST /api/v1/admin/integrity/archive-cuts`, at least `etrm.integrity.archive-min-age` old, ten years by default).
   The chains must verify first, and the lot journal is anchored at the cut. Afterwards the old partitions can be
   dropped and the chains still verify; a missing row after the cut is still reported.
+- Invoices, payments and valuation results are listed a page at a time (newest first for invoices and payments), with
+  **Load more** on their screens: `GET /api/v1/settlement/invoices/search`, `/api/v1/settlement/payments/search` and
+  `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
 
 ### Changed
 - **The demo seeder is no longer in the production jar and image.** `bootJar` builds the application alone;
@@ -30,6 +33,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   the lots' version history and the instructions' event history keep only the `beneficiaryRef`. Rows written before
   this version keep their copy.
 - Externalised events carry the `beneficiaryRef` of a cancellation (still without the name and identifier).
+- Period end reads the accounts it measures (MtM, hedges, NRV, provision, grant release, FX revaluation) from its own
+  posting rules instead of fixed account numbers, so remapping a rule moves the measurement with it.
 - A cursor that does not decode is refused with 422 on every paged list; the trade search answered 400 before.
 - Dependencies: Jackson 3.2.3, lz4-java 1.12.0, Mantine 9.7.2; demo stack Caddy 2.11 and cloudflared 2026.10.0.
 - The mirror of an intercompany trade delivers from the account the original names for its counterparty, when that

@@ -13,6 +13,7 @@ import com.pianonurmi.etrm.settlement.api.NettingCommand
 import com.pianonurmi.etrm.settlement.api.NettingQuery
 import com.pianonurmi.etrm.settlement.api.NettingStatementView
 import com.pianonurmi.etrm.settlement.api.PaymentCommand
+import com.pianonurmi.etrm.settlement.api.PaymentPage
 import com.pianonurmi.etrm.settlement.api.PaymentQuery
 import com.pianonurmi.etrm.settlement.api.PaymentView
 import com.pianonurmi.etrm.settlement.api.PrepareNetting
@@ -72,6 +73,16 @@ class PaymentController(
         @RequestParam(required = false) counterpartyId: UUID?,
         @RequestParam(defaultValue = "false") unappliedOnly: Boolean,
     ): List<PaymentView> = access.reader(legalEntityId).let { paymentQuery.payments(legalEntityId, counterpartyId, unappliedOnly) }
+
+    /** Payments newest first, a page at a time; `cursor` is the previous page's `nextCursor`. */
+    @GetMapping("/payments/search")
+    fun search(
+        @RequestParam legalEntityId: UUID,
+        @RequestParam(required = false) counterpartyId: UUID?,
+        @RequestParam(defaultValue = "false") unappliedOnly: Boolean,
+        @RequestParam(defaultValue = "100") limit: Int,
+        @RequestParam(required = false) cursor: String?,
+    ): PaymentPage = access.reader(legalEntityId).let { paymentQuery.paymentPage(legalEntityId, counterpartyId, unappliedOnly, limit, cursor) }
 
     @GetMapping("/payments/{id}")
     fun payment(

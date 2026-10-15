@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.settlement.api.FixPrice
 import com.pianonurmi.etrm.settlement.api.InvoiceCommand
 import com.pianonurmi.etrm.settlement.api.InvoiceFilter
 import com.pianonurmi.etrm.settlement.api.InvoiceKind
+import com.pianonurmi.etrm.settlement.api.InvoicePage
 import com.pianonurmi.etrm.settlement.api.InvoiceQuery
 import com.pianonurmi.etrm.settlement.api.InvoiceRun
 import com.pianonurmi.etrm.settlement.api.InvoiceStatus
@@ -123,6 +124,22 @@ class SettlementController(
         @RequestParam(required = false) from: LocalDate?,
         @RequestParam(required = false) to: LocalDate?,
     ): List<InvoiceView> = access.visible(invoiceQuery.invoices(InvoiceFilter(legalEntityId, counterpartyId, kind, status, from, to))) { it.legalEntityId }
+
+    /** Invoices newest first, a page at a time; `cursor` is the previous page's `nextCursor`. */
+    @GetMapping("/invoices/search")
+    fun searchInvoices(
+        @RequestParam(required = false) legalEntityId: UUID?,
+        @RequestParam(required = false) counterpartyId: UUID?,
+        @RequestParam(required = false) kind: Set<InvoiceKind>?,
+        @RequestParam(required = false) status: Set<InvoiceStatus>?,
+        @RequestParam(required = false) from: LocalDate?,
+        @RequestParam(required = false) to: LocalDate?,
+        @RequestParam(defaultValue = "100") limit: Int,
+        @RequestParam(required = false) cursor: String?,
+    ): InvoicePage {
+        val scope = access.reader(legalEntityId).entityFilter
+        return invoiceQuery.invoicePage(InvoiceFilter(legalEntityId, counterpartyId, kind, status, from, to, limit, scope), cursor)
+    }
 
     @GetMapping("/invoices/{id}")
     fun invoice(

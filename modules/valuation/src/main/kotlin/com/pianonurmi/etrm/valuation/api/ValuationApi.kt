@@ -56,6 +56,9 @@ data class OptionValuation(
     val volSnapshotId: UUID,
 )
 
+/** One page of a run's results; [nextCursor] continues the list. */
+data class ValuationResultPage(val items: List<ValuationResultView>, val nextCursor: String?)
+
 /**
  * One delivery schedule valued: quantity signed (+ bought, − sold), prices per unit, MtM in contract and base currency.
  * An option leg has no schedule: its one result is keyed by the leg's id and dated at expiry, its market price is the
@@ -244,6 +247,9 @@ interface ValuationQuery {
     fun runs(legalEntityId: UUID, from: LocalDate, to: LocalDate): List<ValuationRunView>
 
     fun results(runId: UUID, bookId: UUID? = null): List<ValuationResultView>
+
+    /** Keyset-paged results of a run, by trade number, leg, delivery and schedule; [cursor] is a previous page's `nextCursor`. */
+    fun resultPage(runId: UUID, bookId: UUID?, limit: Int, cursor: String?): ValuationResultPage
 
     /** The official run of [date], or of the latest date before it when [orEarlier]. */
     fun official(legalEntityId: UUID, date: LocalDate, orEarlier: Boolean = false): ValuationRunView?

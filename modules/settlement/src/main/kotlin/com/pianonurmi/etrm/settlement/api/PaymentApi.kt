@@ -81,10 +81,16 @@ interface PaymentCommand {
     fun allocate(paymentId: UUID, command: AllocatePayment): PaymentView
 }
 
+/** One page of payments, newest value date first (then id); [nextCursor] continues the list. */
+data class PaymentPage(val items: List<PaymentView>, val nextCursor: String?)
+
 interface PaymentQuery {
     fun payment(id: UUID): PaymentView?
 
     fun payments(legalEntityId: UUID, counterpartyId: UUID? = null, unappliedOnly: Boolean = false): List<PaymentView>
+
+    /** Keyset-paged payments of one entity, newest value date first; [cursor] is a previous page's `nextCursor`. */
+    fun paymentPage(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean, limit: Int, cursor: String?): PaymentPage
 
     fun allocations(invoiceId: UUID): List<AllocationView>
 }
