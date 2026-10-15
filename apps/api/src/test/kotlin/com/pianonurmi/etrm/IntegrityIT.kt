@@ -95,4 +95,22 @@ class IntegrityIT {
         documents.verify(documentId) shouldBe true
         client.get().uri("/api/v1/audit/verify").as_("olga", "AUDITOR").retrieve().body(Map::class.java)!!["brokenSeqs"] shouldBe emptyList<Any>()
     }
+
+    @Test
+    fun `an administrator declares an archive cut past the retention, and the chains still verify`() {
+        fun declare(cut: String, user: String, roles: String) = client.post().uri("/api/v1/admin/integrity/archive-cuts")
+            .contentType(MediaType.APPLICATION_JSON).body(mapOf("cut" to cut, "reason" to "retention ended"))
+            .as_(user, roles).retrieve().toBodilessEntity().statusCode.value()
+
+        declare("2015-01-01T00:00:00Z", "olga", "AUDITOR") shouldBe 403
+        declare("2026-01-01T00:00:00Z", "root", "ADMIN") shouldBe 422 // younger than etrm.integrity.archive-min-age
+        declare("2015-01-02T00:00:00Z", "root", "ADMIN") shouldBe 422 // not a month start
+        declare("2015-01-01T00:00:00Z", "root", "ADMIN") shouldBe 200
+        declare("2015-01-01T00:00:00Z", "root", "ADMIN") shouldBe 422 // cuts only move forward
+
+        val report = job.run()
+        report.archiveCut shouldBe java.time.Instant.parse("2015-01-01T00:00:00Z")
+        report.auditBroken.shouldBeEmpty()
+        report.lotsBroken.shouldBeEmpty()
+    }
 }

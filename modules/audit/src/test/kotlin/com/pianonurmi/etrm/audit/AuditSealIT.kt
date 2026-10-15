@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.audit
 
 import com.pianonurmi.etrm.audit.adapter.jooq.JooqAuditRepository
 import com.pianonurmi.etrm.audit.application.AuditService
+import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
@@ -103,5 +104,28 @@ class AuditSealIT {
         }
         TestDatabase.dsl.fetchValue("SELECT correlation_id FROM etrm_audit.audit_event WHERE seq = $id") shouldBe "trace-123"
         service().record("Uncorrelated", "Thing", "3").correlationId shouldNotBe "trace-123"
+    }
+
+    @Test
+    fun `rows before an archive cut may be gone, rows after it may not`() {
+        val march = service(Clock.fixed(Instant.parse("2026-03-10T12:00:00Z"), ZoneOffset.UTC))
+        val old = march.record("OldThing", "Thing", "1")
+        val audit = service()
+        val recent = audit.record("RecentThing", "Thing", "2")
+        audit.seal(catchUp = true) shouldBeGreaterThanOrEqual 2
+
+        tamper("DELETE FROM etrm_audit.audit_event WHERE seq = ${old.seq}")
+        audit.verifyTrail().brokenSeqs shouldContainExactly listOf(old.seq)
+
+        shouldThrow<ValidationException> { audit.declareArchiveCut(Instant.parse("2026-04-02T00:00:00Z"), "not a month start") }
+        audit.declareArchiveCut(Instant.parse("2026-04-01T00:00:00Z"), "retention of 2026-03 ended")
+        audit.archiveCut() shouldBe Instant.parse("2026-04-01T00:00:00Z")
+        audit.seal(catchUp = true)
+        audit.verifyTrail().brokenSeqs.shouldBeEmpty()
+        shouldThrow<ValidationException> { audit.declareArchiveCut(Instant.parse("2026-03-01T00:00:00Z"), "backwards") }
+        shouldThrow<DataAccessException> { TestDatabase.dsl.execute("DELETE FROM etrm_audit.audit_archive_cut") }
+
+        tamper("DELETE FROM etrm_audit.audit_event WHERE seq = ${recent.seq}")
+        audit.verifyTrail().brokenSeqs shouldContainExactly listOf(recent.seq)
     }
 }

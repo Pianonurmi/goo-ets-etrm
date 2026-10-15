@@ -73,10 +73,36 @@ request is answered with that legal ground and the retention end. When nothing r
    asked, why, who approved, when), and so do the references to it. The hash chains are not touched and stay intact.
 
 **Rows written before 0.15.0.** The lot journal and audit trail rows of earlier versions keep their copy of the name:
-they cannot change without breaking the chain. The audit trail is one chain across its monthly partitions, so even a
-partition past its retention cannot be dropped yet, because the nightly verification starts at the first row. The next
-step lets the verification start from a signed checkpoint (the daily chain-head digest), so partitions past their
-retention can be archived and dropped.
+they cannot change without breaking the chain. They leave with their partition once the retention has ended, as
+described below.
+
+## Archiving old partitions
+
+The audit trail and the lot journal are partitioned by month (ADR 0030) and hash-chained across their partitions. When
+the retention of a month has ended (see [Retention](#retention)), its partitions can leave the database without
+breaking the verification:
+
+1. **Declare an archive cut** (ADMIN): `POST /api/v1/admin/integrity/archive-cuts` with
+   `{"cut": "2016-01-01T00:00:00Z", "reason": "…"}`. The cut is the first instant of a UTC month and at least
+   `etrm.integrity.archive-min-age` old (ten years by default). Cuts only move forward. The request is refused unless
+   the audit trail and the lot journal verify now. Before the cut is recorded, the hash of each lot's last event before
+   it is kept (`lot_event_anchor`). The declaration goes to the audit trail, and the nightly digest names the latest
+   cut.
+2. **Archive the partitions before the cut** as the database owner: `pg_dump --table` each
+   `audit_event_pYYYYMM` and `lot_event_pYYYYMM` to offline storage under the retention of the archive.
+3. **Drop them:** `ALTER TABLE etrm_audit.audit_event DETACH PARTITION …; DROP TABLE …;` and the same for
+   `etrm_inventory.lot_event`.
+4. **Check** that `GET /api/v1/audit/verify` and `GET /api/v1/inventory/journal/verify` still report no breaks. The
+   nightly verification checks them again.
+
+The verification accepts what the cut allows and nothing more:
+
+- **Audit trail.** The seals stay, so the links are still checked end to end. A sealed row may be missing only when it
+  occurred before the cut.
+- **Lot journal.** A lot's chain may start from its anchor.
+
+A row removed after the cut, or a lot's chain that starts from anything but its anchor, is still reported. The
+ledger journal is not partitioned: the books stay whole for their retention.
 
 ## Who to involve
 

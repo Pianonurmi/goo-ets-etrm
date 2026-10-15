@@ -34,6 +34,9 @@ interface AuditQuery {
 
     /** Checks the seal chain over the audit trail (review finding S6). */
     fun verifyTrail(): AuditTrailCheck
+
+    /** The latest archive cut: rows that occurred before it may have been archived and dropped. */
+    fun archiveCut(): Instant?
 }
 
 /**
@@ -53,4 +56,10 @@ interface AuditCommand {
      * also looks beyond the last two days, for rows left unsealed while the job did not run.
      */
     fun seal(catchUp: Boolean = false): Int
+
+    /**
+     * Declares that audit rows which occurred before [cut] (the first instant of a UTC month) may be archived and
+     * dropped; the seal chain then verifies without them. Cuts only move forward.
+     */
+    fun declareArchiveCut(cut: Instant, reason: String)
 }

@@ -72,7 +72,11 @@ interface LotEventJournal {
 
     fun lastSeq(): Long
 
+    /** Lots whose chain does not verify; a lot's first remaining event may start from an anchor (archived events). */
     fun brokenChains(): List<UUID>
+
+    /** Keeps the hash of each lot's last event recorded before [cut], so partitions before it can be dropped. */
+    fun anchor(cut: Instant): Int
 }
 
 data class NewAllowanceMovement(

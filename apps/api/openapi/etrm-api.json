@@ -763,6 +763,36 @@
         "required" : [ "candidateRoles", "dueAt", "escalationLevel", "id", "payload", "priority", "requestedAt", "requestedBy", "status", "subjectRef", "subjectType", "summary", "type", "version" ],
         "type" : "object"
       },
+      "ArchiveCutRequest" : {
+        "properties" : {
+          "cut" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "cut", "reason" ],
+        "type" : "object"
+      },
+      "ArchiveCutView" : {
+        "properties" : {
+          "anchoredLots" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "cut" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "declaredBy" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "anchoredLots", "cut", "declaredBy" ],
+        "type" : "object"
+      },
       "AssignBreak" : {
         "properties" : {
           "assignee" : {
@@ -12446,6 +12476,44 @@
           }
         },
         "tags" : [ "event-publication-controller" ]
+      }
+    },
+    "/api/v1/admin/integrity/archive-cuts" : {
+      "post" : {
+        "operationId" : "integrity_declareArchiveCut",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ArchiveCutRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArchiveCutView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "integrity-controller" ]
       }
     },
     "/api/v1/allocation/coverage" : {

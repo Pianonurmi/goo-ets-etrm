@@ -99,6 +99,12 @@ interface LotCommand {
      * reported with [LotExpiryFailed], and the others still expire. Returns the number of lots expired.
      */
     fun expireDueLots(asOf: LocalDate): Int
+
+    /**
+     * Anchors the lot journal at [cut] before the partitions older than it are archived and dropped: the hash of each
+     * lot's last event before the cut becomes the start of its remaining chain. Run it only on a journal that verifies.
+     */
+    fun anchorJournal(cut: Instant): Int
 }
 
 interface LotQuery {
