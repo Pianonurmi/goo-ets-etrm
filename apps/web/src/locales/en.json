@@ -3033,6 +3033,8 @@
     "runTitle": "Margin of {{date}}, version {{version}}",
     "runHint": "Variation margin per contract: the position carried over moves with the change in settlement price, and trades of the day settle against their price.",
     "runSuperseded": "A later version replaced this run at {{at}}.",
+    "runStale": "Not current: compute this day again",
+    "state": "State",
     "runLines": "Lines of the margin run",
     "runStatementLink": "Statements of this day",
     "computedBy": "Computed by",

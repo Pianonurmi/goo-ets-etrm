@@ -131,9 +131,15 @@ class TradeService(
             legalEntityId = mirrorEntityId,
             bookId = mirrorBook,
             counterpartyId = mirrorCounterparty.id,
-            // The mirror delivers to (or receives from) the original entity's own account.
-            legs = command.legs.map {
-                it.copy(side = it.side.opposite(), deliveryAccountId = null, counterpartyAccountId = it.deliveryAccountId, counterpartyAccountRef = null)
+            // The mirror delivers to (or receives from) the original entity's own account, from the account the original
+            // names for its counterparty (held by the mirror's entity), when it names a registered one.
+            legs = command.legs.mapIndexed { index, leg ->
+                leg.copy(
+                    side = leg.side.opposite(),
+                    deliveryAccountId = original.legs[index].counterpartyAccountId,
+                    counterpartyAccountId = leg.deliveryAccountId,
+                    counterpartyAccountRef = null,
+                )
             },
             mirrorBookId = null,
         )
@@ -427,7 +433,7 @@ class TradeService(
         // An intercompany trade and its mirror change together or not at all: the mirror is worked out first, so a
         // refusal leaves both as they were.
         val mirror = current.intercompanyLinkId?.let(::locked)
-        val mirrorNext = mirror?.let { amendedMirror(current, it, command) }
+        val mirrorNext = mirror?.let { amendedMirror(current, next, it, command) }
         saveAmended(current, next, actor, command.reason)
         if (mirror != null && mirrorNext != null) saveAmended(mirror, mirrorNext, actor, "${command.reason} (follows ${current.tradeNumber})")
         return next
@@ -460,22 +466,28 @@ class TradeService(
     }
 
     /**
-     * The mirror of an intercompany trade after the same amendment, with the sides turned round. The mirror keeps its own
-     * registry accounts (they are its own, or its counterparty's, not the source's); a leg added by the amendment takes the
-     * source's delivery account as its counterparty account, as at capture. It is worked out like any amendment and, like
-     * the mirror at capture, without pre-trade checks. When the mirror cannot take the change (it has deliveries, an option
-     * leg decided, or is in a state that forbids it), the one-sided change is refused.
+     * The mirror of an intercompany trade after the same amendment, with the sides turned round. The source's delivery
+     * account is the mirror's counterparty account, and the source's counterparty account (held by the mirror's entity)
+     * the mirror's delivery account: an account the amendment changed on [amended] follows to the mirror, one it left as
+     * it was keeps the mirror's own value. A leg added by the amendment takes the source's accounts, as at capture. It is
+     * worked out like any amendment and, like the mirror at capture, without pre-trade checks. When the mirror cannot take
+     * the change (it has deliveries, an option leg decided, or is in a state that forbids it), the one-sided change is
+     * refused.
      */
-    private fun amendedMirror(source: TradeView, mirror: TradeView, command: AmendTrade): TradeView = try {
+    private fun amendedMirror(source: TradeView, amended: TradeView, mirror: TradeView, command: AmendTrade): TradeView = try {
         val mirrorCommand = command.copy(
             expectedVersion = mirror.version,
             legs = command.legs?.mapIndexed { index, leg ->
                 val own = mirror.legs.getOrNull(index)
+                val before = source.legs.getOrNull(index)
+                val after = amended.legs[index]
+                val deliveryKept = own != null && before != null && after.deliveryAccountId == before.deliveryAccountId
+                val counterpartyKept = own != null && before != null && after.counterpartyAccountId == before.counterpartyAccountId
                 leg.copy(
                     side = leg.side.opposite(),
-                    deliveryAccountId = own?.deliveryAccountId,
-                    counterpartyAccountId = if (own != null) own.counterpartyAccountId else leg.deliveryAccountId,
-                    counterpartyAccountRef = own?.counterpartyAccountRef,
+                    deliveryAccountId = if (counterpartyKept) own.deliveryAccountId else after.counterpartyAccountId,
+                    counterpartyAccountId = if (deliveryKept) own.counterpartyAccountId else after.deliveryAccountId,
+                    counterpartyAccountRef = if (deliveryKept) own.counterpartyAccountRef else null,
                 )
             },
         )
@@ -499,6 +511,10 @@ class TradeService(
         save(next, actor, "approved")
         events.publishEvent(TradeApproved(next))
         openObligationsIfDue(next)
+        // The other side of an intercompany trade may have been confirmed while this one waited for approval: the
+        // confirmation reached nothing then, so it is taken over now.
+        val linked = next.intercompanyLinkId?.let(::requireTrade)?.takeIf { it.status == TradeStatus.CONFIRMED && it.confirmationRef != null }
+        if (linked != null) return confirmAs(next.id, ConfirmTrade(linked.confirmationRef!!, "INTERCOMPANY", linked.confirmedAt), actor)
         return next
     }
 

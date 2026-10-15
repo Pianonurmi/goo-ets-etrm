@@ -13,6 +13,22 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ### Changed
 - Dependencies: Jackson 3.2.3, lz4-java 1.12.0, Mantine 9.7.2; demo stack Caddy 2.11 and cloudflared 2026.10.0.
+- The mirror of an intercompany trade delivers from the account the original names for its counterparty, when that
+  is a registered account of the mirror's entity.
+
+### Fixed
+- **A mirror approved after its original was confirmed stayed unconfirmed.** Approving it now takes the original's
+  confirmation over, and opens its delivery obligations.
+- **Registry accounts changed on an intercompany trade did not reach its mirror.** A new delivery account of the
+  original becomes the mirror's counterparty account, and a new counterparty account its delivery account; accounts
+  the amendment leaves alone keep the mirror's own.
+- **Credit exposure left out trades the valuation could not price without saying so.** A result with a missing price,
+  rate or bucket, or one not valued, now marks the counterparty's exposure incomplete, naming the trade.
+- **A month average waited for the next quote import after its month ended.** A morning job
+  (`etrm.settlement.reprice-cron`, 06:00 Europe/Berlin) prices the deliveries still waiting for a fixing.
+- **Computing a margin day again failed when a later day had no settlement price**, and the correction of the day
+  itself was lost. The day now commits; the cascade stops at the day it cannot compute, and that day and the later ones
+  are marked stale with the reason until they are computed again (Futures and clearing → Margin).
 
 ## [0.14.0] - 2026-10-15
 

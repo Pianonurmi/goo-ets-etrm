@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.FuturesContractView
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
@@ -43,6 +44,7 @@ import com.pianonurmi.etrm.trade.api.TradeView
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeAll
@@ -166,6 +168,7 @@ class ClearingServiceIT {
             actor,
             publisher,
             clock,
+            Savepoints.NONE,
         )
     }
 
@@ -260,6 +263,43 @@ class ClearingServiceIT {
         settlement(first, "70.400")
         clearing.computeMargin(account.id, first).id shouldBe firstRun.id
         published.size shouldBe events
+    }
+
+    @Test
+    fun `a later day without its price stops the cascade with a stale mark, and the corrected day still commits`() {
+        val owner = UUID.randomUUID()
+        val account = clearing.createAccount(CreateClearingAccount("ECC-STALE", owner, ccp, "Member Bank AG"))
+        val first = LocalDate.of(2026, 11, 9)
+        val second = first.plusDays(1)
+        val third = first.plusDays(2)
+        book += future("ST-1", Side.BUY, 5000, "70.00", first, owner)
+        settlement(first, "70.40")
+        settlement(second, "70.80")
+        settlement(third, "71.00")
+        listOf(first, second, third).forEach { clearing.computeMargin(account.id, it) }
+
+        // The exchange withdraws the third day's price, then corrects the first day's.
+        settlements.remove(third)
+        settlement(first, "70.30")
+        val corrected = clearing.computeMargin(account.id, first)
+        corrected.version shouldBe 2
+        corrected.variationMargin shouldBe BigDecimal("1500.00")
+        val runs = clearing.runs(account.id, first, third).associateBy { it.businessDate }
+        runs.getValue(second).let {
+            it.version shouldBe 2
+            it.staleReason shouldBe null
+        }
+        runs.getValue(third).let {
+            it.version shouldBe 1
+            it.staleReason!! shouldContain "No settlement price of EUAZ26 on $third"
+        }
+
+        // The price is back: running the day clears the mark.
+        settlement(third, "71.00")
+        clearing.computeMargin(account.id, third).let {
+            it.staleReason shouldBe null
+            it.variationMargin shouldBe BigDecimal("1000.00")
+        }
     }
 
     private fun statementFile(vararg rows: String) = "Date,Account,Record,Contract,Position,SettlementPrice,Amount,Currency\n" + rows.joinToString("") {

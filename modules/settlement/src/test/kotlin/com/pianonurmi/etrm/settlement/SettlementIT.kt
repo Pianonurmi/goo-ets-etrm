@@ -99,6 +99,7 @@ import com.pianonurmi.etrm.settlement.application.NettingService
 import com.pianonurmi.etrm.settlement.application.PaymentService
 import com.pianonurmi.etrm.settlement.application.SettlementItemService
 import com.pianonurmi.etrm.settlement.application.SettlementReportService
+import com.pianonurmi.etrm.settlement.application.SettlementRepricingJob
 import com.pianonurmi.etrm.settlement.application.VatRuleService
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
@@ -947,9 +948,10 @@ class SettlementIT {
             it.unitPrice shouldBe null
             it.problem!! shouldStartWith "The price of trade"
         }
-        // Once October has ended the average is final and prices the item (71.00 + 0.10 spread).
+        // Once October has ended the average is final. No import announces that: the morning job prices the item
+        // (71.00 + 0.10 spread).
         marketNow = Instant.parse("2026-11-02T10:00:00Z")
-        priced.on(QuotesImported(UUID.randomUUID(), "TEST", 1, setOf(LocalDate.of(2026, 10, 30))))
+        SettlementRepricingJob(priced).run()
         priced.item(item.id)!!.let {
             it.status shouldBe SettlementItemStatus.OPEN
             it.unitPrice!!.compareTo(BigDecimal("71.10")) shouldBe 0

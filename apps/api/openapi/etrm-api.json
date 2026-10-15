@@ -6694,6 +6694,9 @@
             },
             "type" : "array"
           },
+          "staleReason" : {
+            "type" : [ "string", "null" ]
+          },
           "supersededAt" : {
             "format" : "date-time",
             "type" : [ "string", "null" ]

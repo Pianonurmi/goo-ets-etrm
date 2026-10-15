@@ -12,6 +12,7 @@ import { EmptyState } from '@/shared/components/EmptyState';
 import { Money, Quantity } from '@/shared/components/Figures';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 import { QueryState } from '@/shared/components/QueryState';
 import { ScrollTable } from '@/shared/components/ScrollTable';
 import { TableSkeleton } from '@/shared/components/Skeletons';
@@ -103,6 +104,11 @@ function RunDrawer({ runId, onClose }: { runId: string; onClose: () => void }) {
             {run.supersededAt && (
               <Alert color="gray" data-testid="clearing-run-superseded">
                 {t('clearing.runSuperseded', { at: formatDateTime(run.supersededAt) })}
+              </Alert>
+            )}
+            {run.staleReason && (
+              <Alert color="yellow" title={t('clearing.runStale')} data-testid="clearing-run-stale">
+                {run.staleReason}
               </Alert>
             )}
             <FactGrid
@@ -202,6 +208,13 @@ export function MarginTab({ account }: { account: Account | null }) {
     () => [
       { field: 'businessDate', headerName: t('clearing.businessDate'), width: 140, sort: 'desc' },
       { field: 'version', headerName: t('clearing.version'), width: 100, type: 'rightAligned' },
+      {
+        colId: 'stale',
+        headerName: t('clearing.state'),
+        width: 120,
+        valueGetter: (p) => (p.data?.staleReason ? 'STALE' : ''),
+        cellRenderer: (p: ICellRendererParams<Run>) => (p.data?.staleReason ? <StatusBadge status="STALE" /> : null),
+      },
       {
         field: 'variationMargin',
         headerName: t('clearing.variationMargin'),

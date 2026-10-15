@@ -20,7 +20,10 @@ SELECT name, lock_until, locked_at, locked_by FROM etrm_platform.shedlock ORDER 
 - `marketdata-ecb-pull`: see [FX rates stale](fx-rates-stale.md).
 - `inventory-lot-expiry`: each failed lot has a `LOT_EXPIRY_FAILED` task in the inbox; fix the cause (often the
   ledger), then the next night expires it.
-- `clearing-margin`: a missing settlement price; import it, and later days are recomputed.
+- `clearing-margin`: a missing settlement price; import it, and later days are recomputed. A day marked **Stale** on
+  the margin tab could not be recomputed after an earlier day changed; compute it again once its price is there.
+- `settlement-reprice`: deliveries still waiting for a fixing after the morning retry; the item's problem names the
+  missing index or month. Import the quotes, or fix the price by hand on the settlement item.
 - `partition-maintenance`: see [database operations](../database.md#partitions-adr-0030).
 - `integrity-chain-verification`: see [hash chain broken](hash-chain-broken.md).
 - A job holding its lock after a crash: wait for `lock_until`, or delete its row from `shedlock` once no replica runs it.
