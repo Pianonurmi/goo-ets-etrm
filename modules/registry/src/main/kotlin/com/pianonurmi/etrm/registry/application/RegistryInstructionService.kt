@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.inventory.api.AllowanceHoldingCommand
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingQuery
 import com.pianonurmi.etrm.inventory.api.AllowanceHoldingView
 import com.pianonurmi.etrm.inventory.api.AllowanceMovementType
+import com.pianonurmi.etrm.inventory.api.BeneficiaryCommand
 import com.pianonurmi.etrm.inventory.api.InTransferLotLeftAccount
 import com.pianonurmi.etrm.inventory.api.LotCommand
 import com.pianonurmi.etrm.inventory.api.LotQuery
@@ -75,6 +76,7 @@ class RegistryInstructionService(
     private val clock: Clock,
     private val allowances: AllowanceHoldingCommand,
     private val allowanceQuery: AllowanceHoldingQuery,
+    private val beneficiaries: BeneficiaryCommand,
     private val settings: RegistryDispatchSettings = RegistryDispatchSettings(),
     private val nudge: DispatchNudge = DispatchNudge.NONE,
 ) : RegistryInstructionCommand, RegistryInstructionQuery {
@@ -95,9 +97,10 @@ class RegistryInstructionService(
         repository.byKey(command.idempotencyKey)?.let { return it }
         requireUsableAccount(lotQuery.requireLot(command.lotId).registryAccountId, export = false)
         val lot = prepareLot(command.lotId, command.quantityMwh)
+        val details = beneficiaries.record(command.details)
         val instruction = newInstruction(InstructionType.CANCELLATION, lot, command.idempotencyKey, command.planRef, command.lineRef, command.obligationRef)
-            .copy(cancellation = command.details)
-        return submit(instruction, lot, mapOf("cancellation" to command.details))
+            .copy(cancellation = details)
+        return submit(instruction, lot, mapOf("cancellation" to details))
     }
 
     override fun submitAllowanceTransfer(command: SubmitAllowanceTransfer): RegistryInstructionView {

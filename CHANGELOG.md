@@ -11,7 +11,18 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - PostgreSQL JDBC driver 42.7.14 (GHSA-rhp9-mr79-r74h, GHSA-f64h-wr5q-3qf3). The application uses neither
   `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
 
+### Added
+- **Beneficiary register** (review finding S7). A cancellation's beneficiary is recorded once in the register, and the
+  cancellation carries `beneficiaryRef`. An administrator asks for an erasure with a reason
+  (`POST /api/v1/inventory/beneficiaries/{id}/erasure`), and an auditor approves it in the inbox (`BENEFICIARY_ERASURE`).
+  The approval removes the name and identifier from the register, the lots, the registry instructions and the
+  obligations ([data protection](docs/operations/data-protection.md)).
+
 ### Changed
+- **Records that cannot forget no longer keep a beneficiary's name or identifier:** the lot journal, the audit trail,
+  the lots' version history and the instructions' event history keep only the `beneficiaryRef`. Rows written before
+  this version keep their copy.
+- Externalised events carry the `beneficiaryRef` of a cancellation (still without the name and identifier).
 - A cursor that does not decode is refused with 422 on every paged list; the trade search answered 400 before.
 - Dependencies: Jackson 3.2.3, lz4-java 1.12.0, Mantine 9.7.2; demo stack Caddy 2.11 and cloudflared 2026.10.0.
 - The mirror of an intercompany trade delivers from the account the original names for its counterparty, when that

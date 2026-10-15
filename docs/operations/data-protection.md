@@ -9,7 +9,7 @@ the figures below are the system's defaults, not legal advice.
 
 | Data | Where | Why it is kept |
 |---|---|---|
-| **Cancellation beneficiary** (name, identifier) when the beneficiary is a natural person: a GoO cancelled on behalf of a household or a sole trader | `etrm_inventory.lot.cancellation`, `etrm_registry.registry_instruction.cancellation` (JSONB); the lot's event journal (`lot_event`, hash-chained); the audit trail (`audit_event`, hash-chained) | The registry's cancellation statement names the beneficiary; disclosure evidence for the supplier's fuel mix |
+| **Cancellation beneficiary** (name, identifier) when the beneficiary is a natural person: a GoO cancelled on behalf of a household or a sole trader | The beneficiary register (`etrm_inventory.beneficiary`), and the editable cancellation copies: `etrm_inventory.certificate_lot.cancellation`, `etrm_registry.registry_instruction.cancellation` and `request_payload`, `etrm_allocation.obligation.cancellation` (JSONB). Records that cannot forget (lot journal, audit trail, lot versions, instruction events) keep only the `beneficiaryRef` since 0.15.0 | The registry's cancellation statement names the beneficiary; disclosure evidence for the supplier's fuel mix |
 | **User identifiers** (the token's subject or user name) | `actor` columns: audit trail, lot events, journal entries, approvals and every `created_by` | Who did what: segregation of duties and the audit trail |
 | **Contacts of counterparties** (names, addresses, VAT ids, bank accounts) | `etrm_referencedata` tables, versioned | Contracts, invoices and payments. Mostly legal persons; a sole trader's are personal data |
 | **Showcase demo accounts** | `ETRM_DEMO_USERS` (environment), not the database | Sign-in to the public demo; wiped on every restart (ADR 0033) |
@@ -22,10 +22,10 @@ without bodies.
 - **Kafka (ADR 0029).** Since 0.14.0 the externalised events carry no beneficiary name or identifier: the
   cancellation details of `InstructionConfirmed`, `InstructionFailed`, `LotReceived` and `LotTransferred` have
   `beneficiaryName` and `beneficiaryId` set to null (`ExternalEvents.payload`, tested by `ExternalPayloadTest`).
-  The instruction and lot ids are the reference: a consumer that needs the beneficiary reads it through the API,
-  under that API's roles and entity scope. A topic cannot forget what it was sent, so the rule is to send nothing
-  that would have to be forgotten. Events sent by 0.13.x and earlier did carry the beneficiary; delete or compact
-  those topics, or let their retention expire.
+  Since 0.15.0 they carry the `beneficiaryRef`. The instruction and lot ids are the reference: a consumer that needs
+  the beneficiary reads it through the API, under that API's roles and entity scope. A topic cannot forget what it was
+  sent, so the rule is to send nothing that would have to be forgotten. Events sent by 0.13.x and earlier did carry
+  the beneficiary; delete or compact those topics, or let their retention expire.
 - **Kafka transport.** Set `kafka.securityProtocol` (e.g. `SASL_SSL`) and the SASL values in the chart
   ([kubernetes.md](kubernetes.md)); without them the client speaks plaintext.
 - **Registry instructions** carry the beneficiary to the registry, which needs it for the cancellation statement.
@@ -43,32 +43,42 @@ without bodies.
 
 ## Requests from a data subject
 
-**Access.** Find the person's data by name or identifier:
+**Where the beneficiary is kept.** A cancellation records its beneficiary once in the register and carries the
+register's id as `beneficiaryRef` (`BeneficiaryCommand.record`, on opening an obligation, submitting a cancellation
+instruction or cancelling a lot). The editable copies of the cancellation keep the name for daily work. Records that
+cannot forget keep only the reference: the lot journal and the audit trail, both hash-chained, leave the name and
+identifier out (`PersonalData.redact`), and the database triggers that copy rows into the lots' version history and
+the instructions' event history do the same (`without_beneficiary`).
+
+**Access.** Find the person's register entries by name or identifier, then read them through the API (ADMIN or
+AUDITOR):
 
 ```sql
-SELECT id, status, cancellation FROM etrm_inventory.lot WHERE cancellation::text ILIKE '%<name or id>%';
-SELECT id, status, cancellation FROM etrm_registry.registry_instruction WHERE cancellation::text ILIKE '%<name or id>%';
+SELECT id, recorded_at, erased_at FROM etrm_inventory.beneficiary WHERE name ILIKE '%<name>%' OR identifier = '<id>';
 ```
 
-For a user, the audit trail by actor answers it: `GET /api/v1/audit/events?actor=<user>` (AUDITOR).
+`GET /api/v1/inventory/beneficiaries/{id}` returns the entry; the lots, instructions and obligations that name it carry
+its id in `cancellation.beneficiaryRef`. For a user, the audit trail by actor answers it:
+`GET /api/v1/audit/events?actor=<user>` (AUDITOR).
 
 **Erasure.** Records that bookkeeping or registry rules require are kept until their retention ends; an erasure
 request is answered with that legal ground and the retention end. When nothing requires the data any more:
 
-1. The current-state columns (`lot.cancellation`, `registry_instruction.cancellation`) are not chained; a database
-   owner may set the beneficiary fields to null there, recording the change and its reason in the audit trail
-   (`AuditCommand.record`).
+1. An administrator asks for the erasure with the request's reference as the reason:
+   `POST /api/v1/inventory/beneficiaries/{id}/erasure` with `{"reason": "…"}`.
+2. An auditor approves the `BENEFICIARY_ERASURE` task in the inbox; never the administrator who asked. A rejection
+   withdraws the request.
+3. The approval removes the name and identifier from the register, the lots, the registry instructions (their
+   cancellation and request) and the obligations, in one transaction. The register entry stays as a tombstone (who
+   asked, why, who approved, when), and so do the references to it. The hash chains are not touched and stay intact.
 
-2. The hash-chained rows (`audit_event`, `lot_event`) keep their copy: they cannot change without breaking the
-   chain. The audit trail is one chain across its monthly partitions, so even a partition past its retention cannot
-   be dropped yet: the nightly verification starts at the first row.
-
-What the system cannot do yet, and increment 15 adds: beneficiary data moves out of chained payloads into a table
-referenced by id (or is encrypted under a per-subject key that can be destroyed), so the chain covers the reference
-and the data can go; and the verification starts from a signed checkpoint (the daily chain-head digest), so
-partitions past their retention can be archived and dropped.
+**Rows written before 0.15.0.** The lot journal and audit trail rows of earlier versions keep their copy of the name:
+they cannot change without breaking the chain. The audit trail is one chain across its monthly partitions, so even a
+partition past its retention cannot be dropped yet, because the nightly verification starts at the first row. The next
+step lets the verification start from a signed checkpoint (the daily chain-head digest), so partitions past their
+retention can be archived and dropped.
 
 ## Who to involve
 
-A request goes to the data protection officer, who decides; the database owner role carries out step 1, and the
-change is reviewed by a second person, like any other change to master data.
+A request goes to the data protection officer, who decides. An administrator asks for the erasure and an auditor
+approves it, so no single person can erase a beneficiary.

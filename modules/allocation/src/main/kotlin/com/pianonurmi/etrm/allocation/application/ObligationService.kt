@@ -11,6 +11,8 @@ import com.pianonurmi.etrm.allocation.api.ObligationStatus
 import com.pianonurmi.etrm.allocation.api.ObligationView
 import com.pianonurmi.etrm.allocation.api.OpenObligation
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
+import com.pianonurmi.etrm.inventory.api.BeneficiaryCommand
+import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -45,8 +47,15 @@ class ObligationService(
     private val buckets: ProductBucketQuery,
     private val referenceData: ReferenceDataQuery,
     private val events: ApplicationEventPublisher,
+    private val beneficiaries: BeneficiaryCommand,
 ) : ObligationCommand, ObligationQuery {
     override fun open(command: OpenObligation): ObligationView = upsert(command, reopen = false)
+
+    /** The beneficiary in the register; an update naming the same beneficiary keeps its reference. */
+    private fun beneficiaryOf(details: CancellationDetails, previous: CancellationDetails?): CancellationDetails {
+        val same = previous?.beneficiaryRef != null && previous.beneficiaryName == details.beneficiaryName && previous.beneficiaryId == details.beneficiaryId
+        return if (same && details.beneficiaryRef == null) details.copy(beneficiaryRef = previous.beneficiaryRef) else beneficiaries.record(details)
+    }
 
     /**
      * Opens or updates the obligation of [command]'s source. A closed obligation stays closed, except when its trade
@@ -79,7 +88,7 @@ class ObligationService(
             deliveryDate = command.deliveryDate,
             targetRegistryCode = command.targetRegistryCode?.uppercase(),
             targetAccountRef = command.targetAccountRef,
-            cancellation = command.cancellation,
+            cancellation = command.cancellation?.let { beneficiaryOf(it, existing?.cancellation) },
             priorityClass = command.priorityClass ?: command.kind.defaultPriority,
             constraints = command.constraints,
             status = if ((existing?.fulfilledMwh ?: 0) >= command.quantityMwh) ObligationStatus.FULFILLED else ObligationStatus.OPEN,
