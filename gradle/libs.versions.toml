@@ -30,7 +30,7 @@ cyclonedx = "3.5.1"
 testcontainers = "2.0.5"
 rest-assured = "6.1.0"
 flyway = "13.10.0"
-postgresql-driver = "42.7.13"
+postgresql-driver = "42.7.14"
 
 [libraries]
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
