@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.config
 
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import io.swagger.v3.oas.models.Components
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.info.Info
@@ -57,6 +58,13 @@ class OpenApiConfiguration {
         operation
     }
 
+    /** The roles that may call an operation (`@AllowedRoles`), as `x-roles`; the web UI generates its permissions from them. */
+    @Bean
+    fun operationRoles(): OperationCustomizer = OperationCustomizer { operation, handler ->
+        handler.getMethodAnnotation(AllowedRoles::class.java)?.let { roles -> operation.addExtension(X_ROLES, roles.value.map { it.name }) }
+        operation
+    }
+
     @Bean
     fun kotlinRequiredProperties(): KotlinRequiredProperties = KotlinRequiredProperties()
 
@@ -84,6 +92,7 @@ class OpenApiConfiguration {
     companion object {
         const val BEARER = "bearer"
         const val PROBLEM = "Problem"
+        const val X_ROLES = "x-roles"
 
         private fun stringSchema(): Schema<Any> = Schema<Any>().apply { addType("string") }
 

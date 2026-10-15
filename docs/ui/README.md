@@ -135,7 +135,9 @@ Tests at every level: [testing.md](testing.md).
 - **Amounts:** the server computes every amount. The UI formats numbers (`shared/format`) and sends decimals back as
   strings (`decimal()`), so nothing is rounded in the browser.
 - **Permissions:** actions are shown or hidden with `<Can op="trade_approve">` and `useCan()`, keyed by operation
-  id (`shared/auth/permissions.ts`). The API checks again.
+  id (`shared/auth/permissions.ts`). The roles come from the API: each handler names them in `@AllowedRoles`, the
+  OpenAPI document publishes them as `x-roles`, and `npm run gen:api` generates `permissions.generated.ts`. The API
+  checks again.
 - **Legal entity:** the entity selected in the header (`useEntity()`) scopes the screens. Lists on the server are
   limited to the user's entities.
 - **Text:** all visible text comes from `src/locales/en.json` through `useTranslation()`.

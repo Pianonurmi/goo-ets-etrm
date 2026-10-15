@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.settlement.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.settlement.api.FixPrice
 import com.pianonurmi.etrm.settlement.api.InvoiceCommand
@@ -51,6 +53,7 @@ class SettlementController(
     private val access: SettlementAccess,
 ) {
     @GetMapping("/items")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR)
     fun items(
         @RequestParam(required = false) legalEntityId: UUID?,
         @RequestParam(required = false) counterpartyId: UUID?,
@@ -59,11 +62,13 @@ class SettlementController(
     ): List<SettlementItemView> = access.visible(itemQuery.items(SettlementItemFilter(legalEntityId, counterpartyId, status, tradeId))) { it.legalEntityId }
 
     @GetMapping("/items/{id}")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR)
     fun item(
         @PathVariable id: UUID,
     ): SettlementItemView = requireItem(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/items/{id}/reevaluate")
+    @AllowedRoles(Role.ACCOUNTANT, Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
     fun reevaluate(
         @PathVariable id: UUID,
     ): SettlementItemView {
@@ -73,6 +78,7 @@ class SettlementController(
 
     /** Fixes the price of an index or formula delivery schedule. */
     @PostMapping("/price-fixings")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun fixPrice(
         @RequestBody body: FixPrice,
     ): List<SettlementItemView> = itemCommand.fixPrice(body)
@@ -84,6 +90,7 @@ class SettlementController(
 
     @PostMapping("/vat-rules")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.ACCOUNTANT, Role.BACK_OFFICE)
     fun proposeVatRule(
         @RequestBody body: ProposeVatRule,
     ): VatRuleView = vatCommand.propose(body)
@@ -99,6 +106,7 @@ class SettlementController(
 
     @PostMapping("/invoice-runs")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun run(
         @RequestBody body: InvoiceRun,
     ): List<InvoiceView> {
@@ -108,6 +116,7 @@ class SettlementController(
 
     @PostMapping("/purchase-invoices")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun registerPurchaseInvoice(
         @RequestBody body: RegisterPurchaseInvoice,
     ): InvoiceView {
@@ -116,6 +125,7 @@ class SettlementController(
     }
 
     @GetMapping("/invoices")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR)
     fun invoices(
         @RequestParam(required = false) legalEntityId: UUID?,
         @RequestParam(required = false) counterpartyId: UUID?,
@@ -147,6 +157,7 @@ class SettlementController(
     ): InvoiceView = requireInvoice(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/invoices/{id}/submit")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun submit(
         @PathVariable id: UUID,
     ): InvoiceView {
@@ -155,6 +166,7 @@ class SettlementController(
     }
 
     @PostMapping("/invoices/{id}/discard")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun discard(
         @PathVariable id: UUID,
         @RequestBody body: DiscardRequest,
@@ -165,6 +177,7 @@ class SettlementController(
 
     /** Invoices as CSV (`format=csv`) or JSON. */
     @GetMapping("/invoices/export")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR)
     fun export(
         @RequestParam legalEntityId: UUID,
         @RequestParam(required = false) from: LocalDate?,

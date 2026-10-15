@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.settlement.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.settlement.api.AgeingRow
 import com.pianonurmi.etrm.settlement.api.AllocatePayment
 import com.pianonurmi.etrm.settlement.api.AllocationView
@@ -49,6 +51,7 @@ class PaymentController(
 ) {
     @PostMapping("/payments")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun record(
         @RequestBody body: RecordPayment,
     ): PaymentView {
@@ -59,6 +62,7 @@ class PaymentController(
     /** Bank statement lines: `bank_reference,value_date,amount,currency[,counterparty,remittance]`. */
     @PostMapping("/payments/csv", consumes = ["text/csv", "text/plain"])
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun importCsv(
         @RequestParam legalEntityId: UUID,
         @RequestBody content: String,
@@ -90,6 +94,7 @@ class PaymentController(
     ): PaymentView = requirePayment(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/payments/{id}/allocations")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun allocate(
         @PathVariable id: UUID,
         @RequestBody body: AllocatePayment,
@@ -108,6 +113,7 @@ class PaymentController(
 
     @PostMapping("/invoices/{id}/credit-note")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun creditNote(
         @PathVariable id: UUID,
         @RequestBody body: DiscardRequest,
@@ -118,6 +124,7 @@ class PaymentController(
 
     @PostMapping("/netting")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun prepareNetting(
         @RequestBody body: PrepareNetting,
     ): NettingStatementView {
@@ -137,6 +144,7 @@ class PaymentController(
     ): NettingStatementView = requireStatement(id).also { access.reader(it.legalEntityId) }
 
     @PostMapping("/netting/{id}/agree")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun agree(
         @PathVariable id: UUID,
         @RequestBody(required = false) body: AgreeNetting?,
@@ -146,6 +154,7 @@ class PaymentController(
     }
 
     @PostMapping("/netting/{id}/settle")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun settle(
         @PathVariable id: UUID,
         @RequestBody(required = false) body: SettleNetting?,
@@ -155,6 +164,7 @@ class PaymentController(
     }
 
     @PostMapping("/netting/{id}/cancel")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun cancelNetting(
         @PathVariable id: UUID,
         @RequestBody body: DiscardRequest,

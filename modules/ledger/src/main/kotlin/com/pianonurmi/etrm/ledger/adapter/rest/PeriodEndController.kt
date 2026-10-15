@@ -8,6 +8,8 @@ import com.pianonurmi.etrm.ledger.api.PeriodEndRunView
 import com.pianonurmi.etrm.ledger.api.PolicyChangeStatus
 import com.pianonurmi.etrm.ledger.api.PolicyChangeView
 import com.pianonurmi.etrm.ledger.api.RequestPolicyChange
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -26,6 +28,7 @@ import java.util.UUID
 class PeriodEndController(private val command: PeriodEndCommand, private val query: PeriodEndQuery) {
     @PostMapping("/runs")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.ACCOUNTANT)
     fun run(
         @RequestBody body: RunPeriodEnd,
     ): PeriodEndRunView = command.run(body.legalEntityId, body.period)
@@ -53,6 +56,7 @@ class PeriodEndController(private val command: PeriodEndCommand, private val que
 
     @PostMapping("/policy-changes")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.ACCOUNTANT)
     fun requestPolicyChange(
         @RequestBody body: RequestPolicyChange,
     ): PolicyChangeView = command.requestPolicyChange(body)

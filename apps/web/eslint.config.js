@@ -6,7 +6,14 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['build/**', 'node_modules/**', 'src/shared/api/schema.d.ts', 'playwright-report/**', 'test-results/**'],
+    ignores: [
+      'build/**',
+      'node_modules/**',
+      'src/shared/api/schema.d.ts',
+      'src/shared/auth/permissions.generated.ts',
+      'playwright-report/**',
+      'test-results/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,

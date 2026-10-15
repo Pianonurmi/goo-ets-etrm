@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.trade.adapter.rest
 
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.security.Roles
 import com.pianonurmi.etrm.trade.api.ConfirmationCommand
 import com.pianonurmi.etrm.trade.api.ConfirmationFilter
@@ -54,6 +56,7 @@ class ConfirmationController(
     /** Issues (or returns) our confirmation of the trade's current terms. */
     @PostMapping("/api/v1/trades/{tradeId}/confirmations")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun issue(
         @PathVariable tradeId: UUID,
     ): ConfirmationView = trades.requireTradeOperator(tradeId).let { command.issue(tradeId) }
@@ -67,6 +70,7 @@ class ConfirmationController(
     /** The counterparty's confirmation as JSON (also used for manual entry with source MANUAL). */
     @PostMapping("/api/v1/confirmations/counterparty")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun receive(
         @RequestBody body: ReceiveConfirmation,
     ): ConfirmationView = requireReceiver().let { command.receive(body) }
@@ -74,6 +78,7 @@ class ConfirmationController(
     /** The counterparty's confirmations as CSV: one line per delivery, grouped by confirmation_ref. */
     @PostMapping("/api/v1/confirmations/counterparty/csv", consumes = ["text/csv", "text/plain"])
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun receiveCsv(
         @RequestParam counterpartyId: UUID,
         @RequestBody content: String,

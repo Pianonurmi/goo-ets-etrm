@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.position.adapter.rest
 
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.position.api.ComplianceLadder
 import com.pianonurmi.etrm.position.api.GooPositionReport
@@ -48,6 +49,7 @@ class PositionController(
         query.snapshots(legalEntityId, kind, from, to)
 
     @PostMapping("/snapshots")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK, Role.ACCOUNTANT)
     fun takeSnapshots(
         @RequestParam legalEntityId: UUID,
         @RequestParam(required = false) asOf: LocalDate?,

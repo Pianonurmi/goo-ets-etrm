@@ -1,5 +1,6 @@
 build
 node_modules
 src/shared/api/schema.d.ts
+src/shared/auth/permissions.generated.ts
 playwright-report
 test-results

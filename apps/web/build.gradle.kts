@@ -40,6 +40,7 @@ val genApi = tasks.register<Exec>("genApi") {
     dependsOn(npmCi)
     inputs.file(openApiSnapshot)
     outputs.file("src/shared/api/schema.d.ts")
+    outputs.file("src/shared/auth/permissions.generated.ts")
     npmScript("run", "gen:api")
 }
 

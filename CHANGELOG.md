@@ -26,6 +26,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
 
 ### Changed
+- The OpenAPI document names the roles that may call each operation as `x-roles` (`@AllowedRoles` on the handler),
+  and the web UI generates its permission table from it instead of keeping a copy.
 - **Records that cannot forget no longer keep a beneficiary's name or identifier:** the lot journal, the audit trail,
   the lots' version history and the instructions' event history keep only the `beneficiaryRef`. Rows written before
   this version keep their copy.

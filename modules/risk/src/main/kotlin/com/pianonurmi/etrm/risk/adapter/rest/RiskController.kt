@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.risk.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.risk.api.CounterpartyExposureView
 import com.pianonurmi.etrm.risk.api.CreditSupportView
 import com.pianonurmi.etrm.risk.api.LimitBreachView
@@ -41,6 +43,7 @@ class RiskController(
 
     @PostMapping("/limits")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.RISK)
     fun requestLimit(
         @RequestBody body: RequestLimit,
     ): RiskLimitView = command.requestLimit(body)
@@ -56,6 +59,7 @@ class RiskController(
     ): LimitUtilisationView = query.utilisation(id) ?: throw NotFoundException("LimitUtilisation", id)
 
     @PostMapping("/measure")
+    @AllowedRoles(Role.RISK)
     fun measure(
         @RequestParam legalEntityId: UUID,
     ): List<LimitUtilisationView> = command.measure(legalEntityId)
@@ -78,6 +82,7 @@ class RiskController(
 
     @PostMapping("/credit-support")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.RISK, Role.BACK_OFFICE)
     fun requestCreditSupport(
         @RequestBody body: RequestCreditSupport,
     ): CreditSupportView = command.requestCreditSupport(body)
@@ -87,6 +92,7 @@ class RiskController(
 
     /** The pre-trade check against current limits for an existing trade (what-if, nothing is stored). */
     @PostMapping("/pre-trade-check")
+    @AllowedRoles(Role.RISK, Role.MIDDLE_OFFICE, Role.TRADER, Role.AUDITOR)
     fun preTradeCheck(
         @RequestParam tradeId: UUID,
     ): List<ApprovalFinding> = risk.recheck(tradeId)

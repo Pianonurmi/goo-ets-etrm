@@ -15,6 +15,8 @@ import com.pianonurmi.etrm.etscompliance.api.RequestSurrender
 import com.pianonurmi.etrm.etscompliance.api.SetFreeAllocation
 import com.pianonurmi.etrm.etscompliance.api.SurrenderRequestView
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpStatus
@@ -42,6 +44,7 @@ class EtsComplianceController(private val query: EtsComplianceQuery, private val
 
     @PostMapping("/installations")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun register(
         @RequestBody body: RegisterInstallation,
     ): InstallationView = command.register(body)
@@ -59,6 +62,7 @@ class EtsComplianceController(private val query: EtsComplianceQuery, private val
 
     @PostMapping("/installations/{id}/emissions")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun recordEmissions(
         @PathVariable id: UUID,
         @RequestBody body: RecordEmissions,
@@ -66,6 +70,7 @@ class EtsComplianceController(private val query: EtsComplianceQuery, private val
 
     @PostMapping("/installations/{id}/verified-emissions")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun recordVerifiedEmissions(
         @PathVariable id: UUID,
         @RequestBody body: RecordVerifiedEmissions,
@@ -78,6 +83,7 @@ class EtsComplianceController(private val query: EtsComplianceQuery, private val
     ): FreeAllocationView = query.freeAllocation(id, year) ?: throw NotFoundException("FreeAllocation", "$id/$year")
 
     @PutMapping("/installations/{id}/free-allocation/{year}")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun setFreeAllocation(
         @PathVariable id: UUID,
         @PathVariable year: Int,
@@ -97,6 +103,7 @@ class EtsComplianceController(private val query: EtsComplianceQuery, private val
 
     @PostMapping("/installations/{id}/surrenders")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun requestSurrender(
         @PathVariable id: UUID,
         @RequestBody body: RequestSurrender,
