@@ -1,6 +1,7 @@
+import com.pianonurmi.build.CodegenMigrations
 import com.pianonurmi.build.DatabaseSettings
-import com.pianonurmi.build.FlywayMigrateTask
 import nu.studer.gradle.jooq.JooqEdition
+import nu.studer.gradle.jooq.JooqGenerate
 import org.gradle.accessors.dm.LibrariesForLibs
 import org.jooq.meta.jaxb.ForcedType
 import org.jooq.meta.jaxb.Logging
@@ -51,18 +52,7 @@ dependencies {
 // Only wired when the module ships migrations under src/main/resources/db/migration/<module>.
 // ---------------------------------------------------------------------------------------------------------------------
 if (migrationsDir.asFile.exists()) {
-    val platformMigrate = rootProject.tasks.named("codegenPlatformMigrate")
-
-    val migrateCodegenSchema = tasks.register<FlywayMigrateTask>("migrateCodegenSchema") {
-        group = "jooq"
-        description = "Migrates schema $schemaName in the code-generation database"
-        schema.set(schemaName)
-        migrations.set(migrationsDir)
-        jdbcUrl.set(DatabaseSettings.codegenUrl)
-        user.set(DatabaseSettings.user)
-        password.set(DatabaseSettings.password)
-        dependsOn(platformMigrate)
-    }
+    val platformMigrations = rootProject.layout.projectDirectory.dir("platform/src/main/resources/db/migration/platform")
 
     jooq {
         version.set(libs.versions.jooq.asProvider().get())
@@ -124,9 +114,20 @@ if (migrationsDir.asFile.exists()) {
         }
     }
 
-    tasks.named("generateJooq") {
-        dependsOn(migrateCodegenSchema)
-        // The codegen database is external state; never cache or skip this task.
-        outputs.upToDateWhen { false }
+    tasks.named<JooqGenerate>("generateJooq") {
+        // The generated sources follow from the migrations alone: with them as inputs the task is up to date (or
+        // restored from the build cache) when no migration changed, and only then does it need the database.
+        inputs.dir(migrationsDir).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("migrations")
+        inputs.dir(platformMigrations).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("platformMigrations")
+        allInputsDeclared.set(true)
+        // Plain values only, so the action can be stored in the configuration cache.
+        val platformSchema = DatabaseSettings.schemaFor("platform")
+        val platformDir = platformMigrations.asFile
+        val moduleSchema = schemaName
+        val moduleDir = migrationsDir.asFile
+        doFirst {
+            CodegenMigrations.migrate(platformSchema, platformDir, logger)
+            CodegenMigrations.migrate(moduleSchema, moduleDir, logger)
+        }
     }
 }
