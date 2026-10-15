@@ -15,6 +15,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   npm lock file, on Dependabot pull requests ([supply chain](docs/operations/supply-chain.md#pinning)).
 
 ### Added
+- **Client error reports.** The web UI sends the errors it could not handle to `POST /api/v1/client-errors`, with the
+  page and the trace id of the last API response. They are logged at WARN, rate-limited, and counted in
+  `etrm_web_client_errors_total`. Source maps are no longer in the bundle; CI keeps them as an artifact
+  ([observability](docs/operations/observability.md#client-errors)).
 - **Beneficiary register** (review finding S7). A cancellation's beneficiary is recorded once in the register, and the
   cancellation carries `beneficiaryRef`. An administrator asks for an erasure with a reason
   (`POST /api/v1/inventory/beneficiaries/{id}/erasure`), and an auditor approves it in the inbox (`BENEFICIARY_ERASURE`).

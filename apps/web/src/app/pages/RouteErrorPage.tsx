@@ -1,14 +1,20 @@
 import { Button, Code, Group, Paper, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isRouteErrorResponse, Link, useRouteError } from 'react-router';
+import { reportClientError } from '@/shared/telemetry/clientErrors';
 import { NotFoundPage } from './NotFoundPage';
 
 /** Shown when a screen throws while rendering; the rest of the shell stays usable. */
 export function RouteErrorPage() {
   const { t } = useTranslation();
   const error = useRouteError();
-  if (isRouteErrorResponse(error) && error.status === 404) return <NotFoundPage />;
+  const notFound = isRouteErrorResponse(error) && error.status === 404;
+  useEffect(() => {
+    if (!notFound) reportClientError('ROUTE_ERROR', error);
+  }, [error, notFound]);
+  if (notFound) return <NotFoundPage />;
   const message = error instanceof Error ? error.message : String(error);
   return (
     <Paper withBorder p="xl" maw={640} mx="auto" mt="xl" data-testid="route-error">

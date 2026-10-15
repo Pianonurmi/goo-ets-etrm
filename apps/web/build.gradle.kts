@@ -74,6 +74,7 @@ val viteBuild = tasks.register<Exec>("viteBuild") {
     dependsOn(genApi)
     inputs.files(sources)
     outputs.dir("build/dist")
+    outputs.dir("build/sourcemaps")
     npmScript("run", "build")
 }
 
