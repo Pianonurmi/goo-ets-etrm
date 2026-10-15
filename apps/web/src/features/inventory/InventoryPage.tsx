@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   Alert,
   Badge,
@@ -17,7 +18,7 @@ import type { ColDef } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -33,7 +34,7 @@ import { DataGrid } from '@/shared/grid/DataGrid';
 import { CriteriaBuilder } from '@/features/criteria/CriteriaBuilder';
 import { EXAMPLE, incomplete, type Criterion } from '@/features/criteria/model/tree';
 import { AllowanceTransferModal } from '@/features/registry/AllowanceTransferModal';
-import { allOf, oneOf } from '@/shared/urlParams';
+import { allOf } from '@/shared/urlParams';
 import { LimitNotice } from '@/shared/components/LimitNotice';
 import { ExpiryLadder } from './ExpiryLadder';
 import { JournalCheckButton } from './JournalCheck';
@@ -134,7 +135,7 @@ function useOpenLot() {
 function LotsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
   const open = useOpenLot();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const statuses = allOf(params.getAll('status'), STATUSES);
   const expiringBefore = params.get('expiringBefore') ?? '';
   const lots = $api.useQuery('get', '/api/v1/inventory/lots', {
@@ -148,18 +149,8 @@ function LotsTab({ entityId }: { entityId: string }) {
     },
   });
   const columns = useMemo(() => lotColumns(t), [t]);
-  const update = (changes: { status?: string[]; expiringBefore?: string }) => {
-    const next = new URLSearchParams(params);
-    if (changes.status) {
-      next.delete('status');
-      changes.status.forEach((status) => next.append('status', status));
-    }
-    if (changes.expiringBefore !== undefined) {
-      if (changes.expiringBefore) next.set('expiringBefore', changes.expiringBefore);
-      else next.delete('expiringBefore');
-    }
-    setParams(next, { replace: true });
-  };
+  const update = (changes: { status?: string[]; expiringBefore?: string }) =>
+    patchUrl({ status: changes.status, expiringBefore: changes.expiringBefore });
   return (
     <Stack gap="md">
       <ExpiryLadder entityId={entityId} />
@@ -450,8 +441,7 @@ function AllowancesTab({ entityId }: { entityId: string }) {
 export function InventoryPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const tab = oneOf(params.get('tab'), ['lots', 'search', 'allowances'] as const, 'lots');
+  const [tab, setTab] = useUrlTab(['lots', 'search', 'allowances'] as const, 'lots');
   const [receiving, setReceiving] = useState(false);
   return (
     <Stack gap="lg">
@@ -482,11 +472,7 @@ export function InventoryPage() {
       ) : (
         <>
           <InventoryKpis entityId={entity.id} />
-          <Tabs
-            value={tab}
-            onChange={(value) => setParams(value && value !== 'lots' ? { tab: value } : {}, { replace: true })}
-            keepMounted={false}
-          >
+          <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="lots">{t('inventory.tabs.lots')}</Tabs.Tab>
               <Tabs.Tab value="search" data-testid="tab-search">

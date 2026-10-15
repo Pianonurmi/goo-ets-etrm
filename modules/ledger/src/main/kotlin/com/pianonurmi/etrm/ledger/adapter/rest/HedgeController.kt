@@ -7,6 +7,8 @@ import com.pianonurmi.etrm.ledger.api.HedgeRelationshipView
 import com.pianonurmi.etrm.ledger.api.HedgeStatus
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDesignation
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDiscontinuation
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -37,11 +39,13 @@ class HedgeController(private val command: HedgeCommand, private val query: Hedg
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.ACCOUNTANT)
     fun requestDesignation(
         @RequestBody body: RequestHedgeDesignation,
     ): HedgeRelationshipView = command.requestDesignation(body)
 
     @PostMapping("/{id}/discontinuation")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun requestDiscontinuation(
         @PathVariable id: UUID,
         @RequestBody body: RequestHedgeDiscontinuation,

@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.referencedata.adapter.rest
 
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.AddressView
 import com.pianonurmi.etrm.referencedata.api.BankAccountChange
@@ -47,6 +48,7 @@ class PartyDetailsController(
     ): List<AddressView> = query.addresses(partyType, partyId)
 
     @PutMapping("/addresses")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun upsertAddress(
         @PathVariable partyType: PartyType,
         @PathVariable partyId: UUID,
@@ -63,6 +65,7 @@ class PartyDetailsController(
     ): List<VatRegistrationView> = query.vatRegistrations(partyType, partyId)
 
     @PutMapping("/vat-registrations")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.ACCOUNTANT)
     fun upsertVatRegistration(
         @PathVariable partyType: PartyType,
         @PathVariable partyId: UUID,
@@ -74,6 +77,7 @@ class PartyDetailsController(
 
     /** Payment details are read by the people who maintain or pay them, within their legal entities. */
     @GetMapping("/bank-accounts")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.ACCOUNTANT)
     fun bankAccounts(
         @PathVariable partyType: PartyType,
         @PathVariable partyId: UUID,
@@ -87,6 +91,7 @@ class PartyDetailsController(
     /** Bank account changes apply only when a second person approves the REFERENCE_DATA_CHANGE task. */
     @PostMapping("/bank-accounts/change-requests")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.ACCOUNTANT)
     fun requestBankAccountChange(
         @PathVariable partyType: PartyType,
         @PathVariable partyId: UUID,

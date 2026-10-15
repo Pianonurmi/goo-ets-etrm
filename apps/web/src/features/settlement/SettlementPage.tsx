@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   ActionIcon,
   Alert,
@@ -15,7 +16,7 @@ import { IconDownload, IconEye, IconFileInvoice, IconReceipt, IconRefresh, IconT
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
 import { Can } from '@/shared/auth/Can';
@@ -115,13 +116,8 @@ function SettlementKpis({ entityId }: { entityId: string }) {
 }
 
 function useSetFilter() {
-  const [params, setParams] = useSearchParams();
-  return (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const { set } = useUrlState();
+  return (key: string, value: string | null) => set({ [key]: value });
 }
 
 function ItemActions({
@@ -181,7 +177,7 @@ function ItemActions({
 
 function ItemsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
-  const [params] = useSearchParams();
+  const { params } = useUrlState();
   const setFilter = useSetFilter();
   const view = asItemView(params.get('view'));
   const counterparties = useCounterparties();
@@ -317,7 +313,7 @@ function ItemsTab({ entityId }: { entityId: string }) {
 function InvoicesTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const { params } = useUrlState();
   const setFilter = useSetFilter();
   const counterparties = useCounterparties();
   const status = INVOICE_STATUSES.find((value) => value === params.get('status')) ?? null;
@@ -470,8 +466,7 @@ export function SettlementPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const tab = TABS.find((value) => value === params.get('tab')) ?? 'items';
+  const [tab, setTab] = useUrlTab(TABS, 'items');
   const [running, setRunning] = useState(false);
   const [registering, setRegistering] = useState(false);
   return (
@@ -510,11 +505,7 @@ export function SettlementPage() {
       ) : (
         <>
           <SettlementKpis entityId={entity.id} />
-          <Tabs
-            value={tab}
-            onChange={(value) => setParams(value && value !== 'items' ? { tab: value } : {}, { replace: true })}
-            keepMounted={false}
-          >
+          <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="items">{t('settlement.tabs.items')}</Tabs.Tab>
               <Tabs.Tab value="invoices">{t('settlement.tabs.invoices')}</Tabs.Tab>

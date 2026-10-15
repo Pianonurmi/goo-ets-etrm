@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.referencedata.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.ChangeEntityType
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestCommand
 import com.pianonurmi.etrm.referencedata.api.ChangeRequestQuery
@@ -29,6 +31,7 @@ class ChangeRequestController(private val query: ChangeRequestQuery, private val
     /** Requests a change of a registry's integration mode or active flag; applied after a second person's approval in the inbox. */
     @PostMapping("/registries/{code}/change-requests")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.ACCOUNTANT)
     fun requestRegistryChange(
         @PathVariable code: String,
         @RequestBody body: RegistryChange,
@@ -37,6 +40,7 @@ class ChangeRequestController(private val query: ChangeRequestQuery, private val
     /** Requests a change to a counterparty's registry accounts (add, deactivate, trusted account list); four-eyes. */
     @PostMapping("/counterparties/{id}/registry-accounts/change-requests")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.ACCOUNTANT)
     fun requestCounterpartyAccountChange(
         @PathVariable id: UUID,
         @RequestBody body: CounterpartyAccountChange,

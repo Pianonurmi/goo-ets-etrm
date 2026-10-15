@@ -1,3 +1,4 @@
+import { useUrlTab } from '@/shared/useUrlState';
 import {
   Button,
   Group,
@@ -16,7 +17,6 @@ import { IconPlus } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal, type Body, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -436,17 +436,11 @@ const TABS = ['buckets', 'allowances', 'futures'] as const;
 /** Product buckets (criteria that decide positions), allowance products and exchange futures contracts. */
 export function ProductsPage() {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
-  const requested = params.get('tab');
-  const tab = TABS.find((value) => value === requested) ?? 'buckets';
+  const [tab, setTab] = useUrlTab(TABS, 'buckets');
   return (
     <Stack>
       <PageHeader title={t('admin.productsTitle')} description={t('admin.productsDescription')} />
-      <Tabs
-        value={tab}
-        onChange={(value) => setParams(value && value !== 'buckets' ? { tab: value } : {}, { replace: true })}
-        keepMounted={false}
-      >
+      <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
         <Tabs.List>
           <Tabs.Tab value="buckets">{t('admin.tabs.buckets')}</Tabs.Tab>
           <Tabs.Tab value="allowances">{t('admin.tabs.allowances')}</Tabs.Tab>

@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import {
   Button,
   Group,
@@ -16,7 +17,7 @@ import type { ColDef, ICellRendererParams, RowStyle } from 'ag-grid-community';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { useSession } from '@/shared/auth/SessionContext';
 import { EmptyState } from '@/shared/components/EmptyState';
@@ -41,7 +42,7 @@ const OVERDUE_ROW: RowStyle = { boxShadow: 'inset 3px 0 0 var(--etrm-loss)' };
 
 /** Inbox filters live in the URL, so a filtered inbox can be bookmarked and shared. */
 function useInboxFilters() {
-  const [params, setParams] = useSearchParams();
+  const { params, reset: resetUrl } = useUrlState();
   const filters = {
     status: oneOf(params.get('status'), STATUSES, 'OPEN'),
     types: params.getAll('type'),
@@ -61,7 +62,7 @@ function useInboxFilters() {
     if (next.overdue) search.set('overdue', 'true');
     if (next.entityOnly) search.set('entityOnly', 'true');
     if (next.sort !== 'DUE') search.set('sort', next.sort);
-    setParams(search, { replace: true });
+    resetUrl(search);
   };
   return { filters, update };
 }

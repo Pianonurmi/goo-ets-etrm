@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Alert, Anchor, Button, Drawer, Paper, Select, Stack, Text } from '@mantine/core';
 import { IconInbox } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
@@ -14,7 +15,7 @@ import { TableSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
-import { useUrlParams } from './hooks';
+
 import { CALL_STATUSES, callSteps, newestFirst, statusFilter, type Account, type MarginCall } from './model/clearing';
 
 /** One margin call: what is short, who asked, and the inbox task in which it is paid or disputed. */
@@ -104,7 +105,7 @@ function CallDrawer({ callId, onClose }: { callId: string; onClose: () => void }
 /** Margin calls: cash at the member short of the initial margin; paid or disputed in the inbox. */
 export function MarginCallsTab({ entityId, account }: { entityId: string; account: Account | null }) {
   const { t } = useTranslation();
-  const { params, set } = useUrlParams();
+  const { params, set } = useUrlState();
   const status = statusFilter(params.get('status'), CALL_STATUSES, 'OPEN');
   const callId = params.get('call');
   const calls = $api.useQuery('get', '/api/v1/clearing/margin-calls', {

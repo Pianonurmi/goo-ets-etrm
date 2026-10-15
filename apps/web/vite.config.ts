@@ -50,7 +50,7 @@ export default defineConfig({
         autoUpdate: process.env.CI ? false : (next: number) => Math.floor(next),
         statements: 73,
         branches: 69,
-        functions: 63,
+        functions: 64,
         lines: 73,
       },
       reportsDirectory: 'build/coverage',

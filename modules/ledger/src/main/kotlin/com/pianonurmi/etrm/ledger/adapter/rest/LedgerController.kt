@@ -18,6 +18,8 @@ import com.pianonurmi.etrm.ledger.api.ReconciliationRow
 import com.pianonurmi.etrm.ledger.api.RuleChangeStatus
 import com.pianonurmi.etrm.ledger.api.TrialBalanceRow
 import com.pianonurmi.etrm.ledger.api.UpsertPostingRule
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -62,11 +64,13 @@ class LedgerController(
 
     @PostMapping("/entries")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.ACCOUNTANT, Role.BACK_OFFICE)
     fun postManual(
         @Valid @RequestBody body: ManualJournal,
     ): JournalEntryView = command.postManual(body)
 
     @PostMapping("/entries/{id}/reverse")
+    @AllowedRoles(Role.ACCOUNTANT, Role.BACK_OFFICE)
     fun reverse(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
@@ -91,6 +95,7 @@ class LedgerController(
     /** Proposes a rule change; it applies when another accountant approves the `POSTING_RULE_CHANGE` task. */
     @PutMapping("/rules")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @AllowedRoles(Role.ACCOUNTANT)
     fun upsertRule(
         @Valid @RequestBody body: UpsertPostingRule,
     ): PostingRuleChangeView = gl.requestRuleChange(body)
@@ -111,6 +116,7 @@ class LedgerController(
     ): List<AccountingPeriodView> = query.periods(legalEntityId)
 
     @PostMapping("/periods/{period}/close")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun closePeriod(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,
@@ -119,6 +125,7 @@ class LedgerController(
         command.closePeriod(legalEntityId, period, hard)
 
     @PostMapping("/periods/{period}/reopen")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun reopenPeriod(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,
@@ -126,6 +133,7 @@ class LedgerController(
 
     @PostMapping("/exports/{period}")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.ACCOUNTANT)
     fun export(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,
@@ -133,6 +141,7 @@ class LedgerController(
     ): GlExportView = command.exportGl(legalEntityId, period, format)
 
     @PostMapping("/exports/{period}/csv", produces = [MediaType.TEXT_PLAIN_VALUE])
+    @AllowedRoles(Role.ACCOUNTANT)
     fun exportCsv(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,
@@ -140,6 +149,7 @@ class LedgerController(
     ): String = command.exportGl(legalEntityId, period, format).content
 
     @GetMapping("/exports")
+    @AllowedRoles(Role.ACCOUNTANT, Role.AUDITOR)
     fun exports(
         @RequestParam legalEntityId: UUID,
         @RequestParam(required = false) period: YearMonth?,
@@ -149,23 +159,27 @@ class LedgerController(
     fun exportFormats(): List<GlExportFormatView> = glQuery.formats()
 
     @PostMapping("/exports/{id}/delivered")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun delivered(
         @PathVariable id: UUID,
     ): GlExportView = gl.markDelivered(id).copy(content = "")
 
     @PostMapping("/exports/{id}/acknowledge")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun acknowledge(
         @PathVariable id: UUID,
         @RequestBody body: AcknowledgeRequest,
     ): GlExportView = gl.acknowledge(id, body.reference).copy(content = "")
 
     @PostMapping("/exports/{id}/reject")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun reject(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): GlExportView = gl.reject(id, body.reason).copy(content = "")
 
     @PutMapping("/gl-balances/{period}")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun importBalances(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,
@@ -173,12 +187,14 @@ class LedgerController(
     ): List<ReconciliationRow> = gl.importBalances(legalEntityId, period, body)
 
     @GetMapping("/reconciliation")
+    @AllowedRoles(Role.ACCOUNTANT, Role.AUDITOR)
     fun reconciliation(
         @RequestParam legalEntityId: UUID,
         @RequestParam period: YearMonth,
     ): List<ReconciliationRow> = glQuery.reconciliation(legalEntityId, period)
 
     @GetMapping("/periods/{period}/hard-close-blockers")
+    @AllowedRoles(Role.ACCOUNTANT)
     fun hardCloseBlockers(
         @RequestParam legalEntityId: UUID,
         @PathVariable period: YearMonth,

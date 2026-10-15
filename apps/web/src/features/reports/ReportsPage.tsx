@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   ActionIcon,
   Alert,
@@ -21,7 +22,6 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api, authorisedFetch } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
 import type { Schema } from '@/shared/api/types';
@@ -37,7 +37,6 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { previousPeriod } from '@/features/monthend/model/glBalances';
-import { oneOf } from '@/shared/urlParams';
 import {
   missingParameters,
   parameterInput,
@@ -196,7 +195,7 @@ function ReportRunner({ definition, entityId }: { definition: ReportDefinition; 
 function Catalogue({ entityId }: { entityId: string | undefined }) {
   const { t } = useTranslation();
   const { me } = useSession();
-  const [params, setParams] = useSearchParams();
+  const { params, reset: resetUrl } = useUrlState();
   const catalogue = $api.useQuery('get', '/api/v1/reports', {}, { staleTime: 5 * 60_000 });
   const reports = runnableReports(catalogue.data ?? [], me.roles);
   const selected = reports.find((report) => report.code === params.get('report')) ?? reports[0];
@@ -214,7 +213,7 @@ function Catalogue({ entityId }: { entityId: string | undefined }) {
                     key={report.code}
                     label={report.title}
                     active={report.code === selected?.code}
-                    onClick={() => setParams({ report: report.code }, { replace: true })}
+                    onClick={() => resetUrl({ report: report.code })}
                     style={{ borderRadius: 8 }}
                   />
                 ))}
@@ -437,18 +436,13 @@ function Emir({ entityId }: { entityId: string }) {
 export function ReportsPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
   const canSeeLog = useCan('reporting_exports');
   const canSeeEmir = useCan('reporting_emirFieldRules');
-  const tab = oneOf(params.get('tab'), ['catalogue', 'log', 'emir'] as const, 'catalogue');
+  const [tab, setTab] = useUrlTab(['catalogue', 'log', 'emir'] as const, 'catalogue');
   return (
     <Stack>
       <PageHeader title={t('reports.title')} description={t('reports.description', { entity: entity?.code ?? '' })} />
-      <Tabs
-        value={tab}
-        onChange={(value) => setParams(value && value !== 'catalogue' ? { tab: value } : {}, { replace: true })}
-        keepMounted={false}
-      >
+      <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
         <Tabs.List>
           <Tabs.Tab value="catalogue">{t('reports.tabs.catalogue')}</Tabs.Tab>
           {canSeeLog && <Tabs.Tab value="log">{t('reports.tabs.log')}</Tabs.Tab>}

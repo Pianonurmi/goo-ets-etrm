@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.valuation.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.valuation.api.PnlExplainView
 import com.pianonurmi.etrm.valuation.api.PortfolioBridgeView
 import com.pianonurmi.etrm.valuation.api.PortfolioExplainView
@@ -30,11 +32,13 @@ import java.util.UUID
 class ValuationController(private val query: ValuationQuery, private val command: ValuationCommand) {
     @PostMapping("/runs")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun run(
         @RequestBody body: RunRequest,
     ): ValuationRunView = command.run(body.legalEntityId, body.valuationDate, body.kind, body.note)
 
     @PostMapping("/runs/{id}/submit")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun submit(
         @PathVariable id: UUID,
     ): ValuationRunView = command.submit(id)
@@ -67,6 +71,7 @@ class ValuationController(private val query: ValuationQuery, private val command
     ): ValuationResultPage = query.resultPage(id, bookId, limit, cursor)
 
     @GetMapping("/official")
+    @AllowedRoles(Role.RISK, Role.MIDDLE_OFFICE, Role.ACCOUNTANT, Role.AUDITOR, Role.TRADER)
     fun official(
         @RequestParam legalEntityId: UUID,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) date: LocalDate,

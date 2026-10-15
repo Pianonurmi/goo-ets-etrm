@@ -5,6 +5,7 @@ import com.pianonurmi.etrm.allocation.api.DeliveryCommand
 import com.pianonurmi.etrm.allocation.api.MatchReceipt
 import com.pianonurmi.etrm.allocation.api.ReceiptMatch
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.trade.api.TradeQuery
@@ -28,6 +29,7 @@ class DeliveryController(
     /** Submits the Union Registry transfer for an allowance sale schedule. */
     @PostMapping("/allowances")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun deliverAllowances(
         @RequestBody body: DeliverAllowances,
     ): RegistryInstructionView {
@@ -37,6 +39,7 @@ class DeliveryController(
 
     /** Matches a received lot or allowance movement to a purchase schedule. */
     @PostMapping("/receipts")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun matchReceipt(
         @RequestBody body: MatchReceipt,
     ): ReceiptMatch {
