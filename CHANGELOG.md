@@ -7,6 +7,20 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-15
+
+Increment 14, production readiness: the rest of the [enterprise readiness review](docs/reviews/2026-10-enterprise-readiness.md)
+after the patches 0.13.1 and 0.13.2 (status per finding in the review, what moved to increment 15 in its
+[plan](docs/plans/increment-15-maintainability.md)).
+
+**Before upgrading:**
+- Kubernetes: create the runtime database role's secret (`database.runtimeSecret`, e.g. `etrm-db-runtime`); migrations
+  now run in a pre-upgrade Job as the owner ([Kubernetes](docs/operations/kubernetes.md)).
+- Identity provider: tokens must carry the `etrm-api` audience (`oidc.audience`); add the audience mapper first.
+- Kafka: create the topics before enabling it (`kafka.createTopics` now defaults to off), and tell consumers that
+  cancellation beneficiaries are no longer in the events.
+- Re-run the period end of any open period, as after 0.13.2.
+
 ### Security
 - **Kafka events no longer carry a cancellation's beneficiary.** `InstructionConfirmed`, `InstructionFailed`,
   `LotReceived` and `LotTransferred` leave with `beneficiaryName` and `beneficiaryId` set to null; consumers read
@@ -451,7 +465,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.13.2...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.14.0
 [0.13.2]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.2
 [0.13.1]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.1
 [0.13.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.0
