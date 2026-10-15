@@ -185,7 +185,7 @@ jobs:
           JAVA: ${{ env.JAVA_HOME_25_X64 }}/bin/java
         run: |
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_compat;"
-          ops/release/compat-check.sh apps/api/build/libs/api.jar "jdbc:postgresql://localhost:$DB_PORT/etrm_compat"
+          ops/release/compat-check.sh apps/api/build/libs/api-showcase.jar "jdbc:postgresql://localhost:$DB_PORT/etrm_compat"
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
