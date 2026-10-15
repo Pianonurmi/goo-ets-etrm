@@ -51,6 +51,7 @@ import java.util.Currency
 import java.util.UUID
 
 @Repository
+@Suppress("TooManyFunctions") // one query per master data table, mirroring ReferenceDataRepository
 class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRepository {
     // ----------------------------------------------------------------------------------------------------------
     // Legal entities

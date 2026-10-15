@@ -142,6 +142,7 @@ class VatRuleService(
  */
 @Service
 @Transactional
+@Suppress("LongParameterList") // items are priced from trades, fixings, rates, VAT and the parties
 class SettlementItemService(
     private val repository: SettlementItemRepository,
     private val vat: VatRuleService,

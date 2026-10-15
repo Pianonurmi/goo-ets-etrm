@@ -4,14 +4,14 @@ build:
 complexity:
   LongParameterList:
     functionThreshold: 8
-    constructorThreshold: 12
+    constructorThreshold: 10
     ignoreDefaultParameters: true
-    ignoreAnnotated: ['Bean', 'Component', 'Service', 'RestController', 'Configuration']
+    ignoreAnnotated: ['Bean', 'Component', 'RestController', 'Configuration']
   TooManyFunctions:
-    thresholdInFiles: 40
-    thresholdInClasses: 40
-    thresholdInInterfaces: 40
-    thresholdInObjects: 40
+    thresholdInFiles: 25
+    thresholdInClasses: 25
+    thresholdInInterfaces: 25
+    thresholdInObjects: 25
     ignorePrivate: true
   LongMethod:
     threshold: 80
@@ -22,7 +22,9 @@ complexity:
   NestedBlockDepth:
     threshold: 5
   LargeClass:
-    threshold: 800
+    threshold: 500
+    # An integration test is one scenario per method over a shared fixture; it is not split for size.
+    excludes: ['**/src/test/**', '**/src/testFixtures/**']
 
 style:
   LoopWithTooManyJumpStatements:

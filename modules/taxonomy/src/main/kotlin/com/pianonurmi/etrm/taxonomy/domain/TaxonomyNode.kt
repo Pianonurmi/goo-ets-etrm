@@ -40,6 +40,7 @@ value class TaxonomyPath(val value: String) {
     }
 }
 
+@Suppress("LongParameterList") // a node carries its stored row
 class TaxonomyNode(
     val id: UUID,
     val scheme: TaxonomyScheme,

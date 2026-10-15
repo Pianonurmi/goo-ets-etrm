@@ -61,7 +61,7 @@ fun interface HedgePositions {
  * Cash flow hedge accounting (ADR 0045): relationships between hedging trades and a forecast purchase or sale,
  * designated and discontinued by one accountant and approved by another, measured on every official valuation run by
  * the lower of the instruments' change and a hypothetical derivative, and split at period end into the hedging reserve
- * and profit or loss ([PeriodEndService]).
+ * and profit or loss ([MtmStep]).
  */
 
 @Service

@@ -3,7 +3,7 @@ package com.pianonurmi.etrm.valuation.adapter.workflow
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.valuation.api.ValuationRunSubmitted
-import com.pianonurmi.etrm.valuation.application.ValuationService
+import com.pianonurmi.etrm.valuation.application.ValuationRunService
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
 import com.pianonurmi.etrm.workflow.api.DecisionOutcome
@@ -20,7 +20,7 @@ import java.time.Duration
 @Component
 class ValuationSignOffTasks(
     private val workflow: WorkflowCommand,
-    @Lazy private val valuations: ValuationService,
+    @Lazy private val valuations: ValuationRunService,
 ) : TaskHandler {
     override val definition = TaskTypeDefinition(
         taskType = TYPE,

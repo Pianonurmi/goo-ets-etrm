@@ -11,6 +11,7 @@ import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.marketdata.api.FixingView
 import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FxRates
+import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -22,6 +23,7 @@ import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
+import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.fixtures.NoFuturesContracts
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
@@ -40,8 +42,15 @@ import com.pianonurmi.etrm.valuation.api.PortfolioCause
 import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.RunKind
 import com.pianonurmi.etrm.valuation.api.RunStatus
+import com.pianonurmi.etrm.valuation.api.ValuationCommand
+import com.pianonurmi.etrm.valuation.api.ValuationQuery
 import com.pianonurmi.etrm.valuation.api.ValuationRunSignedOff
-import com.pianonurmi.etrm.valuation.application.ValuationService
+import com.pianonurmi.etrm.valuation.application.PnlExplainService
+import com.pianonurmi.etrm.valuation.application.PortfolioBridges
+import com.pianonurmi.etrm.valuation.application.TradeValuer
+import com.pianonurmi.etrm.valuation.application.ValuationQueries
+import com.pianonurmi.etrm.valuation.application.ValuationRunService
+import com.pianonurmi.etrm.valuation.domain.ValuationRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -75,7 +84,7 @@ class ValuationServiceIT {
     private val forward = mutableMapOf(d0 to BigDecimal("72.00"), d1 to BigDecimal("74.00"))
     private val vols = mutableMapOf<LocalDate, BigDecimal>()
     private var euaRemaining = BigDecimal(1000)
-    private lateinit var valuations: ValuationService
+    private lateinit var valuations: WiredValuation
 
     /** Discount rates (percent, ACT/360, simple) by curve date; none in most tests, so their values stay undiscounted. */
     private val discountRates = mutableMapOf<LocalDate, BigDecimal>()
@@ -207,7 +216,7 @@ class ValuationServiceIT {
         this.trades = trades
         this.curves = curves
         this.fx = fx
-        valuations = ValuationService(
+        valuations = valuationServices(
             JooqValuationRepository(TestDatabase.dsl),
             trades,
             curves,
@@ -307,7 +316,7 @@ class ValuationServiceIT {
                 RealisedGiveAway(entity, secondArg(), thirdArg(), BigDecimal("12.50"), emptyList())
             }
         }
-        val withPortfolio = ValuationService(
+        val withPortfolio = valuationServices(
             JooqValuationRepository(TestDatabase.dsl),
             trades,
             curves,
@@ -387,7 +396,7 @@ class ValuationServiceIT {
             every { trade(any()) } returns null
         }
 
-        fun service() = ValuationService(
+        fun service() = valuationServices(
             JooqValuationRepository(TestDatabase.dsl),
             book,
             curves,
@@ -425,7 +434,7 @@ class ValuationServiceIT {
         }
     }
 
-    private fun discountedBook(): ValuationService {
+    private fun discountedBook(): WiredValuation {
         val forwardBuy = trade(
             "T-DISC-FWD",
             ProductFamily.EMISSION_ALLOWANCE,
@@ -461,7 +470,7 @@ class ValuationServiceIT {
             every { trades(any()) } returns listOf(forwardBuy, futureBuy)
             every { trade(any()) } returns null
         }
-        return ValuationService(
+        return valuationServices(
             JooqValuationRepository(TestDatabase.dsl),
             book,
             curves,
@@ -523,7 +532,7 @@ class ValuationServiceIT {
     }
 
     /** A bought call on EUAZ26 expiring on [expiry] and a sold put that expired before the runs, valued with [discounting]. */
-    private fun optionBook(expiry: LocalDate): Pair<TradeView, ValuationService> {
+    private fun optionBook(expiry: LocalDate): Pair<TradeView, WiredValuation> {
         val call = trade(
             "T-OPT-CALL",
             ProductFamily.EMISSION_ALLOWANCE,
@@ -564,7 +573,7 @@ class ValuationServiceIT {
                 every { deliveryDate } returns LocalDate.of(2026, 12, 21)
             }
         }
-        val options = ValuationService(
+        val options = valuationServices(
             JooqValuationRepository(TestDatabase.dsl),
             book,
             curves,
@@ -637,4 +646,40 @@ class ValuationServiceIT {
         (explain.components[ExplainComponent.UNEXPLAINED]?.abs() ?: BigDecimal.ZERO) shouldBe BigDecimal.ZERO
         explain.mtmTo - explain.mtmFrom shouldBe explain.components.values.fold(BigDecimal.ZERO, BigDecimal::add)
     }
+}
+
+/** Valuation's services wired as the application wires them: the module's API, and the sign-off the inbox drives. */
+class WiredValuation(private val runs: ValuationRunService, queries: ValuationQueries) :
+    ValuationCommand by runs,
+    ValuationQuery by queries {
+    fun signOff(runId: UUID, by: String, note: String?) = runs.signOff(runId, by, note)
+
+    fun reject(runId: UUID, reason: String?) = runs.reject(runId, reason)
+}
+
+/** The services from the module's ports, in the order the single service took them before the split. */
+@Suppress("LongParameterList") // every port the module reads, as the Spring context passes them
+private fun valuationServices(
+    repository: ValuationRepository,
+    trades: TradeQuery,
+    curves: CurveQuery,
+    fx: FxRates,
+    fixings: IndexFixings,
+    discounting: DiscountFactors,
+    criteria: CriteriaService,
+    referenceData: ReferenceDataQuery,
+    actors: ActorProvider,
+    events: ApplicationEventPublisher,
+    clock: Clock,
+    portfolioValues: ObjectProvider<PortfolioValueQuery>,
+    savepoints: Savepoints,
+    futures: FuturesContractQuery,
+): WiredValuation {
+    val valuer = TradeValuer(curves, fx, fixings, discounting, criteria, futures)
+    val bridges = PortfolioBridges(portfolioValues, savepoints, fx)
+    val explains = PnlExplainService(repository, trades, valuer, portfolioValues, savepoints, actors)
+    return WiredValuation(
+        ValuationRunService(repository, trades, valuer, bridges, referenceData, actors, events, clock),
+        ValuationQueries(repository, trades, valuer, explains, referenceData, actors),
+    )
 }

@@ -12,7 +12,7 @@ import java.time.LocalDate
 
 /** End-of-day valuation of every active legal entity after the curves are built; risk signs the runs off. */
 @Component
-class EodValuationJob(private val valuations: ValuationService, private val referenceData: ReferenceDataQuery, private val clock: Clock) {
+class EodValuationJob(private val valuations: ValuationRunService, private val referenceData: ReferenceDataQuery, private val clock: Clock) {
     private val log = LoggerFactory.getLogger(EodValuationJob::class.java)
 
     @Scheduled(cron = "\${etrm.valuation.eod-cron:0 45 19 * * MON-FRI}", zone = "Europe/Berlin")

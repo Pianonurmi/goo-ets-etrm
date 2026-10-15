@@ -52,6 +52,7 @@ private val JOURNAL_READERS = arrayOf(Role.AUDITOR, Role.BACK_OFFICE, Role.REGIS
 @RestController
 @RequestMapping("/api/v1/inventory")
 @Tag(name = "Inventory", description = "Certificate lots, allowance holdings and registry reconciliation")
+@Suppress("TooManyFunctions") // one handler per endpoint of the lot and holding API
 class InventoryController(
     private val lotCommand: LotCommand,
     private val lotQuery: LotQuery,

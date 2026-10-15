@@ -36,7 +36,9 @@ import com.pianonurmi.etrm.ledger.api.HedgedItem
 import com.pianonurmi.etrm.ledger.api.ManualJournal
 import com.pianonurmi.etrm.ledger.api.ManualLine
 import com.pianonurmi.etrm.ledger.api.MtmTreatment
+import com.pianonurmi.etrm.ledger.api.PeriodEndCommand
 import com.pianonurmi.etrm.ledger.api.PeriodEndComponentKind
+import com.pianonurmi.etrm.ledger.api.PeriodEndQuery
 import com.pianonurmi.etrm.ledger.api.PeriodEndRunView
 import com.pianonurmi.etrm.ledger.api.PolicyChangeStatus
 import com.pianonurmi.etrm.ledger.api.PolicyKind
@@ -44,11 +46,22 @@ import com.pianonurmi.etrm.ledger.api.PostingFacts
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDesignation
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDiscontinuation
 import com.pianonurmi.etrm.ledger.api.RequestPolicyChange
+import com.pianonurmi.etrm.ledger.application.AccountingPolicyService
+import com.pianonurmi.etrm.ledger.application.AllowanceNrvStep
+import com.pianonurmi.etrm.ledger.application.EmissionProvisionStep
+import com.pianonurmi.etrm.ledger.application.EmissionsToDate
+import com.pianonurmi.etrm.ledger.application.FirmSalePrices
+import com.pianonurmi.etrm.ledger.application.FxRevaluationStep
+import com.pianonurmi.etrm.ledger.application.GooNrvStep
+import com.pianonurmi.etrm.ledger.application.GrantReleaseStep
 import com.pianonurmi.etrm.ledger.application.HedgePositions
 import com.pianonurmi.etrm.ledger.application.HedgeService
 import com.pianonurmi.etrm.ledger.application.LedgerEventListeners
 import com.pianonurmi.etrm.ledger.application.LedgerService
-import com.pianonurmi.etrm.ledger.application.PeriodEndService
+import com.pianonurmi.etrm.ledger.application.MtmStep
+import com.pianonurmi.etrm.ledger.application.PeriodEndCommands
+import com.pianonurmi.etrm.ledger.application.PeriodEndPostings
+import com.pianonurmi.etrm.ledger.application.PeriodEndRun
 import com.pianonurmi.etrm.ledger.application.PostingRuleSeeder
 import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
@@ -129,8 +142,8 @@ class PeriodEndIT {
 
     private lateinit var ledger: LedgerService
     private lateinit var listeners: LedgerEventListeners
-    private lateinit var periodEnd: PeriodEndService
-    private lateinit var withHedges: PeriodEndService
+    private lateinit var periodEnd: WiredPeriodEnd
+    private lateinit var withHedges: WiredPeriodEnd
     private lateinit var hedges: HedgeService
     private val tradesById = mutableMapOf<UUID, TradeView>()
     private val marginedTrades = mutableMapOf<UUID, Set<UUID>>()
@@ -219,31 +232,24 @@ class PeriodEndIT {
         }
         reservationPlan = planId
 
-        fun periodEndService(hedges: HedgePositions, clearing: ClearingQuery) = PeriodEndService(
-            ledger,
-            JooqJournalRepository(dsl),
-            JooqCostLayerRepository(dsl),
-            JooqPeriodRepository(dsl),
-            JooqPeriodEndRepository(dsl),
-            referenceData,
-            catalogue,
-            valuations,
-            compliance,
-            lots,
-            buckets,
-            mockk(relaxed = true),
-            curves,
-            fx,
-            plans,
-            obligations,
-            trades,
-            actor,
-            publisher,
-            clock,
-            hedges,
-            clearing,
-            noFixings,
-        )
+        fun periodEndService(hedges: HedgePositions, clearing: ClearingQuery): WiredPeriodEnd {
+            val journal = JooqJournalRepository(dsl)
+            val costLayers = JooqCostLayerRepository(dsl)
+            val repository = JooqPeriodEndRepository(dsl)
+            val postings = PeriodEndPostings(ledger, journal, fx)
+            val emissions = EmissionsToDate(compliance)
+            val steps = listOf(
+                MtmStep(valuations, repository, journal, postings, hedges, clearing),
+                GooNrvStep(repository, lots, buckets, mockk(relaxed = true), curves, FirmSalePrices(plans, obligations, trades, noFixings), postings),
+                AllowanceNrvStep(repository, costLayers, curves, postings),
+                EmissionProvisionStep(emissions, catalogue, costLayers, curves, journal, postings),
+                GrantReleaseStep(emissions, journal, postings),
+                FxRevaluationStep(journal, fx, postings),
+            )
+            val policies = AccountingPolicyService(repository, referenceData, actor, publisher, clock)
+            val run = PeriodEndRun(ledger, JooqPeriodRepository(dsl), repository, referenceData, valuations, steps, actor, publisher, clock)
+            return WiredPeriodEnd(run, policies)
+        }
         // No hedges here: the hedge tests use [withHedges].
         periodEnd = periodEndService({ _, _, _ -> emptyList() }, mockk { every { marginedTradeIds(any()) } answers { marginedTrades[firstArg()].orEmpty() } })
         val documents = mockk<DocumentCommand> { every { renderPdf(any()) } returns mockk { every { id } returns UUID.randomUUID() } }
@@ -629,4 +635,11 @@ class PeriodEndIT {
         val ACCOUNT: UUID = UUID.randomUUID()
         val RESERVED_LOT: UUID = UUID.randomUUID()
     }
+}
+
+/** The period end wired as the application wires it: the module's API, and the policy approval the inbox drives. */
+class WiredPeriodEnd(run: PeriodEndRun, private val policies: AccountingPolicyService) :
+    PeriodEndCommand by PeriodEndCommands(run, policies),
+    PeriodEndQuery by policies {
+    fun applyPolicyChange(changeId: UUID, by: String) = policies.applyPolicyChange(changeId, by)
 }
