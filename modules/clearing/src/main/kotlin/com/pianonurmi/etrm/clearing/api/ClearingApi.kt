@@ -62,6 +62,8 @@ data class MarginRunView(
     val computedBy: String,
     val computedAt: Instant,
     val supersededAt: Instant?,
+    /** Set when an earlier day changed and this one could not be computed again: its margin is not current until it is. */
+    val staleReason: String? = null,
 )
 
 interface ClearingQuery {

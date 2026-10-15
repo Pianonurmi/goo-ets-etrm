@@ -93,6 +93,10 @@ class JooqClearingRepository(private val dsl: DSLContext) : ClearingRepository {
         dsl.update(MARGIN_RUN).set(MARGIN_RUN.SUPERSEDED_AT, at).where(MARGIN_RUN.ID.eq(runId)).execute()
     }
 
+    override fun markStale(runId: UUID, reason: String?) {
+        dsl.update(MARGIN_RUN).set(MARGIN_RUN.STALE_REASON, reason).where(MARGIN_RUN.ID.eq(runId)).execute()
+    }
+
     private fun lines(runId: UUID): List<MarginLineView> = dsl.selectFrom(MARGIN_LINE)
         .where(MARGIN_LINE.RUN_ID.eq(runId))
         .orderBy(MARGIN_LINE.CONTRACT_CODE)
@@ -134,5 +138,6 @@ class JooqClearingRepository(private val dsl: DSLContext) : ClearingRepository {
         r.computedBy,
         r.computedAt,
         r.supersededAt,
+        r.staleReason,
     )
 }

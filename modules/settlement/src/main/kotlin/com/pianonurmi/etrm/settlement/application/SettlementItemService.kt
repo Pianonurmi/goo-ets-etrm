@@ -287,10 +287,19 @@ class SettlementItemService(
     @EventListener
     fun on(event: QuotesImported) {
         if (event.accepted == 0) return
+        waitingForPrice().forEach(::reevaluate)
+    }
+
+    /**
+     * Items parked without a price: an index not fixed yet, or a month average whose month has not ended. A month
+     * average becomes a fixing when the month ends, not when a quote arrives, so [SettlementRepricingJob] also tries
+     * these every day.
+     */
+    @Transactional(readOnly = true)
+    fun waitingForPrice(): List<UUID> =
         repository.find(SettlementItemFilter(statuses = setOf(SettlementItemStatus.NEEDS_ATTENTION), limit = 10_000))
             .filter { it.unitPrice == null }
-            .forEach { reevaluate(it.id) }
-    }
+            .map { it.id }
 
     private fun SettlementItemView.needs(problem: String) = copy(status = SettlementItemStatus.NEEDS_ATTENTION, problem = problem)
 
