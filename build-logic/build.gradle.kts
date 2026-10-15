@@ -2,6 +2,20 @@ plugins {
     `kotlin-dsl`
 }
 
+// The plugins the build applies are locked like the application's dependencies (../build.gradle.kts).
+dependencyLocking { lockAllConfigurations() }
+
+tasks.register("resolveAndLockAll") {
+    group = "help"
+    description = "Resolves every configuration, so --write-locks records them all"
+    notCompatibleWithConfigurationCache("Resolves configurations of the project at execution time")
+    val resolvable = configurations.matching { it.isCanBeResolved }
+    doFirst {
+        require(gradle.startParameter.isWriteDependencyLocks) { "Run with --write-locks" }
+        resolvable.forEach { it.resolve() }
+    }
+}
+
 dependencies {
     implementation(libs.kotlin.gradle.plugin)
     implementation(libs.kotlin.spring.plugin)

@@ -29,22 +29,40 @@ the tools a job downloads (kubeconform, the runner itself) are checked against p
 - **Actions** are pinned to a commit SHA with the version as a comment, and base images (`ops/Dockerfile`, the CI
   PostgreSQL service) to a digest. Dependabot moves both.
 - **Gradle dependencies** have exact versions in `gradle/libs.versions.toml`, aligned by BOMs (Spring Boot, Jackson 2
-  and 3) and by `constraints` for transitive fixes (`lz4-java`). `gradle/actions/setup-gradle` validates the
-  wrapper jar against Gradle's published checksums on every run.
+  and 3) and by `constraints` for transitive fixes (`lz4-java`). Every resolved configuration is **locked**
+  (`gradle.lockfile` in each project, `settings-gradle.lockfile`, `build-logic/gradle.lockfile`), so the transitive
+  graph cannot move without a diff, and **`gradle/verification-metadata.xml`** holds the SHA-256 of every artifact
+  and POM the build downloads, plugins included; Gradle refuses an artifact whose checksum differs or is missing.
+  Sources and javadoc jars, which only IDEs fetch, are trusted without a checksum.
+- **The Gradle wrapper**: `gradle/actions/setup-gradle` validates the wrapper jar against Gradle's published checksums
+  on every run, and CI's "Gradle distribution checksum" step compares `distributionSha256Sum` in
+  `gradle/wrapper/gradle-wrapper.properties` with the checksum Gradle publishes for the distribution.
 - **Web dependencies** are locked by `apps/web/package-lock.json` (with integrity hashes) and installed with `npm ci`.
 
-**Not yet: Gradle dependency locking and verification metadata** (review finding S8, moved to increment 15). Both
-pin the transitive graph and verify each artifact's checksum. Dependabot, which raises all our updates, does not
-regenerate `gradle/verification-metadata.xml`, so every Dependabot PR would fail until someone ran
-`--write-verification-metadata sha256` by hand. Lockfiles have the same problem in a weaker form. Increment 15
-introduces both together with a workflow that refreshes them on Dependabot branches (or a move to Renovate, which
-maintains them), so the gate does not stop updates from flowing.
+To change a Gradle dependency by hand, refresh the locks and the checksums together:
+
+```bash
+perl -0pi -e 's|<components>.*</components>|<components>\n   </components>|s' gradle/verification-metadata.xml
+./gradlew -Petrm.skipWeb --write-verification-metadata sha256 --write-locks resolveAndLockAll :build-logic:resolveAndLockAll
+```
+
+Emptying the components first drops the versions the change replaced; the configuration block stays. Review the
+diff of `verification-metadata.xml` like code: a checksum that changes for a version that did not is a reason to stop.
 
 ## Updates
 
 Dependabot raises weekly updates for Gradle (Spring and Kotlin grouped), npm (React, Mantine and development tooling
 grouped), the runtime image (`ops/Dockerfile`) and GitHub Actions (all actions in one group). Each ecosystem may keep
 ten PRs open, so a backlog does not hide updates.
+
+Dependabot does not regenerate the Gradle lock files or the verification metadata, and its npm lock files leave out
+optional peers (Vitest's `msw`), so `npm ci` refuses them. The **Dependabot lock refresh** workflow
+(`.github/workflows/dependabot-refresh.yml`) runs on each Dependabot pull request for Gradle or npm: one job
+regenerates the files with a read-only token, a second job takes only lock files from it, pushes them to the
+Dependabot branch as "Refresh lock files and verification metadata" and starts CI on that commit (a push with the
+workflow token starts no workflow by itself, so CI is started through `workflow_dispatch`). Once a branch carries that
+commit, Dependabot no longer rebases it; comment `@dependabot recreate` to have it start over, and the refresh runs
+again.
 
 An update lands as a commit of its own on the development branch, checked by the full build and the end-to-end tests,
 and reaches `main` once CI is green; Dependabot then closes its PR. A major version that the tooling cannot take yet is
