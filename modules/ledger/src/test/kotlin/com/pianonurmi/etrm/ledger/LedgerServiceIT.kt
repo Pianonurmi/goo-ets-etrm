@@ -42,6 +42,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.text.Csv
 import com.pianonurmi.etrm.platform.time.LocalDateRange
@@ -227,7 +228,7 @@ class LedgerServiceIT {
                 "EUR",
                 2026,
                 "ops",
-                Instant.now(),
+                TestClock.DEFAULT_START,
             )
 
         listeners.on(HoldingChanged(holding.copy(quantity = 1_000), movement(AllowanceMovementType.PURCHASE, 1_000, "70.00", 1)))
@@ -274,7 +275,7 @@ class LedgerServiceIT {
                 "EUR",
                 2026,
                 "ops",
-                Instant.now(),
+                TestClock.DEFAULT_START,
             )
 
         listeners.on(HoldingChanged(holding.copy(quantity = 100), movement(AllowanceMovementType.PURCHASE, 100, "70.00", 101)))

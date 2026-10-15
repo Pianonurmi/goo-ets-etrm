@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.allocation.api.AllocationConstraint
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
 import com.pianonurmi.etrm.platform.test.PropertySeeds
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.all
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
@@ -53,7 +54,7 @@ class AllocationEngineTest {
         generic.sumOf { it.quantityMwh } shouldBe 1_500
         generic.map { problem.classes[it.classIndex].representative.id }.toSet() shouldBe setOf(germanWind.id, finnishWind.id)
 
-        val coverage = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now())
+        val coverage = analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START)
         coverage.totalShortfallMwh shouldBe 0
         coverage.shortageGroups.shouldBeEmpty()
         coverage.surplusByBucket.sumOf { it.surplusMwh } shouldBe 700
@@ -65,7 +66,7 @@ class AllocationEngineTest {
         val a = obligation(region("NORDIC"), 400, priority = 1)
         val b = obligation(energySource("HYDRO"), 400, priority = 2)
         val problem = problem(listOf(hydro), listOf(a, b))
-        val coverage = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now())
+        val coverage = analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START)
         coverage.totalDemandMwh shouldBe 800
         coverage.totalCoveredMwh shouldBe 500
         coverage.obligations.first { it.obligationId == a.id }.coveredMwh shouldBe 400
@@ -85,7 +86,7 @@ class AllocationEngineTest {
         val x = obligation(energySource("WIND"), 80, priority = 1)
         val y = obligation(all(region("NORDIC"), energySource("RENEWABLE")), 80, priority = 1)
         val z = obligation(energySource("SOLAR"), 200, priority = 1)
-        val coverage = analyser.analyse(problem(listOf(wind, solar), listOf(x, y, z)), EngineFixtures.entity, 1, Instant.now())
+        val coverage = analyser.analyse(problem(listOf(wind, solar), listOf(x, y, z)), EngineFixtures.entity, 1, TestClock.DEFAULT_START)
         coverage.obligations.first { it.obligationId == z.id }.shortfallMwh shouldBe 0
         coverage.shortageGroups shouldHaveSize 1
         coverage.shortageGroups.single().obligationIds.toSet() shouldBe setOf(x.id, y.id)
@@ -121,7 +122,7 @@ class AllocationEngineTest {
             problem.classes[it.classIndex].representative.id shouldBe fresh.id
             it.quantityMwh shouldBe 300
         }
-        analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now()).totalShortfallMwh shouldBe 100
+        analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START).totalShortfallMwh shouldBe 100
     }
 
     @Test
@@ -175,7 +176,7 @@ class AllocationEngineTest {
                     }
                 }
                 // greedy never beats the flow bound
-                val coverage = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now())
+                val coverage = analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START)
                 (result.sumOf { it.quantityMwh } <= coverage.totalCoveredMwh) shouldBe true
                 coverage.obligations.forEach { (it.coveredMwh <= it.demandMwh) shouldBe true }
                 (coverage.totalCoveredMwh <= problem.classes.sumOf { it.quantity }) shouldBe true
@@ -188,7 +189,7 @@ class AllocationEngineTest {
         val hydro = lot("FI", "HYDRO", 300)
         val high = obligation(energySource("HYDRO"), 300, priority = 1, id = UUID.fromString("00000000-0000-0000-0000-00000000aaaa"))
         val low = obligation(region("NORDIC"), 300, priority = 2, id = UUID.fromString("00000000-0000-0000-0000-00000000bbbb"))
-        val coverage = analyser.analyse(problem(listOf(hydro), listOf(low, high)), EngineFixtures.entity, 1, Instant.now())
+        val coverage = analyser.analyse(problem(listOf(hydro), listOf(low, high)), EngineFixtures.entity, 1, TestClock.DEFAULT_START)
         coverage.obligations.first { it.obligationId == high.id }.coveredMwh shouldBe 300
         coverage.obligations.first { it.obligationId == low.id }.coveredMwh shouldBe 0
     }

@@ -52,7 +52,7 @@ class JooqLotRepository(private val dsl: DSLContext) : LotRepository {
         .set(CERTIFICATE_LOT.UPDATED_SEQ, change.seq)
         .set(CERTIFICATE_LOT.EFFECTIVE_AT, change.effectiveAt)
         .set(CERTIFICATE_LOT.UPDATED_BY, change.actor)
-        .set(CERTIFICATE_LOT.UPDATED_AT, Instant.now())
+        .set(CERTIFICATE_LOT.UPDATED_AT, DSL.currentInstant())
         .where(CERTIFICATE_LOT.ID.eq(lot.id), CERTIFICATE_LOT.VERSION.eq(lot.version - 1))
         .execute() == 1
 

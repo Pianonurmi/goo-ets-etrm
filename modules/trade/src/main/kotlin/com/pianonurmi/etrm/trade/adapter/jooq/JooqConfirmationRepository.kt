@@ -49,7 +49,7 @@ class JooqConfirmationRepository(private val dsl: DSLContext) : ConfirmationRepo
             .set(TRADE_CONFIRMATION.MATCHED_AGAINST, view.matchedAgainst)
             .set(TRADE_CONFIRMATION.DOCUMENT_ID, view.documentId)
             .set(TRADE_CONFIRMATION.DECIDED_BY, view.decidedBy)
-            .set(TRADE_CONFIRMATION.DECIDED_AT, if (view.decidedBy == null) null else Instant.now())
+            .set(TRADE_CONFIRMATION.DECIDED_AT, if (view.decidedBy == null) DSL.inline(null, TRADE_CONFIRMATION.DECIDED_AT) else DSL.currentInstant())
             .set(TRADE_CONFIRMATION.NOTE, view.note)
             .where(TRADE_CONFIRMATION.ID.eq(view.id))
             .execute()

@@ -15,6 +15,7 @@ import com.pianonurmi.etrm.marketdata.api.SnapshotStatus
 import com.pianonurmi.etrm.marketdata.domain.CurveBuilder
 import com.pianonurmi.etrm.marketdata.domain.CurveMath
 import com.pianonurmi.etrm.marketdata.domain.PillarInput
+import com.pianonurmi.etrm.platform.test.TestClock
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
@@ -37,9 +38,9 @@ class CurveMathTest {
         emptyList(),
         null,
         "a",
-        Instant.now(),
+        TestClock.DEFAULT_START,
         "b",
-        Instant.now(),
+        TestClock.DEFAULT_START,
         null,
         points.toList(),
         if (kind == CurveKind.DISCOUNT) DayCount.ACT_360 else null,
@@ -111,7 +112,7 @@ class CurveMathTest {
         QuoteQuality.OK,
         null,
         "u",
-        Instant.now(),
+        TestClock.DEFAULT_START,
         null,
         null,
     )

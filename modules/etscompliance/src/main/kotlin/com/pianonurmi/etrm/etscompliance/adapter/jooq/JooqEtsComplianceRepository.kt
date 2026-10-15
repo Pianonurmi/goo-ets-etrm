@@ -124,7 +124,7 @@ class JooqEtsComplianceRepository(private val dsl: DSLContext) : EtsComplianceRe
             .set(FREE_ALLOCATION.STATUS, allocation.status.name)
             .set(FREE_ALLOCATION.NOTE, allocation.note)
             .set(FREE_ALLOCATION.UPDATED_BY, actor)
-            .set(FREE_ALLOCATION.UPDATED_AT, Instant.now())
+            .set(FREE_ALLOCATION.UPDATED_AT, DSL.currentInstant())
             .execute()
     }
 

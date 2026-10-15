@@ -67,7 +67,7 @@ class ReferenceDataServiceIT {
         )
         entity.code shouldBe "NORDIC-POWER"
         entity.country shouldBe "FI"
-        val beforeUpdate = Instant.now()
+        val beforeUpdate = TestDatabase.transactionTime()
         Thread.sleep(5)
         val updated = service.updateLegalEntity(entity.id, UpdateLegalEntity(name = "Nordic Power Group Oy", expectedVersion = 1))
         updated.version shouldBe 2
@@ -80,7 +80,7 @@ class ReferenceDataServiceIT {
         history[0].recordedTo shouldNotBe null
         history[1].recordedTo shouldBe null
         service.asOf("legal_entity", entity.id, beforeUpdate)?.get("name") shouldBe "Nordic Power Oy"
-        service.asOf("legal_entity", entity.id, Instant.now())?.get("name") shouldBe "Nordic Power Group Oy"
+        service.asOf("legal_entity", entity.id, TestDatabase.transactionTime())?.get("name") shouldBe "Nordic Power Group Oy"
     }
 
     @Test

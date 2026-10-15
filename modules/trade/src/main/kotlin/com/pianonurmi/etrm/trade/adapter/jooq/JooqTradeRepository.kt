@@ -175,7 +175,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             .set(TRADE.CONFIRMED_AT, trade.confirmedAt)
             .set(TRADE.CONFIRMATION_REF, trade.confirmationRef)
             .set(TRADE.UTI, trade.regulatory.uti)
-            .set(TRADE.UPDATED_AT, Instant.now())
+            .set(TRADE.UPDATED_AT, DSL.currentInstant())
             .where(TRADE.ID.eq(trade.id), TRADE.CURRENT_VERSION.eq(trade.version - 1))
             .execute()
         if (updated != 1) return false

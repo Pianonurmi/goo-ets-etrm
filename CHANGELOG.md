@@ -32,6 +32,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   is a registered account of the mirror's entity.
 
 ### Fixed
+- Invoices and credit notes created without a date are dated in the legal entity's time zone, not in UTC (an invoice
+  run shortly after midnight in Helsinki no longer takes the previous day).
+- Domain events carry the application's clock, as everything else does, instead of the JVM's.
 - **A mirror approved after its original was confirmed stayed unconfirmed.** Approving it now takes the original's
   confirmation over, and opens its delivery obligations.
 - **Registry accounts changed on an intercompany trade did not reach its mirror.** A new delivery account of the
