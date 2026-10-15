@@ -158,6 +158,9 @@ class RegistryInstruction(state: RegistryInstructionView) {
 interface RegistryInstructionRepository {
     fun find(id: UUID): RegistryInstructionView?
 
+    /** Erases the beneficiary's name and identifier from the instructions' cancellation and request; returns the count. */
+    fun eraseBeneficiary(beneficiaryId: UUID): Int
+
     fun lock(id: UUID): RegistryInstructionView?
 
     fun byKey(key: String): RegistryInstructionView?

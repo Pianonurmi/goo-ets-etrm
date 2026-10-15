@@ -60,6 +60,11 @@ data class CertificateRange(val start: BigInteger, val end: BigInteger) {
     }
 }
 
+/**
+ * What a cancellation was for and whom. The beneficiary's name and identifier are personal data when the beneficiary
+ * is a person: they are recorded once in the beneficiary register ([BeneficiaryCommand.record]), which sets
+ * [beneficiaryRef], and records that cannot forget them (journal, audit trail, history) keep only the reference.
+ */
 data class CancellationDetails(
     val purpose: CancellationPurpose,
     val beneficiaryName: String?,
@@ -68,7 +73,10 @@ data class CancellationDetails(
     val consumptionPeriod: LocalDateRange,
     val registryCancellationRef: String? = null,
     val obligationRef: UUID? = null,
-)
+    val beneficiaryRef: UUID? = null,
+) {
+    fun namesBeneficiary(): Boolean = beneficiaryName != null || beneficiaryId != null
+}
 
 /** Full read model of a lot; also the [CriteriaSubject] the allocation engine and buckets evaluate. */
 data class LotView(

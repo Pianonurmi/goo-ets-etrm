@@ -12,11 +12,20 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
 
 ### Added
+- **Beneficiary register** (review finding S7). A cancellation's beneficiary is recorded once in the register, and the
+  cancellation carries `beneficiaryRef`. An administrator asks for an erasure with a reason
+  (`POST /api/v1/inventory/beneficiaries/{id}/erasure`), and an auditor approves it in the inbox (`BENEFICIARY_ERASURE`).
+  The approval removes the name and identifier from the register, the lots, the registry instructions and the
+  obligations ([data protection](docs/operations/data-protection.md)).
 - Invoices, payments and valuation results are listed a page at a time (newest first for invoices and payments), with
   **Load more** on their screens: `GET /api/v1/settlement/invoices/search`, `/api/v1/settlement/payments/search` and
   `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
 
 ### Changed
+- **Records that cannot forget no longer keep a beneficiary's name or identifier:** the lot journal, the audit trail,
+  the lots' version history and the instructions' event history keep only the `beneficiaryRef`. Rows written before
+  this version keep their copy.
+- Externalised events carry the `beneficiaryRef` of a cancellation (still without the name and identifier).
 - Period end reads the accounts it measures (MtM, hedges, NRV, provision, grant release, FX revaluation) from its own
   posting rules instead of fixed account numbers, so remapping a rule moves the measurement with it.
 - A cursor that does not decode is refused with 422 on every paged list; the trade search answered 400 before.

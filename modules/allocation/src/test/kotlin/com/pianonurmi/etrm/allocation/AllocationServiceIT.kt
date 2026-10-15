@@ -28,6 +28,7 @@ import com.pianonurmi.etrm.allocation.application.PortfolioValueService
 import com.pianonurmi.etrm.allocation.application.PreparedFlow
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqBeneficiaryRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
@@ -38,6 +39,7 @@ import com.pianonurmi.etrm.inventory.api.LotFilter
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.ReceiveLots
 import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
+import com.pianonurmi.etrm.inventory.application.BeneficiaryService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.marketdata.api.GooMarks
@@ -158,7 +160,13 @@ class AllocationServiceIT {
     }
 
     /** Registry instructions through the simulator and the manual gateway. */
-    private fun instructions(dsl: DSLContext, routes: TransferRouteService, holdings: AllowanceHoldingService, clock: Clock) = RegistryInstructionService(
+    private fun instructions(
+        dsl: DSLContext,
+        routes: TransferRouteService,
+        holdings: AllowanceHoldingService,
+        beneficiaries: BeneficiaryService,
+        clock: Clock,
+    ) = RegistryInstructionService(
         JooqRegistryInstructionRepository(dsl),
         listOf(SimulatorRegistryGateway(), ManualRegistryGateway()),
         lots,
@@ -170,6 +178,7 @@ class AllocationServiceIT {
         clock,
         holdings,
         holdings,
+        beneficiaries,
     )
 
     @BeforeAll
@@ -183,13 +192,14 @@ class AllocationServiceIT {
         criteria = product.criteria
         val buckets = product.buckets
         val catalogue = product.catalogue
-        lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, bus, clock)
+        val beneficiaries = BeneficiaryService(JooqBeneficiaryRepository(dsl), actor, bus, clock)
+        lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, bus, clock, beneficiaries)
         val allowanceHoldings = AllowanceHoldingService(JooqAllowanceHoldingRepository(dsl), referenceData, catalogue, actor, bus)
         val routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
-        val instructions = instructions(dsl, routes, allowanceHoldings, clock)
+        val instructions = instructions(dsl, routes, allowanceHoldings, beneficiaries, clock)
         val trades = TradeWiring.tradeService(dsl, referenceData, product, actor, bus, mockk(relaxed = true), clock)
         val planRepository = JooqAllocationPlanRepository(dsl)
-        obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus)
+        obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus, beneficiaries)
         val problemBuilder = ProblemBuilder(criteria, buckets, routes, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) })
         forecasts = ProductionForecastService(JooqProductionForecastRepository(dsl), JooqReferenceDataRepository(dsl), taxonomy, bus, actor, clock)
         val purchaseQuery = mockk<TradeQuery> {

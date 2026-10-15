@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.inventory.application
 
 import com.pianonurmi.etrm.inventory.api.AcquisitionSource
+import com.pianonurmi.etrm.inventory.api.BeneficiaryCommand
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
 import com.pianonurmi.etrm.inventory.api.HoldingStamp
 import com.pianonurmi.etrm.inventory.api.LotCancelled
@@ -71,6 +72,7 @@ class LotService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    private val beneficiaries: BeneficiaryCommand,
     /** Absent in hand-wired tests, which then run each expiry without a transaction of its own. */
     transactionManager: PlatformTransactionManager? = null,
     private val meters: MeterRegistry = SimpleMeterRegistry(),
@@ -227,7 +229,8 @@ class LotService(
         var target = locked(lotId)
         if (quantity != null && quantity < target.quantityMwh) target = split(lotId, quantity).carved
         if (quantity != null && quantity > target.quantityMwh) throw ValidationException("Cannot cancel $quantity from lot of ${target.quantityMwh} MWh")
-        val next = CertificateLot(target).cancel(details.copy(consumptionCountry = details.consumptionCountry.uppercase()))
+        val recorded = beneficiaries.record(details)
+        val next = CertificateLot(target).cancel(recorded.copy(consumptionCountry = recorded.consumptionCountry.uppercase()))
         persist(next, record(next.id, "LotCancelled", clock.instant(), mapOf("cancellation" to next.cancellation)))
         events.publishEvent(LotCancelled(next, next.cancellation!!))
         return next

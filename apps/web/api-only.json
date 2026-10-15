@@ -21,6 +21,8 @@
     "payment_payment": "Single payment by id; the payments tab shows payments in full in its list",
     "eventPublication_parked": "Operations endpoint for administrators, used from the event-publications runbook",
     "eventPublication_resubmit": "Operations endpoint for administrators, used from the event-publications runbook",
+    "beneficiary_beneficiary": "Data subject requests are handled by the data protection officer through the API (docs/operations/data-protection.md); the lot shows its beneficiary",
+    "beneficiary_requestErasure": "Data subject requests are handled through the API (docs/operations/data-protection.md); the approval is the BENEFICIARY_ERASURE task in the inbox",
     "valuation_results": "A run's full result list for integrations and exports; the run screen pages through valuation_searchResults"
   },
   "planned": {}

@@ -9,6 +9,7 @@ import com.pianonurmi.etrm.platform.events.DomainEvent
 import com.pianonurmi.etrm.platform.events.eventType
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
+import com.pianonurmi.etrm.platform.privacy.PersonalData
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
@@ -35,7 +36,8 @@ class AuditService(
     @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
     fun on(event: DomainEvent) {
-        val payload = runCatching { Json.mapper.readValue(Json.mapper.writeValueAsString(event), mapType) }
+        // The trail is hash-chained and cannot forget: no beneficiary name or identifier goes in (S7).
+        val payload = runCatching { Json.mapper.readValue(Json.mapper.writeValueAsString(PersonalData.redact(event)), mapType) }
             .getOrElse { mapOf("unserializable" to event.toString()) }
         val (aggregateType, aggregateRef) = aggregateOf(event, payload)
         repository.append(
@@ -66,7 +68,7 @@ class AuditService(
             aggregateType = aggregateType,
             aggregateRef = aggregateRef,
             correlationId = null,
-            payload = details,
+            payload = Json.mapper.readValue(Json.mapper.writeValueAsString(PersonalData.redact(details)), mapType),
         )
         return repository.append(view)
     }
