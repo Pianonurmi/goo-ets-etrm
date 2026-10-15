@@ -39,14 +39,16 @@ the tools a job downloads (kubeconform, the runner itself) are checked against p
   `gradle/wrapper/gradle-wrapper.properties` with the checksum Gradle publishes for the distribution.
 - **Web dependencies** are locked by `apps/web/package-lock.json` (with integrity hashes) and installed with `npm ci`.
 
-To change a Gradle dependency by hand, refresh the locks and the checksums together:
+To change a Gradle dependency by hand, refresh the locks and the checksums together, with the code-generation database
+up (assembling generates the jOOQ sources):
 
 ```bash
-perl -0pi -e 's|<components>.*</components>|<components>\n   </components>|s' gradle/verification-metadata.xml
-./gradlew -Petrm.skipWeb --write-verification-metadata sha256 --write-locks resolveAndLockAll :build-logic:resolveAndLockAll
+ops/release/refresh-dependency-locks.sh
 ```
 
-Emptying the components first drops the versions the change replaced; the configuration block stays. Review the
+The script empties the components first, which drops the versions the change replaced; the configuration block stays.
+Besides resolving every configuration, it runs the tasks that resolve their own at execution time (the compilers,
+detekt, ktlint, the SBOM): without them about a tenth of the artifacts a build fetches would be missing. Review the
 diff of `verification-metadata.xml` like code: a checksum that changes for a version that did not is a reason to stop.
 
 ## Updates

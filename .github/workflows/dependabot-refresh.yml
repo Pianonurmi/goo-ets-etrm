@@ -26,7 +26,27 @@ jobs:
       && (startsWith(github.head_ref, 'dependabot/gradle/') || startsWith(github.head_ref, 'dependabot/npm_and_yarn/'))
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
+    # The jOOQ sources are generated from a migrated database, and assembling is part of the refresh (below).
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_USER: etrm
+          POSTGRES_PASSWORD: etrm
+          POSTGRES_DB: etrm_codegen
+        # A free host port: the runner may host other jobs and databases.
+        ports: ["5432"]
+        options: >-
+          --health-cmd "pg_isready -U etrm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ETRM_DB_USER: etrm
+      ETRM_DB_PASSWORD: etrm
     steps:
+      - name: Database on the service's port
+        run: echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:${{ job.services.postgres.ports['5432'] }}/etrm_codegen" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -43,13 +63,11 @@ jobs:
         with:
           cache-read-only: true
       # The components are written afresh, so versions the update replaced leave the file; the configuration
-      # (trusted IDE artifacts) stays.
+      # (trusted IDE artifacts) stays. Besides every configuration, the tasks that resolve their own at execution
+      # time (compilers, detekt, ktlint, the SBOM) run, so their artifacts are recorded too.
       - name: Gradle lock files and verification metadata
         if: startsWith(github.head_ref, 'dependabot/gradle/')
-        run: |
-          perl -0pi -e 's|<components>.*</components>|<components>\n   </components>|s' gradle/verification-metadata.xml
-          ./gradlew --no-daemon -Petrm.skipWeb --write-verification-metadata sha256 --write-locks \
-            resolveAndLockAll :build-logic:resolveAndLockAll
+        run: ops/release/refresh-dependency-locks.sh --no-daemon
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: startsWith(github.head_ref, 'dependabot/npm_and_yarn/')
         with:

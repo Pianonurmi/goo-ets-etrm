@@ -34,7 +34,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - `TestDatabase.dsl` joins a Spring transaction when a test runs one (e.g. with `DataSourceTransactionManager`), and is autocommit otherwise.
 - Full-context tests each cache a context with a small connection pool (`application-test.yml`); keep the pool small so they fit PostgreSQL's connection limit.
 - All test tasks share one test database and reset schemas. A Gradle build service (`SharedTestDatabase` in `build-logic`) runs them one at a time; keep it that way.
-- Dependencies are locked (`gradle.lockfile`) and checksummed (`gradle/verification-metadata.xml`): after changing one, refresh both as `docs/operations/supply-chain.md#pinning` shows and commit the diff.
+- Dependencies are locked (`gradle.lockfile`) and checksummed (`gradle/verification-metadata.xml`): after changing one, refresh both with `ops/release/refresh-dependency-locks.sh` and commit the diff.
 - Allocation benchmark at full size: `-Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000`.
 - Load tests: `k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=smoke ops/load/etrm.js` against the jar with `dev,demo` (`docs/operations/load-testing.md`); a change that moves the baseline figures notably updates that page.
 
