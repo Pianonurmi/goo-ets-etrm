@@ -255,6 +255,14 @@ jobs:
             docker tag "goo-ets-etrm-showcase:${{ github.sha }}" "$image-showcase:$tag"
             docker push "$image-showcase:$tag"
           done
+      # Built hidden and kept out of the jar (apps/web/vite.config.ts): read a client error report's stack against them.
+      - name: Upload the web source maps
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-sourcemaps
+          path: apps/web/build/sourcemaps/
+          if-no-files-found: error
+          retention-days: 90
       - name: Upload the jar (releases only)
         if: steps.release.outputs.version != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

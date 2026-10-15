@@ -27,6 +27,7 @@ Names as Prometheus shows them (Micrometer turns dots into underscores and adds 
 | `etrm_events_publications_parked` | gauge | | Publications that failed `etrm.events.max-attempts` times and wait for an administrator |
 | `etrm_http_bulkhead_rejected_total` | counter | | API requests refused with 503 at the concurrent request limit (`etrm.http.max-concurrent-requests`) |
 | `etrm_http_bulkhead_in_use` | gauge | | API requests in progress, counted against that limit |
+| `etrm_web_client_errors_total` | counter | `kind`, `outcome` | Errors the web UI could not handle, reported by browsers; `outcome=dropped` past the rate limit ([client errors](#client-errors)) |
 | `etrm_db_partitions_default_rows` | gauge | `table` | Rows in a default partition (partition maintenance fell behind) |
 | `etrm_registry_dispatch_lag_seconds` | gauge | | Age of the oldest instruction waiting to be sent |
 | `etrm_registry_instructions_open` | gauge | `status` | Open registry instructions by status (`UNKNOWN` needs a person) |
@@ -81,6 +82,21 @@ and scheduled jobs.
 - **Default:** plain text with the trace and span ids of the current observation.
 - **Profile `json`:** Elastic Common Schema, one JSON object per line, with `service.name`, `service.environment` and the
   trace ids, for Fluent Bit, Vector or the OpenTelemetry collector's file log receiver.
+
+## Client errors
+
+The web UI reports what it could not handle to `POST /api/v1/client-errors`: uncaught errors (`ERROR`), unhandled
+promise rejections (`UNHANDLED_REJECTION`) and render errors the router's error page caught (`ROUTE_ERROR`). Each
+report is one WARN line from the logger `etrm.client-errors` with the user, the page and the `X-Trace-Id` of the
+last API response before the error (`client.error.last_trace_id`), which leads to that request's trace and logs. In
+the `json` profile the stack is the field `client.error.stack`.
+
+- **Limits:** a browser sends the same error once per page load and at most five a minute. The server logs at most
+  `etrm.web.client-errors.per-user-per-minute` (10) per user and `etrm.web.client-errors.global-per-minute` (300) in
+  all, and counts the rest as dropped. It answers 202 either way, so a browser never retries.
+- **Stacks:** the bundle's scripts are minified. Vite builds the source maps hidden, outside the jar, and CI keeps
+  them as the `web-sourcemaps` artifact of each build (90 days). Read a stack against the maps of the commit that
+  built the running version, for example with `SourceMapConsumer.originalPositionFor` from the `source-map` package.
 
 ## Health and shutdown
 

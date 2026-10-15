@@ -135,6 +135,7 @@ Tests at every level: [testing.md](testing.md).
 
 ## Conventions
 
+- **Unhandled errors:** reach the server by themselves (`shared/telemetry/clientErrors.ts`, [client errors](../operations/observability.md#client-errors)); a screen that recovers from an error needs nothing.
 - **API calls:** go through `$api` (TanStack Query) or `api` (openapi-fetch); paths and bodies are typed from the
   document. A failed call throws `ProblemError` with the server's problem.
   - Queries render their error with `QueryState`.

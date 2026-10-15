@@ -9,6 +9,12 @@ export type RequestAuthenticator = (request: Request) => Promise<void> | void;
 
 let authenticate: RequestAuthenticator = () => undefined;
 let onUnauthorized: () => void = () => undefined;
+let traceId: string | null = null;
+
+/** The `X-Trace-Id` of the last API response, so an error report can name the request that led to it. */
+export function lastTraceId(): string | null {
+  return traceId;
+}
 
 export function configureApiAuth(authenticator: RequestAuthenticator, unauthorized: () => void): void {
   authenticate = authenticator;
@@ -21,6 +27,7 @@ const auth: Middleware = {
     return request;
   },
   async onResponse({ response }) {
+    traceId = response.headers.get('X-Trace-Id') ?? traceId;
     if (response.ok) return response;
     if (isEdgeRedirect(response)) throw edgeSignInError();
     if (response.status === 401) onUnauthorized();
@@ -44,6 +51,7 @@ export async function authorisedFetch(input: string, init?: RequestInit): Promis
   const request = new Request(new URL(input, window.location.origin), init);
   await authenticate(request);
   const response = await fetch(request, { redirect: 'manual' });
+  traceId = response.headers.get('X-Trace-Id') ?? traceId;
   if (!response.ok) {
     if (isEdgeRedirect(response)) throw edgeSignInError();
     if (response.status === 401) onUnauthorized();
