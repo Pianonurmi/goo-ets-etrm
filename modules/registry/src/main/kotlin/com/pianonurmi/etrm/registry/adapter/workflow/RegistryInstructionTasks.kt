@@ -10,7 +10,7 @@ import com.pianonurmi.etrm.registry.api.InstructionOverdue
 import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.api.InstructionSubmitted
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
-import com.pianonurmi.etrm.registry.application.RegistryInstructionService
+import com.pianonurmi.etrm.registry.application.InstructionCommands
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
 import com.pianonurmi.etrm.workflow.api.DecisionOutcome
@@ -34,7 +34,7 @@ private fun describe(i: RegistryInstructionView): String =
 @Component
 class InstructionApprovalTasks(
     private val workflow: WorkflowCommand,
-    @Lazy private val instructions: RegistryInstructionService,
+    @Lazy private val instructions: InstructionCommands,
 ) : TaskHandler {
     override val definition = TaskTypeDefinition(
         taskType = TYPE,

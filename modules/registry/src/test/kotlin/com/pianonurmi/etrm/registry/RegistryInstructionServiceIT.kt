@@ -58,13 +58,14 @@ import com.pianonurmi.etrm.registry.api.UpsertStatementFormat
 import com.pianonurmi.etrm.registry.api.UpsertTransferRoute
 import com.pianonurmi.etrm.registry.application.RegistryDispatchSettings
 import com.pianonurmi.etrm.registry.application.RegistryDispatcher
-import com.pianonurmi.etrm.registry.application.RegistryInstructionService
 import com.pianonurmi.etrm.registry.application.RegistryStatementService
 import com.pianonurmi.etrm.registry.application.StatementFormatService
 import com.pianonurmi.etrm.registry.application.TransferRouteService
 import com.pianonurmi.etrm.registry.domain.GatewayResult
 import com.pianonurmi.etrm.registry.domain.InstructionStatusSource
 import com.pianonurmi.etrm.registry.domain.RegistryGateway
+import com.pianonurmi.etrm.registry.fixtures.RegistryWiring
+import com.pianonurmi.etrm.registry.fixtures.WiredInstructions
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import io.kotest.assertions.throwables.shouldThrow
@@ -125,8 +126,8 @@ class RegistryInstructionServiceIT {
     private lateinit var lots: LotService
     private lateinit var allowances: AllowanceHoldingService
     private lateinit var routes: TransferRouteService
-    private lateinit var instructions: RegistryInstructionService
-    private lateinit var fourEyes: RegistryInstructionService
+    private lateinit var instructions: WiredInstructions
+    private lateinit var fourEyes: WiredInstructions
     private lateinit var dispatcher: RegistryDispatcher
     private lateinit var statements: RegistryStatementService
     private lateinit var formats: StatementFormatService
@@ -156,8 +157,8 @@ class RegistryInstructionServiceIT {
             publisher,
         )
 
-        fun instructionService(dispatch: RegistryDispatchSettings) = RegistryInstructionService(
-            repository,
+        fun instructionService(dispatch: RegistryDispatchSettings) = RegistryWiring.instructions(
+            dsl,
             gateways,
             lots,
             lots,
@@ -173,7 +174,7 @@ class RegistryInstructionServiceIT {
         )
         instructions = instructionService(settings)
         fourEyes = instructionService(settings.copy(unplannedNeedsApproval = true))
-        dispatcher = RegistryDispatcher(repository, gateways, instructions, DataSourceTransactionManager(TestDatabase.dataSource), settings, clock)
+        dispatcher = RegistryDispatcher(repository, gateways, instructions.outcomes, DataSourceTransactionManager(TestDatabase.dataSource), settings, clock)
         formats = StatementFormatService(JooqStatementFormatRepository(dsl), referenceData, actor, clock)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, publisher, clock)
         val reconciliation =
@@ -186,7 +187,7 @@ class RegistryInstructionServiceIT {
                 publisher,
                 Clock.systemUTC(),
             )
-        statements = RegistryStatementService(formats, repository, instructions, reconciliation, referenceData, documents, actor)
+        statements = RegistryStatementService(formats, repository, instructions.outcomes, reconciliation, referenceData, documents, actor)
 
         entityId = referenceData.createLegalEntity(CreateLegalEntity("REG-CO", "Registry Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
 

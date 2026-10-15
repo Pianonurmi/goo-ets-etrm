@@ -1,5 +1,6 @@
 plugins {
     id("etrm.module-conventions")
+    `java-test-fixtures`
 }
 
 dependencies {
@@ -14,4 +15,10 @@ dependencies {
 
     testImplementation(testFixtures(project(":platform")))
     testImplementation(project(":modules:taxonomy"))
+    testFixturesImplementation(project(":platform"))
+    testFixturesImplementation(project(":modules:referencedata"))
+    testFixturesImplementation(project(":modules:inventory"))
+    testFixturesImplementation(platform(libs.spring.boot.bom))
+    testFixturesImplementation(libs.spring.context)
+    testFixturesImplementation(libs.jooq.core)
 }

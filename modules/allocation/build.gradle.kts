@@ -24,5 +24,6 @@ dependencies {
     testImplementation(testFixtures(project(":platform")))
     testImplementation(testFixtures(project(":modules:referencedata")))
     testImplementation(testFixtures(project(":modules:trade")))
+    testImplementation(testFixtures(project(":modules:registry")))
     testImplementation(project(":modules:taxonomy"))
 }
