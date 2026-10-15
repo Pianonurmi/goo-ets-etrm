@@ -75,7 +75,7 @@ class AuditSealIT {
 
         audit.record("NotYetSealed", "Thing", "2")
         audit.verifyTrail().unsealed shouldBe 0 // younger than the sealing delay
-        val later = service(Clock.fixed(Instant.now().plus(Duration.ofHours(1)), ZoneOffset.UTC))
+        val later = service(Clock.fixed(TestDatabase.transactionTime().plus(Duration.ofHours(1)), ZoneOffset.UTC))
         later.verifyTrail().let {
             it.unsealed shouldBe 1
             it.ok shouldBe false

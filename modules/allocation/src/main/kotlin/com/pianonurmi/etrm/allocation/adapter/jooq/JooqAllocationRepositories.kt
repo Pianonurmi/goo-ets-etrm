@@ -88,7 +88,7 @@ class JooqObligationRepository(private val dsl: DSLContext) : ObligationReposito
     private fun update0(o: ObligationView): Boolean = dsl.update(OBLIGATION)
         .set(values(o))
         .set(OBLIGATION.VERSION, o.version)
-        .set(OBLIGATION.UPDATED_AT, Instant.now())
+        .set(OBLIGATION.UPDATED_AT, DSL.currentInstant())
         .where(OBLIGATION.ID.eq(o.id), OBLIGATION.VERSION.eq(o.version - 1))
         .execute() == 1
 
@@ -187,7 +187,7 @@ class JooqAllocationPlanRepository(private val dsl: DSLContext) : AllocationPlan
         val updated = dsl.update(ALLOCATION_PLAN)
             .set(headerValues(plan))
             .set(ALLOCATION_PLAN.VERSION, plan.version)
-            .set(ALLOCATION_PLAN.UPDATED_AT, Instant.now())
+            .set(ALLOCATION_PLAN.UPDATED_AT, DSL.currentInstant())
             .where(ALLOCATION_PLAN.ID.eq(plan.id), ALLOCATION_PLAN.VERSION.eq(plan.version - 1))
             .execute() == 1
         if (updated) writeLines(plan)

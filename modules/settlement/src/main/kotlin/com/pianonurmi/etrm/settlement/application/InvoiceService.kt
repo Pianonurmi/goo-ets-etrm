@@ -47,6 +47,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 /**
@@ -69,13 +70,17 @@ class InvoiceService(
     private val settlement: InvoiceSettlement,
     private val standardRates: StandardRateRepository,
 ) : InvoiceCommand, InvoiceQuery {
+    /** Today in the entity's time zone: an invoice is dated where it is issued, not in UTC. */
+    private fun today(legalEntityId: UUID): LocalDate =
+        LocalDate.now(clock.withZone(ZoneId.of(referenceData.requireLegalEntity(legalEntityId).timeZone)))
+
     override fun run(command: InvoiceRun): List<InvoiceView> {
         actor(Role.BACK_OFFICE, Role.ACCOUNTANT)
         val open = items.find(
             SettlementItemFilter(command.legalEntityId, command.counterpartyId, setOf(SettlementItemStatus.OPEN), limit = MAX_ITEMS),
             forUpdate = true,
         ).filter { it.deliveredOn <= command.upTo }
-        val invoiceDate = command.invoiceDate ?: LocalDate.now(clock)
+        val invoiceDate = command.invoiceDate ?: today(command.legalEntityId)
         return open.groupBy { Group(it.counterpartyId, it.currency, it.direction, it.vatTreatment!!) }
             .mapNotNull { (group, groupItems) ->
                 val kind = when (group.direction) {
@@ -287,7 +292,7 @@ class InvoiceService(
             status = InvoiceStatus.DRAFT,
             number = null,
             counterpartyInvoiceRef = null,
-            invoiceDate = LocalDate.now(clock),
+            invoiceDate = today(original.legalEntityId),
             dueDate = null,
             netTotal = original.netTotal.negate(),
             vatTotal = original.vatTotal.negate(),

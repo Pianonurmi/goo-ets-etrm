@@ -4,11 +4,13 @@ import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -28,6 +30,10 @@ class AllowanceDeliveryIT {
 
     @LocalServerPort
     private var port: Int = 0
+
+    /** The application's clock (ADR 0050): dates sent to it are its dates. */
+    @Autowired
+    private lateinit var clock: Clock
 
     private fun ApiScenario.ownUnionAccount(): String = asUser("admin").body(
         """{"registryCode":"UNION_REGISTRY","accountNumber":"EU-100-$entityId","name":"Trading","accountType":"TRADING",
@@ -88,7 +94,7 @@ class AllowanceDeliveryIT {
         val tradeId = s.confirmedEuaTrade("SELL", 400, "72.25", ours, buyer)
         val scheduleId: String = s.asUser("backoffice").get("/api/v1/trades/$tradeId").then().extract().path("legs[0].deliveries[0].id")
 
-        val before = Instant.now()
+        val before = clock.instant()
         val instructionId: String = s.asUser("operator-a").body("""{"scheduleId":"$scheduleId"}""").post("/api/v1/deliveries/allowances").then()
             .statusCode(201)
             .body("status", equalTo("PENDING_APPROVAL"))
@@ -206,7 +212,7 @@ class AllowanceDeliveryIT {
 
         s.asUser("billing").get("/api/v1/settlement/items?tradeId=$tradeId").then().statusCode(200)
             .body("[0].status", equalTo("OPEN")).body("[0].vatTreatment", equalTo("REVERSE_CHARGE_CROSS_BORDER")).body("[0].netAmount", equalTo(7000.0f))
-        val today = java.time.LocalDate.now()
+        val today = java.time.LocalDate.now(clock)
         val invoiceId: String = s.asUser("billing").body("""{"legalEntityId":"${s.entityId}","upTo":"$today","counterpartyId":"${s.counterpartyId}"}""")
             .post("/api/v1/settlement/invoice-runs").then().statusCode(201).body("size()", equalTo(1)).extract().path("[0].id")
         s.asUser("billing").post("/api/v1/settlement/invoices/$invoiceId/submit").then().statusCode(200)
@@ -224,7 +230,7 @@ class AllowanceDeliveryIT {
         s.asUser("billing").get("/api/v1/settlement/invoices/$invoiceId").then().body("paymentStatus", equalTo("PAID"))
         s.asUser("billing").get("/api/v1/trades/$tradeId").then().body("status", equalTo("SETTLED"))
 
-        val balances = s.asUser("accountant").get("/api/v1/ledger/trial-balance?legalEntityId=${s.entityId}&period=${java.time.YearMonth.now()}").then()
+        val balances = s.asUser("accountant").get("/api/v1/ledger/trial-balance?legalEntityId=${s.entityId}&period=${java.time.YearMonth.now(clock)}").then()
             .statusCode(200).extract().jsonPath()
 
         fun balance(code: String): Double = balances.getList<Map<String, Any>>("").filter { it["accountCode"] == code }

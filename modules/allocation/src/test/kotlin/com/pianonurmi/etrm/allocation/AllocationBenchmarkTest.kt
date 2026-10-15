@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.allocation.EngineFixtures.problem
 import com.pianonurmi.etrm.allocation.domain.CoverageAnalyser
 import com.pianonurmi.etrm.allocation.domain.GreedySolver
 import com.pianonurmi.etrm.allocation.domain.flow.FlowState
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -67,7 +68,7 @@ class AllocationBenchmarkTest {
         var covered = 0L
         val analyser = CoverageAnalyser { it.representative.energySourceCode }
         val coverageMs = measureTimeMillis {
-            covered = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now()).totalCoveredMwh
+            covered = analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START).totalCoveredMwh
         }
         val pairs = problem.eligible.sumOf { it.cardinality().toLong() }
         lateinit var state: FlowState

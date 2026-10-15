@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import java.time.Clock
 
 /** The demo profile seeds six months of business once, on its own database (its curves would clash with MonthEndIT's). */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -36,6 +37,10 @@ class DemoDataSeederIT {
 
     @LocalServerPort
     private var port: Int = 0
+
+    /** The application's clock (ADR 0050): dates sent to it are its dates. */
+    @Autowired
+    private lateinit var clock: Clock
 
     @Autowired
     private lateinit var seeder: DemoDataSeeder
@@ -162,7 +167,7 @@ class DemoDataSeederIT {
         val table = trader().get("/api/v1/allocation/headroom?holderEntityId=$finland").then().statusCode(200).extract().jsonPath()
         table.getList<String>("deliveryDates").size shouldBe 6
         table.getList<String>("rows.bucketCode") shouldContainAll listOf("NORDIC_HYDRO", "ANY_GOO")
-        val nextMonthEnd = java.time.YearMonth.now().plusMonths(1).atEndOfMonth()
+        val nextMonthEnd = java.time.YearMonth.now(clock).plusMonths(1).atEndOfMonth()
         val hydro = """{"type":"all","of":[{"type":"countryInRegion","region":"NORDIC"},{"type":"descendantOf","attribute":"ENERGY_SOURCE","code":"HYDRO"}]}"""
         val check = trader()
             .body(
@@ -193,7 +198,7 @@ class DemoDataSeederIT {
             .extract().jsonPath()
         invoices.getList<String>("paymentStatus") shouldContainAll listOf("PAID", "PARTIALLY_PAID", "UNPAID")
         invoices.getList<String>("kind") shouldContainAll listOf("SALES", "PURCHASE", "CREDIT_NOTE")
-        invoices.getList<String>("findAll { it.status == 'ISSUED' && it.paymentStatus != 'PAID' && it.dueDate < '${java.time.LocalDate.now()}' }.id")
+        invoices.getList<String>("findAll { it.status == 'ISSUED' && it.paymentStatus != 'PAID' && it.dueDate < '${java.time.LocalDate.now(clock)}' }.id")
             .size shouldBeGreaterThanOrEqual 1
         asUser("controller", "ACCOUNTANT").get("/api/v1/workflow/tasks?type=INVOICE_APPROVAL&actionable=true").then()
             .body("items.size()", equalTo(1))

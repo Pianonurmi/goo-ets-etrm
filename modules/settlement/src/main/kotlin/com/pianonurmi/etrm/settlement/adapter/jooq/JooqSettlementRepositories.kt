@@ -83,7 +83,7 @@ class JooqVatRuleRepository(private val dsl: DSLContext) : VatRuleRepository {
             .set(VAT_RULE.STATUS, rule.status.name)
             .set(VAT_RULE.VALID_TO, rule.validTo)
             .set(VAT_RULE.APPROVED_BY, rule.approvedBy)
-            .set(VAT_RULE.APPROVED_AT, if (rule.approvedBy == null) null else Instant.now())
+            .set(VAT_RULE.APPROVED_AT, if (rule.approvedBy == null) DSL.inline(null, VAT_RULE.APPROVED_AT) else DSL.currentInstant())
             .where(VAT_RULE.ID.eq(rule.id))
             .execute()
     }
@@ -135,7 +135,7 @@ class JooqSettlementItemRepository(private val dsl: DSLContext) : SettlementItem
         dsl.update(SETTLEMENT_ITEM)
             .set(values(item))
             .set(SETTLEMENT_ITEM.VERSION, item.version)
-            .set(SETTLEMENT_ITEM.UPDATED_AT, Instant.now())
+            .set(SETTLEMENT_ITEM.UPDATED_AT, DSL.currentInstant())
             .where(SETTLEMENT_ITEM.ID.eq(item.id))
             .execute()
     }
@@ -179,7 +179,7 @@ class JooqSettlementItemRepository(private val dsl: DSLContext) : SettlementItem
             .set(PRICE_FIXING.PRICE, fixing.price)
             .set(PRICE_FIXING.NOTE, fixing.note)
             .set(PRICE_FIXING.FIXED_BY, fixing.fixedBy)
-            .set(PRICE_FIXING.FIXED_AT, Instant.now())
+            .set(PRICE_FIXING.FIXED_AT, DSL.currentInstant())
             .execute()
     }
 

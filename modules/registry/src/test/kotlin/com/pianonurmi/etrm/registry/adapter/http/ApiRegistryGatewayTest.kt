@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.registry.adapter.http
 import com.pianonurmi.etrm.inventory.api.CertificateRange
 import com.pianonurmi.etrm.inventory.api.LotQuery
 import com.pianonurmi.etrm.platform.json.Json
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
 import com.pianonurmi.etrm.registry.api.InstructionStatus
@@ -121,7 +122,7 @@ class ApiRegistryGatewayTest {
         lastError = null,
         submittedBy = "ops",
         confirmedBy = null,
-        createdAt = Instant.now(),
+        createdAt = TestClock.DEFAULT_START,
         sentAt = null,
         confirmedAt = null,
         version = 1,

@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.allocation.api.HeadroomQuery
 import com.pianonurmi.etrm.allocation.api.HeadroomResult
 import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.allocation.application.HeadroomTradeCheck
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
@@ -61,7 +62,7 @@ class HeadroomTradeCheckTest {
         holderEntityId = entity,
         tier = SupplyTier.HELD,
         stamp = "s",
-        computedAt = Instant.now(),
+        computedAt = TestClock.DEFAULT_START,
         demands = demands.toList(),
         requestedMwh = demands.sumOf { it.requestedMwh },
         jointMwh = joint,

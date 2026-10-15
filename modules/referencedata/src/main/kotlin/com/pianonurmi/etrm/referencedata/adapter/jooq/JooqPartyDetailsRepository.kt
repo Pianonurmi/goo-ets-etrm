@@ -14,6 +14,7 @@ import com.pianonurmi.etrm.referencedata.api.PartyType
 import com.pianonurmi.etrm.referencedata.api.VatRegistrationView
 import com.pianonurmi.etrm.referencedata.domain.PartyDetailsRepository
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.Instant
 import java.util.UUID
@@ -44,7 +45,7 @@ class JooqPartyDetailsRepository(private val dsl: DSLContext) : PartyDetailsRepo
             .set(PARTY_ADDRESS.CITY, address.city)
             .set(PARTY_ADDRESS.COUNTRY, address.country)
             .set(PARTY_ADDRESS.VERSION, PARTY_ADDRESS.VERSION.plus(1))
-            .set(PARTY_ADDRESS.UPDATED_AT, Instant.now())
+            .set(PARTY_ADDRESS.UPDATED_AT, DSL.currentInstant())
             .execute()
     }
 
@@ -68,7 +69,7 @@ class JooqPartyDetailsRepository(private val dsl: DSLContext) : PartyDetailsRepo
             .set(VAT_REGISTRATION.VALID_FROM, registration.validFrom)
             .set(VAT_REGISTRATION.VALID_TO, registration.validTo)
             .set(VAT_REGISTRATION.VERSION, VAT_REGISTRATION.VERSION.plus(1))
-            .set(VAT_REGISTRATION.UPDATED_AT, Instant.now())
+            .set(VAT_REGISTRATION.UPDATED_AT, DSL.currentInstant())
             .execute()
     }
 
@@ -96,7 +97,7 @@ class JooqPartyDetailsRepository(private val dsl: DSLContext) : PartyDetailsRepo
     override fun updateBankAccount(account: BankAccountView, expectedVersion: Int): Boolean = dsl.update(BANK_ACCOUNT)
         .set(BANK_ACCOUNT.ACTIVE, account.active)
         .set(BANK_ACCOUNT.VERSION, account.version)
-        .set(BANK_ACCOUNT.UPDATED_AT, Instant.now())
+        .set(BANK_ACCOUNT.UPDATED_AT, DSL.currentInstant())
         .where(BANK_ACCOUNT.ID.eq(account.id), BANK_ACCOUNT.VERSION.eq(expectedVersion))
         .execute() == 1
 

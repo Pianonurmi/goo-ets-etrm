@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.allocation.domain.flow.FlowGraph
 import com.pianonurmi.etrm.allocation.domain.flow.FlowState
 import com.pianonurmi.etrm.allocation.domain.flow.SupplyUnit
 import com.pianonurmi.etrm.platform.test.PropertySeeds
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.all
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
@@ -67,7 +68,7 @@ class FlowCoreTest {
                 ->
                 val problem = problem(lots, obligations)
                 val reference = Reference(problem)
-                val report = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now())
+                val report = analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START)
 
                 report.totalCoveredMwh shouldBe reference.total
                 // What each priority tier gets is fixed by the tiered augmentation, whichever maximum flow is found.
@@ -128,7 +129,7 @@ class FlowCoreTest {
         val problem = problem(listOf(wind), listOf(late, early))
         val state = analyser.solve(problem)
         state.graph.groups.size shouldBe 1
-        val report = analyser.analyse(problem, EngineFixtures.entity, 1, Instant.now())
+        val report = analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START)
         report.obligations.first { it.obligationId == early.id }.coveredMwh shouldBe 400
         report.obligations.first { it.obligationId == late.id }.coveredMwh shouldBe 100
     }

@@ -7,36 +7,46 @@ import org.junit.jupiter.api.Test
 import java.io.File
 
 /**
- * One source of time (ADR 0050): production code reads the injected `Clock`, never `now()` without one. detekt runs
- * without type resolution here, so its `ForbiddenMethodCall` cannot see the calls; this scan of the sources does.
+ * One source of time (ADR 0050): code reads the injected `Clock`, never `now()` without one. detekt runs without type
+ * resolution here, so its `ForbiddenMethodCall` cannot see the calls; this scan of the sources does.
  *
- * Remaining exceptions, removed in increment 15 (C7): `updated_at`-style stamps in the jOOQ adapters, the default of
- * `EventMetadata.occurredAt` and `AsOf.now`.
+ * Production code has no exception: domain events and `AsOf.now` read `ApplicationClock`, and row stamps the
+ * application never reads (`updated_at` and the like) are the database's transaction time. Tests take their time from
+ * a `TestClock`, a fixed instant, the application's `Clock` bean or `TestDatabase.transactionTime()`; the only
+ * exceptions are tokens, which Spring Security validates against the system clock.
  */
 class TimeSourceTest {
     private val root = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").exists() }
     private val call = Regex("""\b(Instant|LocalDate|LocalDateTime|LocalTime|ZonedDateTime|OffsetDateTime|YearMonth|Year)\.now\(\s*\)""")
-    private val exceptions = listOf(
-        Regex("""/adapter/jooq/.*\.kt$""") to "Instant",
-        Regex("""/platform/events/DomainEvent\.kt$""") to "Instant",
-        Regex("""/platform/bitemporal/Bitemporal\.kt$""") to "Instant",
+    private val testExceptions = listOf(
+        Regex("""/TokenValidationIT\.kt$"""),
+        Regex("""/SecuredChainIT\.kt$"""),
     )
+
+    private fun sources(dir: String) = root.walkTopDown()
+        .onEnter { it.name != "build" && it.name != "node_modules" && !it.name.startsWith(".") }
+        .filter { it.isFile && it.extension == "kt" && it.invariantSeparatorsPath.contains("/src/$dir/kotlin/") }
+        .toList()
+
+    private fun offences(files: List<File>, exceptions: List<Regex> = emptyList()) = files
+        .filter { file -> exceptions.none { it.containsMatchIn(file.invariantSeparatorsPath) } }
+        .flatMap { file ->
+            file.readLines().mapIndexedNotNull { index, line ->
+                if (call.containsMatchIn(line)) "${file.relativeTo(root)}:${index + 1}: ${line.trim()}" else null
+            }
+        }
 
     @Test
     fun `production code takes the time from the injected clock`() {
-        val sources = root.walkTopDown()
-            .onEnter { it.name != "build" && it.name != "node_modules" && !it.name.startsWith(".") }
-            .filter { it.isFile && it.extension == "kt" && it.invariantSeparatorsPath.contains("/src/main/kotlin/") }
-            .toList()
+        val sources = sources("main")
         withClue("the scan found the sources") { (sources.size > 100) shouldBe true }
-        val offences = sources.flatMap { file ->
-            val path = file.invariantSeparatorsPath
-            file.readLines().mapIndexedNotNull { index, line ->
-                val type = call.find(line)?.groupValues?.get(1) ?: return@mapIndexedNotNull null
-                val allowed = exceptions.any { (pattern, allowedType) -> pattern.containsMatchIn(path) && allowedType == type }
-                if (allowed) null else "${file.relativeTo(root)}:${index + 1}: ${line.trim()}"
-            }
-        }
-        offences.shouldBeEmpty()
+        offences(sources).shouldBeEmpty()
+    }
+
+    @Test
+    fun `tests take the time from a test clock, a fixed instant or the application`() {
+        val sources = sources("test") + sources("testFixtures")
+        withClue("the scan found the sources") { (sources.size > 100) shouldBe true }
+        offences(sources, testExceptions).shouldBeEmpty()
     }
 }

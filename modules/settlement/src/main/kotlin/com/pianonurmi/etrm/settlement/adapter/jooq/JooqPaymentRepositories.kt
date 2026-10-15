@@ -17,6 +17,7 @@ import com.pianonurmi.etrm.settlement.domain.AllocationRepository
 import com.pianonurmi.etrm.settlement.domain.NettingRepository
 import com.pianonurmi.etrm.settlement.domain.PaymentRepository
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
 import java.time.Instant
@@ -147,8 +148,11 @@ class JooqNettingRepository(private val dsl: DSLContext) : NettingRepository {
             .set(NETTING_STATEMENT.SETTLEMENT_PAYMENT_ID, statement.settlementPaymentId)
             .set(NETTING_STATEMENT.DOCUMENT_ID, statement.documentId)
             .set(NETTING_STATEMENT.AGREED_BY, statement.agreedBy)
-            .set(NETTING_STATEMENT.AGREED_AT, if (statement.agreedBy == null) null else Instant.now())
-            .set(NETTING_STATEMENT.SETTLED_AT, if (statement.status == NettingStatus.SETTLED) Instant.now() else null)
+            .set(NETTING_STATEMENT.AGREED_AT, if (statement.agreedBy == null) DSL.inline(null, NETTING_STATEMENT.AGREED_AT) else DSL.currentInstant())
+            .set(
+                NETTING_STATEMENT.SETTLED_AT,
+                if (statement.status == NettingStatus.SETTLED) DSL.currentInstant() else DSL.inline(null, NETTING_STATEMENT.SETTLED_AT),
+            )
             .set(NETTING_STATEMENT.VERSION, statement.version)
             .where(NETTING_STATEMENT.ID.eq(statement.id))
             .execute()

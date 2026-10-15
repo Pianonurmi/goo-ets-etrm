@@ -59,6 +59,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.platform.tx.Savepoints
@@ -296,7 +297,7 @@ class PeriodEndIT {
                 },
                 year,
                 "test",
-                Instant.now(),
+                TestClock.DEFAULT_START,
             )
         listeners.on(HoldingChanged(holding, m))
     }
