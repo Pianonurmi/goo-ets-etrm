@@ -95,6 +95,11 @@ src/locales    translations (English)
 e2e/           Playwright specs
 ```
 
+A page with tabs keeps only its header, KPIs and tab list. Each tab, drawer and modal has its own file
+(`LimitsTab.tsx`, `EntryDrawer.tsx`), queries shared by several of them sit in the folder's `hooks.ts`, and badges and
+types they share in `shared.tsx`. Other pages import from those files, never from a page, so opening one screen does
+not load another.
+
 Screens, their operations and roles: [screens.md](screens.md).
 Tests at every level: [testing.md](testing.md).
 

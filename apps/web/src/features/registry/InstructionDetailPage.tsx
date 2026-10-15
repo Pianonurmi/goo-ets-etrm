@@ -28,7 +28,7 @@ import { CardSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDateTime } from '@/shared/format/format';
 import { instructionActions, instructionSteps, subject, type Instruction } from './model/instructions';
-import { InstructionStatusBadge } from './RegistryPage';
+import { InstructionStatusBadge } from './shared';
 import { useInvalidateRegistry } from './TransferModal';
 
 /** Records that the registry executed the instruction, with the registry's own reference. */
