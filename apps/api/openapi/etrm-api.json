@@ -1727,6 +1727,35 @@
         "required" : [ "accountId", "businessDate", "contentHash", "currency", "fees", "id", "importedAt", "importedBy", "initialMargin", "legalEntityId", "lines", "variationMargin", "version" ],
         "type" : "object"
       },
+      "ClientErrorReport" : {
+        "properties" : {
+          "kind" : {
+            "enum" : [ "ERROR", "UNHANDLED_REJECTION", "ROUTE_ERROR" ],
+            "type" : "string"
+          },
+          "lastTraceId" : {
+            "pattern" : "^[0-9a-f]{16,32}$",
+            "type" : [ "string", "null" ]
+          },
+          "message" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "page" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
+          "stack" : {
+            "maxLength" : 8000,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "kind", "message" ],
+        "type" : "object"
+      },
       "CommentRequest" : {
         "properties" : {
           "body" : {
@@ -13984,6 +14013,37 @@
           }
         },
         "tags" : [ "Clearing" ]
+      }
+    },
+    "/api/v1/client-errors" : {
+      "post" : {
+        "operationId" : "clientError_report",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClientErrorReport"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "Accepted"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "client-error-controller" ]
       }
     },
     "/api/v1/confirmations" : {

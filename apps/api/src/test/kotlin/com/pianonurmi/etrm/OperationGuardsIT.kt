@@ -34,6 +34,7 @@ class OperationGuardsIT {
         /** Commands any signed-in user may send, as `METHOD path`, each with the reason. */
         val OPEN: Map<String, String> = mapOf(
             "POST /api/v1/allocation/plans/what-if" to "computes and stores nothing; refused anyway without a role",
+            "POST /api/v1/client-errors" to "the browser's error report: logged and counted, rate-limited per user; changes no data",
         )
     }
 

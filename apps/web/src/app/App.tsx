@@ -1,6 +1,6 @@
 import { Center, Loader } from '@mantine/core';
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { asProblemError } from '@/shared/api/problem';
@@ -9,6 +9,7 @@ import { SessionContext } from '@/shared/auth/SessionContext';
 import { notifyProblem } from '@/shared/components/notify';
 import { QueryState } from '@/shared/components/QueryState';
 import { EntityProvider } from '@/shared/context/EntityContext';
+import { installClientErrorReporting } from '@/shared/telemetry/clientErrors';
 import { router } from './router';
 
 /** A server error or a network failure (status 0) is worth another try; anything else would fail the same way. */
@@ -68,6 +69,8 @@ function SessionGate({ config }: { config: UiConfig }) {
 
 export function App({ config }: { config: UiConfig }) {
   const [queryClient] = useState(createQueryClient);
+  // Signed in from here on, so a report can be sent; uncaught errors go to /api/v1/client-errors.
+  useEffect(() => installClientErrorReporting(), []);
   return (
     <QueryClientProvider client={queryClient}>
       <SessionGate config={config} />

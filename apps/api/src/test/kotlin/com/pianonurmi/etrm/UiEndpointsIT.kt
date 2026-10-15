@@ -53,6 +53,18 @@ class UiEndpointsIT {
     }
 
     @Test
+    fun `the browser reports an error it could not handle, and a malformed report is refused`() {
+        fun send(body: String) = client.post().uri("/api/v1/client-errors")
+            .header("X-Actor", "maria").header("X-Roles", "").header("Content-Type", "application/json").body(body)
+            .retrieve().toEntity(Map::class.java)
+
+        send("""{"kind":"UNHANDLED_REJECTION","message":"boom","page":"/trades","lastTraceId":"4bf92f3577b34da6a3ce929d0e0e4736"}""")
+            .statusCode.value() shouldBe 202
+        send("""{"kind":"ERROR","message":"boom","lastTraceId":"not a trace id"}""").statusCode.value() shouldBe 422
+        send("""{"kind":"ERROR","message":""}""").statusCode.value() shouldBe 422
+    }
+
+    @Test
     fun `client routes fall back to the application shell`() {
         val deepLink = client.get().uri("/trades/0190a1b2-0000-7000-8000-000000000001").retrieve().toEntity(String::class.java)
         deepLink.statusCode.value() shouldBe 200
