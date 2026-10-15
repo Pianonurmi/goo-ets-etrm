@@ -39,7 +39,7 @@ class CommitmentMemos(
     private val curves: CurveQuery,
     private val fxRates: FxRates,
     private val clock: Clock,
-    private val unposted: UnpostedEvents? = null,
+    private val unposted: UnpostedEvents,
 ) : PostingReplay {
     @EventListener
     fun on(event: TradeConfirmed) = guard(event, event.trade.legalEntityId) { handle(event) }
@@ -177,6 +177,6 @@ class CommitmentMemos(
     }
 
     private fun guard(event: DomainEvent, legalEntityId: UUID?, body: () -> Unit) {
-        unposted?.guard(event, legalEntityId, body = body) ?: body()
+        unposted.guard(event, legalEntityId, body = body)
     }
 }

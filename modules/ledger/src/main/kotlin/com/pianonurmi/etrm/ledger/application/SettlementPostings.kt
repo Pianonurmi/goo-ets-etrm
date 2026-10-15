@@ -26,7 +26,7 @@ import java.util.UUID
 class SettlementPostings(
     private val ledger: LedgerService,
     private val referenceData: ReferenceDataQuery,
-    private val unposted: UnpostedEvents? = null,
+    private val unposted: UnpostedEvents,
 ) : PostingReplay {
     @EventListener
     fun on(event: InvoiceIssued) = guard(event, event.invoice.legalEntityId) { handle(event) }
@@ -163,6 +163,6 @@ class SettlementPostings(
     }
 
     private fun guard(event: DomainEvent, legalEntityId: UUID?, body: () -> Unit) {
-        unposted?.guard(event, legalEntityId, body = body) ?: body()
+        unposted.guard(event, legalEntityId, body = body)
     }
 }

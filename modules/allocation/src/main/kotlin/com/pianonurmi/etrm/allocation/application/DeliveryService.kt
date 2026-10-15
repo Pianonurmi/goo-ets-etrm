@@ -58,7 +58,7 @@ class DeliveryService(
     private val allowances: AllowanceHoldingQuery,
     private val savepoints: Savepoints,
     /** Margined futures deliver at the final settlement price (ADR 0046). */
-    private val clearing: ClearingQuery? = null,
+    private val clearing: ClearingQuery,
 ) : DeliveryCommand {
     private val log = LoggerFactory.getLogger(DeliveryService::class.java)
 
@@ -84,7 +84,7 @@ class DeliveryService(
                 toAccountId = to,
                 idempotencyKey = command.idempotencyKey ?: "delivery:${obligation.scheduleId}",
                 movementType = AllowanceMovementType.SALE,
-                unitPrice = clearing?.finalSettlement(obligation.tradeId)?.requirePrice() ?: obligation.price,
+                unitPrice = clearing.finalSettlement(obligation.tradeId)?.requirePrice() ?: obligation.price,
                 priceCurrency = obligation.priceCurrency.currencyCode,
                 obligationRef = obligation.scheduleId,
             ),

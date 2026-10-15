@@ -17,9 +17,12 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
+import com.pianonurmi.etrm.product.fixtures.NoFuturesContracts
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
@@ -140,115 +143,62 @@ class ValuationServiceIT {
         every { status } returns TradeStatus.CONFIRMED
     }
 
+    /** The EUA forward and volatility of each valuation date. */
+    private fun curvesStub() = mockk<CurveQuery> {
+        every { forwardPrice("EUA", any(), any(), any()) } answers {
+            val asOf = thirdArg<LocalDate>()
+            CurvePrice(forward.getValue(asOf), "EUR", PriceOrigin.INTERPOLATED, "EUA_FWD", UUID.nameUUIDFromBytes(asOf.toString().toByteArray()), asOf)
+        }
+        every { volatility("EUA", any(), any(), any()) } answers {
+            val asOf = thirdArg<LocalDate>()
+            vols[asOf]?.let { CurvePrice(it, "EUR", PriceOrigin.INTERPOLATED, "EUA_VOL", UUID.nameUUIDFromBytes("vol-$asOf".toByteArray()), asOf) }
+        }
+    }
+
+    /** EUR/SEK at 11, and the inverse that moves between the two valuation dates. */
+    private fun fxStub() = mockk<FxRates> {
+        every { rate(any(), any(), any()) } answers {
+            val (date, from, to) = Triple(firstArg<LocalDate>(), secondArg<String>(), thirdArg<String>())
+            when {
+                from == to -> FxRateView(date, from, to, BigDecimal.ONE, "identity", date)
+                from == "EUR" && to == "SEK" -> FxRateView(date, from, to, BigDecimal("11.00"), "EUR/SEK", date)
+                from == "SEK" && to == "EUR" -> FxRateView(
+                    date,
+                    from,
+                    to,
+                    if (date == d0) BigDecimal("0.0900000000") else BigDecimal("0.0910000000"),
+                    "1/(EUR/SEK)",
+                    date,
+                )
+                else -> null
+            }
+        }
+    }
+
+    /** A trade of one leg. */
+    private fun oneLegTrade(number: String, family: ProductFamily, leg: TradeLegView) = trade(number, family, listOf(leg))
+
+    /** One delivery, remaining [remaining], on [date]. */
+    private fun delivery(remaining: () -> BigDecimal, date: LocalDate = LocalDate.of(2026, 12, 21)) = listOf(schedule(remaining, date, UUID.randomUUID()))
+
     @BeforeAll
-    @Suppress("LongMethod") // stubs for trades, curves and rates
     fun setUp() {
         TestDatabase.migrate("valuation")
-        val euaBuy =
-            trade(
-                "T-EUA-BUY",
-                ProductFamily.EMISSION_ALLOWANCE,
-                listOf(
-                    leg(
-                        Side.BUY,
-                        "70.00",
-                        PriceType.FIXED,
-                        "EUR",
-                        listOf(
-                            schedule({
-                                euaRemaining
-                            }, LocalDate.of(2026, 12, 21), UUID.randomUUID()),
-                        ),
-                    ),
-                ),
-            )
+        val euaBuy = oneLegTrade("T-EUA-BUY", ProductFamily.EMISSION_ALLOWANCE, leg(Side.BUY, "70.00", PriceType.FIXED, "EUR", delivery({ euaRemaining })))
         val euaSekSell =
-            trade(
-                "T-EUA-SEK",
-                ProductFamily.EMISSION_ALLOWANCE,
-                listOf(
-                    leg(
-                        Side.SELL,
-                        "800.00",
-                        PriceType.FIXED,
-                        "SEK",
-                        listOf(
-                            schedule({
-                                BigDecimal(100)
-                            }, LocalDate.of(2026, 12, 21), UUID.randomUUID()),
-                        ),
-                    ),
-                ),
-            )
-        val gooWithoutBucket =
-            trade(
-                "T-GOO",
-                ProductFamily.GUARANTEE_OF_ORIGIN,
-                listOf(
-                    leg(
-                        Side.SELL,
-                        "0.90",
-                        PriceType.FIXED,
-                        "EUR",
-                        listOf(
-                            schedule({
-                                BigDecimal(500)
-                            }, LocalDate.of(2026, 12, 31), UUID.randomUUID()),
-                        ),
-                        product = null,
-                    ),
-                ),
-            )
-        val formula =
-            trade(
-                "T-FORMULA",
-                ProductFamily.EMISSION_ALLOWANCE,
-                listOf(
-                    leg(
-                        Side.BUY,
-                        "1.00",
-                        PriceType.FORMULA,
-                        "EUR",
-                        listOf(
-                            schedule({
-                                BigDecimal(10)
-                            }, LocalDate.of(2026, 12, 21), UUID.randomUUID()),
-                        ),
-                    ),
-                ),
-            )
+            oneLegTrade("T-EUA-SEK", ProductFamily.EMISSION_ALLOWANCE, leg(Side.SELL, "800.00", PriceType.FIXED, "SEK", delivery({ BigDecimal(100) })))
+        val gooWithoutBucket = oneLegTrade(
+            "T-GOO",
+            ProductFamily.GUARANTEE_OF_ORIGIN,
+            leg(Side.SELL, "0.90", PriceType.FIXED, "EUR", delivery({ BigDecimal(500) }, LocalDate.of(2026, 12, 31)), product = null),
+        )
+        val formula = oneLegTrade("T-FORMULA", ProductFamily.EMISSION_ALLOWANCE, leg(Side.BUY, "1.00", PriceType.FORMULA, "EUR", delivery({ BigDecimal(10) })))
         val trades = mockk<TradeQuery> {
             every { trades(any()) } returns listOf(euaBuy, euaSekSell, gooWithoutBucket, formula)
             every { trade(any()) } returns null
         }
-        val curves = mockk<CurveQuery> {
-            every { forwardPrice("EUA", any(), any(), any()) } answers {
-                val asOf = thirdArg<LocalDate>()
-                CurvePrice(forward.getValue(asOf), "EUR", PriceOrigin.INTERPOLATED, "EUA_FWD", UUID.nameUUIDFromBytes(asOf.toString().toByteArray()), asOf)
-            }
-            every { volatility("EUA", any(), any(), any()) } answers {
-                val asOf = thirdArg<LocalDate>()
-                vols[asOf]?.let { CurvePrice(it, "EUR", PriceOrigin.INTERPOLATED, "EUA_VOL", UUID.nameUUIDFromBytes("vol-$asOf".toByteArray()), asOf) }
-            }
-        }
-        val fx = mockk<FxRates> {
-            every { rate(any(), any(), any()) } answers {
-                val (date, from, to) = Triple(firstArg<LocalDate>(), secondArg<String>(), thirdArg<String>())
-                when {
-                    from == to -> FxRateView(date, from, to, BigDecimal.ONE, "identity", date)
-                    from == "EUR" && to == "SEK" -> FxRateView(date, from, to, BigDecimal("11.00"), "EUR/SEK", date)
-                    from == "SEK" && to == "EUR" -> FxRateView(
-                        date,
-                        from,
-                        to,
-                        if (date == d0) BigDecimal("0.0900000000") else BigDecimal("0.0910000000"),
-                        "1/(EUR/SEK)",
-                        date,
-                    )
-                    else -> null
-                }
-            }
-        }
+        val curves = curvesStub()
+        val fx = fxStub()
         val referenceData = mockk<ReferenceDataQuery> {
             every { requireLegalEntity(entity) } returns mockk { every { baseCurrency } returns Currency.getInstance("EUR") }
             every { requireBook(book) } returns mockk { every { bookType } returns BookType.TRADING }
@@ -269,6 +219,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { published += it },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+            Providers.none(),
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
     }
 
@@ -367,6 +320,8 @@ class ValuationServiceIT {
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
             mockk<ObjectProvider<PortfolioValueQuery>> { every { ifAvailable } returns allocation },
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
         val run0 = withPortfolio.submit(withPortfolio.run(entity, first, RunKind.EOD).id)
         user = "risk2"
@@ -444,6 +399,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+            Providers.none(),
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
 
         // Delivered on 1 October and the fixing is overdue: no value, rather than the forward standing in for it.
@@ -515,6 +473,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-09T18:00:00Z"), ZoneOffset.UTC),
+            Providers.none(),
+            Savepoints.NONE,
+            NoFuturesContracts,
         )
     }
 
@@ -615,7 +576,9 @@ class ValuationServiceIT {
             ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) },
             ApplicationEventPublisher { },
             Clock.fixed(Instant.parse("2026-10-13T18:00:00Z"), ZoneOffset.UTC),
-            futures = futures,
+            Providers.none(),
+            Savepoints.NONE,
+            futures,
         )
         return call to options
     }

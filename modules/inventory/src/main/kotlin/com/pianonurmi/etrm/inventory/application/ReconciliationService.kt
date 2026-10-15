@@ -64,7 +64,7 @@ class ReconciliationService(
     private val referenceData: ReferenceDataQuery,
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock,
 ) : ReconciliationCommand, ReconciliationQuery {
     override fun importStatement(command: ImportStatement): StatementView {
         val account = statementAccount(command.registryAccountId, command.registryCode, RegistryType.GOO)

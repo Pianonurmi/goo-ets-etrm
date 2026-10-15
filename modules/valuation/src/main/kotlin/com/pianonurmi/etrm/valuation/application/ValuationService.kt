@@ -88,10 +88,10 @@ class ValuationService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
-    private val portfolioValues: ObjectProvider<PortfolioValueQuery>? = null,
-    private val savepoints: Savepoints = Savepoints.NONE,
-    /** Underlying futures of options; without it options are left unpriced. */
-    private val futures: FuturesContractQuery? = null,
+    private val portfolioValues: ObjectProvider<PortfolioValueQuery>,
+    private val savepoints: Savepoints,
+    /** Underlying futures of options. */
+    private val futures: FuturesContractQuery,
 ) : ValuationQuery, ValuationCommand {
     private val log = LoggerFactory.getLogger(ValuationService::class.java)
 
@@ -140,7 +140,7 @@ class ValuationService(
      * failing the run), or when the base currency has no rate to EUR.
      */
     private fun portfolioOf(runId: UUID, legalEntityId: UUID, date: LocalDate, base: String, results: List<ValuationResultView>): PortfolioBridgeView? {
-        val query = portfolioValues?.ifAvailable ?: return null
+        val query = portfolioValues.ifAvailable ?: return null
         val value = try {
             savepoints.attempt { query.value(legalEntityId, date) }
         } catch (e: RuntimeException) {
@@ -433,7 +433,7 @@ class ValuationService(
         discount: (String, LocalDate) -> DiscountFactor,
     ): ValuationResultView {
         val product = leg.allowanceProductCode!!
-        val underlying = futures?.futuresContract(terms.underlyingContractCode)
+        val underlying = futures.futuresContract(terms.underlyingContractCode)
             ?: throw Unpriced(ResultStatus.MISSING_PRICE, null, "Underlying contract ${terms.underlyingContractCode} not found")
         val forward = curves.forwardPrice(product, underlying.deliveryDate, date)
             ?: throw Unpriced(ResultStatus.MISSING_PRICE, null, "No official curve for $product on or before $date")
@@ -546,7 +546,7 @@ class ValuationService(
         if (to.isBefore(from)) throw ValidationException("The period ends before it starts")
         val steps = repository.portfolioExplains(legalEntityId, from, to)
         val totals = PortfolioCause.entries.associateWith { cause -> steps.mapNotNull { it.causes[cause] }.fold(BigDecimal.ZERO, BigDecimal::add) }
-        val realised = portfolioValues?.ifAvailable?.let { query ->
+        val realised = portfolioValues.ifAvailable?.let { query ->
             // Plans approved after the first day up to and including the last, like the runs.
             runCatching { savepoints.attempt { query.realisedGiveAway(legalEntityId, from.plusDays(1), to.plusDays(1)).totalEur } }.getOrNull()
         }
