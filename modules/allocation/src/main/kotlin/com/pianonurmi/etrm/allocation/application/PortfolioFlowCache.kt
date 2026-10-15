@@ -92,9 +92,9 @@ class PortfolioFlowCache(
     private val buckets: ProductBucketQuery,
     private val lotQuery: LotQuery,
     private val clock: Clock,
-    private val transactions: TransactionOperations = TransactionOperations.withoutTransaction(),
-    private val settings: AllocationHeadroomSettings = AllocationHeadroomSettings(),
-    private val futureSupply: FutureSupplyProvider? = null,
+    private val transactions: TransactionOperations,
+    private val settings: AllocationHeadroomSettings,
+    private val futureSupply: FutureSupplyProvider,
 ) {
     private val log = LoggerFactory.getLogger(PortfolioFlowCache::class.java)
 
@@ -163,8 +163,7 @@ class PortfolioFlowCache(
         val excluded = excludeSourceRefs.filterTo(HashSet()) { ref ->
             obligations.bySource(ref)?.let { it.holderEntityId == holderEntityId && it.remainingMwh > 0 } == true
         }
-        // Without a provider there is no future supply: every tier is the held one.
-        return Key(holderEntityId, excluded, if (futureSupply == null) SupplyTier.HELD else tier)
+        return Key(holderEntityId, excluded, tier)
     }
 
     private fun stamp(key: Key): Stamped {
@@ -172,7 +171,7 @@ class PortfolioFlowCache(
         val catalogue = buckets.buckets(true).joinToString(",") { "${it.code}@${it.version}" }.hashCode()
         val day = LocalDate.now(clock)
         val held = "${lotQuery.holdingStamp(holderEntityId)}|${obligations.openStamp(holderEntityId)}|$catalogue|$day"
-        if (key.tier == SupplyTier.HELD || futureSupply == null) return Stamped(held, day, catalogue, emptyList())
+        if (key.tier == SupplyTier.HELD) return Stamped(held, day, catalogue, emptyList())
         // Purchases and forecasts have no stamp of their own here; the supply they amount to is the stamp.
         val future = futureSupply.supply(holderEntityId, Quantile.P50).filter { it.future.tier <= key.tier }
         val digest = future.joinToString(",") { "${it.future.ref}=${it.quantityMwh}@${it.future.availableFrom}" }.hashCode()

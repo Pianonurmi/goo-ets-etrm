@@ -87,7 +87,7 @@ class TradeService(
     @Value("\${etrm.trade.approval-threshold-currency:EUR}") private val thresholdCurrency: String,
     private val futures: FuturesContractQuery,
     /** Pre-trade checks of other modules, resolved when used (they read trades themselves). */
-    private val checks: ObjectProvider<TradeApprovalCheck>? = null,
+    private val checks: ObjectProvider<TradeApprovalCheck>,
 ) : TradeCommand, TradeQuery {
     // ----------------------------------------------------------------------------------------------------------
     // Capture and amendment
@@ -671,7 +671,7 @@ class TradeService(
         return converted.fold(BigDecimal.ZERO, BigDecimal::add) >= approvalThreshold
     }
 
-    private fun runChecks(trade: TradeView): List<ApprovalFinding> = checks?.orderedStream()?.toList().orEmpty().flatMap { it.check(trade) }
+    private fun runChecks(trade: TradeView): List<ApprovalFinding> = checks.orderedStream().toList().flatMap { it.check(trade) }
 
     private fun locked(id: UUID): TradeView = repository.lock(id) ?: throw NotFoundException("Trade", id)
 

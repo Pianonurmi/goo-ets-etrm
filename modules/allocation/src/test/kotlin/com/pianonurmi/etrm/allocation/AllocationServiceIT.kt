@@ -45,6 +45,7 @@ import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.platform.tx.Savepoints
@@ -106,6 +107,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.transaction.support.TransactionOperations
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
@@ -192,6 +194,7 @@ class AllocationServiceIT {
                 mockk<FxRates>(relaxed = true),
                 "EUR",
                 mockk(relaxed = true),
+                Providers.none(),
             )
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus)
@@ -209,8 +212,9 @@ class AllocationServiceIT {
                 buckets,
                 lots,
                 clock,
-                settings = AllocationHeadroomSettings(warmOnMiss = false),
-                futureSupply = futureSupply,
+                TransactionOperations.withoutTransaction(),
+                AllocationHeadroomSettings(warmOnMiss = false),
+                futureSupply,
             )
         }
         flows = newFlows()
@@ -263,6 +267,9 @@ class AllocationServiceIT {
             bus,
             clock,
             Savepoints.NONE,
+            // Held lots only unless a command asks for future supply, which this service's tests never do.
+            futureSupply = futureSupply,
+            referenceData = referenceData,
         )
 
         entityId = referenceData.createLegalEntity(CreateLegalEntity("ALLOC-CO", "Allocation Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id

@@ -14,5 +14,6 @@ dependencies {
     implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(testFixtures(project(":modules:clearing")))
     testImplementation(project(":modules:taxonomy"))
 }

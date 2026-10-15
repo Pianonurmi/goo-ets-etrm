@@ -58,10 +58,10 @@ class ReportCatalogue(
     private val fxRates: FxRates,
     private val repository: ReportingRepository,
     private val clock: Clock,
-    /** Allocation's portfolio value, for the give-away report; absent where allocation is not wired (tests). */
-    private val giveAway: PortfolioValueQuery? = null,
-    /** Cash flow hedges, for the effectiveness report; absent where the ledger's hedges are not wired (tests). */
-    private val hedges: HedgeQuery? = null,
+    /** Allocation's portfolio value, for the give-away report. */
+    private val giveAway: PortfolioValueQuery,
+    /** Cash flow hedges, for the effectiveness report. */
+    private val hedges: HedgeQuery,
 ) {
     private class Definition(
         override val code: String,
@@ -217,8 +217,7 @@ class ReportCatalogue(
             listOf(ENTITY, FROM, TO),
             listOf("approvedAt", "planId", "tradeRef", "deliveryDate", "saleBucket", "vintage", "mwh", "deliveredValueEur", "saleMarkEur", "giveAwayEur"),
         ) { p ->
-            val query = giveAway ?: return@Definition emptyList()
-            query.giveAwayLines(p.uuid("legalEntityId"), p.date("from"), p.date("to").plusDays(1)).map {
+            giveAway.giveAwayLines(p.uuid("legalEntityId"), p.date("from"), p.date("to").plusDays(1)).map {
                 mapOf(
                     "approvedAt" to it.approvedAt.toString(),
                     "planId" to it.planId,
@@ -242,11 +241,10 @@ class ReportCatalogue(
             listOf(ENTITY, FROM, TO),
             listOf("hedge", "status", "valuationDate", "instrumentValue", "instrumentChange", "hypotheticalValue", "effective", "ineffective", "offsetRatio"),
         ) { p ->
-            val query = hedges ?: return@Definition emptyList()
             val from = p.date("from")
             val to = p.date("to")
-            query.hedges(p.uuid("legalEntityId")).flatMap { hedge ->
-                query.hedge(hedge.id).measurements.filter { !it.valuationDate.isBefore(from) && !it.valuationDate.isAfter(to) }.map {
+            hedges.hedges(p.uuid("legalEntityId")).flatMap { hedge ->
+                hedges.hedge(hedge.id).measurements.filter { !it.valuationDate.isBefore(from) && !it.valuationDate.isAfter(to) }.map {
                     mapOf(
                         "hedge" to hedge.number,
                         "status" to hedge.status.name,

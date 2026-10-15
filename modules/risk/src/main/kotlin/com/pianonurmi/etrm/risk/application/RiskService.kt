@@ -108,14 +108,14 @@ class RiskService(
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
     /** Every module's pre-trade check (this one's through [RiskTriggers]), for [recheck]; resolved when used. */
-    private val checks: ObjectProvider<TradeApprovalCheck>? = null,
+    private val checks: ObjectProvider<TradeApprovalCheck>,
     /** GoO measures from allocation (ADR 0040); resolved when used. */
-    private val goo: ObjectProvider<GooRiskQuery>? = null,
-    private val buckets: ProductBucketQuery? = null,
-    private val savepoints: Savepoints = Savepoints.NONE,
+    private val goo: ObjectProvider<GooRiskQuery>,
+    private val buckets: ProductBucketQuery,
+    private val savepoints: Savepoints,
     /** Cleared futures and the margin held for them (ADR 0046). */
-    private val clearing: ClearingQuery? = null,
-    private val margin: MarginCallQuery? = null,
+    private val clearing: ClearingQuery,
+    private val margin: MarginCallQuery,
 ) : RiskQuery, RiskCommand {
     private val log = LoggerFactory.getLogger(RiskService::class.java)
 
@@ -278,7 +278,7 @@ class RiskService(
             LimitType.TENOR_MAX_MONTHS, LimitType.COMPLIANCE_SHORT -> Unit
             LimitType.GOO_CONCENTRATION -> {
                 val code = command.scope.bucketCode ?: throw ValidationException("A concentration limit names its product bucket")
-                if (buckets != null && buckets.buckets(true).none { it.code == code }) throw ValidationException("No active product bucket $code")
+                if (buckets.buckets(true).none { it.code == code }) throw ValidationException("No active product bucket $code")
                 requireEurOrMwh(command)
             }
             LimitType.GOO_EXPIRY -> {
@@ -350,7 +350,7 @@ class RiskService(
 
     /** Initial margin held plus open margin calls over the entity's clearing accounts, in the limit's currency. */
     private fun marginLiquidity(limit: RiskLimitView, today: LocalDate, gaps: MeasurementGaps): Pair<BigDecimal, String?> {
-        val posted = margin?.marginPosted(limit.legalEntityId!!).orEmpty()
+        val posted = margin.marginPosted(limit.legalEntityId!!)
         val initial = posted.sumOf { convert(it.initialMargin, it.currency, limit.currency!!, today, gaps) }
         val calls = posted.sumOf { convert(it.openCalls, it.currency, limit.currency!!, today, gaps) }
         return money(initial + calls) to "initial margin ${money(initial)}, open calls ${money(calls)} over ${posted.size} clearing accounts"
@@ -362,7 +362,7 @@ class RiskService(
      * limit, or standing at zero.
      */
     private fun gooMeasure(limit: RiskLimitView): Measure {
-        val query = goo?.ifAvailable ?: return notMeasured("GoO measures are not available")
+        val query = goo.ifAvailable ?: return notMeasured("GoO measures are not available")
         val entity = limit.legalEntityId!!
         val inEur = limit.currency == EUR
         val year = limit.scope.productionYear
@@ -429,8 +429,8 @@ class RiskService(
     private fun measureExposures(entity: LegalEntityView, today: LocalDate) {
         val base = entity.baseCurrency.currencyCode
         // Margined futures are settled every day: no MtM or PFE to the clearing house, which holds the margin instead.
-        val margined = clearing?.marginedTradeIds(entity.id).orEmpty()
-        val posted = margin?.marginPosted(entity.id).orEmpty().groupBy { it.clearingHouseId }
+        val margined = clearing.marginedTradeIds(entity.id)
+        val posted = margin.marginPosted(entity.id).groupBy { it.clearingHouseId }
         val counterparties = referenceData.counterparties().associateBy { it.id }
         val run = valuations.official(entity.id, today, orEarlier = true)
         val mtmByCounterparty = run?.let { valuations.results(it.id) }.orEmpty()
@@ -655,7 +655,7 @@ class RiskService(
     fun recheck(tradeId: UUID): List<ApprovalFinding> {
         val trade = trades.requireTrade(tradeId)
         readable(trade.legalEntityId)
-        return checks?.orderedStream()?.toList()?.takeIf { it.isNotEmpty() }?.flatMap { it.check(trade) } ?: preTradeFindings(trade)
+        return checks.orderedStream().toList().takeIf { it.isNotEmpty() }?.flatMap { it.check(trade) } ?: preTradeFindings(trade)
     }
 
     private fun relevant(trade: TradeView, limit: RiskLimitView): Boolean = when (limit.type) {
@@ -679,7 +679,7 @@ class RiskService(
 
     /** Null while allocation prepares the figures; empty when allocation is not there or the projection fails. */
     private fun projectSale(trade: TradeView): SaleProjection? {
-        val query = goo?.ifAvailable ?: return SaleProjection(emptyList())
+        val query = goo.ifAvailable ?: return SaleProjection(emptyList())
         return try {
             savepoints.attempt { query.projectSale(trade) }
         } catch (e: RuntimeException) {
@@ -728,7 +728,7 @@ class RiskService(
 
     private fun concentrationProjection(trade: TradeView, limit: RiskLimitView): ApprovalFinding? {
         val year = limit.scope.productionYear
-        val query = goo?.ifAvailable ?: return concentrationNotChecked(limit, "GoO measures are not available")
+        val query = goo.ifAvailable ?: return concentrationNotChecked(limit, "GoO measures are not available")
         // A limit on one vintage counts only the deliveries marked at it.
         val vintages = if (year == null) emptyMap() else query.vintages(trade)
         val bought = trade.legs.filter { it.side == Side.BUY && it.bucketCode == limit.scope.bucketCode }

@@ -151,7 +151,7 @@ class SettlementItemService(
     private val fixings: IndexFixings,
     private val savepoints: Savepoints,
     /** Margined futures deliver at the final settlement price (ADR 0046). */
-    private val clearing: ClearingQuery? = null,
+    private val clearing: ClearingQuery,
 ) : SettlementItemCommand, SettlementItemQuery {
     private val log = LoggerFactory.getLogger(SettlementItemService::class.java)
 
@@ -160,7 +160,7 @@ class SettlementItemService(
         val o = event.obligation
         val leg = event.trade.legs.firstOrNull { it.id == o.legId }
         val product = o.allowanceProductCode ?: "Guarantees of origin (${o.energyCarrier?.name ?: "ELECTRICITY"})"
-        val future = leg?.futuresContractCode?.let { clearing?.finalSettlement(o.tradeId) }
+        val future = leg?.futuresContractCode?.let { clearing.finalSettlement(o.tradeId) }
         val draft = SettlementItemView(
             id = Ids.newId(),
             deliveryId = event.deliveryId,
@@ -263,7 +263,7 @@ class SettlementItemService(
 
     /** A margined future at its final settlement price; refused (the item parked) until that price is stored. */
     private fun futuresPrice(item: SettlementItemView): BigDecimal? {
-        val settlement = clearing?.finalSettlement(item.tradeId) ?: return null
+        val settlement = clearing.finalSettlement(item.tradeId) ?: return null
         if (settlement.currency != item.currency) {
             throw ValidationException("${settlement.contractCode} settles in ${settlement.currency}; trade ${item.tradeNumber} is in ${item.currency}")
         }

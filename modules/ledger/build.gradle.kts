@@ -1,5 +1,6 @@
 plugins {
     id("etrm.module-conventions")
+    `java-test-fixtures`
 }
 
 dependencies {
@@ -20,6 +21,8 @@ dependencies {
     implementation(libs.springdoc.openapi)
     implementation(libs.shedlock.spring)
 
+    testFixturesImplementation(project(":platform"))
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(testFixtures(project(":modules:clearing")))
     testImplementation(project(":modules:taxonomy"))
 }

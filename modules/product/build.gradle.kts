@@ -1,5 +1,6 @@
 plugins {
     id("etrm.module-conventions")
+    `java-test-fixtures`
 }
 
 dependencies {

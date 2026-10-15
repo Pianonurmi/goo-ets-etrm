@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.settlement
 
 import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.clearing.api.FinalSettlement
+import com.pianonurmi.etrm.clearing.fixtures.NoClearing
 import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
@@ -31,6 +32,7 @@ import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.platform.tx.Savepoints
@@ -185,6 +187,7 @@ class SettlementIT {
             mockk<FxRates>(relaxed = true),
             "EUR",
             mockk(relaxed = true),
+            Providers.none(),
         )
         vat = VatRuleService(JooqVatRuleRepository(dsl), actor, bus)
         items = SettlementItemService(
@@ -202,6 +205,7 @@ class SettlementIT {
                 fixings[code to date]
             },
             Savepoints.NONE,
+            NoClearing,
         )
         numbers = JooqNumberSeriesRepository(dsl)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
@@ -932,7 +936,8 @@ class SettlementIT {
         listOf(1 to "70.00", 2 to "72.00").forEach { (d, p) ->
             marketData.recordQuote(RecordQuote("SETT_EUA_IDX", LocalDate.of(2026, 10, d), QuoteType.CLOSE, BigDecimal(p)))
         }
-        val priced = SettlementItemService(JooqSettlementItemRepository(dsl), vat, referenceData, parties, actor, bus, trades, marketData, Savepoints.NONE)
+        val priced =
+            SettlementItemService(JooqSettlementItemRepository(dsl), vat, referenceData, parties, actor, bus, trades, marketData, Savepoints.NONE, NoClearing)
 
         val item = delivered(domestic, priceType = PriceType.INDEX, price = "0.10", priceIndex = "SETT_AVG")
         item.status shouldBe SettlementItemStatus.NEEDS_ATTENTION
