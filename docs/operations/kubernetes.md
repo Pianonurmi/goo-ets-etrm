@@ -8,7 +8,9 @@ CloudNativePG and ServiceMonitor resources are checked against the CRD catalogue
 ## Install
 
 ```bash
-# Operator, once per cluster: https://cloudnative-pg.io/documentation/current/installation_upgrade/
+# Once per cluster: the operator (https://cloudnative-pg.io/documentation/current/installation_upgrade/), cert-manager,
+# then the Barman Cloud plugin, which takes the backups (CloudNativePG 1.26 or later):
+kubectl apply -f https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.1/manifest.yaml
 kubectl create namespace etrm
 kubectl -n etrm create secret generic etrm-backup-credentials --from-literal=ACCESS_KEY_ID=... --from-literal=ACCESS_SECRET_KEY=...
 kubectl -n etrm apply -f ops/k8s/postgres-cluster.yaml     # creates etrm-db-rw, etrm-db-ro and secret etrm-db-app
@@ -80,7 +82,7 @@ extraEnv:
 - **Topology:** three instances, one primary and two replicas, spread across zones.
 - **Durability:** synchronous commit to at least one replica (`dataDurability: required`). A failover loses no acknowledged write.
 - **Backups:**
-  - WAL is archived continuously and a base backup runs every night to object storage, kept for 35 days.
+  - WAL is archived continuously and a base backup runs every night to object storage, kept for 35 days, through the Barman Cloud plugin (`ObjectStore` `etrm-backups`).
   - Point-in-time recovery is a new `Cluster` bootstrapped with `recovery` from that store (see the DR runbook).
 - **Connections:** the application connects through `etrm-db-rw`. Each replica's Hikari pool is 20 connections, so six replicas (120) stay under `max_connections` (200).
 - **Schemas:** the owner `etrm` creates the `etrm_<module>` schemas through Flyway (in the migrations Job); requests run as `etrm_app` with table rights only ([database](database.md#roles-schema-owner-and-runtime-role)).

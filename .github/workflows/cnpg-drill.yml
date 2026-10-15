@@ -22,6 +22,8 @@ jobs:
     env:
       KIND_VERSION: v0.33.0
       CNPG_VERSION: 1.29.3
+      CERT_MANAGER_VERSION: v1.21.2
+      BARMAN_CLOUD_VERSION: v0.15.1
     steps:
       - uses: actions/checkout@v7
       - name: Kubernetes in Docker
@@ -34,17 +36,28 @@ jobs:
         run: |
           kubectl apply --server-side -f "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/v${CNPG_VERSION}/releases/cnpg-${CNPG_VERSION}.yaml"
           kubectl -n cnpg-system rollout status deploy/cnpg-controller-manager --timeout=300s
+      # Backups and WAL archiving go through the Barman Cloud plugin, as in ops/k8s/postgres-cluster.yaml; the plugin
+      # needs cert-manager for its TLS between operator, plugin and instances.
+      - name: cert-manager
+        run: |
+          kubectl apply -f "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
+          for d in cert-manager cert-manager-cainjector cert-manager-webhook; do kubectl -n cert-manager rollout status "deploy/$d" --timeout=300s; done
+      - name: Barman Cloud plugin
+        run: |
+          kubectl apply -f "https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/${BARMAN_CLOUD_VERSION}/manifest.yaml"
+          kubectl -n cnpg-system rollout status deploy/barman-cloud --timeout=300s
       - name: Backup, damage and point-in-time recovery
         run: ops/dr/cnpg-drill.sh build/dr/cnpg-report.md
       - name: Report
         if: always()
         run: |
           [[ -f build/dr/cnpg-report.md ]] && cat build/dr/cnpg-report.md >> "$GITHUB_STEP_SUMMARY"
-          kubectl -n etrm-drill get cluster,backup,pods -o wide || true
+          kubectl -n etrm-drill get cluster,objectstore,backup,pods -o wide || true
       - name: Operator and instance logs
         if: failure()
         run: |
           kubectl -n cnpg-system logs deploy/cnpg-controller-manager --tail=200 || true
+          kubectl -n cnpg-system logs deploy/barman-cloud --tail=200 || true
           for pod in $(kubectl -n etrm-drill get pods -o name); do echo "== $pod"; kubectl -n etrm-drill logs "$pod" --all-containers --tail=100 || true; done
       - uses: actions/upload-artifact@v7
         if: always()

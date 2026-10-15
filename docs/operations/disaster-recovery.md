@@ -34,8 +34,16 @@ are stateless, apart from the registry FILE outbox, which is regenerated from th
            targetTime: "2026-10-11 07:45:00+00"   # omit for the latest point
      externalClusters:
        - name: etrm-db
-         barmanObjectStore: { ... same destinationPath and credentials as the original ... }
+         plugin:
+           name: barman-cloud.cloudnative-pg.io
+           parameters:
+             barmanObjectName: etrm-backups   # the ObjectStore of ops/k8s/postgres-cluster.yaml
+             serverName: etrm-db              # the folder the original cluster archived into
    ```
+
+   The new cluster archives nothing until you give it a `plugins` entry of its own. Point that entry at another
+   `ObjectStore`, or at the same one with a different `serverName`, so that it never writes over the original's
+   archive.
 
 3. **Point the application at the new cluster:** set `database.existingSecret` to `etrm-db-restore-app`, then
    `helm upgrade`.
@@ -73,8 +81,8 @@ file its report with the change record.
 ### Point-in-time recovery drill (CloudNativePG)
 
 The **CloudNativePG drill** workflow (`.github/workflows/cnpg-drill.yml`, monthly, on demand, and on changes to the
-drill or the cluster manifest) runs `ops/dr/cnpg-drill.sh` on a kind cluster with the operator and moto's S3 server as the
-object store:
+drill or the cluster manifest) runs `ops/dr/cnpg-drill.sh` on a kind cluster with the operator, cert-manager, the Barman Cloud plugin and moto's S3
+server as the object store:
 
 1. A cluster with continuous WAL archiving and a base backup.
 2. More writes, a recovery target time, then damaging writes (more rows, half the rows deleted) and their WAL archived.
@@ -85,8 +93,8 @@ The report (job summary and artifact) has the time of each step and how long the
 object store, which bounds the RPO. `archive_timeout` (5 minutes in `ops/k8s/postgres-cluster.yaml`) closes a WAL
 segment on a quiet database, so the RPO stays under 15 minutes without load.
 
-The cluster manifest and the drill use CloudNativePG's built-in Barman Cloud support, which CloudNativePG 1.29
-deprecates and removes in 1.31: move both to the Barman Cloud plugin before upgrading the operator past 1.30.
+The cluster manifest and the drill back up through the Barman Cloud plugin (`ObjectStore`, `method: plugin`), not
+the built-in `barmanObjectStore` that CloudNativePG 1.31 removes.
 
 ### After a recovery: what to reconcile
 

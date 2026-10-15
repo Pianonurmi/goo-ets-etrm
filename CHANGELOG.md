@@ -29,6 +29,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
 
 ### Changed
+- **CloudNativePG backups go through the Barman Cloud plugin** (`ops/k8s/postgres-cluster.yaml`), because
+  CloudNativePG 1.31 removes the built-in `barmanObjectStore`. Install cert-manager and the plugin first
+  ([Kubernetes](docs/operations/kubernetes.md#install)). Then apply the new `ObjectStore` with the same destination,
+  so existing backups and WAL stay usable. The `EtrmDatabaseBackupOld` alert now reads the plugin's
+  `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp`.
 - **The demo seeder is no longer in the production jar and image.** `bootJar` builds the application alone;
   `showcaseJar` (`api-showcase.jar`) adds the seeder, and CI publishes it as `ghcr.io/pianonurmi/goo-ets-etrm-showcase`.
   The public demo (`ops/demo`) now pulls that image: set `ETRM_IMAGE` to it if your `.env` names the old one.

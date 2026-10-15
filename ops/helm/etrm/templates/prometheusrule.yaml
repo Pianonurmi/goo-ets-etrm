@@ -136,7 +136,7 @@ spec:
     - name: etrm.database
       rules:
         - alert: EtrmDatabaseBackupOld
-          expr: (time() - max(cnpg_collector_last_available_backup_timestamp{namespace="{{ .Release.Namespace }}", pod=~"{{ .Values.prometheusRule.cnpg.cluster }}-.*"})) > 26 * 3600
+          expr: (time() - max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="{{ .Release.Namespace }}", pod=~"{{ .Values.prometheusRule.cnpg.cluster }}-.*"})) > 26 * 3600
           labels: {severity: critical}
           annotations:
             summary: The newest base backup of the database is more than 26 hours old
