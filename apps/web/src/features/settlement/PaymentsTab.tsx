@@ -27,9 +27,13 @@ import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
 import { formatMoney } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { LoadMore } from '@/shared/grid/LoadMore';
 import { useCounterparties } from '@/features/trades/hooks';
 import { useInvalidateSettlement } from './hooks';
 import { allocatableInvoices, csvLineCount, sign, type Payment, type PaymentDirection } from './model/payments';
+
+/** Payments fetched per page of the payment list. */
+const PAYMENT_PAGE = 100;
 
 function invoiceLabel(invoice: { number?: string | null; outstanding: number; currency: string }): string {
   return `${invoice.number ?? '—'} · ${formatMoney(invoice.outstanding, invoice.currency)}`;
@@ -304,9 +308,17 @@ export function PaymentsTab({ entityId }: { entityId: string }) {
   const [recording, setRecording] = useState(false);
   const [importing, setImporting] = useState(false);
   const [allocating, setAllocating] = useState<Payment | null>(null);
-  const payments = $api.useQuery('get', '/api/v1/settlement/payments', {
-    params: { query: { legalEntityId: entityId, unappliedOnly } },
-  });
+  const payments = $api.useInfiniteQuery(
+    'get',
+    '/api/v1/settlement/payments/search',
+    { params: { query: { legalEntityId: entityId, unappliedOnly, limit: PAYMENT_PAGE } } },
+    {
+      initialPageParam: null as string | null,
+      getNextPageParam: (page) => page.nextCursor ?? undefined,
+      pageParamName: 'cursor',
+    },
+  );
+  const rows = useMemo(() => payments.data?.pages.flatMap((page) => page.items) ?? [], [payments.data]);
   const columns = useMemo<ColDef<Payment>[]>(
     () => [
       { field: 'valueDate', headerName: t('settlement.valueDate'), width: 120, sort: 'desc' },
@@ -397,7 +409,8 @@ export function PaymentsTab({ entityId }: { entityId: string }) {
         </Group>
       </Group>
       <QueryState isPending={payments.isPending} error={payments.error}>
-        <DataGrid<Payment> rowData={payments.data ?? []} columnDefs={columns} rowId={(row) => row.id} height={460} />
+        <DataGrid<Payment> rowData={rows} columnDefs={columns} rowId={(row) => row.id} height={460} />
+        <LoadMore query={payments} shown={rows.length} testId="payment-count" />
       </QueryState>
       {recording && <RecordPaymentModal entityId={entityId} onClose={() => setRecording(false)} />}
       {importing && <ImportPaymentsModal entityId={entityId} onClose={() => setImporting(false)} />}

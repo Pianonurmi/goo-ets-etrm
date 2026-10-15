@@ -26,6 +26,8 @@ the difference to the trade price. It waits until that price is stored.
 3. **Register purchase invoice** registers a supplier's invoice, matched against our open purchases.
 4. A **Credit note** on an issued invoice drafts the correction.
 
+The list shows the newest invoices first, a hundred at a time; **Load more** fetches the next ones.
+
 ![Invoices](../images/settlement-invoices.png)
 
 ![An invoice with its lines and lifecycle](../images/settlement-invoice.png)
@@ -33,7 +35,8 @@ the difference to the trade price. It waits until that price is stored.
 ## Payments and netting
 
 - **Record payment** by hand or **Import bank statement** (CSV), then **Allocate** payments to invoices. Unapplied cash stays
-  visible; **Only payments with unapplied cash** filters the list.
+  visible; **Only payments with unapplied cash** filters the list. Payments are listed newest first, a hundred at a
+  time, with **Load more** below the list.
 - **Netting** offsets receivables and payables with one counterparty in one currency. **Prepare netting**, then
   another person records the counterparty's agreement (**Record agreement**) before **Settle**.
 

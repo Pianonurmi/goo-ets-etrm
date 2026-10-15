@@ -9,6 +9,8 @@ import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.platform.paging.Cursor
+import com.pianonurmi.etrm.platform.paging.page
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.text.Csv
@@ -27,6 +29,7 @@ import com.pianonurmi.etrm.settlement.api.NettingStatementView
 import com.pianonurmi.etrm.settlement.api.NettingStatus
 import com.pianonurmi.etrm.settlement.api.PaymentCommand
 import com.pianonurmi.etrm.settlement.api.PaymentDirection
+import com.pianonurmi.etrm.settlement.api.PaymentPage
 import com.pianonurmi.etrm.settlement.api.PaymentQuery
 import com.pianonurmi.etrm.settlement.api.PaymentRecorded
 import com.pianonurmi.etrm.settlement.api.PaymentSource
@@ -210,6 +213,14 @@ class PaymentService(
     @Transactional(readOnly = true)
     override fun payments(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean): List<PaymentView> =
         payments.list(legalEntityId, counterpartyId, unappliedOnly)
+
+    @Transactional(readOnly = true)
+    override fun paymentPage(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean, limit: Int, cursor: String?): PaymentPage {
+        if (limit !in 1..MAX_PAGE) throw ValidationException("limit must be 1..$MAX_PAGE")
+        val after = cursor?.let { Cursor.decode(it, 2) { (date, id) -> LocalDate.parse(date) to UUID.fromString(id) } }
+        val (items, next) = payments.page(legalEntityId, counterpartyId, unappliedOnly, limit, after).page(limit) { Cursor.encode(it.valueDate, it.id) }
+        return PaymentPage(items, next)
+    }
 
     @Transactional(readOnly = true)
     override fun allocations(invoiceId: UUID): List<AllocationView> = settlement.allocations(invoiceId)
@@ -452,3 +463,5 @@ class NettingService(
         return actor.userId
     }
 }
+
+private const val MAX_PAGE = 500

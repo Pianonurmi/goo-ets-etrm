@@ -11,7 +11,8 @@ tabs follow: **Runs**, **Official run** and **P&L explain**.
 - **Run valuation** (on the **Runs** tab, with a **Valuation date**) starts a run. Runs are submitted by middle
   office or risk and made official by a second person.
 - Open a run to see its key facts, a **Lifecycle** timeline and the **Results by delivery**, which you can filter by
-  book. **Submit for sign-off** sends a draft to the inbox; **Sign-off task** opens the task.
+  book; they come two hundred at a time, with **Load more** below the grid. **Submit for sign-off** sends a draft to
+  the inbox; **Sign-off task** opens the task.
 - **P&L explain** compares two official runs, by cause: new trades, amendments, cancellations, deliveries, time to
   payment, price moves, discount rate moves, FX moves and what stays unexplained.
 - **Official run** finds the official run of a date (or the latest before it).

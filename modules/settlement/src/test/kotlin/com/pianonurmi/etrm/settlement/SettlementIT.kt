@@ -335,6 +335,25 @@ class SettlementIT {
     }
 
     @Test
+    fun `invoices are paged newest first and every page continues where the last stopped`() {
+        user = "billing"
+        repeat(3) { n ->
+            val buyer = referenceData.createCounterparty(CreateCounterparty("SETT-PAGE-$n", "Sivutus $n Oy", "FI", vatNumber = "FI1111111$n")).id
+            delivered(buyer)
+            invoices.run(InvoiceRun(entity, LocalDate.of(2026, 10, 31), buyer))
+        }
+        val all = invoices.invoices(InvoiceFilter(legalEntityId = entity, limit = 10_000))
+            .sortedWith(compareByDescending<InvoiceView> { it.invoiceDate }.thenByDescending { it.id })
+        val paged = generateSequence(invoices.invoicePage(InvoiceFilter(legalEntityId = entity, limit = 2), null)) { page ->
+            page.nextCursor?.let { invoices.invoicePage(InvoiceFilter(legalEntityId = entity, limit = 2), it) }
+        }.toList()
+        paged.flatMap { it.items }.map { it.id } shouldBe all.map { it.id }
+        paged.dropLast(1).forEach { it.items.size shouldBe 2 }
+        paged.last().nextCursor shouldBe null
+        shouldThrow<ValidationException> { invoices.invoicePage(InvoiceFilter(legalEntityId = entity), "not-a-cursor") }
+    }
+
+    @Test
     fun `cross-border sales need the customer's VAT number and are reverse charged`() {
         val item = delivered(german)
         item.status shouldBe SettlementItemStatus.NEEDS_ATTENTION

@@ -42,6 +42,7 @@ import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import tools.jackson.core.type.TypeReference
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 private fun json(value: Any?): JSONB? = value?.let { JSONB.jsonb(Json.mapper.writeValueAsString(it)) }
@@ -291,17 +292,25 @@ class JooqInvoiceRepository(private val dsl: DSLContext) : InvoiceRepository {
         return (if (forUpdate) query.forUpdate().fetchOne() else query.fetchOne())?.let(::toView)
     }
 
+    override fun findPage(filter: InvoiceFilter, after: Pair<LocalDate, UUID>?): List<InvoiceView> = dsl.selectFrom(INVOICE)
+        .where(invoiceConditions(filter))
+        .and(after?.let { (date, id) -> DSL.row(INVOICE.INVOICE_DATE, INVOICE.ID).lt(date, id) } ?: DSL.noCondition())
+        .orderBy(INVOICE.INVOICE_DATE.desc(), INVOICE.ID.desc())
+        .limit(filter.limit + 1)
+        .fetch(::toView)
+
+    private fun invoiceConditions(filter: InvoiceFilter) = listOfNotNull(
+        filter.legalEntityId?.let(INVOICE.LEGAL_ENTITY_ID::eq),
+        filter.legalEntityIds?.let(INVOICE.LEGAL_ENTITY_ID::`in`),
+        filter.counterpartyId?.let(INVOICE.COUNTERPARTY_ID::eq),
+        filter.kinds?.let { k -> INVOICE.KIND.`in`(k.map { it.name }) },
+        filter.statuses?.let { s -> INVOICE.STATUS.`in`(s.map { it.name }) },
+        filter.from?.let(INVOICE.INVOICE_DATE::ge),
+        filter.toExclusive?.let(INVOICE.INVOICE_DATE::lt),
+    )
+
     override fun find(filter: InvoiceFilter): List<InvoiceView> = dsl.selectFrom(INVOICE)
-        .where(
-            listOfNotNull(
-                filter.legalEntityId?.let(INVOICE.LEGAL_ENTITY_ID::eq),
-                filter.counterpartyId?.let(INVOICE.COUNTERPARTY_ID::eq),
-                filter.kinds?.let { k -> INVOICE.KIND.`in`(k.map { it.name }) },
-                filter.statuses?.let { s -> INVOICE.STATUS.`in`(s.map { it.name }) },
-                filter.from?.let(INVOICE.INVOICE_DATE::ge),
-                filter.toExclusive?.let(INVOICE.INVOICE_DATE::lt),
-            ),
-        )
+        .where(invoiceConditions(filter))
         .orderBy(INVOICE.INVOICE_DATE, INVOICE.NUMBER, INVOICE.ID)
         .limit(filter.limit)
         .fetch(::toView)
