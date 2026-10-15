@@ -50,6 +50,7 @@ import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
 import com.pianonurmi.etrm.product.application.TaxonomySnapshots
+import com.pianonurmi.etrm.product.fixtures.ProductWiring
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqPartyDetailsRepository
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.AddressType
@@ -65,6 +66,7 @@ import com.pianonurmi.etrm.referencedata.api.UpsertAddress
 import com.pianonurmi.etrm.referencedata.api.UpsertVatRegistration
 import com.pianonurmi.etrm.referencedata.application.PartyDetailsService
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
+import com.pianonurmi.etrm.referencedata.fixtures.ReferenceDataWiring
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqAllocationRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqInvoiceRepository
 import com.pianonurmi.etrm.settlement.adapter.jooq.JooqNettingRepository
@@ -114,6 +116,7 @@ import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.application.TradeService
+import com.pianonurmi.etrm.trade.fixtures.TradeWiring
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -164,32 +167,14 @@ class SettlementIT {
     private lateinit var selfBilled: UUID
 
     @BeforeAll
-    @Suppress("LongMethod") // wires the module graph by hand
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "product", "marketdata", "trade", "document", "settlement")
         val dsl = TestDatabase.dsl
-        val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
-        referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
+        val wiring = ReferenceDataWiring(dsl, bus)
+        referenceData = wiring.referenceData
         val details = JooqPartyDetailsRepository(dsl)
         parties = PartyDetailsService(details, referenceData, NO_CHANGES)
-        val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
-        val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
-        ProductBucketSeeder(buckets, buckets).seed()
-        trades = TradeService(
-            JooqTradeRepository(dsl),
-            referenceData,
-            criteria,
-            buckets,
-            ProductCatalogueService(JooqAllowanceProductRepository(dsl)),
-            actor,
-            bus,
-            clock,
-            BigDecimal.ZERO,
-            mockk<FxRates>(relaxed = true),
-            "EUR",
-            mockk(relaxed = true),
-            Providers.none(),
-        )
+        trades = TradeWiring.tradeService(dsl, referenceData, ProductWiring(dsl, wiring.taxonomy, actor), actor, bus, mockk(relaxed = true), clock)
         vat = VatRuleService(JooqVatRuleRepository(dsl), actor, bus)
         items = SettlementItemService(
             JooqSettlementItemRepository(dsl),
@@ -199,12 +184,7 @@ class SettlementIT {
             actor,
             bus,
             trades,
-            IndexFixings {
-                code,
-                date,
-                ->
-                fixings[code to date]
-            },
+            IndexFixings { code, date -> fixings[code to date] },
             Savepoints.NONE,
             NoClearing,
         )
