@@ -47,8 +47,8 @@ class LedgerEventListeners(
     private val lotQuery: LotQuery,
     private val tradeQuery: TradeQuery,
     private val clock: Clock,
-    /** Runs each listener in a savepoint and records what it could not post; not wired in some hand-wired tests. */
-    private val unposted: UnpostedEvents? = null,
+    /** Runs each listener in a savepoint and records what it could not post. */
+    private val unposted: UnpostedEvents,
     private val fixings: IndexFixings,
 ) : PostingReplay {
     private val log = LoggerFactory.getLogger(LedgerEventListeners::class.java)
@@ -263,7 +263,7 @@ class LedgerEventListeners(
     }
 
     private fun guard(event: DomainEvent, legalEntityId: UUID, replaySafe: Boolean = true, body: () -> Unit) {
-        unposted?.guard(event, legalEntityId, replaySafe, body) ?: body()
+        unposted.guard(event, legalEntityId, replaySafe, body)
     }
 
     /** The business date of an event in the legal entity's time zone, never after today. */

@@ -14,5 +14,6 @@ dependencies {
     implementation(libs.shedlock.spring)
 
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(testFixtures(project(":modules:product")))
     testImplementation(project(":modules:taxonomy"))
 }

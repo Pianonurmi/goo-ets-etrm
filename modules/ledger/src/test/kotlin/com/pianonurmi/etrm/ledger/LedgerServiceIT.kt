@@ -98,6 +98,7 @@ class LedgerServiceIT {
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), publisher)
         val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, publisher)
         referenceDataService = referenceData
+        val unposted = LedgerWiring.unposted(dsl, publisher)
         ledger = LedgerService(
             JooqGlAccountRepository(dsl),
             JooqPostingRuleRepository(dsl),
@@ -110,6 +111,8 @@ class LedgerServiceIT {
             publisher,
             clock,
             JooqGlInterfaceRepository(dsl),
+            gates = LedgerWiring.gates(dsl),
+            unposted = unposted,
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
         listeners = LedgerEventListeners(
@@ -119,6 +122,7 @@ class LedgerServiceIT {
             mockk<LotQuery>(relaxed = true),
             mockk<TradeQuery>(relaxed = true),
             clock,
+            unposted,
             fixings = IndexFixings { _, _ -> null },
         )
         entityId = referenceData.createLegalEntity(CreateLegalEntity("LEDGER-CO", "Ledger Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
@@ -323,6 +327,7 @@ class LedgerServiceIT {
                 mockk<LotQuery> { every { lot(sold.id) } returns sold },
                 mockk<TradeQuery> { every { obligation(scheduleId) } returns delivery },
                 clock,
+                LedgerWiring.unposted(TestDatabase.dsl) { },
                 fixings = fixings,
             )
             val lineId = UUID.randomUUID()

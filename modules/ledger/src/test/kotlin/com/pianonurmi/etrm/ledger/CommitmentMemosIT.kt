@@ -72,6 +72,7 @@ class CommitmentMemosIT {
         val dsl = TestDatabase.dsl
         val publisher = ApplicationEventPublisher { }
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), TaxonomyService(JooqTaxonomyRepository(dsl), publisher), publisher)
+        val unposted = LedgerWiring.unposted(dsl, publisher)
         ledger = LedgerService(
             JooqGlAccountRepository(dsl),
             JooqPostingRuleRepository(dsl),
@@ -84,9 +85,11 @@ class CommitmentMemosIT {
             publisher,
             clock,
             JooqGlInterfaceRepository(dsl),
+            gates = LedgerWiring.gates(dsl),
+            unposted = unposted,
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
-        memos = CommitmentMemos(ledger, JooqCommitmentMemoRepository(dsl), curves, fx, clock)
+        memos = CommitmentMemos(ledger, JooqCommitmentMemoRepository(dsl), curves, fx, clock, unposted)
     }
 
     private fun entity(code: String) = referenceData.createLegalEntity(CreateLegalEntity(code, "$code Oy", "FI", validFrom = LocalDate.of(2026, 1, 1))).id

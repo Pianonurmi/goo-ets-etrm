@@ -8,6 +8,8 @@ import com.pianonurmi.etrm.allocation.api.SaleProjection
 import com.pianonurmi.etrm.clearing.api.ClearingQuery
 import com.pianonurmi.etrm.clearing.api.MarginCallQuery
 import com.pianonurmi.etrm.clearing.api.MarginPostedView
+import com.pianonurmi.etrm.clearing.fixtures.NoClearing
+import com.pianonurmi.etrm.clearing.fixtures.NoMarginCalls
 import com.pianonurmi.etrm.marketdata.api.FxRateView
 import com.pianonurmi.etrm.marketdata.api.FxRates
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
@@ -16,7 +18,9 @@ import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.ProductBucketQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
@@ -105,9 +109,12 @@ class RiskServiceIT {
     private val openTrades = mutableListOf<TradeView>()
     private val extraBalances = mutableListOf<CounterpartyBalance>()
     private val extraResults = mutableListOf<ValuationResultView>()
+
+    /** No product buckets: limits in these tests name none outside the GoO cases, which bring their own. */
+    private val noBuckets = mockk<ProductBucketQuery> { every { buckets(true) } returns emptyList() }
     private val published = mutableListOf<Any>()
     private lateinit var risk: RiskService
-    private lateinit var withGoo: (ObjectProvider<GooRiskQuery>?, ProductBucketQuery?) -> RiskService
+    private lateinit var withGoo: (ObjectProvider<GooRiskQuery>, ProductBucketQuery) -> RiskService
     private lateinit var withClearing: (ClearingQuery, MarginCallQuery) -> RiskService
     private lateinit var carryOver: CreditLimitCarryOver
 
@@ -176,8 +183,35 @@ class RiskServiceIT {
         every { mtmBase } returns value?.let(::BigDecimal)
     }
 
+    /** Official MtM of 300 for [existing] and -100 for another trade; calls valued at a delta of 0.4, puts not at all. */
+    private fun valuations(existing: TradeView): ValuationQuery {
+        val runId = UUID.randomUUID()
+        return mockk<ValuationQuery> {
+            every { official(entity, any(), true) } returns mockk<ValuationRunView> { every { id } returns runId }
+            val base = listOf(mtm(existing.id, "300"), mtm(UUID.randomUUID(), "-100"))
+            every { results(runId, null) } answers { base + extraResults }
+            // Calls are valued at a delta of 0.4; puts cannot be valued (no volatility curve).
+            every { optionValuation(entity, any(), any()) } answers {
+                thirdArg<TradeLegView>().option?.takeIf { it.optionType == OptionType.CALL }?.let {
+                    OptionValuation(
+                        "CALL",
+                        it.strike,
+                        "EUAZ27",
+                        BigDecimal("72"),
+                        BigDecimal("45"),
+                        BigDecimal("0.5"),
+                        BigDecimal("0.4"),
+                        BigDecimal("0.01"),
+                        BigDecimal("0.2"),
+                        "EUA_VOL",
+                        UUID(0, 1),
+                    )
+                }
+            }
+        }
+    }
+
     @BeforeEach
-    @Suppress("LongMethod") // stubs for the modules risk reads from
     fun setUp() {
         TestDatabase.migrate("risk")
         user = "risk1"
@@ -201,31 +235,8 @@ class RiskServiceIT {
             }
         }
         val trades = mockk<TradeQuery> { every { trades(any()) } answers { openTrades.toList() } }
-        val runId = UUID.randomUUID()
         val existing = trade(1000, LocalDate.of(2026, 12, 10))
-        val valuations = mockk<ValuationQuery> {
-            every { official(entity, any(), true) } returns mockk<ValuationRunView> { every { id } returns runId }
-            val base = listOf(mtm(existing.id, "300"), mtm(UUID.randomUUID(), "-100"))
-            every { results(runId, null) } answers { base + extraResults }
-            // Calls are valued at a delta of 0.4; puts cannot be valued (no volatility curve).
-            every { optionValuation(entity, any(), any()) } answers {
-                thirdArg<TradeLegView>().option?.takeIf { it.optionType == OptionType.CALL }?.let {
-                    OptionValuation(
-                        "CALL",
-                        it.strike,
-                        "EUAZ27",
-                        BigDecimal("72"),
-                        BigDecimal("45"),
-                        BigDecimal("0.5"),
-                        BigDecimal("0.4"),
-                        BigDecimal("0.01"),
-                        BigDecimal("0.2"),
-                        "EUA_VOL",
-                        UUID(0, 1),
-                    )
-                }
-            }
-        }
+        val valuations = valuations(existing)
         openTrades += existing
         val settlement = mockk<SettlementReports> {
             every { counterpartyBalances(entity) } answers {
@@ -238,45 +249,31 @@ class RiskServiceIT {
         val events = ApplicationEventPublisher { published += it }
         val actors = ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) }
         val repository = JooqRiskRepository(TestDatabase.dsl)
-        withGoo = { goo, buckets ->
-            RiskService(
-                repository,
-                referenceData,
-                trades,
-                valuations,
-                settlement,
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                fx,
-                actors,
-                events,
-                clock,
-                goo = goo,
-                buckets = buckets,
-            )
-        }
-        withClearing = { clearing, margin ->
-            RiskService(
-                repository,
-                referenceData,
-                trades,
-                valuations,
-                settlement,
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                fx,
-                actors,
-                events,
-                clock,
-                clearing = clearing,
-                margin = margin,
-            )
-        }
-        risk = withGoo(null, null)
+
+        fun service(goo: ObjectProvider<GooRiskQuery>, buckets: ProductBucketQuery, clearing: ClearingQuery, margin: MarginCallQuery) = RiskService(
+            repository,
+            referenceData,
+            trades,
+            valuations,
+            settlement,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            fx,
+            actors,
+            events,
+            clock,
+            Providers.none(),
+            goo,
+            buckets,
+            Savepoints.NONE,
+            clearing,
+            margin,
+        )
+        withGoo = { goo, buckets -> service(goo, buckets, NoClearing, NoMarginCalls) }
+        withClearing = { clearing, margin -> service(Providers.none(), noBuckets, clearing, margin) }
+        risk = withGoo(Providers.none(), noBuckets)
         carryOver = CreditLimitCarryOver(repository, referenceData, clock)
     }
 
@@ -679,7 +676,7 @@ class RiskServiceIT {
             every { basis(entity) } answers { if (failing) error("the flow is unavailable") else GooBasis(300, BigDecimal("450.00")) }
             every { projectSale(any()) } returns SaleProjection(emptyList())
         }
-        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, null)
+        val gooRisk = withGoo(mockk { every { ifAvailable } returns goo }, noBuckets)
         val basis = gooRisk.approveLimit(
             gooRisk.requestLimit(RequestLimit(entity, LimitType.GOO_BASIS, LimitScope(), BigDecimal(1000), currency = "EUR", reason = "basis")).id,
             "risk2",

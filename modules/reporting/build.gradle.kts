@@ -17,4 +17,5 @@ dependencies {
     implementation(libs.springdoc.openapi)
 
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(testFixtures(project(":modules:ledger")))
 }

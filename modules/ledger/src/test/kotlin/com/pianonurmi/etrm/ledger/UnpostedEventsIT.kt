@@ -108,6 +108,7 @@ class UnpostedEventsIT {
             quiet,
             clock,
             JooqGlInterfaceRepository(dsl),
+            gates = LedgerWiring.gates(dsl),
             unposted = unposted,
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()

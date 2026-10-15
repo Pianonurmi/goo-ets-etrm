@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.platform.test
 
+import com.pianonurmi.etrm.platform.db.ModuleOrder
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
@@ -73,12 +74,13 @@ object TestDatabase {
 
     /**
      * Migrates the platform schema plus the given module schemas from the classpath, dropping module schemas first
-     * so each test class starts from a known state. Platform is never cleaned (extensions are shared).
+     * so each test class starts from a known state. Platform is never cleaned (extensions are shared). The modules
+     * migrate in the application's order ([ModuleOrder]) whatever order they are named in.
      */
     fun migrate(vararg modules: String) {
         synchronized(this) {
             flywayFor("platform", clean = false).migrate()
-            modules.forEach { module ->
+            ModuleOrder.sorted(modules.toList()).filter { it != "platform" }.forEach { module ->
                 val flyway = flywayFor(module, clean = true)
                 flyway.clean()
                 flyway.migrate()

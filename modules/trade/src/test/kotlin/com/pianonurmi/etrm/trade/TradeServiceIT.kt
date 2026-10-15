@@ -14,6 +14,7 @@ import com.pianonurmi.etrm.platform.money.QuantityUnit
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.adapter.jooq.JooqAllowanceProductRepository
@@ -31,6 +32,7 @@ import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
 import com.pianonurmi.etrm.product.application.TaxonomySnapshots
+import com.pianonurmi.etrm.product.fixtures.ProductWiring
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
@@ -43,6 +45,7 @@ import com.pianonurmi.etrm.referencedata.api.ObligationsOpenAt
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountView
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
+import com.pianonurmi.etrm.referencedata.fixtures.ReferenceDataWiring
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import com.pianonurmi.etrm.trade.adapter.jooq.JooqTradeRepository
@@ -75,6 +78,7 @@ import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.trade.api.UtiSource
 import com.pianonurmi.etrm.trade.application.OptionExpiryService
 import com.pianonurmi.etrm.trade.application.TradeService
+import com.pianonurmi.etrm.trade.fixtures.TradeWiring
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainAll
@@ -126,54 +130,30 @@ class TradeServiceIT {
     private lateinit var accountEarly: UUID
 
     @BeforeAll
-    @Suppress("LongMethod") // hand-wired services and reference data
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "product", "trade")
         val dsl = TestDatabase.dsl
-        val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), publisher)
-        val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, publisher)
+        val wiring = ReferenceDataWiring(dsl, publisher)
+        val referenceData = wiring.referenceData
         referenceDataService = referenceData
-        val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
-        val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
-        ProductBucketSeeder(buckets, buckets).seed()
-        val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
-        futures = FuturesContractService(JooqFuturesContractRepository(dsl), catalogue, actor)
-        tradeService = { threshold, fx ->
-            TradeService(
-                JooqTradeRepository(dsl),
-                referenceData,
-                criteria,
-                buckets,
-                catalogue,
-                actor,
-                publisher,
-                Clock.systemUTC(),
-                threshold,
-                fx,
-                "EUR",
-                futures,
-            )
-        }
+        val product = ProductWiring(dsl, wiring.taxonomy, actor)
+        futures = product.futures
+        tradeService = { threshold, fx -> TradeWiring.tradeService(dsl, referenceData, product, actor, publisher, fx, approvalThreshold = threshold) }
         trades = tradeService(BigDecimal.ZERO, mockk<FxRates>(relaxed = true))
         checkedService = { check ->
             val identity =
                 mockk<FxRates> {
                     every { rate(any(), any(), any()) } answers { FxRateView(firstArg(), secondArg(), thirdArg(), BigDecimal.ONE, "1", firstArg()) }
                 }
-            TradeService(
-                JooqTradeRepository(dsl),
+            TradeWiring.tradeService(
+                dsl,
                 referenceData,
-                criteria,
-                buckets,
-                catalogue,
+                product,
                 actor,
                 publisher,
-                Clock.systemUTC(),
-                BigDecimal("1000000000"),
                 identity,
-                "EUR",
-                futures,
-                StaticListableBeanFactory().apply { addBean("check", check) }.getBeanProvider(TradeApprovalCheck::class.java),
+                approvalThreshold = BigDecimal("1000000000"),
+                checks = Providers.of(check),
             )
         }
 

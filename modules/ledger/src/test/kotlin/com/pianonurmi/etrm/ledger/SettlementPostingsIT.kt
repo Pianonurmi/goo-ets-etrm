@@ -67,6 +67,7 @@ class SettlementPostingsIT {
         val dsl = TestDatabase.dsl
         val publisher = ApplicationEventPublisher { }
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), TaxonomyService(JooqTaxonomyRepository(dsl), publisher), publisher)
+        val unposted = LedgerWiring.unposted(dsl, publisher)
         ledger = LedgerService(
             JooqGlAccountRepository(dsl),
             JooqPostingRuleRepository(dsl),
@@ -79,9 +80,11 @@ class SettlementPostingsIT {
             publisher,
             clock,
             JooqGlInterfaceRepository(dsl),
+            gates = LedgerWiring.gates(dsl),
+            unposted = unposted,
         )
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
-        postings = SettlementPostings(ledger, referenceData)
+        postings = SettlementPostings(ledger, referenceData, unposted)
     }
 
     private fun entity(code: String) =
