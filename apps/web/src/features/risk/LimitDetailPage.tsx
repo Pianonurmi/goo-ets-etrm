@@ -14,7 +14,8 @@ import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { limitSteps, limitUnit, scopeLabel, utilisationBar, utilisationColor } from './model/limits';
 import { RequestLimitModal } from './RequestLimitModal';
-import { LimitStatusBadge, MeasurementFlags, useScopeNames } from './RiskPage';
+import { useScopeNames } from './hooks';
+import { LimitStatusBadge, MeasurementFlags } from './shared';
 
 /** One limit: its amount and latest utilisation, terms, breaches, lifecycle, and the approval task or a change. */
 export function LimitDetailPage() {
