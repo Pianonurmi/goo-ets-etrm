@@ -137,7 +137,8 @@ jobs:
           published=$(curl -fsSL "$url.sha256")
           pinned=$(sed -n 's/^distributionSha256Sum=//p' gradle/wrapper/gradle-wrapper.properties)
           if [[ -z "$pinned" ]]; then
-            echo "::warning::distributionSha256Sum is not set; Gradle publishes $published for $url"
+            echo "::error::distributionSha256Sum is not set; Gradle publishes $published for $url"
+            exit 1
           elif [[ "$pinned" != "$published" ]]; then
             echo "::error::distributionSha256Sum $pinned differs from the published $published for $url"
             exit 1
