@@ -73,7 +73,7 @@ when `DEMO-FI` exists from before the run log). Drop the database to start over.
 | `npm run gen:api` | TypeScript types from `apps/api/openapi/etrm-api.json` into `src/shared/api/schema.d.ts` (git-ignored) |
 | `npm run typecheck` | `tsc` in strict mode |
 | `npm run lint` / `npm run format:check` | ESLint (type-checked, React hooks, accessibility) and Prettier |
-| `npm test` | Vitest with Testing Library and msw (`npm run test:coverage` for coverage) |
+| `npm test` | Vitest with Testing Library and msw. `npm run test:coverage` (run by `check`) covers all of `src` and fails below the floors in `vite.config.ts`; a local run raises them when coverage grows, so commit that change |
 | `npm run coverage:api` | Every API operation has a UI caller, or a reason in `api-only.json` (`apiOnly`, or `planned` with its milestone) |
 | `npm run e2e` | Playwright journeys against the jar (`../api/build/libs/api-showcase.jar`, `dev,demo` profiles, database `etrm_e2e`) |
 
