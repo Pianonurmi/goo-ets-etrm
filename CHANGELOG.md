@@ -7,6 +7,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Security
+- PostgreSQL JDBC driver 42.7.14 (GHSA-rhp9-mr79-r74h, GHSA-f64h-wr5q-3qf3). The application uses neither
+  `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
+
+### Changed
+- Dependencies: Jackson 3.2.3, lz4-java 1.12.0, Mantine 9.7.2; demo stack Caddy 2.11 and cloudflared 2026.10.0.
+
 ## [0.14.0] - 2026-10-15
 
 Increment 14, production readiness: the rest of the [enterprise readiness review](docs/reviews/2026-10-enterprise-readiness.md)
