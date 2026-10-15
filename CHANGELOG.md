@@ -7,6 +7,23 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-15
+
+Increment 15, maintainability: the defects increment 14 handed over, then test seams, the clock everywhere, the
+beneficiary register, shared rules, the large services split, the build and supply chain, the web and the backups
+([plan](docs/plans/increment-15-maintainability.md), status per finding in the
+[review](docs/reviews/2026-10-enterprise-readiness.md#status-after-0150)).
+
+**Before upgrading:**
+- Kubernetes backups: install cert-manager and the CloudNativePG Barman Cloud plugin, then apply the new `ObjectStore`
+  and cluster manifest. The destination is the same, so existing backups and WAL stay usable
+  ([Kubernetes](docs/operations/kubernetes.md#install)). Dashboards reading `cnpg_collector_last_available_backup_timestamp`
+  move to the plugin's `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp`.
+- Public demo: pull the showcase image (`ghcr.io/pianonurmi/goo-ets-etrm-showcase`); the main image no longer
+  carries the demo seeder.
+- Contributors: a dependency change needs `ops/release/refresh-dependency-locks.sh`; the build refuses an artifact
+  that is missing from `gradle/verification-metadata.xml`.
+
 ### Security
 - PostgreSQL JDBC driver 42.7.14 (GHSA-rhp9-mr79-r74h, GHSA-f64h-wr5q-3qf3). The application uses neither
   `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
@@ -529,7 +546,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.15.0
 [0.14.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.14.0
 [0.13.2]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.2
 [0.13.1]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.1
