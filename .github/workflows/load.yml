@@ -61,11 +61,11 @@ jobs:
         with:
           cache-read-only: true
       - name: Boot jar
-        run: ./gradlew :apps:api:bootJar
+        run: ./gradlew :apps:api:bootJar :apps:api:showcaseJar
       - name: Start the application with the demo data
         run: |
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_load"
-          ETRM_DB_URL=jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_load nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar \
+          ETRM_DB_URL=jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_load nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api-showcase.jar \
             --spring.profiles.active=dev,demo --logging.level.com.pianonurmi.etrm=INFO --logging.level.org.jooq=INFO > app.log 2>&1 &
           for _ in $(seq 1 90); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done
           curl -fs http://localhost:8080/actuator/health/readiness
