@@ -44,6 +44,11 @@ import org.jooq.postgres.extensions.types.LocalDateRange as PgLocalDateRange
 
 @Repository
 class JooqObligationRepository(private val dsl: DSLContext) : ObligationRepository {
+    override fun eraseBeneficiary(beneficiaryId: UUID): Int = dsl.update(OBLIGATION)
+        .set(OBLIGATION.CANCELLATION, DSL.field("{0} - 'beneficiaryName' - 'beneficiaryId'", JSONB::class.java, OBLIGATION.CANCELLATION))
+        .where(DSL.field("{0} ->> 'beneficiaryRef'", String::class.java, OBLIGATION.CANCELLATION).eq(beneficiaryId.toString()))
+        .execute()
+
     private val constraintsType = object : TypeReference<List<AllocationConstraint>>() {}
 
     override fun find(id: UUID): ObligationView? = dsl.selectFrom(OBLIGATION).where(OBLIGATION.ID.eq(id)).fetchOne()?.let(::toView)

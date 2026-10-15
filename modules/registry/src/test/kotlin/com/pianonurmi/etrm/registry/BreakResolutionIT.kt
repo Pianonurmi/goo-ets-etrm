@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.registry
 
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqBeneficiaryRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqReconciliationRepository
@@ -21,6 +22,7 @@ import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.inventory.api.StatementLine
 import com.pianonurmi.etrm.inventory.api.StatementStatus
 import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
+import com.pianonurmi.etrm.inventory.application.BeneficiaryService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.inventory.application.ReconciliationService
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
@@ -96,7 +98,8 @@ class BreakResolutionIT {
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), publisher)
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, publisher)
         val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
-        lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, publisher, clock)
+        val beneficiaries = BeneficiaryService(JooqBeneficiaryRepository(dsl), actor, publisher, clock)
+        lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, publisher, clock, beneficiaries)
         allowances = AllowanceHoldingService(
             JooqAllowanceHoldingRepository(dsl),
             referenceData,
@@ -125,6 +128,7 @@ class BreakResolutionIT {
             clock,
             allowances,
             allowances,
+            beneficiaries,
             RegistryDispatchSettings(unplannedNeedsApproval = false),
         )
         breaks = BreakResolutionService(reconciliation, reconciliation, lots, lots, allowances, instructions, referenceData, actor, clock)

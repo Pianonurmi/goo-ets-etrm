@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqBeneficiaryRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqReconciliationRepository
@@ -15,6 +16,7 @@ import com.pianonurmi.etrm.inventory.api.InTransferLotLeftAccount
 import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.ReceiveLots
 import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
+import com.pianonurmi.etrm.inventory.application.BeneficiaryService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.inventory.application.ReconciliationService
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
@@ -141,7 +143,8 @@ class RegistryInstructionServiceIT {
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), publisher)
         val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, publisher)
         val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
-        lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, publisher, clock)
+        val beneficiaries = BeneficiaryService(JooqBeneficiaryRepository(dsl), actor, publisher, clock)
+        lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, publisher, clock, beneficiaries)
         routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
         val gateways = listOf(SimulatorRegistryGateway(), ManualRegistryGateway(), FileRegistryGateway(outbox.toString(), referenceData), api)
         val repository = JooqRegistryInstructionRepository(dsl)
@@ -152,7 +155,8 @@ class RegistryInstructionServiceIT {
             actor,
             publisher,
         )
-        instructions = RegistryInstructionService(
+
+        fun instructionService(dispatch: RegistryDispatchSettings) = RegistryInstructionService(
             repository,
             gateways,
             lots,
@@ -164,22 +168,11 @@ class RegistryInstructionServiceIT {
             clock,
             allowances,
             allowances,
-            settings,
+            beneficiaries,
+            dispatch,
         )
-        fourEyes = RegistryInstructionService(
-            repository,
-            gateways,
-            lots,
-            lots,
-            referenceData,
-            routes,
-            actor,
-            publisher,
-            clock,
-            allowances,
-            allowances,
-            settings.copy(unplannedNeedsApproval = true),
-        )
+        instructions = instructionService(settings)
+        fourEyes = instructionService(settings.copy(unplannedNeedsApproval = true))
         dispatcher = RegistryDispatcher(repository, gateways, instructions, DataSourceTransactionManager(TestDatabase.dataSource), settings, clock)
         formats = StatementFormatService(JooqStatementFormatRepository(dsl), referenceData, actor, clock)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, publisher, clock)

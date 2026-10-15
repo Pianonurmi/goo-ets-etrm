@@ -9,6 +9,9 @@ import java.util.UUID
 interface ObligationRepository {
     fun find(id: UUID): ObligationView?
 
+    /** Erases the beneficiary's name and identifier from the obligations' cancellation details; returns the count. */
+    fun eraseBeneficiary(beneficiaryId: UUID): Int
+
     fun lock(id: UUID): ObligationView?
 
     fun bySource(sourceRef: UUID): ObligationView?
