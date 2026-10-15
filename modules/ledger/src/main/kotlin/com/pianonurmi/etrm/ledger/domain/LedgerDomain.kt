@@ -32,6 +32,45 @@ object RuleSelector {
 }
 
 /**
+ * The account a posting rule posts an amount to (ADR 0008). Measurements that compare a required balance with what is
+ * booked (period end) read the account from the rules that book it, so remapping a rule moves the measurement with it.
+ * [attributes] narrow the rules by the conditions they name; a condition on another attribute does not exclude a rule.
+ */
+object RuleAccounts {
+    fun account(
+        rules: List<PostingRuleView>,
+        legalEntityId: UUID,
+        eventType: String,
+        on: LocalDate,
+        side: PostingSide,
+        amount: String,
+        attributes: Map<String, String> = emptyMap(),
+    ): String {
+        val accounts = applicable(rules, legalEntityId, eventType, on, attributes)
+            .flatMap { rule -> rule.lines.filter { it.side == side && it.amount == amount }.map { it.account } }
+            .toSortedSet()
+        return accounts.singleOrNull() ?: throw ValidationException(
+            if (accounts.isEmpty()) {
+                "No posting rule for $eventType posts '$amount' as $side"
+            } else {
+                "Posting rules for $eventType post '$amount' as $side to several accounts (${accounts.joinToString()}); period end needs one"
+            },
+        )
+    }
+
+    /** The values the rules for [eventType] take for [condition], e.g. the accounts FX revaluation rules revalue. */
+    fun conditionValues(rules: List<PostingRuleView>, legalEntityId: UUID, eventType: String, on: LocalDate, condition: String): List<String> =
+        applicable(rules, legalEntityId, eventType, on, emptyMap()).mapNotNull { it.conditions[condition] }.distinct().sorted()
+
+    private fun applicable(rules: List<PostingRuleView>, legalEntityId: UUID, eventType: String, on: LocalDate, attributes: Map<String, String>) =
+        rules.filter { it.active && it.eventType == eventType && !it.effectiveFrom.isAfter(on) }
+            .filter { it.legalEntityId == null || it.legalEntityId == legalEntityId }
+            .filter { rule -> attributes.all { (key, value) -> rule.conditions[key]?.let { it == value } ?: true } }
+            .groupBy { it.ruleCode }
+            .map { (_, group) -> group.firstOrNull { it.legalEntityId != null } ?: group.first() }
+}
+
+/**
  * Builds a balanced entry from a rule and facts. Returns null when an amount fact is missing or negative, or when all
  * amounts are zero; zero lines are left out (e.g. no VAT line on a reverse-charged invoice).
  */

@@ -12,6 +12,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
 
 ### Changed
+- Period end reads the accounts it measures (MtM, hedges, NRV, provision, grant release, FX revaluation) from its own
+  posting rules instead of fixed account numbers, so remapping a rule moves the measurement with it.
 - A cursor that does not decode is refused with 422 on every paged list; the trade search answered 400 before.
 - Dependencies: Jackson 3.2.3, lz4-java 1.12.0, Mantine 9.7.2; demo stack Caddy 2.11 and cloudflared 2026.10.0.
 - The mirror of an intercompany trade delivers from the account the original names for its counterparty, when that
