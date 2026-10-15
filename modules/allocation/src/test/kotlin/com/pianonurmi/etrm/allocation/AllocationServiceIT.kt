@@ -142,6 +142,7 @@ class AllocationServiceIT {
     private lateinit var simAccount: UUID
     private lateinit var manualAccount: UUID
 
+    private val clock = Clock.systemUTC()
     private val bus = ApplicationEventPublisher { event ->
         published += event
         when (event) {
@@ -155,7 +156,6 @@ class AllocationServiceIT {
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "product", "inventory", "trade", "registry", "allocation")
         val dsl = TestDatabase.dsl
-        val clock = Clock.systemUTC()
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
         criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
@@ -196,7 +196,7 @@ class AllocationServiceIT {
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus)
         val problemBuilder = ProblemBuilder(criteria, buckets, routes, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) })
-        forecasts = ProductionForecastService(JooqProductionForecastRepository(dsl), JooqReferenceDataRepository(dsl), taxonomy, bus, actor)
+        forecasts = ProductionForecastService(JooqProductionForecastRepository(dsl), JooqReferenceDataRepository(dsl), taxonomy, bus, actor, clock)
         val purchaseQuery = mockk<TradeQuery> {
             every { openObligations(any(), Side.BUY, ProductFamily.GUARANTEE_OF_ORIGIN) } answers { purchases.filter { it.legalEntityId == firstArg() } }
         }
@@ -619,7 +619,7 @@ class AllocationServiceIT {
                 issuanceLagDays = 20,
             ),
         )
-        val month = YearMonth.now().plusMonths(1)
+        val month = YearMonth.now(clock).plusMonths(1)
         forecasts.record(RecordForecast(device.id, month, expectedMwh = 500, p90Mwh = 400))
         val delivery = month.atEndOfMonth().plusDays(40)
         val sale = obligations.open(

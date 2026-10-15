@@ -80,7 +80,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
     override fun updateLegalEntity(entity: LegalEntityView, expectedVersion: Int): Boolean = dsl.update(LEGAL_ENTITY)
         .set(legalEntityValues(entity))
         .set(LEGAL_ENTITY.VERSION, entity.version)
-        .set(LEGAL_ENTITY.UPDATED_AT, Instant.now())
+        .set(LEGAL_ENTITY.UPDATED_AT, DSL.currentInstant())
         .where(LEGAL_ENTITY.ID.eq(entity.id), LEGAL_ENTITY.VERSION.eq(expectedVersion))
         .execute() == 1
 
@@ -180,7 +180,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
     override fun updateCounterparty(counterparty: CounterpartyView, expectedVersion: Int): Boolean = dsl.update(COUNTERPARTY)
         .set(counterpartyValues(counterparty))
         .set(COUNTERPARTY.VERSION, counterparty.version)
-        .set(COUNTERPARTY.UPDATED_AT, Instant.now())
+        .set(COUNTERPARTY.UPDATED_AT, DSL.currentInstant())
         .where(COUNTERPARTY.ID.eq(counterparty.id), COUNTERPARTY.VERSION.eq(expectedVersion))
         .execute() == 1
 
@@ -235,7 +235,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         .set(REGISTRY.INTEGRATION, registry.integration.name)
         .set(REGISTRY.ACTIVE, registry.active)
         .set(REGISTRY.VERSION, registry.version)
-        .set(REGISTRY.UPDATED_AT, Instant.now())
+        .set(REGISTRY.UPDATED_AT, DSL.currentInstant())
         .where(REGISTRY.ID.eq(registry.id), REGISTRY.VERSION.eq(expectedVersion))
         .execute() == 1
 
@@ -293,7 +293,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
         .set(REGISTRY_ACCOUNT.ACTIVE, account.active)
         .set(REGISTRY_ACCOUNT.DEFAULT_BOOK_ID, account.defaultBookId)
         .set(REGISTRY_ACCOUNT.VERSION, account.version)
-        .set(REGISTRY_ACCOUNT.UPDATED_AT, Instant.now())
+        .set(REGISTRY_ACCOUNT.UPDATED_AT, DSL.currentInstant())
         .where(REGISTRY_ACCOUNT.ID.eq(account.id), REGISTRY_ACCOUNT.VERSION.eq(expectedVersion))
         .execute() == 1
 
@@ -355,7 +355,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
     override fun updateProductionDevice(device: ProductionDeviceView, expectedVersion: Int): Boolean = dsl.update(PRODUCTION_DEVICE)
         .set(deviceValues(device))
         .set(PRODUCTION_DEVICE.VERSION, device.version)
-        .set(PRODUCTION_DEVICE.UPDATED_AT, Instant.now())
+        .set(PRODUCTION_DEVICE.UPDATED_AT, DSL.currentInstant())
         .where(PRODUCTION_DEVICE.ID.eq(device.id), PRODUCTION_DEVICE.VERSION.eq(expectedVersion))
         .execute() == 1
 

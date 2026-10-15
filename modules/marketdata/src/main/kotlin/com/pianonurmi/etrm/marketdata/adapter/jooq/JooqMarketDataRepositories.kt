@@ -265,7 +265,7 @@ class JooqImportRepository(private val dsl: DSLContext) : ImportRepository {
             .set(IMPORT_FORMAT.CONSTANTS, JSONB.jsonb(Json.mapper.writeValueAsString(format.constants)))
             .set(IMPORT_FORMAT.ACTIVE, format.active)
             .set(IMPORT_FORMAT.VERSION, format.version)
-            .set(IMPORT_FORMAT.UPDATED_AT, Instant.now())
+            .set(IMPORT_FORMAT.UPDATED_AT, DSL.currentInstant())
             .execute()
     }
 

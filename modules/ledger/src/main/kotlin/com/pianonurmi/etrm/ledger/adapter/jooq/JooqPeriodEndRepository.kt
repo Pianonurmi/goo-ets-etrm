@@ -54,7 +54,7 @@ class JooqPeriodEndRepository(private val dsl: DSLContext) : PeriodEndRepository
                 .set(MTM_POLICY.TREATMENT, policy.treatment.name)
                 .set(MTM_POLICY.SIGNED_OFF_BY, policy.signedOffBy)
                 .set(MTM_POLICY.SIGNED_OFF_AT, policy.signedOffAt)
-                .set(MTM_POLICY.UPDATED_AT, Instant.now())
+                .set(MTM_POLICY.UPDATED_AT, DSL.currentInstant())
                 .where(MTM_POLICY.ID.eq(existing))
                 .execute()
         }
@@ -94,7 +94,7 @@ class JooqPeriodEndRepository(private val dsl: DSLContext) : PeriodEndRepository
                 .set(NRV_POLICY.CURRENCY, policy.currency)
                 .set(NRV_POLICY.SIGNED_OFF_BY, policy.signedOffBy)
                 .set(NRV_POLICY.SIGNED_OFF_AT, policy.signedOffAt)
-                .set(NRV_POLICY.UPDATED_AT, Instant.now())
+                .set(NRV_POLICY.UPDATED_AT, DSL.currentInstant())
                 .where(NRV_POLICY.ID.eq(existing))
                 .execute()
         }

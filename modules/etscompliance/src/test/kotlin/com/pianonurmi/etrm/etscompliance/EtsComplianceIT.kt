@@ -29,6 +29,7 @@ import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.product.api.ProductCatalogueQuery
 import com.pianonurmi.etrm.referencedata.api.HolderType
@@ -113,7 +114,7 @@ class EtsComplianceIT {
         val current = holdingsByAccount[account] ?: AllowanceHoldingView(UUID.randomUUID(), entity, account, "EUA", 0, 0, 1)
         val holding = current.copy(quantity = current.quantity + type.sign * quantity)
         holdingsByAccount[account] = holding
-        val movement = AllowanceMovementView(++seq, holding.id, type, type.sign * quantity, on, null, null, null, year, "test", Instant.now())
+        val movement = AllowanceMovementView(++seq, holding.id, type, type.sign * quantity, on, null, null, null, year, "test", TestClock.DEFAULT_START)
         movements += movement
         service.on(HoldingChanged(holding, movement))
         return movement

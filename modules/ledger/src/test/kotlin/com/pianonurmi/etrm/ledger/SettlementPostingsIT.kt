@@ -15,6 +15,7 @@ import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.TestClock
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
@@ -129,7 +130,7 @@ class SettlementPostingsIT {
             createdBy = "billing",
             submittedBy = "billing",
             approvedBy = "controller",
-            issuedAt = Instant.now(),
+            issuedAt = TestClock.DEFAULT_START,
             version = 1,
         )
     }
@@ -165,7 +166,7 @@ class SettlementPostingsIT {
         amount: String,
         kind: AllocationKind,
         payment: PaymentView? = null,
-        at: Instant = Instant.now(),
+        at: Instant = Instant.parse("2026-10-09T10:00:00Z"),
         creditNote: InvoiceView? = null,
     ) = postings.on(
         InvoiceSettled(

@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Clock
 import java.time.YearMonth
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
@@ -44,6 +45,7 @@ class ProductionForecastService(
     private val taxonomy: TaxonomyQuery,
     private val events: ApplicationEventPublisher,
     private val actorProvider: ActorProvider,
+    private val clock: Clock,
 ) : ProductionForecastQuery, ProductionForecastCommand {
     // ----------------------------------------------------------------------------------------------------------
     // Queries
@@ -104,7 +106,7 @@ class ProductionForecastService(
         val device = devices.findProductionDevice(command.deviceId) ?: throw NotFoundException("ProductionDevice", command.deviceId)
         requireOwnerScope(actor, device)
         validate(command.expectedMwh, command.p90Mwh)
-        val view = repository.upsert(device.id, command.month, command.expectedMwh, command.p90Mwh, ForecastSource.ENTERED, actor.userId)
+        val view = repository.upsert(device.id, command.month, command.expectedMwh, command.p90Mwh, ForecastSource.ENTERED, actor.userId, clock.instant())
         events.publishEvent(ProductionForecastChanged(device.id, listOf(command.month)))
         return view
     }
@@ -125,7 +127,7 @@ class ProductionForecastService(
                 val device = devices.findProductionDeviceByGsrn(row.gsrn) ?: throw ValidationException("unknown device ${row.gsrn}")
                 requireOwnerScope(actor, device)
                 validate(row.expectedMwh, row.p90Mwh)
-                repository.upsert(device.id, row.month, row.expectedMwh, row.p90Mwh, ForecastSource.IMPORTED, actor.userId)
+                repository.upsert(device.id, row.month, row.expectedMwh, row.p90Mwh, ForecastSource.IMPORTED, actor.userId, clock.instant())
                 changed.getOrPut(device.id) { linkedSetOf() }.add(row.month)
                 imported++
             } catch (e: ValidationException) {

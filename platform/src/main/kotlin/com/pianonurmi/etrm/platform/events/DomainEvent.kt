@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.platform.events
 
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.platform.time.ApplicationClock
 import java.time.Instant
 import java.util.UUID
 
@@ -21,9 +22,9 @@ interface DomainEvent {
  */
 val DomainEvent.eventType: String get() = this::class.simpleName ?: "UnknownEvent"
 
-/** Convenience holder so event data classes only need to add their payload. */
+/** Convenience holder so event data classes only need to add their payload; stamped with the application's clock. */
 data class EventMetadata(
     override val eventId: UUID = Ids.newId(),
-    override val occurredAt: Instant = Instant.now(),
+    override val occurredAt: Instant = ApplicationClock.instant(),
     override val correlationId: String? = null,
 ) : DomainEvent

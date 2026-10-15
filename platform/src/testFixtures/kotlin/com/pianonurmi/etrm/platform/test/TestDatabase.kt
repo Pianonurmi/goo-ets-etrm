@@ -8,6 +8,7 @@ import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.slf4j.LoggerFactory
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy
+import java.time.Instant
 import javax.sql.DataSource
 
 /**
@@ -59,6 +60,9 @@ object TestDatabase {
 
     /** Joins a Spring transaction when a test runs one (e.g. with DataSourceTransactionManager); autocommit otherwise. */
     val dsl: DSLContext by lazy { DSL.using(TransactionAwareDataSourceProxy(dataSource), SQLDialect.POSTGRES) }
+
+    /** The database's current transaction time: what it stamps on rows it records (history, journals). */
+    fun transactionTime(): Instant = dsl.select(DSL.currentInstant()).fetchSingle().value1()
 
     /** Properties for Spring Boot slices / full-context tests. */
     fun springProperties(): Map<String, String> = mapOf(

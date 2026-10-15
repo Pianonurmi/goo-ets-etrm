@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.referencedata.api.ForecastSource
 import com.pianonurmi.etrm.referencedata.api.LoadFactorView
 import com.pianonurmi.etrm.referencedata.api.ProductionForecastView
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.YearMonth
 import java.util.UUID
 
@@ -21,6 +22,7 @@ interface ProductionForecastRepository {
         p90Mwh: Long,
         source: ForecastSource,
         recordedBy: String,
+        recordedAt: Instant,
     ): ProductionForecastView
 
     fun loadFactors(): List<LoadFactorView>

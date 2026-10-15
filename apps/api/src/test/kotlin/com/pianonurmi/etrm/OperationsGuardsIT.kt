@@ -6,11 +6,13 @@ import org.hamcrest.Matchers.everyItem
 import org.hamcrest.Matchers.hasItem
 import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import java.time.Clock
 import java.time.LocalDate
 
 /**
@@ -29,6 +31,10 @@ class OperationsGuardsIT {
     @LocalServerPort
     private var port: Int = 0
 
+    /** The application's clock (ADR 0050): dates sent to it are its dates. */
+    @Autowired
+    private lateinit var clock: Clock
+
     /** One entity's operations data: a delivered sale, a pending transfer, a statement break and a mismatched confirmation. */
     private data class Operations(
         val s: ApiScenario,
@@ -43,7 +49,7 @@ class OperationsGuardsIT {
         val s = ApiScenario(port).referenceData()
         val sold = s.confirmedHydroSale(100)
         val scheduleId: String = s.asUser("backoffice").get("/api/v1/trades/$sold").then().extract().path("legs[0].deliveries[0].id")
-        s.asUser("backoffice").body("""{"scheduleId":"$scheduleId","quantity":100,"deliveredOn":"${LocalDate.now()}"}""")
+        s.asUser("backoffice").body("""{"scheduleId":"$scheduleId","quantity":100,"deliveredOn":"${LocalDate.now(clock)}"}""")
             .post("/api/v1/trades/$sold/deliveries").then().statusCode(200)
         val itemId: String = s.asUser("backoffice").get("/api/v1/settlement/items?tradeId=$sold").then().statusCode(200).extract().path("[0].id")
 
@@ -51,7 +57,7 @@ class OperationsGuardsIT {
         val issuance: String = s.asUser("backoffice").get("/api/v1/inventory/lots/$lotId").then().extract().path("issuanceRef")
         val csv = "issuance_ref,cert_no_start,cert_no_end,device_gsrn,production_start,production_end\n$issuance,1,60,${s.deviceGsrn},2026-03-01,2026-04-01\n"
         s.asUser("backoffice").contentType("text/plain").body(csv)
-            .post("/api/v1/registry/statements/csv?registryAccountId=${s.gooAccountId}&statementDate=${LocalDate.now()}").then().statusCode(201)
+            .post("/api/v1/registry/statements/csv?registryAccountId=${s.gooAccountId}&statementDate=${LocalDate.now(clock)}").then().statusCode(201)
         val breakId: String = s.asUser("backoffice").get("/api/v1/inventory/breaks?registryAccountId=${s.gooAccountId}").then().extract().path("[0].id")
         val instructionId: String = s.asUser("backoffice").body(
             """{"lotId":"$lotId","quantityMwh":10,"toRegistryCode":"SIMULATOR","toAccountRef":"SIM-OTHER","idempotencyKey":"guards-${s.entityId}"}""",
@@ -91,7 +97,7 @@ class OperationsGuardsIT {
         trader().get("/api/v1/inventory/statements?registryAccountId=${mine.s.gooAccountId}").then().statusCode(403)
         trader().get("/api/v1/inventory/breaks/${mine.breakId}").then().statusCode(403)
         trader().contentType("text/plain").body("issuance_ref\n")
-            .post("/api/v1/registry/statements/csv?registryAccountId=${mine.s.gooAccountId}&statementDate=${LocalDate.now()}").then().statusCode(403)
+            .post("/api/v1/registry/statements/csv?registryAccountId=${mine.s.gooAccountId}&statementDate=${LocalDate.now(clock)}").then().statusCode(403)
         trader().contentType("text/plain").body("confirmation_ref\n")
             .post("/api/v1/confirmations/counterparty/csv?counterpartyId=${mine.s.counterpartyId}").then().statusCode(403)
         trader().body("""{"fromRegistryCode":"SIMULATOR","toRegistryCode":"SIMULATOR","feasible":true,"feePerMwh":0,"expectedDays":0}""")
@@ -124,7 +130,7 @@ class OperationsGuardsIT {
         scoped().get("/api/v1/inventory/statements?registryAccountId=${mine.s.gooAccountId}").then().statusCode(200).body("size()", equalTo(1))
         scoped().get("/api/v1/inventory/statements?registryAccountId=${theirs.s.gooAccountId}").then().statusCode(403)
         scoped().contentType("text/plain").body("issuance_ref,cert_no_start,cert_no_end,device_gsrn,production_start,production_end\n")
-            .post("/api/v1/registry/statements/csv?registryAccountId=${theirs.s.gooAccountId}&statementDate=${LocalDate.now()}").then().statusCode(403)
+            .post("/api/v1/registry/statements/csv?registryAccountId=${theirs.s.gooAccountId}&statementDate=${LocalDate.now(clock)}").then().statusCode(403)
 
         scoped().get("/api/v1/confirmations").then().statusCode(200)
             .body("id", hasItem(mine.confirmationId)).body("id", not(hasItem(theirs.confirmationId)))
@@ -145,7 +151,7 @@ class OperationsGuardsIT {
         val s = ApiScenario(port).referenceData()
         s.asUser("trader", "TRADER").body(
             """{"holderEntityId":"${s.entityId}","registryAccountId":"${s.gooAccountId}","productCode":"EUA","type":"PURCHASE","quantity":5,
-               "effectiveDate":"${LocalDate.now()}"}""",
+               "effectiveDate":"${LocalDate.now(clock)}"}""",
         ).post("/api/v1/inventory/holdings/movements").then().statusCode(403)
         s.asUser("trader", "TRADER").get("/api/v1/inventory/journal/verify").then().statusCode(403)
         s.asUser("auditor", "AUDITOR").get("/api/v1/inventory/journal/verify").then().statusCode(200).body("ok", equalTo(true))
@@ -156,7 +162,9 @@ class OperationsGuardsIT {
     fun `manual obligations are kept by middle and back office on their own entity, and position snapshots by operations`() {
         val s = ApiScenario(port).referenceData()
         val body = """{"kind":"OWN_CONSUMPTION","holderEntityId":"${s.entityId}","criterion":{"type":"matchAll"},"quantityMwh":10,
-            "deliveryWindow":{"start":"${LocalDate.now()}","endExclusive":"${LocalDate.now().plusDays(30)}"},"deliveryDate":"${LocalDate.now().plusDays(20)}",
+            "deliveryWindow":{"start":"${LocalDate.now(
+            clock,
+        )}","endExclusive":"${LocalDate.now(clock).plusDays(30)}"},"deliveryDate":"${LocalDate.now(clock).plusDays(20)}",
             "sourceRef":"${java.util.UUID.randomUUID()}","cancellation":{"purpose":"OWN_CONSUMPTION","beneficiaryName":"Offices",
             "consumptionCountry":"FI","consumptionPeriod":{"start":"2026-01-01","endExclusive":"2026-02-01"}}}"""
         s.asUser("trader", "TRADER").body(body).post("/api/v1/allocation/obligations").then().statusCode(403)
@@ -195,7 +203,7 @@ class OperationsGuardsIT {
         s.asUser("auditor", "AUDITOR").post("/api/v1/inventory/jobs/expire").then().statusCode(403)
         s.asUser("scoped", "BACK_OFFICE").header("X-Entities", "0190a1b2-0000-7000-8000-000000000009")
             .post("/api/v1/inventory/jobs/expire").then().statusCode(403)
-        s.asUser("backoffice", "BACK_OFFICE").post("/api/v1/inventory/jobs/expire?asOf=${LocalDate.now().plusDays(1)}").then().statusCode(422)
-        s.asUser("backoffice", "BACK_OFFICE").post("/api/v1/inventory/jobs/expire?asOf=${LocalDate.now()}").then().statusCode(200)
+        s.asUser("backoffice", "BACK_OFFICE").post("/api/v1/inventory/jobs/expire?asOf=${LocalDate.now(clock).plusDays(1)}").then().statusCode(422)
+        s.asUser("backoffice", "BACK_OFFICE").post("/api/v1/inventory/jobs/expire?asOf=${LocalDate.now(clock)}").then().statusCode(200)
     }
 }

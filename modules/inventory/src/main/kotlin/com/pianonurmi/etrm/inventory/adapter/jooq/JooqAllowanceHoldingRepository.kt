@@ -46,7 +46,7 @@ class JooqAllowanceHoldingRepository(private val dsl: DSLContext) : AllowanceHol
         .set(ALLOWANCE_HOLDING.QUANTITY, holding.quantity)
         .set(ALLOWANCE_HOLDING.RESERVED_QUANTITY, holding.reservedQuantity)
         .set(ALLOWANCE_HOLDING.VERSION, holding.version)
-        .set(ALLOWANCE_HOLDING.UPDATED_AT, Instant.now())
+        .set(ALLOWANCE_HOLDING.UPDATED_AT, DSL.currentInstant())
         .where(ALLOWANCE_HOLDING.ID.eq(holding.id), ALLOWANCE_HOLDING.VERSION.eq(holding.version - 1))
         .execute() == 1
 
