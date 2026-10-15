@@ -18,7 +18,7 @@ core for minutes and runs code from every pushed branch.
 
 ## 1. Get the image
 
-CI publishes `ghcr.io/pianonurmi/goo-ets-etrm:main`. The package is private until its owner makes it public, so pick
+CI publishes `ghcr.io/pianonurmi/goo-ets-etrm-showcase:main` (the application with the demo seeder). The package is private until its owner makes it public, so pick
 one of these.
 
 - **Sign in to the registry.** Create a GitHub token with the `read:packages` scope, then on the VM:
@@ -27,7 +27,7 @@ one of these.
   echo <token> | docker login ghcr.io -u <github user> --password-stdin
   ```
 
-- **Make the package public** (owner only): on GitHub, Packages → goo-ets-etrm → Package settings → Change
+- **Make the package public** (owner only): on GitHub, Packages → goo-ets-etrm-showcase → Package settings → Change
   visibility → Public. No sign-in is needed after that.
 - **Build it yourself.** Needs JDK 25, Node.js 22 and Docker on the build machine (the VM or any other). The build
   generates the jOOQ sources from a migrated database, so it starts PostgreSQL first:
@@ -36,12 +36,12 @@ one of these.
   git clone https://github.com/Pianonurmi/goo-ets-etrm.git && cd goo-ets-etrm
   docker compose -f ops/docker-compose.yml up -d postgres
   export ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:5432/etrm_codegen ETRM_DB_USER=etrm ETRM_DB_PASSWORD=etrm
-  ./gradlew :apps:api:bootJar
-  docker build -t ghcr.io/pianonurmi/goo-ets-etrm:main -f ops/Dockerfile .
+  ./gradlew :apps:api:showcaseJar
+  docker build -t ghcr.io/pianonurmi/goo-ets-etrm-showcase:main --build-arg JAR=apps/api/build/libs/api-showcase.jar -f ops/Dockerfile .
   docker compose -f ops/docker-compose.yml down   # the build database is not needed any more
   ```
 
-  Built on another machine: `docker save ghcr.io/pianonurmi/goo-ets-etrm:main | gzip > provena.tar.gz`, copy the
+  Built on another machine: `docker save ghcr.io/pianonurmi/goo-ets-etrm-showcase:main | gzip > provena.tar.gz`, copy the
   file to the VM and `gunzip -c provena.tar.gz | docker load` there.
 
 ## 2. Configure

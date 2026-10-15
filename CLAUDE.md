@@ -25,7 +25,7 @@ SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun   # Swagger UI at /s
 ./gradlew build -Petrm.skipWeb                    # backend only, without the web UI
 ./gradlew :apps:web:check                         # web: lint, format, typecheck, Vitest
 cd apps/web && npm run dev                        # Vite on :5173, proxies /api to :8080
-cd apps/web && npm run e2e                        # Playwright against apps/api/build/libs/api.jar (database etrm_e2e)
+cd apps/web && npm run e2e                        # Playwright against apps/api/build/libs/api-showcase.jar (database etrm_e2e)
 ```
 
 The build needs Node.js 22 and npm on the PATH for `:apps:web`.
@@ -34,6 +34,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - `TestDatabase.dsl` joins a Spring transaction when a test runs one (e.g. with `DataSourceTransactionManager`), and is autocommit otherwise.
 - Full-context tests each cache a context with a small connection pool (`application-test.yml`); keep the pool small so they fit PostgreSQL's connection limit.
 - All test tasks share one test database and reset schemas. A Gradle build service (`SharedTestDatabase` in `build-logic`) runs them one at a time; keep it that way.
+- Dependencies are locked (`gradle.lockfile`) and checksummed (`gradle/verification-metadata.xml`): after changing one, refresh both with `ops/release/refresh-dependency-locks.sh` and commit the diff.
 - Allocation benchmark at full size: `-Detrm.benchmark.lots=100000 -Detrm.benchmark.obligations=5000`.
 - Load tests: `k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=smoke ops/load/etrm.js` against the jar with `dev,demo` (`docs/operations/load-testing.md`); a change that moves the baseline figures notably updates that page.
 
@@ -100,7 +101,8 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Colours come from the theme (`c="red"`, `color="brand"`): `app/theme.ts` keeps them at WCAG AA contrast and `e2e/hardening.spec.ts` runs axe and a CSP check. Keep new screens lazy; `npm run budget` guards the bundle size.
 - Help (`docs/user-guide/*.md`): the pages are the manual in the app, served as static files under `/help/` (`vite.help.ts`), mapped to screens in `app/help/routes.ts`; heading slugs are link anchors, so keep them stable. `npm run check:help` checks links, anchors and image sizes (300 kB each). Change the page when you change its screen.
 - Tours (`shared/tour/tours.ts`, texts in `locales/tour.en.json`) point at `data-testid` selectors; `help.spec.ts` runs every tour and fails when a step loses its anchor. Keep those test ids, or move the step with the screen.
-- Demo data (`demo` profile, `apps/api/.../demo`) goes through the REST API as the dev personas; extend it when a screen needs data to show, as a named `DemoStep` in `DemoScenario.steps()` (values for later steps go through `DemoContext.put`/`get`; the run log in `etrm_demo` makes a failed run resumable). Its test runs on a sibling database (`SiblingDatabase`) because its market data would clash with `MonthEndIT`.
+- Demo data (`demo` profile, `apps/api/src/demo`, its own source set) goes through the REST API as the dev personas; the
+  production jar (`bootJar`) leaves it out and `showcaseJar` (`api-showcase.jar`, the showcase image) adds it; extend it when a screen needs data to show, as a named `DemoStep` in `DemoScenario.steps()` (values for later steps go through `DemoContext.put`/`get`; the run log in `etrm_demo` makes a failed run resumable). Its test runs on a sibling database (`SiblingDatabase`) because its market data would clash with `MonthEndIT`.
 
 ## Working with sub-agents
 
