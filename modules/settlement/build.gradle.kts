@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":modules:workflow"))
     implementation(project(":modules:document"))
     implementation(libs.springdoc.openapi)
+    implementation(libs.shedlock.spring)
 
     testImplementation(testFixtures(project(":platform")))
     testImplementation(project(":modules:taxonomy"))

@@ -15,12 +15,14 @@ import com.pianonurmi.etrm.marketdata.api.MarketDataQuery
 import com.pianonurmi.etrm.marketdata.api.QuoteType
 import com.pianonurmi.etrm.platform.crypto.HashChain
 import com.pianonurmi.etrm.platform.errors.ConflictException
+import com.pianonurmi.etrm.platform.errors.DomainException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.tx.Savepoints
 import com.pianonurmi.etrm.product.api.FuturesContractQuery
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.referencedata.api.CounterpartyType
@@ -30,6 +32,7 @@ import com.pianonurmi.etrm.trade.api.TradeFilter
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.api.TradeView
+import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -56,7 +59,10 @@ class ClearingService(
     private val actorProvider: ActorProvider,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
+    private val savepoints: Savepoints,
 ) : ClearingCommand, ClearingQuery {
+    private val log = LoggerFactory.getLogger(ClearingService::class.java)
+
     override fun createAccount(command: CreateClearingAccount): ClearingAccountView {
         val actor = actorProvider.current()
         actor.requireRole(Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
@@ -95,13 +101,28 @@ class ClearingService(
         requireBusinessDay(businessDate)
         val current = repository.currentRun(account.id, businessDate, lock = true)
         val run = compute(account, businessDate, current, actor.userId)
-        if (run !== current) {
-            // A later day margins against this day's settlement price, so every later day that was run is run again, in order.
-            repository.laterRunDates(account.id, businessDate).forEach { later ->
-                compute(account, later, repository.currentRun(account.id, later, lock = true), actor.userId)
+        if (run !== current) recomputeLater(account, businessDate, actor.userId)
+        return run
+    }
+
+    /**
+     * A later day margins against this day's settlement price, so every later day that was run is run again, in order.
+     * A day that cannot be (its settlement price is not there yet) stops the cascade: it and the days after it keep
+     * their runs, marked stale with the reason, and the day asked for still commits. Running the stale day again
+     * clears the mark and carries on.
+     */
+    private fun recomputeLater(account: ClearingAccountView, changed: LocalDate, userId: String) {
+        val later = repository.laterRunDates(account.id, changed)
+        later.forEachIndexed { index, date ->
+            try {
+                savepoints.attempt { compute(account, date, repository.currentRun(account.id, date, lock = true), userId) }
+            } catch (e: DomainException) {
+                val reason = "Not computed again after $changed changed: ${e.message}"
+                log.warn("Margin cascade of {} stopped at {}: {}", account.code, date, e.message)
+                later.drop(index).forEach { stale -> repository.currentRun(account.id, stale, lock = true)?.let { repository.markStale(it.id, reason) } }
+                return
             }
         }
-        return run
     }
 
     private fun requireBusinessDay(date: LocalDate) {
@@ -113,7 +134,12 @@ class ClearingService(
         val lines = lines(account, businessDate)
         val total = lines.fold(BigDecimal.ZERO.setScale(2)) { sum, l -> sum + l.variationMargin }
         val hash = inputsHash(account, businessDate, lines)
-        if (current != null && current.inputsHash == hash) return current
+        if (current != null && current.inputsHash == hash) {
+            if (current.staleReason == null) return current
+            // Computed again with the same result: the run is current after all.
+            repository.markStale(current.id, null)
+            return current.copy(staleReason = null)
+        }
         val now = clock.instant()
         current?.let { repository.supersede(it.id, now) }
         val run = MarginRunView(

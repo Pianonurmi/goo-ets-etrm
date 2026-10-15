@@ -31,6 +31,9 @@ interface ClearingRepository {
     fun nextVersion(accountId: UUID, businessDate: LocalDate): Int
 
     fun supersede(runId: UUID, at: Instant)
+
+    /** Marks the run stale with [reason], or clears the mark with null. */
+    fun markStale(runId: UUID, reason: String?)
 }
 
 /**

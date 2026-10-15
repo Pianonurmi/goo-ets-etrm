@@ -104,6 +104,7 @@ class RiskServiceIT {
     }
     private val openTrades = mutableListOf<TradeView>()
     private val extraBalances = mutableListOf<CounterpartyBalance>()
+    private val extraResults = mutableListOf<ValuationResultView>()
     private val published = mutableListOf<Any>()
     private lateinit var risk: RiskService
     private lateinit var withGoo: (ObjectProvider<GooRiskQuery>?, ProductBucketQuery?) -> RiskService
@@ -167,11 +168,12 @@ class RiskServiceIT {
         }
     }
 
-    private fun mtm(tradeId: UUID, value: String) = mockk<ValuationResultView> {
+    private fun mtm(tradeId: UUID, value: String?, resultStatus: ResultStatus = ResultStatus.OK, number: String = "T-1") = mockk<ValuationResultView> {
         every { this@mockk.tradeId } returns tradeId
+        every { tradeNumber } returns number
         every { counterpartyId } returns counterparty
-        every { status } returns ResultStatus.OK
-        every { mtmBase } returns BigDecimal(value)
+        every { status } returns resultStatus
+        every { mtmBase } returns value?.let(::BigDecimal)
     }
 
     @BeforeEach
@@ -182,6 +184,7 @@ class RiskServiceIT {
         netting = false
         eurUsd = BigDecimal("1.10")
         openTrades.clear()
+        extraResults.clear()
         extraBalances.clear()
         published.clear()
         val counterparties = listOf(
@@ -202,7 +205,8 @@ class RiskServiceIT {
         val existing = trade(1000, LocalDate.of(2026, 12, 10))
         val valuations = mockk<ValuationQuery> {
             every { official(entity, any(), true) } returns mockk<ValuationRunView> { every { id } returns runId }
-            every { results(runId, null) } returns listOf(mtm(existing.id, "300"), mtm(UUID.randomUUID(), "-100"))
+            val base = listOf(mtm(existing.id, "300"), mtm(UUID.randomUUID(), "-100"))
+            every { results(runId, null) } answers { base + extraResults }
             // Calls are valued at a delta of 0.4; puts cannot be valued (no volatility curve).
             every { optionValuation(entity, any(), any()) } answers {
                 thirdArg<TradeLegView>().option?.takeIf { it.optionType == OptionType.CALL }?.let {
@@ -574,6 +578,20 @@ class RiskServiceIT {
         // While the figures are being prepared the check says so, and does not block.
         ready = false
         gooRisk.preTradeFindings(sale).filter { it.code == "GOO_BASIS" }.map { it.severity } shouldBe listOf(FindingSeverity.INFO)
+    }
+
+    @Test
+    fun `a trade the valuation could not price leaves the exposure incomplete, naming the trade`() {
+        risk.measureEntity(entity)
+        risk.exposures(entity).single { it.counterpartyId == counterparty }.incomplete shouldBe false
+
+        extraResults += mtm(UUID.randomUUID(), null, ResultStatus.MISSING_PRICE, "T-NOPRICE")
+        risk.measureEntity(entity)
+        risk.exposures(entity).single { it.counterpartyId == counterparty }.let {
+            it.incomplete shouldBe true
+            it.incompleteReasons shouldBe listOf("MtM of T-NOPRICE not valued: MISSING_PRICE")
+            it.mtm shouldBe BigDecimal("300.00") // the priced trades still count
+        }
     }
 
     @Test

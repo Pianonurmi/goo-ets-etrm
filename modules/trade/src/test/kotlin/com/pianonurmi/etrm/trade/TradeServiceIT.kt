@@ -76,8 +76,10 @@ import com.pianonurmi.etrm.trade.api.UtiSource
 import com.pianonurmi.etrm.trade.application.OptionExpiryService
 import com.pianonurmi.etrm.trade.application.TradeService
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
@@ -115,6 +117,8 @@ class TradeServiceIT {
     private lateinit var external: UUID
     private lateinit var icoB: UUID
     private lateinit var accountA: UUID
+    private lateinit var accountA2: UUID
+    private lateinit var accountB: UUID
     private lateinit var externalAccount: UUID
     private lateinit var otherCounterparty: UUID
     private lateinit var entityEarly: UUID
@@ -186,6 +190,12 @@ class TradeServiceIT {
         )
         accountA = referenceData.createRegistryAccount(
             CreateRegistryAccount("FINGRID", "FI-A-1", "A holding", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityA),
+        ).id
+        accountA2 = referenceData.createRegistryAccount(
+            CreateRegistryAccount("FINGRID", "FI-A-2", "A second holding", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityA),
+        ).id
+        accountB = referenceData.createRegistryAccount(
+            CreateRegistryAccount("FINGRID", "SE-B-1", "B holding", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityB),
         ).id
         otherCounterparty = referenceData.createCounterparty(CreateCounterparty("OTHER-CP", "Other Energy", "DE")).id
         entityEarly = referenceData.createLegalEntity(
@@ -702,6 +712,61 @@ class TradeServiceIT {
         trades.requireTrade(trade.id).status shouldBe TradeStatus.CANCELLED
         trades.requireTrade(mirrorId).status shouldBe TradeStatus.CANCELLED
         published.filterIsInstance<TradeCancelled>().map { it.trade.id } shouldContainAll listOf(trade.id, mirrorId)
+    }
+
+    @Test
+    fun `a mirror approved after its original was confirmed takes the confirmation over`() {
+        currentUser = "trader1"
+        val trade = trades.capture(gooSale(quantity = 300, counterparty = icoB, mirrorBook = bookB))
+        val mirrorId = trades.requireTrade(trade.id).intercompanyLinkId!!
+        currentUser = "approver"
+        trades.approve(trade.id)
+        trades.confirm(trade.id, ConfirmTrade("ICO-LATE"))
+        trades.requireTrade(mirrorId).status shouldBe TradeStatus.PENDING_APPROVAL
+
+        trades.approve(mirrorId).let {
+            it.status shouldBe TradeStatus.CONFIRMED
+            it.confirmationRef shouldBe "ICO-LATE"
+        }
+        trades.openObligations(entityB, Side.BUY).map { it.tradeNumber } shouldContain trades.requireTrade(mirrorId).tradeNumber
+
+        // Cancelled again, so the other intercompany tests see only their own obligations.
+        currentUser = "trader1"
+        trades.cancel(trade.id, "test done")
+        trades.openObligations(entityB, Side.BUY).map { it.tradeNumber } shouldNotContain trades.requireTrade(mirrorId).tradeNumber
+    }
+
+    @Test
+    fun `registry accounts an amendment changes on an intercompany trade follow to its mirror`() {
+        currentUser = "trader1"
+        val sale = gooSale(quantity = 300, counterparty = icoB, mirrorBook = bookB).let { s ->
+            s.copy(legs = s.legs.map { it.copy(counterpartyAccountRef = null, counterpartyAccountId = accountB) })
+        }
+        val trade = trades.capture(sale)
+        val mirrorId = trades.requireTrade(trade.id).intercompanyLinkId!!
+        // At capture the mirror delivers from the account the original names for it, to the original's delivery account.
+        trades.requireTrade(mirrorId).legs.single().let {
+            it.deliveryAccountId shouldBe accountB
+            it.counterpartyAccountId shouldBe accountA
+        }
+
+        // The original now delivers from another account of entity A: the mirror receives from that one.
+        val moved = sale.legs.map { it.copy(deliveryAccountId = accountA2) }
+        trades.amend(trade.id, AmendTrade(expectedVersion = trades.requireTrade(trade.id).version, reason = "other account", legs = moved))
+        trades.requireTrade(mirrorId).legs.single().let {
+            it.counterpartyAccountId shouldBe accountA2
+            it.counterpartyAccountRef shouldBe "FINGRID:FI-A-2"
+            it.deliveryAccountId shouldBe accountB
+        }
+
+        // A price change leaves the accounts as they are.
+        val repriced = moved.map { it.copy(price = BigDecimal("2.20")) }
+        trades.amend(trade.id, AmendTrade(expectedVersion = trades.requireTrade(trade.id).version, reason = "re-priced", legs = repriced))
+        trades.requireTrade(mirrorId).legs.single().let {
+            it.counterpartyAccountId shouldBe accountA2
+            it.deliveryAccountId shouldBe accountB
+            it.price.compareTo(BigDecimal("2.20")) shouldBe 0
+        }
     }
 
     @Test
