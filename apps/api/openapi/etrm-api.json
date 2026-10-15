@@ -926,6 +926,46 @@
         "required" : [ "accountName", "bic", "iban" ],
         "type" : "object"
       },
+      "BeneficiaryView" : {
+        "properties" : {
+          "erasedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "erasedBy" : {
+            "type" : [ "string", "null" ]
+          },
+          "erasureReason" : {
+            "type" : [ "string", "null" ]
+          },
+          "erasureRequestedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "erasureRequestedBy" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "identifier" : {
+            "type" : [ "string", "null" ]
+          },
+          "name" : {
+            "type" : [ "string", "null" ]
+          },
+          "recordedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "recordedBy" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "id", "recordedAt" ],
+        "type" : "object"
+      },
       "BindingSupply" : {
         "properties" : {
           "bucketCode" : {
@@ -1186,6 +1226,10 @@
             "type" : [ "string", "null" ]
           },
           "beneficiaryName" : {
+            "type" : [ "string", "null" ]
+          },
+          "beneficiaryRef" : {
+            "format" : "uuid",
             "type" : [ "string", "null" ]
           },
           "consumptionCountry" : {
@@ -14872,6 +14916,90 @@
           }
         },
         "tags" : [ "home-controller" ]
+      }
+    },
+    "/api/v1/inventory/beneficiaries/{id}" : {
+      "get" : {
+        "operationId" : "beneficiary_beneficiary",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BeneficiaryView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Inventory" ]
+      }
+    },
+    "/api/v1/inventory/beneficiaries/{id}/erasure" : {
+      "post" : {
+        "operationId" : "beneficiary_requestErasure",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BeneficiaryView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Inventory" ]
       }
     },
     "/api/v1/inventory/breaks" : {

@@ -34,6 +34,15 @@ private const val MAX_SEARCH = 500
 
 @Repository
 class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryInstructionRepository {
+    override fun eraseBeneficiary(beneficiaryId: UUID): Int = dsl.update(REGISTRY_INSTRUCTION)
+        .set(REGISTRY_INSTRUCTION.CANCELLATION, DSL.field("{0} - 'beneficiaryName' - 'beneficiaryId'", JSONB::class.java, REGISTRY_INSTRUCTION.CANCELLATION))
+        .set(
+            REGISTRY_INSTRUCTION.REQUEST_PAYLOAD,
+            DSL.field("{0} #- '{cancellation,beneficiaryName}' #- '{cancellation,beneficiaryId}'", JSONB::class.java, REGISTRY_INSTRUCTION.REQUEST_PAYLOAD),
+        )
+        .where(DSL.field("{0} ->> 'beneficiaryRef'", String::class.java, REGISTRY_INSTRUCTION.CANCELLATION).eq(beneficiaryId.toString()))
+        .execute()
+
     private val mapType = object : TypeReference<Map<String, Any?>>() {}
 
     override fun find(id: UUID): RegistryInstructionView? = dsl.selectFrom(REGISTRY_INSTRUCTION).where(REGISTRY_INSTRUCTION.ID.eq(id)).fetchOne()?.let(::toView)

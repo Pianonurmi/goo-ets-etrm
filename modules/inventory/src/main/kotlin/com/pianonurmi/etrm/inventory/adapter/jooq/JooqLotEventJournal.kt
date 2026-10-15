@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.inventory.domain.LotEventJournal
 import com.pianonurmi.etrm.inventory.domain.NewLotEvent
 import com.pianonurmi.etrm.platform.crypto.HashChain
 import com.pianonurmi.etrm.platform.json.Json
+import com.pianonurmi.etrm.platform.privacy.PersonalData
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.impl.DSL
@@ -25,7 +26,8 @@ class JooqLotEventJournal(private val dsl: DSLContext) : LotEventJournal {
         val previous = dsl.select(
             LOT_EVENT.HASH,
         ).from(LOT_EVENT).where(LOT_EVENT.LOT_ID.eq(event.lotId)).orderBy(LOT_EVENT.SEQ.desc()).limit(1).fetchOne(LOT_EVENT.HASH)
-        val payload = Json.canonical(event.payload)
+        // The journal is hash-chained and cannot forget: no beneficiary name or identifier goes in (S7).
+        val payload = Json.canonical(PersonalData.redact(event.payload))
         val effectiveAt = event.effectiveAt.truncatedTo(ChronoUnit.MICROS)
         val hash = HashChain.next(previous, hashInput(event.lotId, event.eventType, effectiveAt, event.actor, payload))
         return dsl.insertInto(LOT_EVENT)

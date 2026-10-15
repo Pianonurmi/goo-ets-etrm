@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.document.adapter.jooq.JooqDocumentRepository
 import com.pianonurmi.etrm.document.adapter.pdf.OpenHtmlPdfRenderer
 import com.pianonurmi.etrm.document.application.DocumentService
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
+import com.pianonurmi.etrm.inventory.adapter.jooq.JooqBeneficiaryRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqReconciliationRepository
@@ -13,6 +14,7 @@ import com.pianonurmi.etrm.inventory.api.RecordAllowanceMovement
 import com.pianonurmi.etrm.inventory.api.StatementKind
 import com.pianonurmi.etrm.inventory.api.StatementStatus
 import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
+import com.pianonurmi.etrm.inventory.application.BeneficiaryService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.inventory.application.ReconciliationService
 import com.pianonurmi.etrm.platform.errors.ConflictException
@@ -94,7 +96,8 @@ class AllowanceInstructionIT {
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), publisher)
         val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, publisher)
         val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
-        val lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, publisher, clock)
+        val beneficiaries = BeneficiaryService(JooqBeneficiaryRepository(dsl), actor, publisher, clock)
+        val lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, publisher, clock, beneficiaries)
         allowances = AllowanceHoldingService(
             JooqAllowanceHoldingRepository(dsl),
             referenceData,
@@ -116,6 +119,7 @@ class AllowanceInstructionIT {
             clock,
             allowances,
             allowances,
+            beneficiaries,
             RegistryDispatchSettings(unplannedNeedsApproval = true),
         )
         val formats = StatementFormatService(JooqStatementFormatRepository(dsl), referenceData, actor, clock)
