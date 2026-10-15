@@ -26,6 +26,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
 
 ### Changed
+- **The demo seeder is no longer in the production jar and image.** `bootJar` builds the application alone;
+  `showcaseJar` (`api-showcase.jar`) adds the seeder, and CI publishes it as `ghcr.io/pianonurmi/goo-ets-etrm-showcase`.
+  The public demo (`ops/demo`) now pulls that image: set `ETRM_IMAGE` to it if your `.env` names the old one.
 - **Records that cannot forget no longer keep a beneficiary's name or identifier:** the lot journal, the audit trail,
   the lots' version history and the instructions' event history keep only the `beneficiaryRef`. Rows written before
   this version keep their copy.

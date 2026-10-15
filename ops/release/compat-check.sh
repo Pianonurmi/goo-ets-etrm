@@ -6,7 +6,9 @@
 # Migrates an empty database with this build's jar (--migrate-only), then starts the latest published release on it
 # with migrations off and lets its demo seeder write a full data set through the REST API.
 #
-# Usage: ops/release/compat-check.sh <this build's jar> <JDBC URL of an empty database>
+# Usage: ops/release/compat-check.sh <this build's showcase jar> <JDBC URL of an empty database>
+# The showcase jar (api-showcase.jar): it carries the demo seeder's run-log migration, which the previous release's
+# seeder writes to.
 # Environment: GH_TOKEN (to download the release), JAVA (a Java 25 binary, default java), PREVIOUS_JAR (skip the
 # download), ETRM_DB_USER / ETRM_DB_PASSWORD (default etrm / etrm).
 set -euo pipefail
