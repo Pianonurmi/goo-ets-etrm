@@ -30,12 +30,12 @@ The short form, by quality:
 Grades read: A meets enterprise expectations, B meets them with known small gaps, C has gaps that must close before
 production, D has a gap that must close before any exposure, E is unfit.
 
-## Status after 0.14.0
+## Status after 0.15.0
 
-The findings as acted on by the patches 0.13.1 and 0.13.2 and by
-[increment 14](../plans/increment-14-production-readiness.md) (0.14.0). What is left goes to
-[increment 15](../plans/increment-15-maintainability.md) or to the owner (issues #16–#21). The findings below are kept as
-written at the time of the review.
+The findings as acted on by the patches 0.13.1 and 0.13.2, by
+[increment 14](../plans/increment-14-production-readiness.md) (0.14.0) and by
+[increment 15](../plans/increment-15-maintainability.md) (0.15.0). What is marked open is left for a later increment or
+the owner (issues #16–#21). The findings below are kept as written at the time of the review.
 
 | Finding | Status |
 |---|---|
@@ -45,35 +45,40 @@ written at the time of the review.
 | S4 | Fixed: the expiry sweep (0.13.1); entity scope on the audit trail, bank accounts, history, books, registry accounts, journal entries, free allocation, change requests, valuation submission and forecasts (0.14.0) |
 | S5 | Fixed in 0.14.0: `OperationGuardsIT` over every command, `TokenValidationIT` on a real decoder |
 | S6 | Fixed in 0.14.0: sealed audit chain, actor and trace id per record, sensitive reads recorded, nightly verification, signed daily digest |
-| S7 | Partly in 0.14.0: no beneficiary data in Kafka events, Kafka SASL values in the chart, the [data protection](../operations/data-protection.md) procedure. Beneficiary data out of chained rows: increment 15 |
-| S8 | Partly in 0.14.0: actions and images pinned, Trivy fails on high, the OWASP job fails without its key and at CVSS 7. Dependency locking and verification metadata: increment 15 ([why](../operations/supply-chain.md#pinning)) |
+| S7 | Fixed: no beneficiary data in Kafka events, Kafka SASL values in the chart, the [data protection](../operations/data-protection.md) procedure (0.14.0); a beneficiary register that an approved erasure clears, chained rows that keep only the reference, and archive cuts so old partitions can be dropped (0.15.0) |
+| S8 | Fixed: actions and images pinned, Trivy fails on high, the OWASP job fails without its key and at CVSS 7 (0.14.0); Gradle dependency locking and verification metadata, refreshed on Dependabot branches (0.15.0, [supply chain](../operations/supply-chain.md#pinning)) |
 | S9 | Fixed in 0.14.0 |
 | D1–D4 | Fixed in 0.14.0: owner and runtime roles, the journal guarded in the database with chain version 2, allowance movements append-only and chained, the double reversal closed |
 | D5–D7 | Fixed in 0.14.0: savepoints at every site found, lot expiry per lot, one rounding rule with entries balanced in base currency |
 | D8–D10 | Fixed in 0.14.0: closed-period and balance guards, append-only history and instruction events, expand/contract migrations with a previous-release check (ADR 0048) |
-| D11 | Partly: the scheduled chain verification and the allowance movement chain are in 0.14.0; the remaining items (propose without the entity lock, workflow open, PDF rendering in a transaction, lot journal verification, the cross-schema migration, unkeyed manual deliveries): increment 15 |
+| D11 | Partly: the scheduled chain verification and the allowance movement chain are in 0.14.0. Open: propose without the entity lock, workflow open, PDF rendering in a transaction, lot journal verification, the cross-schema migration, unkeyed manual deliveries |
 | O1–O4 | Fixed in 0.14.0: migrations in a pre-upgrade job; job metrics, alert rules and runbooks; a request limit and readiness without the database; a point-in-time recovery drill on CloudNativePG |
-| O5 | Mostly fixed in 0.14.0 (shutdown waits for jobs, PDB, bounded `/tmp`); an HPA on request rate: increment 15 |
-| O6 | Mostly fixed in 0.14.0 (Kafka, configuration, registry, ECB and egress values); asynchronous long operations and a measured memory figure: increment 15 |
-| O7 | Partly in 0.14.0: one HTTP client per registry, publications with an attempt count and a parked state. The open-circuit flag, PDF limits and report retention: increment 15 |
+| O5 | Mostly fixed in 0.14.0 (shutdown waits for jobs, PDB, bounded `/tmp`). Open: an HPA on request rate |
+| O6 | Mostly fixed in 0.14.0 (Kafka, configuration, registry, ECB and egress values). Open: asynchronous long operations and a measured memory figure |
+| O7 | Partly in 0.14.0: one HTTP client per registry, publications with an attempt count and a parked state. Open: the open-circuit flag, PDF limits and report retention |
 | O8 | Fixed in 0.14.0: runbooks linked from every alert |
-| O9 | Partly in 0.14.0: a month-end scenario in the load test (it found a period-end defect, fixed); a run on a dedicated environment: increment 15 |
+| O9 | Partly in 0.14.0: a month-end scenario in the load test (it found a period-end defect, fixed). A run on a dedicated environment needs that environment from the owner |
 | P1 | Process in place (pull requests with CI, `CODEOWNERS`, template, contributing guide); branch protection and a second maintainer are the owner's (#21) |
 | P2 | Open: UAT, the external penetration test and a bug bar are the owner's (#16, #21) |
 | P3 | Done: the known gaps are issues (#16–#20) |
 | P4 | Dependabot runs weekly; its pull requests are reviewed like any other |
-| C1, C2, C5, C6, C10 | Increment 15 |
+| C1 | Fixed in 0.15.0: the six large services split by responsibility behind the same module APIs; detekt counts `@Service` constructors, `TooManyFunctions` at 25 and `LargeClass` at 500, each exception with a reason |
+| C2 | Fixed in 0.15.0: one module order (`ModuleOrder`), required ports with test fakes, wiring factories in `testFixtures`; the savepoint paths are tested with a full context from `apps/api` |
+| C5 | Not changed, decided in increment 15: `Currency`, `YearMonth` and sealed limit scopes would change the generated types and their callers for no change in behaviour ([plan](../plans/increment-15-maintainability.md#delivered)) |
+| C6 | Fixed in 0.15.0: `SecondPerson`, `Roles.OPERATIONS`, one keyset cursor with one error contract; period end reads its accounts from the posting rules |
+| C10 | Fixed in 0.15.0: jOOQ codegen with declared inputs, the configuration cache, the demo seeder out of the production jar and image |
 | C3 | Fixed in 0.14.0: unposted events, `NOT_MEASURED` limits, incomplete exposures, checks that warn when they cannot run |
 | C4 | Fixed in 0.14.0: arc42 sections 5 and 8 updated, the module diagram generated and checked by `ModularityTests` |
-| C7 | Partly in 0.14.0: ADR 0050, `TimeSourceTest`, `TestClock`, controllers and jobs on the clock; repositories and event metadata: increment 15 |
-| C8 | Fixed in 0.14.0: a ledger property test, seeds through `PropertySeeds` with a nightly random run, concurrency tests for the plan, netting and cache locks; the other row locks: increment 15 |
+| C7 | Fixed: ADR 0050, `TimeSourceTest`, `TestClock`, controllers and jobs on the clock (0.14.0); repositories and event metadata on the clock, `TimeSourceTest` over the tests too (0.15.0) |
+| C8 | Fixed in 0.14.0: a ledger property test, seeds through `PropertySeeds` with a nightly random run, concurrency tests for the plan, netting and cache locks. Open: the other row locks |
 | C9 | Fixed in 0.14.0: Kover at 90 % of lines and 65 % of branches |
-| C11 | Partly: ADRs for the test strategy and the time source (0049, 0050); the rest: increment 15 |
+| C11 | Partly: ADRs for the test strategy and the time source (0049, 0050). Open: the rest |
 | W1–W3, W5, W7 | Fixed in 0.14.0 |
-| W4 | Increment 15: Vitest coverage over the whole tree with a ratchet, end-to-end journeys that create their own data |
-| W6 | Partly in 0.14.0: lists cut at their limit say so; cursor paging for items, invoices, payments and results: increment 15 |
-| W8, W9 | Increment 15 |
-| W10 | Fixed in 0.14.0, except the direct `formatMoney` calls (increment 15) |
+| W4 | Partly in 0.15.0: Vitest coverage over the whole tree with floors that only rise. Open: end-to-end journeys that create their own data |
+| W6 | Fixed: lists cut at their limit say so (0.14.0); keyset paging for invoices, payments and valuation results (0.15.0). Open: the same for settlement items |
+| W8 | Fixed in 0.15.0: roles in the OpenAPI document (`x-roles`), the web permission table generated from it |
+| W9 | Fixed in 0.15.0: the large pages split into one file per tab, drawer and modal; client errors reported to the server, with source maps kept out of the jar |
+| W10 | Fixed in 0.14.0; amounts shown in cells go through `Money` (0.15.0) |
 | F1–F3 | Fixed in 0.13.2 |
 | F4–F10 | Fixed in 0.14.0 |
 | F11 | Fixed in 0.14.0 (a policy change to disclosure only warns about MtM still booked rather than reversing it) |

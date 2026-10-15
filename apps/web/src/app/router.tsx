@@ -91,7 +91,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'valuation/runs/:runId',
-        lazy: async () => ({ Component: (await import('@/features/valuation/ValuationPage')).RunDetailPage }),
+        lazy: async () => ({ Component: (await import('@/features/valuation/RunDetailPage')).RunDetailPage }),
       },
       {
         path: 'risk',
