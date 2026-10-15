@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   Alert,
   Button,
@@ -20,7 +21,7 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { uploadText } from '@/shared/api/upload';
@@ -111,16 +112,11 @@ function BreakAgeing({ entityId }: { entityId: string }) {
 function BreaksTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const accounts = useEntityAccounts(entityId);
   const closed = params.get('closed') === 'true';
   const type = BREAK_TYPES.find((value) => value === params.get('type')) ?? null;
-  const set = (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, value: string | null) => patchUrl({ [key]: value });
   const breaks = $api.useQuery('get', '/api/v1/inventory/breaks', {
     params: { query: { status: closed ? CLOSED_STATUSES : undefined, type: type ?? undefined } },
   });
@@ -394,7 +390,7 @@ function TransactionsUploadModal({ onClose }: { onClose: () => void }) {
 
 function StatementsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const accounts = useEntityAccounts(entityId);
   const accountId = params.get('account') ?? accounts.data?.[0]?.id ?? null;
   const [uploading, setUploading] = useState<'holdings' | 'transactions' | null>(null);
@@ -443,9 +439,7 @@ function StatementsTab({ entityId }: { entityId: string }) {
           }))}
           value={accountId}
           onChange={(value) => {
-            const next = new URLSearchParams(params);
-            if (value) next.set('account', value);
-            setParams(next, { replace: true });
+            if (value) patchUrl({ account: value });
           }}
           allowDeselect={false}
           w={320}
@@ -498,8 +492,7 @@ function StatementsTab({ entityId }: { entityId: string }) {
 export function ReconciliationPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const tab = TABS.find((value) => value === params.get('tab')) ?? 'breaks';
+  const [tab, setTab] = useUrlTab(TABS, 'breaks');
   return (
     <Stack gap="lg">
       <PageHeader
@@ -511,11 +504,7 @@ export function ReconciliationPage() {
       ) : (
         <>
           <BreakAgeing entityId={entity.id} />
-          <Tabs
-            value={tab}
-            onChange={(value) => setParams(value && value !== 'breaks' ? { tab: value } : {}, { replace: true })}
-            keepMounted={false}
-          >
+          <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="breaks">{t('reconciliation.tabs.breaks')}</Tabs.Tab>
               <Tabs.Tab value="statements">{t('reconciliation.tabs.statements')}</Tabs.Tab>

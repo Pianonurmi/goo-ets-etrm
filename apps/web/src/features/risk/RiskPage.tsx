@@ -1,3 +1,5 @@
+import { Money } from '@/shared/components/Figures';
+import { useUrlTab } from '@/shared/useUrlState';
 import { BarChart } from '@mantine/charts';
 import {
   Alert,
@@ -23,7 +25,7 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -35,7 +37,7 @@ import { QueryState } from '@/shared/components/QueryState';
 import { TableSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
-import { formatDate, formatDateTime, formatDecimal, formatMoney } from '@/shared/format/format';
+import { formatDate, formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { useBooks, useCounterparties } from '@/features/trades/hooks';
 import { limitUnit, scopeLabel, utilisationBar, utilisationColor, type Limit, type ScopeNames } from './model/limits';
@@ -676,7 +678,9 @@ function CreditSupportTab({ entityId }: { entityId: string }) {
               {rows.map((row) => (
                 <Table.Tr key={row.id}>
                   <Table.Td>{t(`risk.creditKinds.${row.kind}`)}</Table.Td>
-                  <Table.Td ta="right">{formatMoney(row.amount, row.currency)}</Table.Td>
+                  <Table.Td ta="right">
+                    <Money value={row.amount} currency={row.currency} />
+                  </Table.Td>
                   <Table.Td>{formatDate(row.validFrom)}</Table.Td>
                   <Table.Td>{formatDate(row.validTo)}</Table.Td>
                   <Table.Td>{row.reference}</Table.Td>
@@ -744,9 +748,7 @@ const TABS = ['limits', 'exposures', 'breaches', 'credit-support', 'pfe'] as con
 export function RiskPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const requested = params.get('tab');
-  const tab = TABS.find((value) => value === requested) ?? 'limits';
+  const [tab, setTab] = useUrlTab(TABS, 'limits');
   return (
     <Stack>
       <PageHeader title={t('risk.title')} description={t('risk.description', { entity: entity?.code ?? '' })} />
@@ -755,11 +757,7 @@ export function RiskPage() {
       ) : (
         <>
           <RiskKpis entityId={entity.id} />
-          <Tabs
-            value={tab}
-            onChange={(value) => setParams(value && value !== 'limits' ? { tab: value } : {}, { replace: true })}
-            keepMounted={false}
-          >
+          <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="limits">{t('risk.tabs.limits')}</Tabs.Tab>
               <Tabs.Tab value="exposures">{t('risk.tabs.exposures')}</Tabs.Tab>

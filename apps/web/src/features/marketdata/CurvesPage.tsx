@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { LineChart } from '@mantine/charts';
 import {
   Alert,
@@ -18,7 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
@@ -87,7 +88,7 @@ function InterpolationSelect({ code, value }: { code: string; value: 'LINEAR' | 
 export function CurvesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const curves = $api.useQuery('get', '/api/v1/market-data/curves', { params: { query: { activeOnly: true } } });
   const code = params.get('curve') ?? curves.data?.[0]?.code ?? '';
   const asOf = params.get('asOf') ?? dayjs().subtract(1, 'day').format('YYYY-MM-DD');
@@ -103,11 +104,7 @@ export function CurvesPage() {
     meta: { notify: false },
     onSuccess: (snapshot) => void navigate(`/market-data/snapshots/${snapshot.id}`),
   });
-  const set = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    next.set(key, value);
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, value: string) => patchUrl({ [key]: value });
   const buildButton = (
     <Can op="curve_build">
       <Button

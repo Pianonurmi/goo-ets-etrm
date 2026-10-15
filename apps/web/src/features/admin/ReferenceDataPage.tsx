@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   Alert,
   Badge,
@@ -21,7 +22,6 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Body, Schema } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
@@ -84,13 +84,8 @@ function useRegistries() {
 
 /** The record whose drawer is open, kept in the URL (`?open=<id>`) so it can be linked and survives a reload. */
 function useOpenRecord(): [string | null, (id: string | null) => void] {
-  const [params, setParams] = useSearchParams();
-  const set = (id: string | null) => {
-    const next = new URLSearchParams(params);
-    if (id) next.set('open', id);
-    else next.delete('open');
-    setParams(next, { replace: true });
-  };
+  const { params, set: patchUrl } = useUrlState();
+  const set = (id: string | null) => patchUrl({ open: id });
   return [params.get('open'), set];
 }
 
@@ -1064,20 +1059,14 @@ const TABS = ['entities', 'counterparties', 'registries', 'devices'] as const;
 /** Legal entities, counterparties, registries and devices, with their history and four-eyes changes. */
 export function ReferenceDataPage() {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
-  const requested = params.get('tab');
-  const tab = TABS.find((value) => value === requested) ?? 'entities';
+  const [tab, setTab] = useUrlTab(TABS, 'entities');
   return (
     <Stack>
       <PageHeader title={t('admin.referenceTitle')} description={t('admin.referenceDescription')} />
       <Alert color="blue" variant="light" icon={<IconShieldCheck size={18} />} py="xs">
         <Text size="sm">{t('admin.fourEyesNote')}</Text>
       </Alert>
-      <Tabs
-        value={tab}
-        onChange={(value) => setParams(value && value !== 'entities' ? { tab: value } : {}, { replace: true })}
-        keepMounted={false}
-      >
+      <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
         <Tabs.List>
           <Tabs.Tab value="entities">{t('admin.tabs.entities')}</Tabs.Tab>
           <Tabs.Tab value="counterparties">{t('admin.tabs.counterparties')}</Tabs.Tab>

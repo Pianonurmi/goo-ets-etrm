@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import {
   Button,
   FileButton,
@@ -17,7 +18,6 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal } from '@/shared/api/types';
 import { uploadText } from '@/shared/api/upload';
@@ -302,7 +302,7 @@ function AllocateModal({ entityId, payment, onClose }: { entityId: string; payme
 /** Payments received and made, with the cash not yet applied to an invoice. */
 export function PaymentsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const counterparties = useCounterparties();
   const unappliedOnly = params.get('unapplied') === 'true';
   const [recording, setRecording] = useState(false);
@@ -384,12 +384,7 @@ export function PaymentsTab({ entityId }: { entityId: string }) {
         <Switch
           label={t('settlement.unappliedOnly')}
           checked={unappliedOnly}
-          onChange={(e) => {
-            const next = new URLSearchParams(params);
-            if (e.currentTarget.checked) next.set('unapplied', 'true');
-            else next.delete('unapplied');
-            setParams(next, { replace: true });
-          }}
+          onChange={(e) => patchUrl({ unapplied: e.currentTarget.checked ? 'true' : null })}
         />
         <Group gap="xs">
           <Can op="payment_importCsv">

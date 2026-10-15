@@ -1,3 +1,4 @@
+import { Money } from '@/shared/components/Figures';
 import { Anchor, Button, Checkbox, Group, Modal, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
@@ -7,7 +8,7 @@ import { $api } from '@/shared/api/client';
 import { decimal } from '@/shared/api/types';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
-import { formatDate, formatMoney, formatQuantity } from '@/shared/format/format';
+import { formatDate, formatQuantity } from '@/shared/format/format';
 import { useCounterparties } from '@/features/trades/hooks';
 import { useInvalidateSettlement } from './hooks';
 import { purchaseCandidates, type Invoice, type Item } from './model/settlement';
@@ -101,7 +102,9 @@ export function InvoiceRunModal({ entityId, onClose }: { entityId: string; onClo
                         </Anchor>
                       </Table.Td>
                       <Table.Td>{t('settlement.lineCount', { count: draft.lines.length })}</Table.Td>
-                      <Table.Td ta="right">{formatMoney(draft.grossTotal, draft.currency)}</Table.Td>
+                      <Table.Td ta="right">
+                        <Money value={draft.grossTotal} currency={draft.currency} />
+                      </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
@@ -251,8 +254,12 @@ export function PurchaseInvoiceModal({
                   <Table.Td>{item.tradeNumber}</Table.Td>
                   <Table.Td>{formatDate(item.deliveredOn)}</Table.Td>
                   <Table.Td ta="right">{formatQuantity(item.quantity, item.unit)}</Table.Td>
-                  <Table.Td ta="right">{formatMoney(item.netAmount, item.currency)}</Table.Td>
-                  <Table.Td ta="right">{formatMoney(item.vatAmount, item.currency)}</Table.Td>
+                  <Table.Td ta="right">
+                    <Money value={item.netAmount} currency={item.currency} />
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <Money value={item.vatAmount} currency={item.currency} />
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>

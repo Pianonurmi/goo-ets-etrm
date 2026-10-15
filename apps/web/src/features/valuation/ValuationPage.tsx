@@ -1,3 +1,4 @@
+import { useUrlTab } from '@/shared/useUrlState';
 import { BarChart } from '@mantine/charts';
 import { Alert, Button, Group, Paper, Select, SimpleGrid, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { IconChartBar, IconInbox, IconPlayerPlay, IconSend } from '@tabler/icons-react';
@@ -7,7 +8,7 @@ import type { TFunction } from 'i18next';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -28,7 +29,6 @@ import { DataGrid } from '@/shared/grid/DataGrid';
 import { LoadMore } from '@/shared/grid/LoadMore';
 import { useBooks } from '@/features/trades/hooks';
 import { signOffSteps } from '@/features/marketdata/model/lifecycle';
-import { oneOf } from '@/shared/urlParams';
 import { explainBars } from './model/explain';
 import { OfficialRun } from './OfficialRun';
 import { PortfolioExplain, PortfolioTab } from './PortfolioTab';
@@ -264,13 +264,13 @@ function ExplainFor({ entityId, initial }: { entityId: string; initial: [string,
           <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
             <KpiCard
               label={t('valuation.mtmFrom', { date: formatDate(data.fromDate) })}
-              value={formatMoney(data.mtmFrom)}
+              value=<Money value={data.mtmFrom} />
               unit={data.baseCurrency}
               to={`/valuation/runs/${data.fromRunId}`}
             />
             <KpiCard
               label={t('valuation.mtmTo', { date: formatDate(data.toDate) })}
-              value={formatMoney(data.mtmTo)}
+              value=<Money value={data.mtmTo} />
               unit={data.baseCurrency}
               to={`/valuation/runs/${data.toRunId}`}
             />
@@ -309,8 +309,7 @@ function ExplainFor({ entityId, initial }: { entityId: string; initial: [string,
 export function ValuationPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const tab = oneOf(params.get('tab'), ['runs', 'official', 'explain'] as const, 'runs');
+  const [tab, setTab] = useUrlTab(['runs', 'official', 'explain'] as const, 'runs');
   return (
     <Stack>
       <PageHeader
@@ -322,11 +321,7 @@ export function ValuationPage() {
       ) : (
         <>
           <ValuationKpis entityId={entity.id} />
-          <Tabs
-            value={tab}
-            onChange={(value) => setParams(value && value !== 'runs' ? { tab: value } : {}, { replace: true })}
-            keepMounted={false}
-          >
+          <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="runs">{t('valuation.runs')}</Tabs.Tab>
               <Tabs.Tab value="official" data-testid="tab-official">
@@ -390,8 +385,7 @@ function optionColumns(t: TFunction): ColDef<Result>[] {
 export function RunDetailPage() {
   const { t } = useTranslation();
   const { runId = '' } = useParams();
-  const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') === 'portfolio' ? 'portfolio' : 'results';
+  const [tab, setTab] = useUrlTab(['results', 'portfolio'] as const, 'results');
   const queryClient = useQueryClient();
   const run = $api.useQuery('get', '/api/v1/valuation/runs/{id}', { params: { path: { id: runId } } });
   const books = useBooks(run.data?.legalEntityId);
@@ -595,10 +589,7 @@ export function RunDetailPage() {
           </Paper>
         )}
       </DetailLayout>
-      <Tabs
-        value={tab}
-        onChange={(value) => setParams(value && value !== 'results' ? { tab: value } : {}, { replace: true })}
-      >
+      <Tabs value={tab} onChange={(value) => setTab(value)}>
         <Tabs.List>
           <Tabs.Tab value="results" data-testid="results-tab">
             {t('valuation.resultsTab')}

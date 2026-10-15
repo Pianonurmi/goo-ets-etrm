@@ -1,9 +1,10 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { LineChart } from '@mantine/charts';
 import { Anchor, Button, List, Paper, Stack, Table, Tabs, Text, Title } from '@mantine/core';
 import { IconCheck, IconFileTypePdf, IconInbox, IconPlayerStop, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
 import { Can } from '@/shared/auth/Can';
@@ -17,7 +18,7 @@ import { ScrollTable } from '@/shared/components/ScrollTable';
 import { CardSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
-import { formatDate, formatDateTime, formatDecimal, formatMoney, formatPercent } from '@/shared/format/format';
+import { formatDate, formatDateTime, formatDecimal, formatPercent } from '@/shared/format/format';
 import { HedgeDiscontinueModal } from './HedgeDiscontinueModal';
 import {
   canDiscontinue,
@@ -195,12 +196,18 @@ function EffectivenessTab({ measurements, currency }: { measurements: readonly H
                       {formatDate(m.valuationDate)}
                     </Anchor>
                   </Table.Td>
-                  <Table.Td ta="right">{formatMoney(m.instrumentValue, currency)}</Table.Td>
+                  <Table.Td ta="right">
+                    <Money value={m.instrumentValue} currency={currency} />
+                  </Table.Td>
                   <Table.Td ta="right">
                     <Money value={m.instrumentChange} currency={currency} signed />
                   </Table.Td>
-                  <Table.Td ta="right">{formatMoney(m.hypotheticalValue, currency)}</Table.Td>
-                  <Table.Td ta="right">{formatMoney(m.effective, currency)}</Table.Td>
+                  <Table.Td ta="right">
+                    <Money value={m.hypotheticalValue} currency={currency} />
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <Money value={m.effective} currency={currency} />
+                  </Table.Td>
                   <Table.Td ta="right">
                     <Money value={m.ineffective} currency={currency} signed />
                   </Table.Td>
@@ -267,7 +274,7 @@ export function HedgeDetailPage() {
   const { t } = useTranslation();
   const { hedgeId = '' } = useParams();
   const { entities } = useEntity();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const [discontinuing, setDiscontinuing] = useState(false);
   const detail = $api.useQuery('get', '/api/v1/ledger/hedges/{id}', { params: { path: { id: hedgeId } } });
   const hedge = detail.data?.relationship;
@@ -398,12 +405,7 @@ export function HedgeDetailPage() {
         >
           <Tabs
             value={tab}
-            onChange={(value) => {
-              const next = new URLSearchParams(params);
-              if (value && value !== 'designation') next.set('tab', value);
-              else next.delete('tab');
-              setParams(next, { replace: true });
-            }}
+            onChange={(value) => patchUrl({ tab: value && value !== 'designation' ? value : null })}
             keepMounted={false}
           >
             <Tabs.List>
