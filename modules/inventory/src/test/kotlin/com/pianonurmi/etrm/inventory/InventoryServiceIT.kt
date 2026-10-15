@@ -120,6 +120,7 @@ class InventoryServiceIT {
             referenceData,
             actor,
             publisher,
+            Clock.systemUTC(),
         )
 
         entityId = referenceData.createLegalEntity(CreateLegalEntity("INV-CO", "Inventory Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id

@@ -24,6 +24,7 @@ dependencies {
     testFixturesApi(libs.junit.jupiter)
     testFixturesImplementation(libs.slf4j.api)
     testFixturesImplementation(libs.spring.jdbc)
+    testFixturesApi(libs.spring.context)
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.testcontainers.junit)
 }

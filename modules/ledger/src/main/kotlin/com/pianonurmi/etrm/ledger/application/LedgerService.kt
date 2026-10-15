@@ -67,10 +67,10 @@ class LedgerService(
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
     private val glInterface: GlInterfaceRepository,
-    /** Checks before a hard close (ADR 0024); none when not wired (hand-wired tests). */
-    private val gates: HardCloseGates? = null,
-    /** Records rules that apply but cannot post (review finding F4); none when not wired (hand-wired tests). */
-    private val unposted: UnpostedEvents? = null,
+    /** Checks before a hard close (ADR 0024). */
+    private val gates: HardCloseGates,
+    /** Records rules that apply but cannot post (review finding F4). */
+    private val unposted: UnpostedEvents,
 ) : LedgerCommand, LedgerQuery {
     // ----------------------------------------------------------------------------------------------------------
     // Posting
@@ -100,7 +100,7 @@ class LedgerService(
             val missing = rule.lines.map { it.amount }.distinct().filter { key -> facts.amounts[key]?.let { it.signum() < 0 } ?: true }
             if (missing.isNotEmpty()) {
                 // The rule applies but cannot post: record it for the ledger's attention instead of posting nothing silently.
-                unposted?.missingAmount(facts, rule.ruleCode, missing)
+                unposted.missingAmount(facts, rule.ruleCode, missing)
                 return@mapNotNull null
             }
             val drafts = EntryBuilder.draft(rule, facts) ?: return@mapNotNull null
@@ -321,9 +321,8 @@ class LedgerService(
         if (current == PeriodStatus.CLOSED) throw ValidationException("Period $period is already hard-closed")
         if (current == target) throw ValidationException("Period $period is already ${target.name.lowercase().replace('_', '-')}")
         if (hard) {
-            gates?.blockers(legalEntityId, period)?.takeIf {
-                it.isNotEmpty()
-            }?.let { throw ValidationException("Period $period cannot be hard-closed: ${it.joinToString("; ")}") }
+            val blockers = gates.blockers(legalEntityId, period)
+            if (blockers.isNotEmpty()) throw ValidationException("Period $period cannot be hard-closed: ${blockers.joinToString("; ")}")
         }
         val view = AccountingPeriodView(legalEntityId, period.toString(), target, actor.userId, clock.instant())
         periods.upsert(view)

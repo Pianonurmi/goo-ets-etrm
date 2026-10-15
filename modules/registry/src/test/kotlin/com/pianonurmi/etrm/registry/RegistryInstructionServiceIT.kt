@@ -184,6 +184,7 @@ class RegistryInstructionServiceIT {
                 referenceData,
                 actor,
                 publisher,
+                Clock.systemUTC(),
             )
         statements = RegistryStatementService(formats, repository, instructions, reconciliation, referenceData, documents, actor)
 

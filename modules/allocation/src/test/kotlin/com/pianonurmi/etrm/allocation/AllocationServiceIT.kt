@@ -47,6 +47,7 @@ import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.security.Actor
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
+import com.pianonurmi.etrm.platform.test.Providers
 import com.pianonurmi.etrm.platform.test.TestDatabase
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.platform.tx.Savepoints
@@ -62,6 +63,7 @@ import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
 import com.pianonurmi.etrm.product.application.TaxonomySnapshots
+import com.pianonurmi.etrm.product.fixtures.ProductWiring
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqProductionForecastRepository
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.CreateLegalEntity
@@ -74,6 +76,7 @@ import com.pianonurmi.etrm.referencedata.api.RecordForecast
 import com.pianonurmi.etrm.referencedata.api.RegistryAccountType
 import com.pianonurmi.etrm.referencedata.application.ProductionForecastService
 import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
+import com.pianonurmi.etrm.referencedata.fixtures.ReferenceDataWiring
 import com.pianonurmi.etrm.registry.adapter.gateway.ManualRegistryGateway
 import com.pianonurmi.etrm.registry.adapter.gateway.SimulatorRegistryGateway
 import com.pianonurmi.etrm.registry.adapter.jooq.JooqRegistryInstructionRepository
@@ -96,6 +99,7 @@ import com.pianonurmi.etrm.trade.api.TradeLegView
 import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.api.TradeView
 import com.pianonurmi.etrm.trade.application.TradeService
+import com.pianonurmi.etrm.trade.fixtures.TradeWiring
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -104,10 +108,12 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.mockk.every
 import io.mockk.mockk
+import org.jooq.DSLContext
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.transaction.support.TransactionOperations
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
@@ -152,51 +158,46 @@ class AllocationServiceIT {
         }
     }
 
+    /** Registry instructions through the simulator and the manual gateway. */
+    private fun instructions(
+        dsl: DSLContext,
+        routes: TransferRouteService,
+        holdings: AllowanceHoldingService,
+        beneficiaries: BeneficiaryService,
+        clock: Clock,
+    ) = RegistryInstructionService(
+        JooqRegistryInstructionRepository(dsl),
+        listOf(SimulatorRegistryGateway(), ManualRegistryGateway()),
+        lots,
+        lots,
+        referenceData,
+        routes,
+        actor,
+        bus,
+        clock,
+        holdings,
+        holdings,
+        beneficiaries,
+    )
+
     @BeforeAll
-    @Suppress("LongMethod") // wires the module graph by hand
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "product", "inventory", "trade", "registry", "allocation")
         val dsl = TestDatabase.dsl
         val clock = Clock.systemUTC()
-        val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
-        referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
-        criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
-        val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
-        ProductBucketSeeder(buckets, buckets).seed()
-        val catalogue = ProductCatalogueService(JooqAllowanceProductRepository(dsl))
+        val wiring = ReferenceDataWiring(dsl, bus)
+        val taxonomy = wiring.taxonomy
+        referenceData = wiring.referenceData
+        val product = ProductWiring(dsl, taxonomy, actor)
+        criteria = product.criteria
+        val buckets = product.buckets
+        val catalogue = product.catalogue
         val beneficiaries = BeneficiaryService(JooqBeneficiaryRepository(dsl), actor, bus, clock)
         lots = LotService(JooqLotRepository(dsl), JooqLotEventJournal(dsl), referenceData, taxonomy, criteria, actor, bus, clock, beneficiaries)
         val allowanceHoldings = AllowanceHoldingService(JooqAllowanceHoldingRepository(dsl), referenceData, catalogue, actor, bus)
         val routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
-        val instructions = RegistryInstructionService(
-            JooqRegistryInstructionRepository(dsl),
-            listOf(SimulatorRegistryGateway(), ManualRegistryGateway()),
-            lots,
-            lots,
-            referenceData,
-            routes,
-            actor,
-            bus,
-            clock,
-            allowanceHoldings,
-            allowanceHoldings,
-            beneficiaries,
-        )
-        val trades =
-            TradeService(
-                JooqTradeRepository(dsl),
-                referenceData,
-                criteria,
-                buckets,
-                catalogue,
-                actor,
-                bus,
-                clock,
-                BigDecimal.ZERO,
-                mockk<FxRates>(relaxed = true),
-                "EUR",
-                mockk(relaxed = true),
-            )
+        val instructions = instructions(dsl, routes, allowanceHoldings, beneficiaries, clock)
+        val trades = TradeWiring.tradeService(dsl, referenceData, product, actor, bus, mockk(relaxed = true), clock)
         val planRepository = JooqAllocationPlanRepository(dsl)
         obligations = ObligationService(JooqObligationRepository(dsl), criteria, buckets, referenceData, bus, beneficiaries)
         val problemBuilder = ProblemBuilder(criteria, buckets, routes, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) })
@@ -213,8 +214,9 @@ class AllocationServiceIT {
                 buckets,
                 lots,
                 clock,
-                settings = AllocationHeadroomSettings(warmOnMiss = false),
-                futureSupply = futureSupply,
+                TransactionOperations.withoutTransaction(),
+                AllocationHeadroomSettings(warmOnMiss = false),
+                futureSupply,
             )
         }
         flows = newFlows()
@@ -231,8 +233,9 @@ class AllocationServiceIT {
         headroom = HeadroomService(flows, problemBuilder, buckets, criteria, actor, clock)
         futureView = FutureSupplyService(flows, actor, clock)
         portfolio = PortfolioService(flows, problemBuilder, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
-        // The same service, counting on purchases and expected issuance (ADR 0038); `allocation` keeps to held lots.
-        planning = AllocationService(
+
+        // Both count on purchases and expected issuance only when a command asks for it (ADR 0038): `planning` does.
+        fun allocationService() = AllocationService(
             planRepository,
             JooqObligationRepository(dsl),
             obligations,
@@ -251,24 +254,13 @@ class AllocationServiceIT {
             futureSupply = futureSupply,
             referenceData = referenceData,
         )
-        allocation = AllocationService(
-            planRepository,
-            JooqObligationRepository(dsl),
-            obligations,
-            problemBuilder,
-            criteria,
-            lots,
-            lots,
-            instructions,
-            instructions,
-            trades,
-            trades,
-            actor,
-            bus,
-            clock,
-            Savepoints.NONE,
-        )
+        planning = allocationService()
+        allocation = allocationService()
+        scenario()
+    }
 
+    /** The allocation entity with a simulator and a manual registry account, and its own hydro and wind devices. */
+    private fun scenario() {
         entityId = referenceData.createLegalEntity(CreateLegalEntity("ALLOC-CO", "Allocation Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
         simAccount = referenceData.createRegistryAccount(
             CreateRegistryAccount("SIMULATOR", "SIM-ALLOC", "Simulator account", RegistryAccountType.HOLDING, HolderType.LEGAL_ENTITY, entityId),

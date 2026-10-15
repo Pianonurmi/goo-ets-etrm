@@ -1,5 +1,6 @@
 plugins {
     id("etrm.module-conventions")
+    `java-test-fixtures`
 }
 
 dependencies {
@@ -21,5 +22,7 @@ dependencies {
     }
 
     testImplementation(testFixtures(project(":platform")))
+    testImplementation(testFixtures(project(":modules:referencedata")))
+    testImplementation(testFixtures(project(":modules:trade")))
     testImplementation(project(":modules:taxonomy"))
 }

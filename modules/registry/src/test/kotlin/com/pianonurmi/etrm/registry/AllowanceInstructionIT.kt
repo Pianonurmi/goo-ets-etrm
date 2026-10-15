@@ -130,6 +130,7 @@ class AllowanceInstructionIT {
             referenceData,
             actor,
             publisher,
+            Clock.systemUTC(),
         )
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, publisher, clock)
         statements = RegistryStatementService(formats, repository, instructions, reconciliation, referenceData, documents, actor)
