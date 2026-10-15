@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Alert, Anchor, Button, Drawer, Group, Modal, Paper, Stack, Table, Text, TextInput } from '@mantine/core';
 import { IconCalculator } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
@@ -19,7 +20,7 @@ import { TableSkeleton } from '@/shared/components/Skeletons';
 import { formatDate, formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { Price, RangeFilter } from './components';
-import { useInvalidateClearing, useUrlParams } from './hooks';
+import { useInvalidateClearing } from './hooks';
 import {
   lastBusinessDay,
   newestFirst,
@@ -191,7 +192,7 @@ function RunDrawer({ runId, onClose }: { runId: string; onClose: () => void }) {
 /** Daily variation margin of the account: the current run of each day, newest first. */
 export function MarginTab({ account }: { account: Account | null }) {
   const { t } = useTranslation();
-  const { params, set } = useUrlParams();
+  const { params, set } = useUrlState();
   const [computing, setComputing] = useState(false);
   const today = dayjs().format('YYYY-MM-DD');
   const range = readRange(params.get('from'), params.get('to'), today);

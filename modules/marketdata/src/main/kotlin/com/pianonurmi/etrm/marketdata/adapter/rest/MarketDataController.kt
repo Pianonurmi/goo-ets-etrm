@@ -20,6 +20,7 @@ import com.pianonurmi.etrm.marketdata.api.RecordQuote
 import com.pianonurmi.etrm.marketdata.api.UpsertImportFormat
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
@@ -59,11 +60,13 @@ class MarketDataController(
 
     @PostMapping("/instruments")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun createInstrument(
         @RequestBody body: CreateInstrument,
     ): InstrumentView = command.createInstrument(body)
 
     @PutMapping("/aliases")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun addAlias(
         @RequestBody body: AliasRequest,
     ): AliasRequest = body.also { command.addAlias(it.source, it.externalCode, it.instrumentCode) }
@@ -77,6 +80,7 @@ class MarketDataController(
     ): List<QuoteView> = query.quotes(instrument, from, to, knownAt)
 
     @PutMapping("/quotes")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun recordQuote(
         @RequestBody body: RecordQuote,
     ): QuoteView = command.recordQuote(body)
@@ -85,6 +89,7 @@ class MarketDataController(
     fun suspect(): List<QuoteView> = query.suspectQuotes()
 
     @PostMapping("/quotes/{id}/acknowledge")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun acknowledge(
         @PathVariable id: UUID,
         @RequestBody body: NoteRequest,
@@ -104,6 +109,7 @@ class MarketDataController(
     ): FxRateView = fx.rate(date, from, to) ?: throw NotFoundException("FxRate", "$from/$to on $date")
 
     @PutMapping("/fx-rates")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun recordFxRate(
         @RequestBody body: RecordFxRate,
     ): RecordFxRate = body.also { command.recordFxRate(it) }
@@ -112,17 +118,20 @@ class MarketDataController(
     fun importFormats(): List<ImportFormatView> = query.importFormats()
 
     @PutMapping("/import-formats")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun upsertImportFormat(
         @RequestBody body: UpsertImportFormat,
     ): ImportFormatView = command.upsertImportFormat(body)
 
     @PostMapping("/imports", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun importFile(
         @RequestParam format: String,
         @RequestPart file: MultipartFile,
     ): ImportResult = command.importFile(format, file.originalFilename ?: "upload", file.bytes)
 
     @PostMapping("/ecb/pull")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun pullEcb(): ImportResult {
         actorProvider.current().requireRole(Role.ADMIN)
         return ecb.pull()
@@ -133,6 +142,7 @@ class MarketDataController(
 
     @PostMapping("/indices")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun createIndex(
         @RequestBody body: CreatePriceIndex,
     ): PriceIndexView = command.createIndex(body)

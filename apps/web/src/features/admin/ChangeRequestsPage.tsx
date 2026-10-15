@@ -1,9 +1,10 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Button, Drawer, Group, Paper, SegmentedControl, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconInbox, IconShieldCheck } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { useSession } from '@/shared/auth/SessionContext';
@@ -144,7 +145,7 @@ function RequestDrawer({ request, onClose }: { request: ChangeRequest; onClose: 
 /** Four-eyes changes to sensitive master data: registry integration, counterparty registry accounts, bank accounts. */
 export function ChangeRequestsPage() {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, reset: resetUrl } = useUrlState();
   const status = FILTERS.find((value) => value === params.get('status')) ?? 'PENDING';
   const [open, setOpen] = useState<ChangeRequest | null>(null);
   const requests = $api.useQuery('get', '/api/v1/reference/change-requests', {
@@ -191,7 +192,7 @@ export function ChangeRequestsPage() {
         w="fit-content"
         data={FILTERS.map((value) => ({ value, label: t(`admin.requestStatus.${value}`) }))}
         value={status}
-        onChange={(value) => setParams({ status: value }, { replace: true })}
+        onChange={(value) => resetUrl({ status: value })}
         aria-label={t('admin.status')}
         data-testid="change-request-status"
       />
@@ -208,7 +209,7 @@ export function ChangeRequestsPage() {
               description={t('admin.noRequestsHint')}
               action={
                 status !== 'ALL' ? (
-                  <Button variant="light" size="xs" onClick={() => setParams({ status: 'ALL' }, { replace: true })}>
+                  <Button variant="light" size="xs" onClick={() => resetUrl({ status: 'ALL' })}>
                     {t('admin.showAllRequests')}
                   </Button>
                 ) : undefined

@@ -28,6 +28,7 @@ import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.criteria.CriteriaService
 import com.pianonurmi.etrm.product.api.criteria.Criterion
@@ -94,6 +95,7 @@ class InventoryController(
 
     @PostMapping("/lots")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun receive(
         @Valid @RequestBody body: ReceiveLots,
     ): LotView = lotCommand.requireLotOperator(body.holderEntityId).let { lotCommand.receive(body) }
@@ -110,36 +112,42 @@ class InventoryController(
         )
 
     @PostMapping("/lots/{id}/split")
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun split(
         @PathVariable id: UUID,
         @RequestBody body: QuantityRequest,
     ): SplitResult = operate(id) { lotCommand.split(id, body.quantity) }
 
     @PostMapping("/lots/{id}/reserve")
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun reserve(
         @PathVariable id: UUID,
         @RequestBody body: ReservationRequest,
     ): LotView = operate(id) { lotCommand.reserve(id, body.quantity, body.reservationRef) }
 
     @PostMapping("/lots/{id}/release")
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun release(
         @PathVariable id: UUID,
         @RequestBody body: ReservationRequest,
     ): LotView = operate(id) { lotCommand.release(id, body.reservationRef) }
 
     @PostMapping("/lots/{id}/cancel")
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun cancel(
         @PathVariable id: UUID,
         @RequestBody body: LotCancelRequest,
     ): LotView = operate(id) { lotCommand.cancel(id, body.quantity, body.details) }
 
     @PostMapping("/lots/{id}/withdraw")
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun withdraw(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): LotView = operate(id) { lotCommand.withdraw(id, body.reason) }
 
     @PostMapping("/lots/{id}/correct")
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun correct(
         @PathVariable id: UUID,
         @RequestBody body: LotCorrection,
@@ -180,6 +188,7 @@ class InventoryController(
      * within the user's legal entities.
      */
     @GetMapping("/journal/verify")
+    @AllowedRoles(Role.AUDITOR, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR, Role.MIDDLE_OFFICE, Role.ACCOUNTANT, Role.RISK)
     fun verifyJournal(): Map<String, Any> {
         val actor = actorProvider.current()
         actor.requireRole(*JOURNAL_READERS)
@@ -206,6 +215,7 @@ class InventoryController(
 
     @PostMapping("/holdings/movements")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun recordMovement(
         @Valid @RequestBody body: RecordAllowanceMovement,
     ): AllowanceHoldingView {
@@ -216,11 +226,13 @@ class InventoryController(
 
     @PostMapping("/statements")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun importStatement(
         @Valid @RequestBody body: ImportStatement,
     ): StatementView = reconciliationAccess.importer(body.registryAccountId).let { reconciliationCommand.importStatement(body) }
 
     @PostMapping("/statements/{id}/reconcile")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun reconcile(
         @PathVariable id: UUID,
     ): StatementView {
@@ -235,6 +247,7 @@ class InventoryController(
     ): List<StatementView> = reconciliationAccess.reader(registryAccountId).let { reconciliationQuery.statements(registryAccountId, limit) }
 
     @GetMapping("/statements/{id}")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE, Role.MIDDLE_OFFICE, Role.ACCOUNTANT, Role.RISK, Role.AUDITOR)
     fun statement(
         @PathVariable id: UUID,
     ): StatementView = requireStatement(id).also { reconciliationAccess.reader(it.registryAccountId) }

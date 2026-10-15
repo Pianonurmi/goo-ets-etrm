@@ -59,7 +59,7 @@ export default defineConfig({
       ? []
       : [
           {
-            command: `${java} -jar ../api/build/libs/api.jar --spring.profiles.active=${process.env.E2E_PROFILES ?? 'dev,demo'} --server.port=${port}`,
+            command: `${java} -jar ../api/build/libs/api-showcase.jar --spring.profiles.active=${process.env.E2E_PROFILES ?? 'dev,demo'} --server.port=${port}`,
             url: `${baseURL}/actuator/health`,
             reuseExistingServer: !process.env.CI,
             timeout: 180_000,
@@ -73,7 +73,7 @@ export default defineConfig({
       : [
           {
             // Bound to loopback: the showcase needs no proxy in a test, and the seeder calls it on 127.0.0.1.
-            command: `${java} -jar ../api/build/libs/api.jar --spring.profiles.active=showcase,demo --server.port=${showcasePort} --server.address=127.0.0.1`,
+            command: `${java} -jar ../api/build/libs/api-showcase.jar --spring.profiles.active=showcase,demo --server.port=${showcasePort} --server.address=127.0.0.1`,
             url: `${showcaseURL}/actuator/health`,
             reuseExistingServer: !process.env.CI,
             timeout: 180_000,

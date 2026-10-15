@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import {
   Alert,
   Button,
@@ -31,7 +32,6 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
 import { decimal, type Body, type Schema } from '@/shared/api/types';
@@ -885,15 +885,10 @@ function Policies({ entityId }: { entityId: string }) {
 export function MonthEndPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patch } = useUrlState();
   const period = params.get('period') ?? previousPeriod(new Date());
   const tab = oneOf(params.get('tab'), ['close', 'gl', 'policies'] as const, 'close');
-  const set = (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, value: string | null) => patch({ [key]: value });
   return (
     <Stack>
       <PageHeader

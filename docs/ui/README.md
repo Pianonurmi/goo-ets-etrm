@@ -15,13 +15,13 @@ SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun
 cd apps/web && npm ci && npm run gen:api && npm run dev     # http://localhost:5173, proxies /api to :8080
 
 # Or the bundled build: the jar serves the UI at http://127.0.0.1:8080/ (the dev profile listens on loopback only)
-./gradlew :apps:api:bootJar && java -jar apps/api/build/libs/api.jar --spring.profiles.active=dev,demo
+./gradlew :apps:api:showcaseJar && java -jar apps/api/build/libs/api-showcase.jar --spring.profiles.active=dev,demo
 ```
 
 The showcase locally (any password of 12 characters or more; sign in as `demo`):
 
 ```bash
-ETRM_DEMO_PASSWORD=choose-a-long-one java -jar apps/api/build/libs/api.jar --spring.profiles.active=showcase,demo
+ETRM_DEMO_PASSWORD=choose-a-long-one java -jar apps/api/build/libs/api-showcase.jar --spring.profiles.active=showcase,demo
 ```
 
 | `ui-config` auth mode | Profiles | Sign-in | Acting as | Banner |
@@ -75,7 +75,7 @@ when `DEMO-FI` exists from before the run log). Drop the database to start over.
 | `npm run lint` / `npm run format:check` | ESLint (type-checked, React hooks, accessibility) and Prettier |
 | `npm test` | Vitest with Testing Library and msw (`npm run test:coverage` for coverage) |
 | `npm run coverage:api` | Every API operation has a UI caller, or a reason in `api-only.json` (`apiOnly`, or `planned` with its milestone) |
-| `npm run e2e` | Playwright journeys against the jar (`../api/build/libs/api.jar`, `dev,demo` profiles, database `etrm_e2e`) |
+| `npm run e2e` | Playwright journeys against the jar (`../api/build/libs/api-showcase.jar`, `dev,demo` profiles, database `etrm_e2e`) |
 
 `./gradlew :apps:web:check` runs the first five and the bundle budget. `./gradlew build` runs them and puts the bundle into the jar.
 
@@ -103,7 +103,10 @@ Tests at every level: [testing.md](testing.md).
 - **Command palette:** `Ctrl K` (`⌘ K`) or `/` opens a search over the screens the user may see. From two characters
   on, it also finds trades by number, external reference or UTI in the selected legal entity.
 - **Filters in the URL:** lists keep their filters and tabs in the query string, so a view can be bookmarked or
-  shared.
+  shared. Screens read and change it through `useUrlState()` (`set({ key: value })`, null removes a key) and
+  `useUrlTab(tabs, default)` (`shared/useUrlState.ts`); values are narrowed with `oneOf`/`allOf` (`shared/urlParams.ts`).
+- **Amounts on screen** render with `<Money>` (`shared/components/Figures.tsx`); `formatMoney` is for text that is not
+  an element (grid formatters, labels, messages).
 - **Legal entity:** the header selector scopes every screen. Its choice is kept per browser.
 
 
@@ -135,7 +138,9 @@ Tests at every level: [testing.md](testing.md).
 - **Amounts:** the server computes every amount. The UI formats numbers (`shared/format`) and sends decimals back as
   strings (`decimal()`), so nothing is rounded in the browser.
 - **Permissions:** actions are shown or hidden with `<Can op="trade_approve">` and `useCan()`, keyed by operation
-  id (`shared/auth/permissions.ts`). The API checks again.
+  id (`shared/auth/permissions.ts`). The roles come from the API: each handler names them in `@AllowedRoles`, the
+  OpenAPI document publishes them as `x-roles`, and `npm run gen:api` generates `permissions.generated.ts`. The API
+  checks again.
 - **Legal entity:** the entity selected in the header (`useEntity()`) scopes the screens. Lists on the server are
   limited to the user's entities.
 - **Text:** all visible text comes from `src/locales/en.json` through `useTranslation()`.

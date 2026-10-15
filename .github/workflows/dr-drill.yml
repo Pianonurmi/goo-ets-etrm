@@ -70,11 +70,11 @@ jobs:
           fi
           echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - name: Boot jar
-        run: ./gradlew :apps:api:bootJar
+        run: ./gradlew :apps:api:bootJar :apps:api:showcaseJar
       - name: Seed a source database with the demo data
         run: |
           PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_source"
-          ETRM_DB_URL=jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_source nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api.jar \
+          ETRM_DB_URL=jdbc:postgresql://localhost:${{ env.DB_PORT }}/etrm_source nohup "$JAVA_HOME_25_X64/bin/java" -jar apps/api/build/libs/api-showcase.jar \
             --spring.profiles.active=dev,demo --logging.level.com.pianonurmi.etrm=INFO > seed.log 2>&1 &
           echo $! > seed.pid
           for _ in $(seq 1 120); do curl -fs http://localhost:8080/actuator/health/readiness && break; sleep 2; done

@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.showcase
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
@@ -20,6 +22,7 @@ data class ResetAccepted(val requestedAt: Instant, val message: String)
 class ShowcaseController(private val reset: ObjectProvider<ShowcaseResetService>) {
     @PostMapping("/reset")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @AllowedRoles(Role.ADMIN)
     fun reset(
         @RequestBody body: ResetRequest,
     ): ResetAccepted {

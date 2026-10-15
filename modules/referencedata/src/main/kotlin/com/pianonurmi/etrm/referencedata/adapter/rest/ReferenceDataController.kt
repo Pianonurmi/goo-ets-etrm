@@ -3,6 +3,7 @@ package com.pianonurmi.etrm.referencedata.adapter.rest
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.BookView
 import com.pianonurmi.etrm.referencedata.api.CounterpartyView
@@ -59,11 +60,13 @@ class ReferenceDataController(
 
     @PostMapping("/legal-entities")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun createLegalEntity(
         @Valid @RequestBody body: CreateLegalEntity,
     ): LegalEntityView = requireMaintainer().let { command.createLegalEntity(body) }
 
     @PatchMapping("/legal-entities/{id}")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun updateLegalEntity(
         @PathVariable id: UUID,
         @Valid @RequestBody body: UpdateLegalEntity,
@@ -84,6 +87,7 @@ class ReferenceDataController(
 
     @PostMapping("/books")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun createBook(
         @Valid @RequestBody body: CreateBook,
     ): BookView {
@@ -107,6 +111,7 @@ class ReferenceDataController(
 
     @PostMapping("/counterparties")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun createCounterparty(
         @Valid @RequestBody body: CreateCounterparty,
     ): CounterpartyView {
@@ -115,6 +120,7 @@ class ReferenceDataController(
     }
 
     @PatchMapping("/counterparties/{id}")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun updateCounterparty(
         @PathVariable id: UUID,
         @Valid @RequestBody body: UpdateCounterparty,
@@ -142,6 +148,7 @@ class ReferenceDataController(
 
     @PostMapping("/registry-accounts")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun createRegistryAccount(
         @Valid @RequestBody body: CreateRegistryAccount,
     ): RegistryAccountView {
@@ -151,6 +158,7 @@ class ReferenceDataController(
     }
 
     @PutMapping("/registry-accounts/{id}/default-book")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun assignDefaultBook(
         @PathVariable id: UUID,
         @RequestBody body: DefaultBookRequest,
@@ -172,11 +180,13 @@ class ReferenceDataController(
 
     @PostMapping("/production-devices")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun createProductionDevice(
         @Valid @RequestBody body: CreateProductionDevice,
     ): ProductionDeviceView = requireMaintainer(Role.BACK_OFFICE, Role.REGISTRY_OPERATOR).let { command.createProductionDevice(body) }
 
     @PatchMapping("/production-devices/{id}")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.REGISTRY_OPERATOR)
     fun updateProductionDevice(
         @PathVariable id: UUID,
         @Valid @RequestBody body: UpdateProductionDevice,

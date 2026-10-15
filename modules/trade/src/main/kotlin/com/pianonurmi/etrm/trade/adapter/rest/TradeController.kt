@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.trade.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.ProductFamily
 import com.pianonurmi.etrm.trade.api.AmendTrade
 import com.pianonurmi.etrm.trade.api.CaptureTrade
@@ -92,46 +94,54 @@ class TradeController(private val command: TradeCommand, private val query: Trad
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE)
     fun capture(
         @Valid @RequestBody body: CaptureTrade,
     ): TradeView = command.capture(body)
 
     @PutMapping("/{id}")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE)
     fun amend(
         @PathVariable id: UUID,
         @Valid @RequestBody body: AmendTrade,
     ): TradeView = command.amend(id, body)
 
     @PostMapping("/{id}/approve")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun approve(
         @PathVariable id: UUID,
     ): TradeView = command.approve(id)
 
     @PostMapping("/{id}/reject")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun reject(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): TradeView = command.reject(id, body.reason)
 
     @PostMapping("/{id}/confirm")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun confirm(
         @PathVariable id: UUID,
         @RequestBody body: ConfirmTrade,
     ): TradeView = command.confirm(id, body)
 
     @PostMapping("/{id}/cancel")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE)
     fun cancel(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): TradeView = command.cancel(id, body.reason)
 
     @PostMapping("/{id}/deliveries")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun recordDelivery(
         @PathVariable id: UUID,
         @RequestBody body: RecordDelivery,
     ): TradeView = command.requireTradeOperator(id).let { command.recordDelivery(id, body) }
 
     @PostMapping("/{id}/settle")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun settle(
         @PathVariable id: UUID,
     ): TradeView = command.requireTradeOperator(id).let { command.markSettled(id) }

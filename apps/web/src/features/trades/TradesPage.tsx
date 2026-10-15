@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import {
   Anchor,
   Button,
@@ -17,7 +18,7 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -119,7 +120,7 @@ export function TradesPage() {
   const { entity } = useEntity();
   const counterparties = useCounterparties();
   const books = useBooks(entity?.id);
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const [text, setText] = useState(params.get('q') ?? '');
   const [q] = useDebouncedValue(text.trim(), 300);
   const statuses = allOf(params.getAll('status'), STATUSES);
@@ -129,17 +130,10 @@ export function TradesPage() {
   const to = params.get('to') ?? '';
   const filtered = FILTERS.some((key) => params.has(key));
 
-  const set = (key: string, values: string[]) => {
-    const next = new URLSearchParams(params);
-    next.delete(key);
-    values.filter(Boolean).forEach((value) => next.append(key, value));
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, values: string[]) => patchUrl({ [key]: values });
   const clearFilters = () => {
-    const next = new URLSearchParams(params);
-    FILTERS.forEach((key) => next.delete(key));
     setText('');
-    setParams(next, { replace: true });
+    patchUrl(Object.fromEntries(FILTERS.map((key) => [key, null])));
   };
 
   const search = $api.useInfiniteQuery(

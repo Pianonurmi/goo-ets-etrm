@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.product.adapter.rest
 
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.AllowanceProductView
 import com.pianonurmi.etrm.product.api.BucketHierarchy
@@ -67,11 +68,13 @@ class ProductController(
 
     @PostMapping("/buckets")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun createBucket(
         @Valid @RequestBody body: CreateProductBucket,
     ): ProductBucketView = requireMaintainer().let { bucketCommand.create(body) }
 
     @PatchMapping("/buckets/{code}")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun updateBucket(
         @PathVariable code: String,
         @Valid @RequestBody body: UpdateProductBucket,
@@ -90,11 +93,13 @@ class ProductController(
 
     @PostMapping("/futures-contracts")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun createFuturesContract(
         @RequestBody body: CreateFuturesContract,
     ): FuturesContractView = futuresCommand.create(body)
 
     @PostMapping("/futures-contracts/{code}/deactivate")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun deactivateFuturesContract(
         @PathVariable code: String,
     ): FuturesContractView = futuresCommand.deactivate(code)

@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import {
   Alert,
   Button,
@@ -17,7 +18,7 @@ import type { ColDef } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams, useSearchParams } from 'react-router';
+import { useParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -491,7 +492,7 @@ function SurrendersTab({ installation, year }: { installation: Installation; yea
 export function InstallationPage() {
   const { t } = useTranslation();
   const { installationId = '' } = useParams();
-  const [params, setParams] = useSearchParams();
+  const { params, set } = useUrlState();
   const year = yearOr(params.get('year'), new Date().getFullYear());
   const tab = oneOf(params.get('tab'), ['emissions', 'free-allocation', 'surrenders'] as const, 'emissions');
   const installation = $api.useQuery('get', '/api/v1/ets/installations/{id}', {
@@ -500,12 +501,7 @@ export function InstallationPage() {
   const compliance = $api.useQuery('get', '/api/v1/ets/installations/{id}/compliance/{year}', {
     params: { path: { id: installationId, year } },
   });
-  const setParam = (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const setParam = (key: string, value: string | null) => set({ [key]: value });
   const breadcrumbs = [{ label: t('ets.title'), to: `/ets?year=${year}` }];
   const data = installation.data;
   if (!data) {

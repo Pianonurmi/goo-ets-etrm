@@ -40,7 +40,7 @@ services:
 
   app:
     <<: *hardening
-    image: ${ETRM_IMAGE:-ghcr.io/pianonurmi/goo-ets-etrm:main}
+    image: ${ETRM_IMAGE:-ghcr.io/pianonurmi/goo-ets-etrm-showcase:main}
     # A reset ends the process (exit code 75); the restart policy brings it back, the start wipes and seeds again.
     restart: unless-stopped
     depends_on:
