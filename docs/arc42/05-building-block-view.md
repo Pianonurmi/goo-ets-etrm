@@ -2,31 +2,48 @@
 
 ## Level 1: modules
 
+<!-- module-diagram:begin (generated, checked by ModularityTests) -->
 ```mermaid
 flowchart TB
   platform[(platform<br/>shared kernel)]
-  taxonomy --> platform
-  referencedata --> taxonomy
-  product --> taxonomy
-  marketdata --> referencedata & product & workflow
-  trade --> referencedata & product & workflow & document & marketdata
-  inventory --> referencedata & taxonomy & product & workflow
-  registry --> referencedata & inventory & workflow & document
-  allocation --> product & inventory & trade & registry & referencedata & marketdata & workflow
-  position --> inventory & trade & allocation & product & referencedata & etscompliance
-  settlement --> referencedata & product & trade & workflow & document & marketdata
-  valuation --> referencedata & product & trade & marketdata & allocation & workflow
-  etscompliance --> referencedata & product & inventory & registry & workflow
-  ledger --> inventory & trade & allocation & registry & settlement & referencedata & product & marketdata & valuation & etscompliance & workflow
-  risk --> referencedata & product & inventory & trade & marketdata & valuation & settlement & position & allocation & workflow
-  reporting --> referencedata & product & trade & inventory & marketdata & valuation & etscompliance & risk & ledger
-  workflow --> platform
-  document --> platform
+  allocation --> clearing & inventory & marketdata & product & referencedata & registry & trade & workflow
   audit --> platform
+  clearing --> marketdata & product & referencedata & trade & workflow
+  document --> platform
+  etscompliance --> inventory & product & referencedata & registry & workflow
+  inventory --> product & referencedata & taxonomy & workflow
+  ledger --> allocation & clearing & document & etscompliance & inventory & marketdata & product & referencedata & settlement & trade & valuation & workflow
+  marketdata --> product & workflow
+  position --> allocation & etscompliance & inventory & product & referencedata & trade
+  product --> taxonomy
+  referencedata --> taxonomy & workflow
+  registry --> document & inventory & referencedata & workflow
+  reporting --> allocation & etscompliance & inventory & ledger & marketdata & product & referencedata & risk & trade & valuation
+  risk --> allocation & clearing & inventory & marketdata & position & product & referencedata & settlement & trade & valuation & workflow
+  settlement --> clearing & document & marketdata & product & referencedata & trade & workflow
+  taxonomy --> platform
+  trade --> document & marketdata & product & referencedata & workflow
+  valuation --> allocation & marketdata & product & referencedata & trade & workflow
+  workflow --> platform
+  subgraph app[apps/api]
+    config --> audit & web
+    database --> config
+    demo --> config & web
+    events --> inventory & ledger & registry & risk & settlement & trade
+    home --> allocation & audit & etscompliance & inventory & ledger & position & referencedata & risk & settlement & trade & valuation & workflow
+    integrity --> audit & document & inventory & ledger & referencedata
+    jobs --> platform
+    showcase --> config & web
+    web --> audit
+  end
 ```
+<!-- module-diagram:end -->
 
 Arrows are compile-time dependencies on another module's `api` (or `criteria`) named interface, verified by
-`ModularityTests`. Everything else flows through domain events.
+`ModularityTests`. Everything else flows through domain events. The diagram is generated: `ModularityTests` fails
+when it differs from the modules as built and prints the block to paste. The packages of `apps/api` are modules of
+their own (configuration and security, the web layer, the home summary, event externalisation, the nightly
+integrity check, job metrics, the demo data and the showcase), drawn apart because they compose the domain modules.
 
 Increment 8 adds two arrows, valuation → allocation and risk → allocation, both to `allocation :: api`. Allocation
 depends on neither valuation nor risk, so no cycle forms. Valuation and risk call allocation for the portfolio
@@ -43,6 +60,7 @@ value and the GoO measures; allocation reads forecasts from `referencedata :: ap
 | `trade` | Deal capture, versions, approval, obligations-open policy, confirmations (ours issued as JSON and PDF, theirs matched), deliveries | `TradeCommand`, `TradeQuery`, `ConfirmationCommand`, `DeliveryObligationView` |
 | `inventory` | Certificate lots, allowance holdings, statements and reconciliation breaks (fingerprint, lifecycle) | `LotCommand`, `LotQuery`, `AllowanceHoldingCommand`, `ReconciliationCommand` |
 | `registry` | Transfer routes, instruction outbox and dispatcher, gateways (simulator, manual, file, API), statement formats, break resolution | `RegistryInstructionCommand`, `RegistryGateway`, `RegistryApiMapping`, `BreakResolutionCommand` |
+| `clearing` | Cleared EUA futures: clearing accounts, daily settlement prices, variation and initial margin runs (recomputed for later days when a price arrives late), margin calls and clearing statements (ADR 0046) | `ClearingQuery`, `ClearingCommand`, `ClearingStatementQuery` |
 | `allocation` | Obligations, coverage analysis, value-based allocation plans (ADR 0035), available to sell and the flow-netted portfolio view (ADR 0036, 0037), future supply (ADR 0038), portfolio value and GoO risk measures (ADR 0039, 0040), allowance deliveries and purchase receipt matching | `AllocationCommand`, `AllocationQuery`, `ObligationCommand`, `DeliveryCommand`, `HeadroomQuery`, `PortfolioQuery`, `FutureSupplyQuery`, `PortfolioValueQuery`, `GooRiskQuery` |
 | `settlement` | Settlement items per delivery, VAT rules, price fixing, invoices with gap-free numbers, payments, credit notes, netting, reports (ADR 0014) | `InvoiceCommand`, `PaymentCommand`, `NettingCommand`, `VatRuleQuery`, `SettlementReports` |
 | `position` | GoO and ETS position reports, snapshots | `PositionQuery`, `PositionCommand` |

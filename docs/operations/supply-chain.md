@@ -54,6 +54,7 @@ held back with an `ignore` rule in `.github/dependabot.yml`, and the rule says w
 |---|---|---|
 | TypeScript majors (6, 7) | typescript-eslint 8 supports TypeScript below 6.1, openapi-typescript 7 only 5.x | Both declare support |
 | `@types/node` majors above 22 | The runtime and CI are Node 22; newer types describe APIs it does not have | The build moves to a newer Node line |
+| PostgreSQL majors in `ops/demo` | A new major cannot open the previous major's data directory, so the demo would not start | The database is upgraded by hand (dump and restore, or `pg_upgrade`), with CI and CloudNativePG on the same major |
 
 `eslint-plugin-jsx-a11y` 6.10 still declares ESLint 9 as its peer; an npm override lets it run under ESLint 10, which it
 does correctly. Remove the override when the plugin declares ESLint 10.

@@ -15,7 +15,8 @@
 | 11 | Valuation depth: discount curves and discounted MtM, TIME and RATES in the P&L explain, carry interpolation of allowance forwards, cash flow hedge accounting (designation under four eyes, effectiveness, the hedging reserve at period end, reclassification) ([plan](plans/increment-11-valuation-depth.md)) | done (0.11.0) |
 | 12 | EUA futures margining: clearing accounts, daily variation margin from settlement prices posted as realised result, clearing statements with initial margin and reconciliation, margin calls under four eyes, CCP exposure as margin posted, delivery at the final settlement price ([plan](plans/increment-12-futures-margining.md)) | done (0.12.0) |
 | 13 | Options on EUA futures: option terms on trades (call or put, strike, expiry, underlying future), a volatility curve signed off like other curves, Black-76 valuation with delta and vega and a VOL component in the explain, premiums in the ledger, exercise into the future or abandonment at expiry, delta-equivalent positions and exposure ([plan](plans/increment-13-eua-options.md)) | done (0.13.0) |
-| 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)) | planned |
+| 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0140) | done (0.14.0) |
+| 15 | Maintainability: Spring slices per module, the large services split, module API value types, the clock in repositories and events, build inputs and dependency locking, roles in the OpenAPI document, and the items increment 14 handed over ([plan](plans/increment-15-maintainability.md)) | planned |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -184,3 +185,19 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M3 | Premiums in the ledger; exercise into the future or abandonment at expiry | done |
 | M4 | Delta-equivalent positions, PFE and pre-trade checks; option greeks report | done |
 | M5 | Screens, demo, documentation, release 0.13.0 | done |
+
+## Increment 14: production readiness
+
+| Milestone | Content | Status |
+|---|---|---|
+| Patches | 0.13.1 security (encoded-path bypass, `SYSTEM` from tokens, expiry sweep guard); 0.13.2 accounting (index-priced revenue, FX revaluation, allowance corrections) | done |
+| M0 | Process: `CODEOWNERS`, pull request template, contributing guide, `SECURITY.md`, branch-protection ruleset, read-only workflow tokens, issues for the known gaps | done |
+| M1 | Authorisation: audience validation, `ADMIN` without business decisions, entity scope everywhere, `OperationGuardsIT`, `TokenValidationIT`, profile and actuator rules | done |
+| M2 | Integrity: owner and runtime database roles, the journal guarded in the database with chain version 2, append-only history, chained allowance movements and audit trail, nightly verification, signed digest | done |
+| M3 | Money seams: savepoints, unposted events with a task and replay, rounding in base currency, whole-unit costing, margin recomputation, settlement seams, incomplete exposure, `NOT_MEASURED` limits, intercompany propagation, lot expiry per lot | done |
+| M4 | Observability: job metrics, alert rules, runbooks, request limit, readiness without the database, parked event publications | done |
+| M5 | Deployment and recovery: migrations job, previous-release check (ADR 0048), chart values, point-in-time recovery drill, no beneficiary data in Kafka events, [data protection](operations/data-protection.md) | done |
+| M6 | Gates and tests: pinned actions and images, stricter scans, Kover 90 %, `TestClock` and `TimeSourceTest`, property tests with a nightly random run, concurrency tests, a month-end load scenario | done |
+| M7 | Web: tokens in memory, silent renewal, keyboard grids, version conflicts with merge, limit notices, locale and time zones | done |
+| M8 | Close: arc42 sections 5 and 8 with a generated module diagram, ADRs 0048–0051, status per finding, increment 15 outlined, release 0.14.0 | done |
+

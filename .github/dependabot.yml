@@ -50,3 +50,8 @@ updates:
     directory: "/ops/demo"
     schedule:
       interval: weekly
+    ignore:
+      # A PostgreSQL major cannot open the previous major's data directory: the demo's volume would not start.
+      # Upgrade by hand (dump and restore, or pg_upgrade), together with CI's service and the CloudNativePG image.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
