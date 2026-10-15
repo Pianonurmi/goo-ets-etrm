@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import {
   Alert,
   Anchor,
@@ -33,7 +34,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDate, formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
 import { Price, RangeFilter } from './components';
-import { useInvalidateClearing, useUrlParams } from './hooks';
+import { useInvalidateClearing } from './hooks';
 import {
   importSummary,
   newestFirst,
@@ -286,7 +287,7 @@ function StatementDrawer({
 /** The member's statements of the account, the current version of each day, newest first. */
 export function StatementsTab({ account, entityId }: { account: Account | null; entityId: string }) {
   const { t } = useTranslation();
-  const { params, set } = useUrlParams();
+  const { params, set } = useUrlState();
   const [importing, setImporting] = useState(false);
   const today = dayjs().format('YYYY-MM-DD');
   const range = readRange(params.get('from'), params.get('to'), today);

@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   Alert,
   Anchor,
@@ -18,7 +19,6 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -246,19 +246,14 @@ function EntryDrawer({
 
 function EntriesTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const period = params.get('period') ?? '';
   const accountCode = params.get('account');
   const sourceRef = params.get('source') ?? '';
   const [open, setOpen] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
   const accounts = useAccounts(entityId);
-  const setFilter = (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const setFilter = (key: string, value: string | null) => patchUrl({ [key]: value });
   const entries = $api.useInfiniteQuery(
     'get',
     '/api/v1/ledger/entries',
@@ -623,9 +618,7 @@ const TABS = ['entries', 'trial-balance', 'accounts', 'rules'] as const;
 export function LedgerPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const requested = params.get('tab');
-  const tab = TABS.find((value) => value === requested) ?? 'entries';
+  const [tab, setTab] = useUrlTab(TABS, 'entries');
   return (
     <Stack>
       <PageHeader title={t('ledger.title')} description={t('ledger.description', { entity: entity?.code ?? '' })} />
@@ -634,11 +627,7 @@ export function LedgerPage() {
       ) : (
         <>
           <LedgerKpis entityId={entity.id} />
-          <Tabs
-            value={tab}
-            onChange={(value) => setParams(value && value !== 'entries' ? { tab: value } : {}, { replace: true })}
-            keepMounted={false}
-          >
+          <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="entries">{t('ledger.tabs.entries')}</Tabs.Tab>
               <Tabs.Tab value="trial-balance">{t('ledger.tabs.trialBalance')}</Tabs.Tab>

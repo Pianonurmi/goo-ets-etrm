@@ -1,8 +1,8 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Group, SegmentedControl, Stack, Table, Text, TextInput } from '@mantine/core';
 import dayjs from 'dayjs';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { QueryState } from '@/shared/components/QueryState';
 import { formatDate, formatDecimal, formatMoney } from '@/shared/format/format';
@@ -163,16 +163,11 @@ function EcSalesList({ entityId, period }: { entityId: string; period: string })
 /** Receivables and payables by age, expected cash, VAT by period and the EC sales list; parameters in the URL. */
 export function SettlementReportsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const report = asReport(params.get('report'));
   const defaults = reportDefaults(dayjs().format('YYYY-MM-DD'));
   const value = (key: keyof typeof defaults) => params.get(key) ?? defaults[key];
-  const set = (key: string, next: string) => {
-    const updated = new URLSearchParams(params);
-    if (next) updated.set(key, next);
-    else updated.delete(key);
-    setParams(updated, { replace: true });
-  };
+  const set = (key: string, next: string) => patchUrl({ [key]: next });
   return (
     <Stack>
       <Group align="flex-end">

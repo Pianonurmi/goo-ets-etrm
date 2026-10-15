@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   Alert,
   Button,
@@ -19,7 +20,7 @@ import { IconArrowsTransferUp, IconCoins, IconPencil, IconPlus } from '@tabler/i
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { decimal, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -113,17 +114,12 @@ function RegistryKpis({ entityId }: { entityId: string }) {
 function InstructionsTab({ entityId }: { entityId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const registries = useRegistries();
   const view = asQueueView(params.get('view'));
   const registryCode = params.get('registry');
   const assetKind = oneOfOrNull(params.get('asset'), ASSET_KINDS);
-  const set = (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, value: string | null) => patchUrl({ [key]: value });
   const search = $api.useInfiniteQuery(
     'get',
     '/api/v1/registry/instructions/search',
@@ -332,7 +328,7 @@ function RouteModal({ route, onClose }: { route: Route; onClose: () => void }) {
 function RoutesTab() {
   const { t } = useTranslation();
   const registries = useRegistries();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const from = params.get('from') ?? registries.data?.[0]?.code ?? null;
   const [editing, setEditing] = useState<Route | null>(null);
   const routes = $api.useQuery(
@@ -352,9 +348,7 @@ function RoutesTab() {
         }))}
         value={from}
         onChange={(value) => {
-          const next = new URLSearchParams(params);
-          if (value) next.set('from', value);
-          setParams(next, { replace: true });
+          if (value) patchUrl({ from: value });
         }}
         allowDeselect={false}
         w={320}
@@ -538,8 +532,7 @@ function FormatsTab() {
 export function RegistryPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const tab = TABS.find((value) => value === params.get('tab')) ?? 'instructions';
+  const [tab, setTab] = useUrlTab(TABS, 'instructions');
   const [transferring, setTransferring] = useState<'goo' | 'allowances' | null>(null);
   return (
     <Stack gap="lg">
@@ -577,11 +570,7 @@ export function RegistryPage() {
       ) : (
         <>
           <RegistryKpis entityId={entity.id} />
-          <Tabs
-            value={tab}
-            onChange={(value) => setParams(value && value !== 'instructions' ? { tab: value } : {}, { replace: true })}
-            keepMounted={false}
-          >
+          <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="instructions">{t('registry.tabs.instructions')}</Tabs.Tab>
               <Tabs.Tab value="routes">{t('registry.tabs.routes')}</Tabs.Tab>

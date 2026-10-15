@@ -1,3 +1,4 @@
+import { useUrlState, useUrlTab } from '@/shared/useUrlState';
 import {
   Button,
   FileInput,
@@ -17,7 +18,6 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api, authorisedFetch } from '@/shared/api/client';
 import { decimal, type Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -30,7 +30,6 @@ import { QueryState } from '@/shared/components/QueryState';
 import { StatusBadge, statusLabel } from '@/shared/components/StatusBadge';
 import { formatDateTime, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
-import { oneOf } from '@/shared/urlParams';
 import { ImportFormats } from './ImportFormats';
 import { IndicesTab } from './IndicesTab';
 import { AliasModal, CreateInstrumentModal } from './InstrumentActions';
@@ -185,7 +184,7 @@ function RecordQuoteModal({
 
 function QuotesTab() {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const instrument = params.get('instrument') ?? '';
   const from = params.get('from') ?? dayjs().subtract(60, 'day').format('YYYY-MM-DD');
   const to = params.get('to') ?? dayjs().add(1, 'day').format('YYYY-MM-DD');
@@ -197,11 +196,7 @@ function QuotesTab() {
     { params: { query: { instrument, from, to } } },
     { enabled: Boolean(instrument) },
   );
-  const set = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    next.set(key, value);
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, value: string) => patchUrl({ [key]: value });
   const columns = useMemo<ColDef<Quote>[]>(
     () => [
       { field: 'quoteDate', headerName: t('marketData.date'), width: 130, sort: 'desc' },
@@ -547,12 +542,7 @@ function ImportsTab() {
 /** Instruments and aliases, quotes (with suspect ones to review), FX rates, price indices, file imports and formats. */
 export function MarketDataPage() {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
-  const tab = oneOf(
-    params.get('tab'),
-    ['quotes', 'suspect', 'fx', 'instruments', 'indices', 'imports'] as const,
-    'quotes',
-  );
+  const [tab, setTab] = useUrlTab(['quotes', 'suspect', 'fx', 'instruments', 'indices', 'imports'] as const, 'quotes');
   const suspect = $api.useQuery('get', '/api/v1/market-data/quotes/suspect', {});
   const instruments = $api.useQuery('get', '/api/v1/market-data/instruments', {});
   const curves = $api.useQuery('get', '/api/v1/market-data/curves', { params: { query: { activeOnly: true } } });
@@ -584,11 +574,7 @@ export function MarketDataPage() {
           to="/market-data/curves"
         />
       </SimpleGrid>
-      <Tabs
-        value={tab}
-        onChange={(value) => setParams(value ? { tab: value } : {}, { replace: true })}
-        keepMounted={false}
-      >
+      <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
         <Tabs.List>
           <Tabs.Tab value="quotes">{t('marketData.tabs.quotes')}</Tabs.Tab>
           <Tabs.Tab value="suspect">{t('marketData.tabs.suspect')}</Tabs.Tab>
