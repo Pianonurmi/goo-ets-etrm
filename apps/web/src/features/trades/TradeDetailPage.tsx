@@ -579,7 +579,9 @@ function MarkToMarket({ tradeId }: { tradeId: string }) {
                   <Table.Tr key={`${row.runId}-${row.scheduleId}`}>
                     <Table.Td>{formatDate(row.deliveryDate)}</Table.Td>
                     <Table.Td ta="right">{formatDecimal(row.quantity, 0, 3)}</Table.Td>
-                    <Table.Td ta="right">{formatMoney(row.contractPrice, row.contractCurrency)}</Table.Td>
+                    <Table.Td ta="right">
+                      <Money value={row.contractPrice} currency={row.contractCurrency} />
+                    </Table.Td>
                     <Table.Td ta="right">
                       {row.marketPriceContract != null
                         ? formatMoney(row.marketPriceContract, row.contractCurrency)

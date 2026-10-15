@@ -1,10 +1,10 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Anchor, Button, Code, Drawer, Group, Paper, ScrollArea, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconSearch, IconX } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { FactGrid } from '@/shared/components/DetailLayout';
@@ -99,7 +99,7 @@ function EventDrawer({
 /** The append-only audit trail: every domain event and command, filterable, paged by sequence number. */
 export function AuditPage() {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl, reset: resetUrl } = useUrlState();
   const [open, setOpen] = useState<AuditEvent | null>(null);
   const filter = Object.fromEntries(FILTERS.map((key) => [key, params.get(key) ?? ''])) as Record<
     (typeof FILTERS)[number],
@@ -108,12 +108,7 @@ export function AuditPage() {
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
   const active = [...FILTERS, ...DATES].some((key) => params.get(key));
-  const set = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, value: string) => patchUrl({ [key]: value });
   const events = $api.useInfiniteQuery(
     'get',
     '/api/v1/audit/events',
@@ -196,12 +191,7 @@ export function AuditPage() {
             w={140}
           />
           {active && (
-            <Button
-              variant="subtle"
-              size="sm"
-              leftSection={<IconX size={14} />}
-              onClick={() => setParams({}, { replace: true })}
-            >
+            <Button variant="subtle" size="sm" leftSection={<IconX size={14} />} onClick={() => resetUrl({})}>
               {t('audit.clear')}
             </Button>
           )}
@@ -219,7 +209,7 @@ export function AuditPage() {
               description={active ? t('audit.emptyFiltered') : t('audit.emptyHint')}
               action={
                 active ? (
-                  <Button variant="light" size="xs" onClick={() => setParams({}, { replace: true })}>
+                  <Button variant="light" size="xs" onClick={() => resetUrl({})}>
                     {t('audit.clear')}
                   </Button>
                 ) : undefined

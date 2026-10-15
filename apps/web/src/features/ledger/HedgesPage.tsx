@@ -1,9 +1,10 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Alert, Button, Group, Paper, Select, SimpleGrid, Stack, Text } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { Can } from '@/shared/auth/Can';
 import { EmptyState } from '@/shared/components/EmptyState';
@@ -58,7 +59,7 @@ export function HedgesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const [designating, setDesignating] = useState(false);
   const requested = params.get('status');
   const status = HEDGE_STATUSES.find((value) => value === requested) ?? null;
@@ -137,12 +138,7 @@ export function HedgesPage() {
     [t],
   );
 
-  const setStatus = (value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set('status', value);
-    else next.delete('status');
-    setParams(next, { replace: true });
-  };
+  const setStatus = (value: string | null) => patchUrl({ status: value });
   const designate = (
     <Can op="hedge_requestDesignation">
       <Button leftSection={<IconPlus size={16} />} onClick={() => setDesignating(true)} data-testid="hedge-designate">

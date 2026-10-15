@@ -67,7 +67,7 @@ function BridgeTooltip({
         {bar.label}
       </Text>
       <Text size="sm" fw={600} className="etrm-figure">
-        {formatMoney(bar.amount, currency)}
+        <Money value={bar.amount} currency={currency} />
       </Text>
     </Paper>
   );
@@ -337,13 +337,13 @@ export function PortfolioTab({ runId }: { runId: string }) {
           <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" data-testid="portfolio-kpis">
             <KpiCard
               label={t('valuation.portfolio.portfolioValue')}
-              value={formatMoney(data.portfolioValue)}
+              value=<Money value={data.portfolioValue} />
               unit={data.currency}
               trend={t('valuation.portfolio.computedAt', { time: formatDateTime(data.computedAt) })}
             />
             <KpiCard
               label={t('valuation.portfolio.inventoryValue')}
-              value={formatMoney(data.inventoryValue)}
+              value=<Money value={data.inventoryValue} />
               unit={data.currency}
               trend={t('valuation.portfolio.inventoryHint')}
             />

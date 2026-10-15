@@ -103,7 +103,10 @@ Tests at every level: [testing.md](testing.md).
 - **Command palette:** `Ctrl K` (`⌘ K`) or `/` opens a search over the screens the user may see. From two characters
   on, it also finds trades by number, external reference or UTI in the selected legal entity.
 - **Filters in the URL:** lists keep their filters and tabs in the query string, so a view can be bookmarked or
-  shared.
+  shared. Screens read and change it through `useUrlState()` (`set({ key: value })`, null removes a key) and
+  `useUrlTab(tabs, default)` (`shared/useUrlState.ts`); values are narrowed with `oneOf`/`allOf` (`shared/urlParams.ts`).
+- **Amounts on screen** render with `<Money>` (`shared/components/Figures.tsx`); `formatMoney` is for text that is not
+  an element (grid formatters, labels, messages).
 - **Legal entity:** the header selector scopes every screen. Its choice is kept per browser.
 
 

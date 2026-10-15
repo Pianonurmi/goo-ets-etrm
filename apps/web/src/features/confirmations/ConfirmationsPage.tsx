@@ -1,9 +1,10 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Alert, Anchor, Button, Group, Paper, SegmentedControl, Select, SimpleGrid, Stack, Text } from '@mantine/core';
 import { IconFileUpload } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { Can } from '@/shared/auth/Can';
 import { EmptyState } from '@/shared/components/EmptyState';
@@ -41,16 +42,11 @@ export function ConfirmationsPage() {
   const navigate = useNavigate();
   const { entity } = useEntity();
   const counterparties = useCounterparties();
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const view = asQueueView(params.get('view'));
   const counterpartyId = params.get('counterparty');
   const [uploading, setUploading] = useState(false);
-  const set = (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  };
+  const set = (key: string, value: string | null) => patchUrl({ [key]: value });
   // One call for every received confirmation: the views and the figures are counts and filters of it.
   const received = $api.useQuery(
     'get',

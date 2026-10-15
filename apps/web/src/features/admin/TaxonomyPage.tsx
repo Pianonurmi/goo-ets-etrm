@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import {
   ActionIcon,
   Badge,
@@ -16,7 +17,6 @@ import {
 import { IconMapPin, IconPencil, IconPlus } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -164,7 +164,7 @@ function RegionCountries({ code, onClose }: { code: string; onClose: () => void 
 /** Code sets used by devices, criteria and buckets; nodes are versioned and retired by end date, never deleted. */
 export function TaxonomyPage() {
   const { t } = useTranslation();
-  const [params, setParams] = useSearchParams();
+  const { params, reset: resetUrl } = useUrlState();
   const scheme = SCHEMES.find((s) => s === params.get('scheme')) ?? 'ENERGY_SOURCE';
   const [editing, setEditing] = useState<{ node?: Node; parent?: string | null } | null>(null);
   const [region, setRegion] = useState<string | null>(null);
@@ -189,7 +189,7 @@ export function TaxonomyPage() {
         <SegmentedControl
           data={SCHEMES.map((value) => ({ value, label: t(`admin.schemes.${value}`) }))}
           value={scheme}
-          onChange={(value) => setParams({ scheme: value }, { replace: true })}
+          onChange={(value) => resetUrl({ scheme: value })}
           aria-label={t('admin.scheme')}
           data-testid="scheme"
         />

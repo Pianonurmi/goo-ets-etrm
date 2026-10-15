@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Alert, Select, SimpleGrid, Stack, Tabs } from '@mantine/core';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +9,7 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { formatDecimal, formatMoney } from '@/shared/format/format';
 import { AccountsTab } from './AccountsTab';
 import { BreaksTab } from './BreaksTab';
-import { accountLabel, useClearingAccounts, useClearingHouses, useUrlParams } from './hooks';
+import { accountLabel, useClearingAccounts, useClearingHouses } from './hooks';
 import { MarginCallsTab } from './MarginCallsTab';
 import { MarginTab } from './MarginTab';
 import { StatementsTab } from './StatementsTab';
@@ -87,7 +88,7 @@ function ClearingKpis({ entityId, account }: { entityId: string; account: Accoun
 export function ClearingPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const { params, setParams, set } = useUrlParams();
+  const { params, set, reset } = useUrlState();
   const tab = clearingTab(params.get('tab'));
   const accounts = useClearingAccounts(entity?.id);
   const { byId } = useClearingHouses();
@@ -129,18 +130,11 @@ export function ClearingPage() {
           <ClearingKpis entityId={entity.id} account={account} />
           <Tabs
             value={tab}
-            onChange={(value) =>
-              setParams(
-                (current) => {
-                  const next = new URLSearchParams();
-                  if (value && value !== 'accounts') next.set('tab', value);
-                  const keep = current.get('account');
-                  if (keep) next.set('account', keep);
-                  return next;
-                },
-                { replace: true },
-              )
-            }
+            onChange={(value) => {
+              // A tab starts afresh, but the selected clearing account stays.
+              const account = params.get('account');
+              reset({ ...(value && value !== 'accounts' ? { tab: value } : {}), ...(account ? { account } : {}) });
+            }}
             keepMounted={false}
           >
             <Tabs.List>
