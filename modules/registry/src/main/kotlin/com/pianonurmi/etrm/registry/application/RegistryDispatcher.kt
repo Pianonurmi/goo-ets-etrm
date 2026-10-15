@@ -31,7 +31,7 @@ import java.util.UUID
 class RegistryDispatcher(
     private val repository: RegistryInstructionRepository,
     private val gateways: List<RegistryGateway>,
-    private val instructions: RegistryInstructionService,
+    private val instructions: InstructionOutcomes,
     transactionManager: PlatformTransactionManager,
     private val settings: RegistryDispatchSettings,
     private val clock: Clock,
@@ -102,7 +102,7 @@ class RegistryDispatcher(
 @Component
 class RegistryJobs(
     private val dispatcher: RegistryDispatcher,
-    private val instructions: RegistryInstructionService,
+    private val instructions: InstructionOutcomes,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(RegistryJobs::class.java)

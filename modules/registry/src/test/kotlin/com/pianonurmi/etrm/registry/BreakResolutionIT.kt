@@ -54,8 +54,9 @@ import com.pianonurmi.etrm.registry.api.InstructionStatus
 import com.pianonurmi.etrm.registry.api.SubmitTransfer
 import com.pianonurmi.etrm.registry.application.BreakResolutionService
 import com.pianonurmi.etrm.registry.application.RegistryDispatchSettings
-import com.pianonurmi.etrm.registry.application.RegistryInstructionService
 import com.pianonurmi.etrm.registry.application.TransferRouteService
+import com.pianonurmi.etrm.registry.fixtures.RegistryWiring
+import com.pianonurmi.etrm.registry.fixtures.WiredInstructions
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import io.kotest.assertions.throwables.shouldThrow
@@ -86,7 +87,7 @@ class BreakResolutionIT {
     private lateinit var lots: LotService
     private lateinit var allowances: AllowanceHoldingService
     private lateinit var reconciliation: ReconciliationService
-    private lateinit var instructions: RegistryInstructionService
+    private lateinit var instructions: WiredInstructions
     private lateinit var breaks: BreakResolutionService
     private lateinit var entityId: UUID
 
@@ -116,8 +117,8 @@ class BreakResolutionIT {
             publisher,
             clock,
         )
-        instructions = RegistryInstructionService(
-            JooqRegistryInstructionRepository(dsl),
+        instructions = RegistryWiring.instructions(
+            dsl,
             listOf(SimulatorRegistryGateway(), ManualRegistryGateway()),
             lots,
             lots,
@@ -131,7 +132,7 @@ class BreakResolutionIT {
             beneficiaries,
             RegistryDispatchSettings(unplannedNeedsApproval = false),
         )
-        breaks = BreakResolutionService(reconciliation, reconciliation, lots, lots, allowances, instructions, referenceData, actor, clock)
+        breaks = BreakResolutionService(reconciliation, reconciliation, lots, lots, allowances, instructions.outcomes, referenceData, actor, clock)
         entityId = referenceData.createLegalEntity(CreateLegalEntity("BRK-CO", "Break Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
         referenceData.createProductionDevice(
             CreateProductionDevice(

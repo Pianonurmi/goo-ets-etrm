@@ -49,10 +49,11 @@ import com.pianonurmi.etrm.registry.api.InstructionType
 import com.pianonurmi.etrm.registry.api.SubmitAllowanceTransfer
 import com.pianonurmi.etrm.registry.api.SubmitSurrender
 import com.pianonurmi.etrm.registry.application.RegistryDispatchSettings
-import com.pianonurmi.etrm.registry.application.RegistryInstructionService
 import com.pianonurmi.etrm.registry.application.RegistryStatementService
 import com.pianonurmi.etrm.registry.application.StatementFormatService
 import com.pianonurmi.etrm.registry.application.TransferRouteService
+import com.pianonurmi.etrm.registry.fixtures.RegistryWiring
+import com.pianonurmi.etrm.registry.fixtures.WiredInstructions
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import io.kotest.assertions.throwables.shouldThrow
@@ -81,7 +82,7 @@ class AllowanceInstructionIT {
     private val now = Instant.parse("2026-10-12T08:00:00Z")
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private lateinit var allowances: AllowanceHoldingService
-    private lateinit var instructions: RegistryInstructionService
+    private lateinit var instructions: WiredInstructions
     private lateinit var statements: RegistryStatementService
     private lateinit var entityId: UUID
     private lateinit var ourAccount: UUID
@@ -107,8 +108,8 @@ class AllowanceInstructionIT {
         )
         val routes = TransferRouteService(JooqTransferRouteRepository(dsl), referenceData, BigDecimal("0.05"), 3)
         val repository = JooqRegistryInstructionRepository(dsl)
-        instructions = RegistryInstructionService(
-            repository,
+        instructions = RegistryWiring.instructions(
+            dsl,
             listOf(SimulatorRegistryGateway(), ManualRegistryGateway()),
             lots,
             lots,
@@ -133,7 +134,7 @@ class AllowanceInstructionIT {
             Clock.systemUTC(),
         )
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, publisher, clock)
-        statements = RegistryStatementService(formats, repository, instructions, reconciliation, referenceData, documents, actor)
+        statements = RegistryStatementService(formats, repository, instructions.outcomes, reconciliation, referenceData, documents, actor)
 
         entityId = referenceData.createLegalEntity(CreateLegalEntity("ETS-CO", "Allowance Co", "FI", validFrom = LocalDate.of(2026, 1, 1))).id
 

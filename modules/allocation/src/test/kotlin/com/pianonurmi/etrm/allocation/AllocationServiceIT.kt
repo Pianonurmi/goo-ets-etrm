@@ -2,7 +2,9 @@ package com.pianonurmi.etrm.allocation
 
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqAllocationPlanRepository
 import com.pianonurmi.etrm.allocation.adapter.jooq.JooqObligationRepository
+import com.pianonurmi.etrm.allocation.api.AllocationCommand
 import com.pianonurmi.etrm.allocation.api.AllocationConstraint
+import com.pianonurmi.etrm.allocation.api.AllocationQuery
 import com.pianonurmi.etrm.allocation.api.FutureSupplyKind
 import com.pianonurmi.etrm.allocation.api.HeadroomCheck
 import com.pianonurmi.etrm.allocation.api.HeadroomDemand
@@ -15,18 +17,26 @@ import com.pianonurmi.etrm.allocation.api.PricingStatus
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
 import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.allocation.api.VirtualLineStatus
+import com.pianonurmi.etrm.allocation.application.AllocationCommands
 import com.pianonurmi.etrm.allocation.application.AllocationHeadroomSettings
-import com.pianonurmi.etrm.allocation.application.AllocationService
+import com.pianonurmi.etrm.allocation.application.AllocationQueries
 import com.pianonurmi.etrm.allocation.application.FutureSupplyProvider
 import com.pianonurmi.etrm.allocation.application.FutureSupplyService
+import com.pianonurmi.etrm.allocation.application.FutureSupplyWatch
 import com.pianonurmi.etrm.allocation.application.GooRiskService
 import com.pianonurmi.etrm.allocation.application.HeadroomService
+import com.pianonurmi.etrm.allocation.application.LotReservations
 import com.pianonurmi.etrm.allocation.application.ObligationService
+import com.pianonurmi.etrm.allocation.application.PlanComputation
+import com.pianonurmi.etrm.allocation.application.PlanInstructions
+import com.pianonurmi.etrm.allocation.application.PlanLifecycle
+import com.pianonurmi.etrm.allocation.application.PlanOutcomes
 import com.pianonurmi.etrm.allocation.application.PortfolioFlowCache
 import com.pianonurmi.etrm.allocation.application.PortfolioService
 import com.pianonurmi.etrm.allocation.application.PortfolioValueService
 import com.pianonurmi.etrm.allocation.application.PreparedFlow
 import com.pianonurmi.etrm.allocation.application.ProblemBuilder
+import com.pianonurmi.etrm.allocation.application.WhatIfService
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqAllowanceHoldingRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqBeneficiaryRepository
 import com.pianonurmi.etrm.inventory.adapter.jooq.JooqLotEventJournal
@@ -83,8 +93,9 @@ import com.pianonurmi.etrm.registry.adapter.jooq.JooqRegistryInstructionReposito
 import com.pianonurmi.etrm.registry.adapter.jooq.JooqTransferRouteRepository
 import com.pianonurmi.etrm.registry.api.InstructionConfirmed
 import com.pianonurmi.etrm.registry.api.InstructionFailed
-import com.pianonurmi.etrm.registry.application.RegistryInstructionService
 import com.pianonurmi.etrm.registry.application.TransferRouteService
+import com.pianonurmi.etrm.registry.fixtures.RegistryWiring
+import com.pianonurmi.etrm.registry.fixtures.WiredInstructions
 import com.pianonurmi.etrm.taxonomy.adapter.jooq.JooqTaxonomyRepository
 import com.pianonurmi.etrm.taxonomy.application.TaxonomyService
 import com.pianonurmi.etrm.trade.adapter.jooq.JooqTradeRepository
@@ -130,11 +141,11 @@ class AllocationServiceIT {
     private var currentUser = "trader"
     private val actor = ActorProvider { Actor(currentUser, currentUser, setOf(Role.TRADER, Role.MIDDLE_OFFICE), allEntities = true) }
     private val published = mutableListOf<Any>()
-    private lateinit var allocation: AllocationService
+    private lateinit var allocation: WiredAllocation
     private lateinit var obligations: ObligationService
     private lateinit var lots: LotService
     private lateinit var headroom: HeadroomService
-    private lateinit var planning: AllocationService
+    private lateinit var planning: WiredAllocation
     private lateinit var criteria: CriteriaServiceImpl
     private lateinit var futureView: FutureSupplyService
     private lateinit var forecasts: ProductionForecastService
@@ -153,8 +164,8 @@ class AllocationServiceIT {
     private val bus = ApplicationEventPublisher { event ->
         published += event
         when (event) {
-            is InstructionConfirmed -> allocation.on(event)
-            is InstructionFailed -> allocation.on(event)
+            is InstructionConfirmed -> allocation.outcomes.on(event)
+            is InstructionFailed -> allocation.outcomes.on(event)
         }
     }
 
@@ -165,8 +176,8 @@ class AllocationServiceIT {
         holdings: AllowanceHoldingService,
         beneficiaries: BeneficiaryService,
         clock: Clock,
-    ) = RegistryInstructionService(
-        JooqRegistryInstructionRepository(dsl),
+    ) = RegistryWiring.instructions(
+        dsl,
         listOf(SimulatorRegistryGateway(), ManualRegistryGateway()),
         lots,
         lots,
@@ -234,25 +245,29 @@ class AllocationServiceIT {
         portfolio = PortfolioService(flows, problemBuilder, buckets, criteria, GooMarks { code, _, _ -> MARKS[code]?.let(::BigDecimal) }, actor, clock)
 
         // Both count on purchases and expected issuance only when a command asks for it (ADR 0038): `planning` does.
-        fun allocationService() = AllocationService(
-            planRepository,
-            JooqObligationRepository(dsl),
-            obligations,
-            problemBuilder,
-            criteria,
-            lots,
-            lots,
-            instructions,
-            instructions,
-            trades,
-            trades,
-            actor,
-            bus,
-            clock,
-            Savepoints.NONE,
-            futureSupply = futureSupply,
-            referenceData = referenceData,
-        )
+        fun allocationService(): WiredAllocation {
+            val obligationRepository = JooqObligationRepository(dsl)
+            val computation = PlanComputation(planRepository, obligationRepository, problemBuilder, criteria, lots, futureSupply, clock)
+            val outcomes = PlanOutcomes(planRepository, obligations, trades, trades, bus, clock)
+            val lifecycle = PlanLifecycle(
+                planRepository,
+                computation,
+                LotReservations(lots, lots, Savepoints.NONE),
+                PlanInstructions(obligationRepository, lots, instructions, Savepoints.NONE),
+                instructions,
+                outcomes,
+                actor,
+                bus,
+                clock,
+            )
+            return WiredAllocation(
+                lifecycle,
+                WhatIfService(computation, actor, clock),
+                AllocationQueries(planRepository, computation),
+                outcomes,
+                FutureSupplyWatch(planRepository, referenceData, Savepoints.NONE, bus),
+            )
+        }
         planning = allocationService()
         allocation = allocationService()
         scenario()
@@ -584,7 +599,7 @@ class AllocationServiceIT {
         }
 
         // The purchase changes: the proposal is no longer good and goes stale.
-        planning.on(DeliveryObligationChanged(purchase))
+        planning.watch.on(DeliveryObligationChanged(purchase))
         planning.plan(plan.id)!!.status shouldBe PlanStatus.STALE
 
         // Without future supply the same request keeps to held lots: one sale stays short.
@@ -639,7 +654,7 @@ class AllocationServiceIT {
         (expected.quantityMwh <= 300) shouldBe true
         expected.breakdown.reliabilityPremium.shouldNotBeNull()
 
-        planning.on(ProductionForecastChanged(device.id, listOf(month)))
+        planning.watch.on(ProductionForecastChanged(device.id, listOf(month)))
         planning.plan(plan.id)!!.status shouldBe PlanStatus.STALE
     }
 
@@ -873,3 +888,13 @@ class AllocationServiceIT {
         val MARKS = mapOf("ANY_GOO" to "0.30", "EU_RENEWABLE" to "0.50", "NORDIC_HYDRO" to "2.00")
     }
 }
+
+/** Allocation's services wired as the application wires them: the module's API, and the listeners the test drives. */
+class WiredAllocation(
+    lifecycle: PlanLifecycle,
+    whatIf: WhatIfService,
+    queries: AllocationQueries,
+    val outcomes: PlanOutcomes,
+    val watch: FutureSupplyWatch,
+) : AllocationCommand by AllocationCommands(lifecycle, whatIf),
+    AllocationQuery by queries

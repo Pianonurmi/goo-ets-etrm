@@ -97,7 +97,7 @@ class StatementFormatService(
 class RegistryStatementService(
     private val formats: StatementFormatService,
     private val instructionRepository: RegistryInstructionRepository,
-    private val instructions: RegistryInstructionService,
+    private val instructions: InstructionOutcomes,
     private val reconciliation: ReconciliationCommand,
     private val referenceData: ReferenceDataQuery,
     private val documents: DocumentCommand,

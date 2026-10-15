@@ -41,7 +41,7 @@ class BreakResolutionService(
     private val lots: LotCommand,
     private val lotQuery: LotQuery,
     private val allowances: AllowanceHoldingCommand,
-    private val instructions: RegistryInstructionService,
+    private val instructions: InstructionOutcomes,
     private val referenceData: ReferenceDataQuery,
     private val actorProvider: ActorProvider,
     private val clock: Clock,
