@@ -1,6 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router';
+import { useMemo } from 'react';
 import { $api } from '@/shared/api/client';
 import { useCounterparties } from '@/features/trades/hooks';
 import type { Account } from './model/clearing';
@@ -41,25 +40,4 @@ export function useClearingHouses() {
 /** `CODE · Clearing house` for an account, as the pickers and tables show it. */
 export function accountLabel(account: Account, houseName: string | undefined): string {
   return houseName ? `${account.code} · ${houseName}` : account.code;
-}
-
-/** Reads the query string and changes single keys of it (`null` removes one), replacing the history entry. */
-export function useUrlParams() {
-  const [params, setParams] = useSearchParams();
-  const set = useCallback(
-    (patch: Record<string, string | null>) =>
-      setParams(
-        (current) => {
-          const next = new URLSearchParams(current);
-          Object.entries(patch).forEach(([key, value]) => {
-            if (value) next.set(key, value);
-            else next.delete(key);
-          });
-          return next;
-        },
-        { replace: true },
-      ),
-    [setParams],
-  );
-  return { params, set, setParams };
 }

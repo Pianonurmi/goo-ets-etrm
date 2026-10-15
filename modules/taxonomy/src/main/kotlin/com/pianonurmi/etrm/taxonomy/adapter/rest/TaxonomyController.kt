@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.taxonomy.adapter.rest
 
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.taxonomy.api.CreateTaxonomyNode
 import com.pianonurmi.etrm.taxonomy.api.TaxonomyCommand
@@ -66,6 +67,7 @@ class TaxonomyController(
 
     @PostMapping("/{scheme}")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun create(
         @PathVariable scheme: TaxonomyScheme,
         @Valid @RequestBody body: CreateNodeRequest,
@@ -85,6 +87,7 @@ class TaxonomyController(
     }
 
     @PatchMapping("/{scheme}/{code}")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun update(
         @PathVariable scheme: TaxonomyScheme,
         @PathVariable code: String,
@@ -94,6 +97,7 @@ class TaxonomyController(
     }
 
     @PutMapping("/REGION/{code}/countries")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun setRegionCountries(
         @PathVariable code: String,
         @RequestBody countries: Set<String>,

@@ -21,6 +21,8 @@ import com.pianonurmi.etrm.allocation.api.PortfolioView
 import com.pianonurmi.etrm.allocation.api.ProposeAllocation
 import com.pianonurmi.etrm.allocation.api.SupplyTier
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.security.Roles
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -53,6 +55,7 @@ class AllocationController(
 ) {
     /** The GoO book by product bucket, netted through the eligibility flow (ADR 0037). */
     @GetMapping("/portfolio")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun portfolio(
         @RequestParam holderEntityId: UUID,
         @RequestParam(defaultValue = "HELD") tier: SupplyTier,
@@ -60,18 +63,21 @@ class AllocationController(
 
     /** Purchases and expected issuance still to come, and what they add to coverage by delivery month (ADR 0038). */
     @GetMapping("/future-supply")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun futureSupply(
         @RequestParam holderEntityId: UUID,
     ): FutureSupplyView = futureSupplyQuery.futureSupply(holderEntityId)
 
     /** Available to sell (ADR 0036): how much of each demand the entity could still sell, by default from held certificates. */
     @PostMapping("/headroom/check")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun headroomCheck(
         @RequestBody body: HeadroomCheck,
     ): HeadroomResult = headroom.check(body)
 
     /** Available to sell per product bucket and vintage, for delivery at each of the next month-ends. */
     @GetMapping("/headroom")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun headroomTable(
         @RequestParam holderEntityId: UUID,
         @RequestParam(defaultValue = "HELD") tier: SupplyTier,
@@ -89,6 +95,7 @@ class AllocationController(
 
     @PostMapping("/obligations")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun openObligation(
         @Valid @RequestBody body: OpenObligation,
     ): ObligationView {
@@ -97,6 +104,7 @@ class AllocationController(
     }
 
     @PostMapping("/obligations/{id}/close")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun closeObligation(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
@@ -106,6 +114,7 @@ class AllocationController(
     }
 
     @PutMapping("/obligations/{id}/constraints")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun setConstraints(
         @PathVariable id: UUID,
         @RequestBody body: List<AllocationConstraint>,
@@ -145,28 +154,33 @@ class AllocationController(
 
     @PostMapping("/plans")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun propose(
         @Valid @RequestBody body: ProposeAllocation,
     ): AllocationPlanView = allocation.propose(body)
 
     /** What proposing now would give; stores and reserves nothing. */
     @PostMapping("/plans/what-if")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun whatIf(
         @RequestBody body: ProposeAllocation,
     ): AllocationWhatIf = allocation.whatIf(body)
 
     @PostMapping("/plans/{id}/approve")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun approve(
         @PathVariable id: UUID,
     ): AllocationPlanView = allocation.approve(id)
 
     @PostMapping("/plans/{id}/reject")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun reject(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): AllocationPlanView = allocation.reject(id, body.reason)
 
     @PostMapping("/plans/{id}/cancel")
+    @AllowedRoles(Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun cancel(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,

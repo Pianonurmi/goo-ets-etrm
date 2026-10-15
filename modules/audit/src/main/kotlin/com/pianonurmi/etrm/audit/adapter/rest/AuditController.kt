@@ -6,6 +6,7 @@ import com.pianonurmi.etrm.audit.api.AuditQuery
 import com.pianonurmi.etrm.audit.api.AuditTrailCheck
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.GetMapping
@@ -31,6 +32,7 @@ class AuditController(private val query: AuditQuery, private val actorProvider: 
     }
 
     @GetMapping("/events")
+    @AllowedRoles(Role.AUDITOR, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun events(
         @RequestParam(required = false) eventType: String?,
         @RequestParam(required = false) actor: String?,
@@ -45,6 +47,7 @@ class AuditController(private val query: AuditQuery, private val actorProvider: 
     }
 
     @GetMapping("/events/{eventId}")
+    @AllowedRoles(Role.AUDITOR, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.BACK_OFFICE, Role.RISK)
     fun event(
         @PathVariable eventId: UUID,
     ): AuditEventView? = requireReader().let { query.event(eventId) }

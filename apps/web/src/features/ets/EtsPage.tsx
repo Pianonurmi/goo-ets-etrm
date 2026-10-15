@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { BarChart } from '@mantine/charts';
 import {
   Alert,
@@ -22,7 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { token } from '@/app/tokens';
 import { $api } from '@/shared/api/client';
 import type { Schema } from '@/shared/api/types';
@@ -366,7 +367,7 @@ function ComplianceChart({ compliance }: { compliance: EntityCompliance }) {
 export function EtsPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
+  const { params, reset: resetUrl } = useUrlState();
   const year = yearOr(params.get('year'), new Date().getFullYear());
   const [registering, setRegistering] = useState(false);
   const compliance = $api.useQuery(
@@ -387,7 +388,7 @@ export function EtsPage() {
                 aria-label={t('positions.complianceYear')}
                 leftSection={<IconCalendar size={16} />}
                 value={year}
-                onChange={(value) => setParams(Number(value) ? { year: String(value) } : {}, { replace: true })}
+                onChange={(value) => resetUrl(Number(value) ? { year: String(value) } : {})}
                 w={130}
                 min={2005}
               />

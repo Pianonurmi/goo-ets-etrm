@@ -97,7 +97,9 @@ function Allocations({ invoice }: { invoice: Invoice }) {
                   <Table.Td>{formatDateTime(allocation.allocatedAt)}</Table.Td>
                   <Table.Td>{t(`settlement.allocationKinds.${allocation.kind}`)}</Table.Td>
                   <Table.Td>{allocation.allocatedBy}</Table.Td>
-                  <Table.Td ta="right">{formatMoney(allocation.amount, invoice.currency)}</Table.Td>
+                  <Table.Td ta="right">
+                    <Money value={allocation.amount} currency={invoice.currency} />
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -147,10 +149,10 @@ function Lines({ invoice }: { invoice: Invoice }) {
                 </Table.Td>
                 <Table.Td ta="right">{formatDecimal(line.unitPrice, 2, 6)}</Table.Td>
                 <Table.Td ta="right" style={NOWRAP}>
-                  {formatMoney(line.netAmount, currency)}
+                  <Money value={line.netAmount} currency={currency} />
                 </Table.Td>
                 <Table.Td ta="right" style={NOWRAP}>
-                  {formatMoney(line.vatAmount, currency)}
+                  <Money value={line.vatAmount} currency={currency} />
                   {Number(line.selfAssessedVat) !== 0 && (
                     <Text size="xs" c="dimmed">
                       {t('settlement.selfAssessed', { amount: formatMoney(line.selfAssessedVat, currency) })}
@@ -166,7 +168,7 @@ function Lines({ invoice }: { invoice: Invoice }) {
                 {t('settlement.netAmount')}
               </Table.Td>
               <Table.Td ta="right" style={NOWRAP}>
-                {formatMoney(invoice.netTotal, currency)}
+                <Money value={invoice.netTotal} currency={currency} />
               </Table.Td>
             </Table.Tr>
             <Table.Tr>
@@ -174,7 +176,7 @@ function Lines({ invoice }: { invoice: Invoice }) {
                 {t('settlement.vatAmount')}
               </Table.Td>
               <Table.Td ta="right" style={NOWRAP}>
-                {formatMoney(invoice.vatTotal, currency)}
+                <Money value={invoice.vatTotal} currency={currency} />
               </Table.Td>
             </Table.Tr>
             <Table.Tr>
@@ -182,7 +184,7 @@ function Lines({ invoice }: { invoice: Invoice }) {
                 {t('settlement.grossAmount')}
               </Table.Th>
               <Table.Th ta="right" style={NOWRAP} data-testid="invoice-gross">
-                {formatMoney(invoice.grossTotal, currency)}
+                <Money value={invoice.grossTotal} currency={currency} />
               </Table.Th>
             </Table.Tr>
           </Table.Tfoot>

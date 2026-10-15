@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { BarChart } from '@mantine/charts';
 import {
   Accordion,
@@ -22,7 +23,7 @@ import { IconFlask, IconPlus, IconSend } from '@tabler/icons-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { $api } from '@/shared/api/client';
 import type { Body, Schema } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
@@ -332,15 +333,10 @@ export function AllocationPage() {
   );
   const [solver, setSolver] = useState<Solver>('GREEDY');
   const [futureSupply, setFutureSupply] = useState(true);
-  const [params, setParams] = useSearchParams();
+  const { params, set: patchUrl } = useUrlState();
   const [opening, setOpening] = useState(false);
   const selectedObligation = params.get('obligation');
-  const showObligation = (id: string | null) => {
-    const next = new URLSearchParams(params);
-    if (id) next.set('obligation', id);
-    else next.delete('obligation');
-    setParams(next, { replace: true });
-  };
+  const showObligation = (id: string | null) => patchUrl({ obligation: id });
   const whatIf = $api.useMutation('post', '/api/v1/allocation/plans/what-if', { meta: { notify: false } });
   const propose = $api.useMutation('post', '/api/v1/allocation/plans', { meta: { notify: false } });
   const byId = useMemo(() => new Map((obligations.data ?? []).map((o) => [o.id, o])), [obligations.data]);

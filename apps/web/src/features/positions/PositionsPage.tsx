@@ -1,3 +1,4 @@
+import { useUrlTab } from '@/shared/useUrlState';
 import { BarChart } from '@mantine/charts';
 import {
   Alert,
@@ -14,7 +15,7 @@ import {
 import type { ColDef } from 'ag-grid-community';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
 import { $api } from '@/shared/api/client';
 import { useCan } from '@/shared/auth/Can';
 import type { Schema } from '@/shared/api/types';
@@ -27,7 +28,6 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDate, formatDecimal } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
-import { oneOf } from '@/shared/urlParams';
 import { FutureSupplyTab } from './FutureSupplyTab';
 import { HeadroomTab } from './HeadroomTab';
 import { ladderSeries } from './model/ladder';
@@ -279,8 +279,7 @@ function EtsPosition({ entityId }: { entityId: string }) {
 export function PositionsPage() {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const [params, setParams] = useSearchParams();
-  const tab = oneOf(params.get('tab'), ['goo', 'ets', 'snapshots'] as const, 'goo');
+  const [tab, setTab] = useUrlTab(['goo', 'ets', 'snapshots'] as const, 'goo');
   return (
     <Stack>
       <PageHeader
@@ -290,11 +289,7 @@ export function PositionsPage() {
       {!entity ? (
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
-        <Tabs
-          value={tab}
-          onChange={(value) => setParams(value && value !== 'goo' ? { tab: value } : {}, { replace: true })}
-          keepMounted={false}
-        >
+        <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
           <Tabs.List>
             <Tabs.Tab value="goo">{t('positions.goo')}</Tabs.Tab>
             <Tabs.Tab value="ets">{t('positions.ets')}</Tabs.Tab>

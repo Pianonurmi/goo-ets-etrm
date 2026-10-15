@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.registry.adapter.rest
 
 import com.pianonurmi.etrm.inventory.api.StatementView
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.registry.api.AssetKind
 import com.pianonurmi.etrm.registry.api.InstructionPage
 import com.pianonurmi.etrm.registry.api.InstructionSearch
@@ -56,6 +58,7 @@ class RegistryController(
     ): Map<String, TransferRoute> = access.reader().let { routeQuery.routesFrom(from) }
 
     @PutMapping("/routes")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun upsertRoute(
         @RequestBody body: UpsertTransferRoute,
     ): TransferRoute = access.maintainer().let { routeCommand.upsert(body) }
@@ -70,6 +73,7 @@ class RegistryController(
 
     /** Instructions of any status, newest first, with a cursor for the next page. */
     @GetMapping("/instructions/search")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE, Role.MIDDLE_OFFICE, Role.ACCOUNTANT, Role.RISK, Role.AUDITOR)
     fun search(
         @RequestParam(required = false) status: Set<InstructionStatus>?,
         @RequestParam(required = false) registryCode: String?,
@@ -84,18 +88,21 @@ class RegistryController(
     }
 
     @GetMapping("/instructions/{id}")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE, Role.MIDDLE_OFFICE, Role.ACCOUNTANT, Role.RISK, Role.AUDITOR)
     fun instruction(
         @PathVariable id: UUID,
     ): RegistryInstructionView = instructionQuery.requireInstruction(id).also { access.reader(it.holderEntityId) }
 
     @PostMapping("/instructions/transfers")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
     fun transfer(
         @RequestBody body: SubmitTransfer,
     ): RegistryInstructionView = access.submitterForLot(body.lotId).let { instructionCommand.submitTransfer(body) }
 
     @PostMapping("/instructions/cancellations")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
     fun cancellation(
         @RequestBody body: SubmitCancellation,
     ): RegistryInstructionView = access.submitterForLot(body.lotId).let { instructionCommand.submitCancellation(body) }
@@ -103,6 +110,7 @@ class RegistryController(
     /** Transfer of allowances from one of our Union Registry accounts; executed manually after a second approval. */
     @PostMapping("/instructions/allowance-transfers")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
     fun allowanceTransfer(
         @RequestBody body: SubmitAllowanceTransfer,
     ): RegistryInstructionView = access.submitterForAccount(body.fromAccountId).let { instructionCommand.submitAllowanceTransfer(body) }
@@ -114,24 +122,28 @@ class RegistryController(
     ): RegistryInstructionView = access.submitterForAccount(body.fromAccountId).let { instructionCommand.submitSurrender(body) }
 
     @PostMapping("/instructions/{id}/confirm")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun confirm(
         @PathVariable id: UUID,
         @RequestBody body: ConfirmRequest,
     ): RegistryInstructionView = operate(id).let { instructionCommand.confirm(id, body.externalRef) }
 
     @PostMapping("/instructions/{id}/fail")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun fail(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): RegistryInstructionView = operate(id).let { instructionCommand.fail(id, body.reason) }
 
     @PostMapping("/instructions/{id}/cancel")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun cancel(
         @PathVariable id: UUID,
         @RequestBody body: ReasonRequest,
     ): RegistryInstructionView = operate(id).let { instructionCommand.cancel(id, body.reason) }
 
     @PostMapping("/instructions/{id}/retry")
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun retry(
         @PathVariable id: UUID,
     ): RegistryInstructionView = operate(id).let { instructionCommand.retry(id) }
@@ -139,6 +151,7 @@ class RegistryController(
     /** Uploads a holdings statement, parses it with the account registry's format profile and reconciles it. */
     @PostMapping("/statements/csv", consumes = ["text/csv", "text/plain"])
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun importHoldings(
         @RequestParam registryAccountId: UUID,
         @RequestParam statementDate: LocalDate,
@@ -149,6 +162,7 @@ class RegistryController(
 
     /** Uploads a registry transaction export; matching open instructions are confirmed or failed. */
     @PostMapping("/statements/transactions", consumes = ["text/csv", "text/plain"])
+    @AllowedRoles(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
     fun importTransactions(
         @RequestParam registryCode: String,
         @RequestParam(defaultValue = "transactions.csv") source: String,
@@ -162,6 +176,7 @@ class RegistryController(
     ): List<StatementFormatView> = access.reader().let { formatQuery.formats(registryCode) }
 
     @PutMapping("/statement-formats")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun upsertFormat(
         @RequestBody body: UpsertStatementFormat,
     ): StatementFormatView = access.maintainer().let { formatCommand.upsert(body) }

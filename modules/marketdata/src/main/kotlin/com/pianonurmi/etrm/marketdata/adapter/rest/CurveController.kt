@@ -10,6 +10,8 @@ import com.pianonurmi.etrm.marketdata.api.DiscountFactor
 import com.pianonurmi.etrm.marketdata.api.DiscountFactors
 import com.pianonurmi.etrm.marketdata.api.Interpolation
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpStatus
@@ -37,12 +39,14 @@ class CurveController(private val query: CurveQuery, private val command: CurveC
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun create(
         @RequestBody body: CreateCurve,
     ): CurveView = command.createCurve(body)
 
     /** How later snapshots of a forward curve are read beyond the last future (MIDDLE_OFFICE or RISK). */
     @PostMapping("/{code}/interpolation")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun setInterpolation(
         @PathVariable code: String,
         @RequestBody body: InterpolationRequest,
@@ -50,6 +54,7 @@ class CurveController(private val query: CurveQuery, private val command: CurveC
 
     @PostMapping("/{code}/snapshots")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun build(
         @PathVariable code: String,
         @RequestBody body: BuildRequest,
@@ -75,12 +80,14 @@ class CurveController(private val query: CurveQuery, private val command: CurveC
 
     @PostMapping("/snapshots/{id}/override")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun override(
         @PathVariable id: UUID,
         @RequestBody body: OverrideRequest,
     ): CurveSnapshotView = command.override(id, body.pillar, body.price, body.note)
 
     @PostMapping("/snapshots/{id}/submit")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun submit(
         @PathVariable id: UUID,
     ): CurveSnapshotView = command.submit(id)

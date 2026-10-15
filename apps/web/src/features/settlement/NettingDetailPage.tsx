@@ -278,7 +278,9 @@ export function NettingDetailPage() {
                     </Table.Td>
                     <Table.Td>{invoice ? t(`settlement.kinds.${invoice.kind}`) : ''}</Table.Td>
                     <Table.Td>{formatDate(invoice?.dueDate)}</Table.Td>
-                    <Table.Td ta="right">{formatMoney(amount, data.currency)}</Table.Td>
+                    <Table.Td ta="right">
+                      <Money value={amount} currency={data.currency} />
+                    </Table.Td>
                   </Table.Tr>
                 );
               })}

@@ -1,3 +1,4 @@
+import { useUrlState } from '@/shared/useUrlState';
 import { Paper, Select, Stack, Text } from '@mantine/core';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { useMemo } from 'react';
@@ -10,7 +11,7 @@ import { TableSkeleton } from '@/shared/components/Skeletons';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDateTime } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
-import { useUrlParams } from './hooks';
+
 import {
   BREAK_STATUSES,
   affectedContracts,
@@ -25,7 +26,7 @@ import {
 export function BreaksTab({ entityId, account }: { entityId: string; account: Account | null }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { params, set } = useUrlParams();
+  const { params, set } = useUrlState();
   const status = statusFilter(params.get('status'), BREAK_STATUSES, 'OPEN');
   const breaks = $api.useQuery('get', '/api/v1/clearing/breaks', {
     params: { query: { legalEntityId: entityId, status: status ?? undefined } },
