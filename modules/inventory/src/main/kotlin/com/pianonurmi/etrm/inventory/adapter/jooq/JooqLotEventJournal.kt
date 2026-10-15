@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.inventory.adapter.jooq
 
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.CertificateLot.CERTIFICATE_LOT
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.LotEvent.LOT_EVENT
+import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.LotEventAnchor.LOT_EVENT_ANCHOR
 import com.pianonurmi.etrm.inventory.api.LotEventView
 import com.pianonurmi.etrm.inventory.domain.LotEventJournal
 import com.pianonurmi.etrm.inventory.domain.NewLotEvent
@@ -64,13 +65,16 @@ class JooqLotEventJournal(private val dsl: DSLContext) : LotEventJournal {
     /** One probe of the lot/seq index per lot of the holder; queries the partitioned parent table (ADR 0030). */
     override fun brokenChains(): List<UUID> {
         val broken = mutableListOf<UUID>()
+        val anchors = dsl.select(LOT_EVENT_ANCHOR.LOT_ID, LOT_EVENT_ANCHOR.HASH).from(LOT_EVENT_ANCHOR)
+            .fetchGroups(LOT_EVENT_ANCHOR.LOT_ID, LOT_EVENT_ANCHOR.HASH)
         dsl.selectFrom(LOT_EVENT).orderBy(LOT_EVENT.LOT_ID, LOT_EVENT.SEQ).fetchLazy().use { cursor ->
             var currentLot: UUID? = null
             var expectedPrev: String? = null
             for (r in cursor) {
                 if (r.lotId != currentLot) {
                     currentLot = r.lotId
-                    expectedPrev = null
+                    // Events before an archive cut may be gone; the anchor kept at the cut starts the remaining chain.
+                    expectedPrev = r.prevHash?.takeIf { anchors[r.lotId]?.contains(it) == true }
                 }
                 val payload = Json.canonical(r.payload.data())
                 val recomputed = HashChain.next(expectedPrev, hashInput(r.lotId, r.eventType, r.effectiveAt, r.actor, payload))
@@ -82,6 +86,19 @@ class JooqLotEventJournal(private val dsl: DSLContext) : LotEventJournal {
         }
         return broken
     }
+
+    override fun anchor(cut: Instant): Int = dsl.execute(
+        """
+        INSERT INTO {0} (lot_id, cut, hash)
+        SELECT DISTINCT ON (e.lot_id) e.lot_id, {1}, e.hash FROM {2} e
+        WHERE e.recorded_at < {1}
+        ORDER BY e.lot_id, e.seq DESC
+        ON CONFLICT (lot_id, cut) DO NOTHING
+        """.trimIndent(),
+        LOT_EVENT_ANCHOR,
+        DSL.`val`(cut),
+        LOT_EVENT,
+    )
 
     private fun hashInput(lotId: UUID, type: String, effectiveAt: Instant, actor: String, payload: String) =
         "$lotId|$type|${DateTimeFormatter.ISO_INSTANT.format(effectiveAt)}|$actor|$payload"

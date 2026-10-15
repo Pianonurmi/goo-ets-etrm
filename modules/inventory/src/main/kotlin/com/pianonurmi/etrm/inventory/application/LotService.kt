@@ -358,6 +358,8 @@ class LotService(
     @Transactional(readOnly = true)
     override fun verifyJournal(): List<UUID> = journal.brokenChains()
 
+    override fun anchorJournal(cut: Instant): Int = journal.anchor(cut)
+
     @Transactional(readOnly = true)
     override fun asOf(lotId: UUID, effectiveAt: Instant, knownAt: Instant): Map<String, Any?>? = lots.asOf(lotId, effectiveAt, knownAt)
 

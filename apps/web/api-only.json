@@ -22,7 +22,8 @@
     "eventPublication_parked": "Operations endpoint for administrators, used from the event-publications runbook",
     "eventPublication_resubmit": "Operations endpoint for administrators, used from the event-publications runbook",
     "beneficiary_beneficiary": "Data subject requests are handled by the data protection officer through the API (docs/operations/data-protection.md); the lot shows its beneficiary",
-    "beneficiary_requestErasure": "Data subject requests are handled through the API (docs/operations/data-protection.md); the approval is the BENEFICIARY_ERASURE task in the inbox"
+    "beneficiary_requestErasure": "Data subject requests are handled through the API (docs/operations/data-protection.md); the approval is the BENEFICIARY_ERASURE task in the inbox",
+    "integrity_declareArchiveCut": "Operations endpoint for administrators, run before archiving old partitions (docs/operations/data-protection.md)"
   },
   "planned": {}
 }
