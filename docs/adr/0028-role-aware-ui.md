@@ -40,3 +40,10 @@ experience for actions that are plainly not the user's.
   shows a button that then fails with 403, or hides one a user could have used. It never grants anything.
 - If the rules become data (configurable roles per entity), a server-side matrix keyed by the same operation ids
   can replace the table without changing `<Can>` call sites.
+
+## Update (increment 15)
+
+The table is no longer written by hand. Each REST handler whose service checks roles names them in `@AllowedRoles`
+(platform `security`); the OpenAPI document publishes them as `x-roles` on the operation, and `npm run gen:api`
+generates `shared/auth/permissions.generated.ts` from the snapshot. A role change is now one change in the backend
+(the service and the annotation next to it) and a snapshot update; the web follows on its next build.

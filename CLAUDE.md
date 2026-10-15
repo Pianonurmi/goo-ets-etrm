@@ -93,7 +93,7 @@ The build needs Node.js 22 and npm on the PATH for `:apps:web`.
 - Calls go through `$api` / `api` in `shared/api/client.ts`; failures are `ProblemError`. Map 422 violations onto forms with `applyProblemToForm`.
 - Idempotency keys in the browser come from `shared/ids.ts` (`newKey`); `crypto.randomUUID` needs a secure context and the showcase may run on plain HTTP.
 - No money arithmetic in the browser: format with `shared/format`, send decimals back with `decimal()` (strings).
-- Offer actions through `<Can op=...>` / `useCan` keyed by operation id (`shared/auth/permissions.ts`); the API still checks.
+- Offer actions through `<Can op=...>` / `useCan` keyed by operation id (`shared/auth/permissions.ts`); the API still checks. The roles are generated from `x-roles` in the OpenAPI document: a handler whose service checks roles names them in `@AllowedRoles` (platform `security`), then update the snapshot.
 - All visible text goes through `src/locales/en.json`. Personas (served by the API, fallback in `shared/auth/personas.ts`) have two users per approving role for four-eyes paths.
 - Every API operation has a UI caller or an entry in `apps/web/api-only.json` (`apiOnly` with a reason, or `planned` with the milestone). `npm run coverage:api` runs in `check`; a new endpoint needs a screen or a reason.
 - `npm run format` (Prettier) and `npm run lint` before committing web changes.

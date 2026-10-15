@@ -29,6 +29,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
 
 ### Changed
+- The OpenAPI document names the roles that may call each operation as `x-roles` (`@AllowedRoles` on the handler),
+  and the web UI generates its permission table from it instead of keeping a copy.
 - **The demo seeder is no longer in the production jar and image.** `bootJar` builds the application alone;
   `showcaseJar` (`api-showcase.jar`) adds the seeder, and CI publishes it as `ghcr.io/pianonurmi/goo-ets-etrm-showcase`.
   The public demo (`ops/demo`) now pulls that image: set `ETRM_IMAGE` to it if your `.env` names the old one.

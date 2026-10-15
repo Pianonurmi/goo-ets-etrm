@@ -16,6 +16,8 @@ import com.pianonurmi.etrm.clearing.api.MarginPostedView
 import com.pianonurmi.etrm.clearing.api.MarginRunView
 import com.pianonurmi.etrm.clearing.api.StatementImportView
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpStatus
@@ -48,6 +50,7 @@ class ClearingController(
 
     @PostMapping("/accounts")
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
     fun createAccount(
         @RequestBody body: CreateClearingAccount,
     ): ClearingAccountView = command.createAccount(body)
@@ -60,6 +63,7 @@ class ClearingController(
     ): List<MarginRunView> = query.runs(id, from, to)
 
     @PostMapping("/accounts/{id}/margin")
+    @AllowedRoles(Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
     fun computeMargin(
         @PathVariable id: UUID,
         @RequestBody body: ComputeMargin,
@@ -73,6 +77,7 @@ class ClearingController(
     /** Uploads the clearing member's statement file (one or more days) and reconciles each day against the margin. */
     @PostMapping("/accounts/{id}/statements", consumes = ["text/csv", "text/plain"])
     @ResponseStatus(HttpStatus.CREATED)
+    @AllowedRoles(Role.BACK_OFFICE, Role.MIDDLE_OFFICE)
     fun importStatements(
         @PathVariable id: UUID,
         @RequestParam(defaultValue = "statement.csv") source: String,

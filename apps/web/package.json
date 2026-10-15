@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "gen:api": "openapi-typescript ../api/openapi/etrm-api.json --read-write-markers -o src/shared/api/schema.d.ts",
+    "gen:api": "openapi-typescript ../api/openapi/etrm-api.json --read-write-markers -o src/shared/api/schema.d.ts && node scripts/gen-permissions.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",

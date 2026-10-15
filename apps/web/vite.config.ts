@@ -42,7 +42,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/shared/**', 'src/features/**/model/**'],
-      exclude: ['src/shared/api/schema.d.ts', 'src/**/*.test.*'],
+      exclude: ['src/shared/api/schema.d.ts', 'src/shared/auth/permissions.generated.ts', 'src/**/*.test.*'],
       reporter: ['text-summary', 'lcov'],
       reportsDirectory: 'build/coverage',
     },

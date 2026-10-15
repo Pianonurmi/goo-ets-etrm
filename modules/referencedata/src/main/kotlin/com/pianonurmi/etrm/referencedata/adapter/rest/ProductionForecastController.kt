@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.referencedata.adapter.rest
 
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.referencedata.api.ExpectedProduction
 import com.pianonurmi.etrm.referencedata.api.ForecastImportResult
 import com.pianonurmi.etrm.referencedata.api.LoadFactorView
@@ -40,6 +42,7 @@ class ProductionForecastController(
     }
 
     @PutMapping("/devices/{id}/forecasts/{month}")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun recordForecast(
         @PathVariable id: UUID,
         @PathVariable month: YearMonth,
@@ -58,6 +61,7 @@ class ProductionForecastController(
 
     /** Forecast file: `gsrn,month,expected_mwh,p90_mwh` with a header line; a bad line is skipped and reported. */
     @PostMapping("/forecasts/import", consumes = ["text/csv", "text/plain"])
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun importForecasts(
         @RequestBody content: String,
     ): ForecastImportResult = command.importCsv(content)
@@ -66,6 +70,7 @@ class ProductionForecastController(
     fun loadFactors(): List<LoadFactorView> = query.loadFactors()
 
     @PutMapping("/load-factors/{technologyCode}/{monthOfYear}")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun updateLoadFactor(
         @PathVariable technologyCode: String,
         @PathVariable monthOfYear: Int,

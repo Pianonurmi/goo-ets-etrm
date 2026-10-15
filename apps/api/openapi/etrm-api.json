@@ -12599,7 +12599,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/allocation/headroom" : {
@@ -12645,7 +12646,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/allocation/headroom/check" : {
@@ -12683,7 +12685,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/allocation/obligations" : {
@@ -12759,7 +12762,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/obligations/{id}" : {
@@ -12843,7 +12847,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/obligations/{id}/constraints" : {
@@ -12897,7 +12902,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/plans" : {
@@ -12981,7 +12987,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/plans/what-if" : {
@@ -13019,7 +13026,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/plans/{id}" : {
@@ -13093,7 +13101,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/plans/{id}/cancel" : {
@@ -13140,7 +13149,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/plans/{id}/reject" : {
@@ -13187,7 +13197,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/allocation/portfolio" : {
@@ -13233,7 +13244,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Allocation" ]
+        "tags" : [ "Allocation" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/audit/events" : {
@@ -13326,7 +13338,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Audit" ]
+        "tags" : [ "Audit" ],
+        "x-roles" : [ "AUDITOR", "ACCOUNTANT", "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/audit/events/{eventId}" : {
@@ -13363,7 +13376,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Audit" ]
+        "tags" : [ "Audit" ],
+        "x-roles" : [ "AUDITOR", "ACCOUNTANT", "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/audit/verify" : {
@@ -13467,7 +13481,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Clearing" ]
+        "tags" : [ "Clearing" ],
+        "x-roles" : [ "BACK_OFFICE", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/clearing/accounts/{id}/margin" : {
@@ -13568,7 +13583,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Clearing" ]
+        "tags" : [ "Clearing" ],
+        "x-roles" : [ "BACK_OFFICE", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/clearing/accounts/{id}/statements" : {
@@ -13682,7 +13698,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Clearing" ]
+        "tags" : [ "Clearing" ],
+        "x-roles" : [ "BACK_OFFICE", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/clearing/breaks" : {
@@ -14073,7 +14090,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trade confirmations" ]
+        "tags" : [ "Trade confirmations" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/confirmations/counterparty/csv" : {
@@ -14128,7 +14146,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trade confirmations" ]
+        "tags" : [ "Trade confirmations" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/confirmations/{id}" : {
@@ -14203,7 +14222,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Deliveries" ]
+        "tags" : [ "Deliveries" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/deliveries/receipts" : {
@@ -14241,7 +14261,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Deliveries" ]
+        "tags" : [ "Deliveries" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/documents" : {
@@ -14586,7 +14607,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "ETS compliance" ]
+        "tags" : [ "ETS compliance" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/ets/installations/{id}" : {
@@ -14761,7 +14783,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "ETS compliance" ]
+        "tags" : [ "ETS compliance" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/ets/installations/{id}/free-allocation/{year}" : {
@@ -14859,7 +14882,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "ETS compliance" ]
+        "tags" : [ "ETS compliance" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/ets/installations/{id}/surrenders" : {
@@ -14944,7 +14968,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "ETS compliance" ]
+        "tags" : [ "ETS compliance" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/ets/installations/{id}/verified-emissions" : {
@@ -14991,7 +15016,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "ETS compliance" ]
+        "tags" : [ "ETS compliance" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "RISK" ]
       }
     },
     "/api/v1/home/summary" : {
@@ -15382,7 +15408,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/holdings/{id}/movements" : {
@@ -15492,7 +15519,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "AUDITOR", "BACK_OFFICE", "REGISTRY_OPERATOR", "MIDDLE_OFFICE", "ACCOUNTANT", "RISK" ]
       }
     },
     "/api/v1/inventory/lots" : {
@@ -15612,7 +15640,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/lots/search" : {
@@ -15791,7 +15820,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/lots/{id}/correct" : {
@@ -15838,7 +15868,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/lots/{id}/history" : {
@@ -15925,7 +15956,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/lots/{id}/reserve" : {
@@ -15972,7 +16004,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/lots/{id}/split" : {
@@ -16019,7 +16052,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/lots/{id}/withdraw" : {
@@ -16066,7 +16100,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/inventory/statements" : {
@@ -16151,7 +16186,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/inventory/statements/{id}" : {
@@ -16188,7 +16224,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE", "MIDDLE_OFFICE", "ACCOUNTANT", "RISK", "AUDITOR" ]
       }
     },
     "/api/v1/inventory/statements/{id}/reconcile" : {
@@ -16225,7 +16262,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Inventory" ]
+        "tags" : [ "Inventory" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/ledger/accounts" : {
@@ -16379,7 +16417,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT", "BACK_OFFICE" ]
       }
     },
     "/api/v1/ledger/entries/{id}" : {
@@ -16463,7 +16502,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT", "BACK_OFFICE" ]
       }
     },
     "/api/v1/ledger/export-formats" : {
@@ -16541,7 +16581,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT", "AUDITOR" ]
       }
     },
     "/api/v1/ledger/exports/{id}/acknowledge" : {
@@ -16588,7 +16629,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/exports/{id}/delivered" : {
@@ -16625,7 +16667,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/exports/{id}/reject" : {
@@ -16672,7 +16715,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/exports/{period}" : {
@@ -16724,7 +16768,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/exports/{period}/csv" : {
@@ -16776,7 +16821,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/gl-balances/{period}" : {
@@ -16836,7 +16882,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/hedges" : {
@@ -16920,7 +16967,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Hedge accounting" ]
+        "tags" : [ "Hedge accounting" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/hedges/{id}" : {
@@ -17004,7 +17052,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Hedge accounting" ]
+        "tags" : [ "Hedge accounting" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/journal/verify" : {
@@ -17195,7 +17244,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Period end" ]
+        "tags" : [ "Period end" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/period-end/runs" : {
@@ -17278,7 +17328,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Period end" ]
+        "tags" : [ "Period end" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/periods" : {
@@ -17370,7 +17421,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/periods/{period}/hard-close-blockers" : {
@@ -17417,7 +17469,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/periods/{period}/reopen" : {
@@ -17461,7 +17514,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/reconciliation" : {
@@ -17508,7 +17562,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT", "AUDITOR" ]
       }
     },
     "/api/v1/ledger/rules" : {
@@ -17584,7 +17639,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Ledger" ]
+        "tags" : [ "Ledger" ],
+        "x-roles" : [ "ACCOUNTANT" ]
       }
     },
     "/api/v1/ledger/rules/changes" : {
@@ -17748,7 +17804,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/curves" : {
@@ -17824,7 +17881,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Curves" ]
+        "tags" : [ "Curves" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/curves/discount-factor" : {
@@ -18012,7 +18070,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Curves" ]
+        "tags" : [ "Curves" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/curves/snapshots/{id}/submit" : {
@@ -18049,7 +18108,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Curves" ]
+        "tags" : [ "Curves" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/curves/vintage-price" : {
@@ -18199,7 +18259,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Curves" ]
+        "tags" : [ "Curves" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/curves/{code}/official" : {
@@ -18342,7 +18403,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Curves" ]
+        "tags" : [ "Curves" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/ecb/pull" : {
@@ -18370,7 +18432,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/fx-rates" : {
@@ -18453,7 +18516,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/fx-rates/convert" : {
@@ -18571,7 +18635,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/imports" : {
@@ -18623,7 +18688,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/indices" : {
@@ -18690,7 +18756,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/indices/{code}/fixings/{date}" : {
@@ -18818,7 +18885,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/quotes" : {
@@ -18917,7 +18985,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/market-data/quotes/suspect" : {
@@ -18995,7 +19064,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Market data" ]
+        "tags" : [ "Market data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/me" : {
@@ -19215,7 +19285,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Positions" ]
+        "tags" : [ "Positions" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "RISK", "ACCOUNTANT" ]
       }
     },
     "/api/v1/products/allowances" : {
@@ -19331,7 +19402,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Products" ]
+        "tags" : [ "Products" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/products/buckets/hierarchy" : {
@@ -19448,7 +19520,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Products" ]
+        "tags" : [ "Products" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/products/criteria/catalogue" : {
@@ -19625,7 +19698,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Products" ]
+        "tags" : [ "Products" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/products/futures-contracts/{code}/deactivate" : {
@@ -19661,7 +19735,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Products" ]
+        "tags" : [ "Products" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/books" : {
@@ -19699,7 +19774,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/books/{id}" : {
@@ -19935,7 +20011,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/counterparties/{id}" : {
@@ -20017,7 +20094,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/counterparties/{id}/registry-accounts/change-requests" : {
@@ -20064,7 +20142,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR", "ACCOUNTANT" ]
       }
     },
     "/api/v1/reference/devices/{id}/expected" : {
@@ -20212,7 +20291,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Production forecasts" ]
+        "tags" : [ "Production forecasts" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/forecasts/import" : {
@@ -20255,7 +20335,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Production forecasts" ]
+        "tags" : [ "Production forecasts" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/history/{table}/{id}" : {
@@ -20422,7 +20503,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/legal-entities/{id}" : {
@@ -20504,7 +20586,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/legal-entities/{id}/books" : {
@@ -20629,7 +20712,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Production forecasts" ]
+        "tags" : [ "Production forecasts" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reference/parties/{partyType}/{partyId}/addresses" : {
@@ -20730,7 +20814,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Party details" ]
+        "tags" : [ "Party details" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/reference/parties/{partyType}/{partyId}/bank-accounts" : {
@@ -20778,7 +20863,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Party details" ]
+        "tags" : [ "Party details" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR", "ACCOUNTANT" ]
       }
     },
     "/api/v1/reference/parties/{partyType}/{partyId}/bank-accounts/change-requests" : {
@@ -20833,7 +20919,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Party details" ]
+        "tags" : [ "Party details" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR", "ACCOUNTANT" ]
       }
     },
     "/api/v1/reference/parties/{partyType}/{partyId}/vat-registrations" : {
@@ -20934,7 +21021,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Party details" ]
+        "tags" : [ "Party details" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/reference/production-devices" : {
@@ -21010,7 +21098,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/reference/production-devices/{id}" : {
@@ -21092,7 +21181,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/reference/registries" : {
@@ -21169,7 +21259,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR", "ACCOUNTANT" ]
       }
     },
     "/api/v1/reference/registry-accounts" : {
@@ -21253,7 +21344,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE", "REGISTRY_OPERATOR" ]
       }
     },
     "/api/v1/reference/registry-accounts/{id}" : {
@@ -21337,7 +21429,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reference data" ]
+        "tags" : [ "Reference data" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/accept" : {
@@ -21384,7 +21477,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/assign" : {
@@ -21430,7 +21524,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/confirm-instruction" : {
@@ -21477,7 +21572,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/correct-holding" : {
@@ -21524,7 +21620,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/correct-lot" : {
@@ -21571,7 +21668,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/record-receipt" : {
@@ -21618,7 +21716,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/replace-lot" : {
@@ -21665,7 +21764,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/breaks/{id}/withdraw-lot" : {
@@ -21712,7 +21812,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reconciliation breaks" ]
+        "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/instructions" : {
@@ -21789,7 +21890,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/registry/instructions/cancellations" : {
@@ -21827,7 +21929,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/registry/instructions/search" : {
@@ -21923,7 +22026,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE", "MIDDLE_OFFICE", "ACCOUNTANT", "RISK", "AUDITOR" ]
       }
     },
     "/api/v1/registry/instructions/surrenders" : {
@@ -21999,7 +22103,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/registry/instructions/{id}" : {
@@ -22036,7 +22141,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE", "MIDDLE_OFFICE", "ACCOUNTANT", "RISK", "AUDITOR" ]
       }
     },
     "/api/v1/registry/instructions/{id}/cancel" : {
@@ -22083,7 +22189,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/instructions/{id}/confirm" : {
@@ -22130,7 +22237,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/instructions/{id}/fail" : {
@@ -22177,7 +22285,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/instructions/{id}/retry" : {
@@ -22214,7 +22323,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/routes" : {
@@ -22289,7 +22399,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/statement-formats" : {
@@ -22364,7 +22475,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/statements/csv" : {
@@ -22439,7 +22551,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/registry/statements/transactions" : {
@@ -22505,7 +22618,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Registry" ]
+        "tags" : [ "Registry" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
     "/api/v1/reports" : {
@@ -22663,7 +22777,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reports" ]
+        "tags" : [ "Reports" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK", "ACCOUNTANT", "AUDITOR" ]
       }
     },
     "/api/v1/reports/emir/trades/{tradeId}/error" : {
@@ -22710,7 +22825,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reports" ]
+        "tags" : [ "Reports" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reports/exports" : {
@@ -22757,7 +22873,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Reports" ]
+        "tags" : [ "Reports" ],
+        "x-roles" : [ "AUDITOR", "ACCOUNTANT", "RISK", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/reports/exports/{id}" : {
@@ -22972,7 +23089,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Risk" ]
+        "tags" : [ "Risk" ],
+        "x-roles" : [ "RISK", "BACK_OFFICE" ]
       }
     },
     "/api/v1/risk/exposures" : {
@@ -23096,7 +23214,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Risk" ]
+        "tags" : [ "Risk" ],
+        "x-roles" : [ "RISK" ]
       }
     },
     "/api/v1/risk/limits/{id}" : {
@@ -23210,7 +23329,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Risk" ]
+        "tags" : [ "Risk" ],
+        "x-roles" : [ "RISK" ]
       }
     },
     "/api/v1/risk/pfe-add-ons" : {
@@ -23281,7 +23401,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Risk" ]
+        "tags" : [ "Risk" ],
+        "x-roles" : [ "RISK", "MIDDLE_OFFICE", "TRADER", "AUDITOR" ]
       }
     },
     "/api/v1/settlement/invoice-runs" : {
@@ -23322,7 +23443,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/invoices" : {
@@ -23410,7 +23532,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT", "MIDDLE_OFFICE", "RISK", "AUDITOR" ]
       }
     },
     "/api/v1/settlement/invoices/export" : {
@@ -23471,7 +23594,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT", "MIDDLE_OFFICE", "RISK", "AUDITOR" ]
       }
     },
     "/api/v1/settlement/invoices/search" : {
@@ -23696,7 +23820,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/invoices/{id}/discard" : {
@@ -23743,7 +23868,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/invoices/{id}/submit" : {
@@ -23780,7 +23906,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/items" : {
@@ -23848,7 +23975,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT", "MIDDLE_OFFICE", "RISK", "AUDITOR" ]
       }
     },
     "/api/v1/settlement/items/{id}" : {
@@ -23885,7 +24013,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT", "MIDDLE_OFFICE", "RISK", "AUDITOR" ]
       }
     },
     "/api/v1/settlement/items/{id}/reevaluate" : {
@@ -23922,7 +24051,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "ACCOUNTANT", "BACK_OFFICE", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/settlement/netting" : {
@@ -24006,7 +24136,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/netting/{id}" : {
@@ -24089,7 +24220,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/netting/{id}/cancel" : {
@@ -24136,7 +24268,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/netting/{id}/settle" : {
@@ -24182,7 +24315,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/payments" : {
@@ -24274,7 +24408,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/payments/csv" : {
@@ -24329,7 +24464,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/payments/search" : {
@@ -24482,7 +24618,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Payments and netting" ]
+        "tags" : [ "Payments and netting" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/price-fixings" : {
@@ -24523,7 +24660,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/settlement/purchase-invoices" : {
@@ -24561,7 +24699,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "BACK_OFFICE", "ACCOUNTANT" ]
       }
     },
     "/api/v1/settlement/reports/ageing" : {
@@ -24835,7 +24974,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Settlement" ]
+        "tags" : [ "Settlement" ],
+        "x-roles" : [ "ACCOUNTANT", "BACK_OFFICE" ]
       }
     },
     "/api/v1/settlement/vat-rules/determination" : {
@@ -24932,7 +25072,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "showcase-controller" ]
+        "tags" : [ "showcase-controller" ],
+        "x-roles" : [ "ADMIN" ]
       }
     },
     "/api/v1/taxonomy/REGION/{code}/countries" : {
@@ -25024,7 +25165,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Taxonomy" ]
+        "tags" : [ "Taxonomy" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/taxonomy/{scheme}" : {
@@ -25124,7 +25266,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Taxonomy" ]
+        "tags" : [ "Taxonomy" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/taxonomy/{scheme}/{code}" : {
@@ -25220,7 +25363,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Taxonomy" ]
+        "tags" : [ "Taxonomy" ],
+        "x-roles" : [ "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/taxonomy/{scheme}/{code}/subtree" : {
@@ -25404,7 +25548,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/trades/obligations" : {
@@ -25691,7 +25836,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/trades/{id}/approve" : {
@@ -25728,7 +25874,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/trades/{id}/cancel" : {
@@ -25775,7 +25922,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "TRADER", "MIDDLE_OFFICE" ]
       }
     },
     "/api/v1/trades/{id}/confirm" : {
@@ -25822,7 +25970,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/trades/{id}/deliveries" : {
@@ -25869,7 +26018,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/trades/{id}/reject" : {
@@ -25916,7 +26066,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/trades/{id}/settle" : {
@@ -25953,7 +26104,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trades" ]
+        "tags" : [ "Trades" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/trades/{id}/versions" : {
@@ -26068,7 +26220,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Trade confirmations" ]
+        "tags" : [ "Trade confirmations" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "BACK_OFFICE" ]
       }
     },
     "/api/v1/ui-config" : {
@@ -26141,7 +26294,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Valuation" ]
+        "tags" : [ "Valuation" ],
+        "x-roles" : [ "RISK", "MIDDLE_OFFICE", "ACCOUNTANT", "AUDITOR", "TRADER" ]
       }
     },
     "/api/v1/valuation/pnl-explain" : {
@@ -26339,7 +26493,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Valuation" ]
+        "tags" : [ "Valuation" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/valuation/runs/{id}" : {
@@ -26559,7 +26714,8 @@
             "description" : "Problem details"
           }
         },
-        "tags" : [ "Valuation" ]
+        "tags" : [ "Valuation" ],
+        "x-roles" : [ "MIDDLE_OFFICE", "RISK" ]
       }
     },
     "/api/v1/valuation/trades/{id}/mtm" : {

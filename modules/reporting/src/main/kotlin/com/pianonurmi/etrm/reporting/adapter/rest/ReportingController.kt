@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.reporting.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.AllowedRoles
+import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.reporting.api.EmirCompleteness
 import com.pianonurmi.etrm.reporting.api.EmirEventView
 import com.pianonurmi.etrm.reporting.api.EmirFieldRule
@@ -44,6 +46,7 @@ class ReportingController(private val query: ReportingQuery, private val command
     }
 
     @GetMapping("/exports")
+    @AllowedRoles(Role.AUDITOR, Role.ACCOUNTANT, Role.RISK, Role.MIDDLE_OFFICE)
     fun exports(
         @RequestParam(required = false) legalEntityId: UUID?,
         @RequestParam(required = false) reportCode: String?,
@@ -68,9 +71,11 @@ class ReportingController(private val query: ReportingQuery, private val command
     ): List<EmirCompleteness> = query.emirCompleteness(legalEntityId)
 
     @GetMapping("/emir/field-rules")
+    @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK, Role.ACCOUNTANT, Role.AUDITOR)
     fun emirFieldRules(): List<EmirFieldRule> = query.emirFieldRules()
 
     @PostMapping("/emir/trades/{tradeId}/error")
+    @AllowedRoles(Role.MIDDLE_OFFICE)
     fun reportError(
         @PathVariable tradeId: UUID,
         @RequestBody body: ErrorReport,
