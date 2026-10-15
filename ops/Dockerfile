@@ -1,4 +1,5 @@
 # Runtime image for the assembled application. Build the jar first: ./gradlew :apps:api:bootJar
+# The showcase image takes the jar with the demo seeder: --build-arg JAR=apps/api/build/libs/api-showcase.jar
 # Ubuntu rather than Alpine: the exact allocation solver's native library (OR-Tools) needs glibc (ADR 0031).
 FROM eclipse-temurin:25-jre-noble@sha256:d9a39a23634650173f1e2bbc176227af9728587ecf0f4b62d53e9355cd7a19ab AS runtime
 LABEL org.opencontainers.image.source="https://github.com/Pianonurmi/goo-ets-etrm" \
@@ -6,7 +7,8 @@ LABEL org.opencontainers.image.source="https://github.com/Pianonurmi/goo-ets-etr
 # Numeric ids so Kubernetes can verify runAsNonRoot (the Helm chart runs as 10001).
 RUN groupadd --system --gid 10001 etrm && useradd --system --uid 10001 --gid etrm --no-create-home --shell /usr/sbin/nologin etrm
 WORKDIR /app
-COPY apps/api/build/libs/api.jar /app/app.jar
+ARG JAR=apps/api/build/libs/api.jar
+COPY ${JAR} /app/app.jar
 USER 10001:10001
 EXPOSE 8080
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+UseZGC -Djava.security.egd=file:/dev/./urandom"

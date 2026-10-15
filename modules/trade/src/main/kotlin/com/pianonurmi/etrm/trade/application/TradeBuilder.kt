@@ -63,100 +63,28 @@ import com.pianonurmi.etrm.trade.domain.TradeRepository
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.Clock
 import java.util.Currency
 import java.util.UUID
 
-@Service
-@Transactional
-class TradeService(
+/**
+ * Builds a trade from a capture or an amendment: its legs, delivery schedules and bucket, the counterparty's account,
+ * and the regulatory terms (UTI, venue, clearing) with their checks.
+ */
+@Component
+class TradeBuilder(
     private val repository: TradeRepository,
     private val referenceData: ReferenceDataQuery,
     private val criteria: CriteriaService,
     private val buckets: ProductBucketQuery,
     private val catalogue: ProductCatalogueQuery,
-    private val actorProvider: ActorProvider,
-    private val events: ApplicationEventPublisher,
-    private val clock: Clock,
-    /** Trades with notional at or above this amount (in [thresholdCurrency]) need four-eyes approval; 0 means every trade. */
-    @Value("\${etrm.trade.approval-threshold:0}") private val approvalThreshold: BigDecimal,
-    private val fxRates: FxRates,
-    @Value("\${etrm.trade.approval-threshold-currency:EUR}") private val thresholdCurrency: String,
     private val futures: FuturesContractQuery,
-    /** Pre-trade checks of other modules, resolved when used (they read trades themselves). */
-    private val checks: ObjectProvider<TradeApprovalCheck>,
-) : TradeCommand, TradeQuery {
-    // ----------------------------------------------------------------------------------------------------------
-    // Capture and amendment
-    // ----------------------------------------------------------------------------------------------------------
-
-    private fun authorise(legalEntityId: UUID, vararg roles: Role) {
-        val actor = actorProvider.current()
-        actor.requireRole(*roles)
-        actor.requireEntity(legalEntityId)
-    }
-
-    override fun requireTradeOperator(tradeId: UUID) {
-        authorise(requireTrade(tradeId).legalEntityId, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
-    }
-
-    override fun capture(command: CaptureTrade): TradeView {
-        authorise(command.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
-        val actor = actorProvider.current().userId
-        val counterparty = referenceData.requireCounterparty(command.counterpartyId)
-        val trade = build(command, actor).let { it.copy(approvalFindings = runChecks(it)) }
-        repository.insert(trade, actor, command.reason ?: "captured")
-        val submitted = TradeAggregate(trade).submitForApproval(requiresApproval(trade))
-        repository.saveVersion(submitted, actor, "submitted")
-        events.publishEvent(TradeCaptured(submitted))
-        openObligationsIfDue(submitted)
-        if (counterparty.counterpartyType == CounterpartyType.INTERCOMPANY) captureMirror(command, submitted, counterparty.linkedLegalEntityId!!, actor)
-        return submitted
-    }
-
-    private fun captureMirror(command: CaptureTrade, original: TradeView, mirrorEntityId: UUID, actor: String) {
-        val mirrorBook = command.mirrorBookId ?: throw ValidationException("Intercompany trades require mirrorBookId in the counterparty legal entity")
-        if (referenceData.requireBook(
-                mirrorBook,
-            ).legalEntityId != mirrorEntityId
-        ) {
-            throw ValidationException("mirrorBookId must belong to legal entity $mirrorEntityId")
-        }
-        val mirrorCounterparty = referenceData.counterparties().firstOrNull { it.linkedLegalEntityId == command.legalEntityId }
-            ?: throw ValidationException("No intercompany counterparty record represents legal entity ${command.legalEntityId}")
-        val mirrorCommand = command.copy(
-            legalEntityId = mirrorEntityId,
-            bookId = mirrorBook,
-            counterpartyId = mirrorCounterparty.id,
-            // The mirror delivers to (or receives from) the original entity's own account, from the account the original
-            // names for its counterparty (held by the mirror's entity), when it names a registered one.
-            legs = command.legs.mapIndexed { index, leg ->
-                leg.copy(
-                    side = leg.side.opposite(),
-                    deliveryAccountId = original.legs[index].counterpartyAccountId,
-                    counterpartyAccountId = leg.deliveryAccountId,
-                    counterpartyAccountRef = null,
-                )
-            },
-            mirrorBookId = null,
-        )
-        // One transaction, one UTI: the mirror reports the original's identifier.
-        val mirror = build(mirrorCommand, actor).let {
-            it.copy(intercompanyLinkId = original.id, regulatory = it.regulatory.copy(uti = original.regulatory.uti, utiSource = original.regulatory.utiSource))
-        }
-        repository.insert(mirror, actor, "intercompany mirror of ${original.tradeNumber}")
-        val submitted = TradeAggregate(mirror).submitForApproval(requiresApproval(mirror))
-        repository.saveVersion(submitted, actor, "submitted")
-        val linked = original.copy(intercompanyLinkId = mirror.id, version = original.version + 1)
-        repository.saveVersion(linked, actor, "linked to ${mirror.tradeNumber}")
-        events.publishEvent(TradeCaptured(submitted))
-        openObligationsIfDue(submitted)
-    }
-
-    private fun build(command: CaptureTrade, actor: String): TradeView {
+    private val policy: TradeApprovalPolicy,
+) {
+    fun build(command: CaptureTrade, actor: String): TradeView {
         val entity = referenceData.requireLegalEntity(command.legalEntityId)
         val book = referenceData.requireBook(command.bookId)
         if (book.legalEntityId != entity.id) throw ValidationException("Book ${book.code} does not belong to legal entity ${entity.code}")
@@ -424,23 +352,8 @@ class TradeService(
         return leg.counterpartyAccountRef?.let(referenceData::registryAccountByRef)?.takeIf { belongs(it) && it.active }
     }
 
-    override fun amend(tradeId: UUID, command: AmendTrade): TradeView {
-        val actor = actorProvider.current().userId
-        val current = locked(tradeId)
-        authorise(current.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
-        if (current.version != command.expectedVersion) throw StaleVersionException("Trade", tradeId, command.expectedVersion, current.version)
-        val next = TradeAggregate(current).amend(amendedState(current, command, runChecks = true))
-        // An intercompany trade and its mirror change together or not at all: the mirror is worked out first, so a
-        // refusal leaves both as they were.
-        val mirror = current.intercompanyLinkId?.let(::locked)
-        val mirrorNext = mirror?.let { amendedMirror(current, next, it, command) }
-        saveAmended(current, next, actor, command.reason)
-        if (mirror != null && mirrorNext != null) saveAmended(mirror, mirrorNext, actor, "${command.reason} (follows ${current.tradeNumber})")
-        return next
-    }
-
     /** The trade as the amendment would leave it, before the lifecycle moves it back to approval. */
-    private fun amendedState(current: TradeView, command: AmendTrade, runChecks: Boolean): TradeView {
+    fun amendedState(current: TradeView, command: AmendTrade, runChecks: Boolean): TradeView {
         val legs = command.legs?.let { optionLegsChecked(current.instrumentType, it) }?.mapIndexed {
             index,
             leg,
@@ -455,287 +368,10 @@ class TradeService(
             legs = legs,
             regulatory = command.regulatory ?: current.regulatory,
         ).let { withRegulatoryTerms(it, referenceData.requireLegalEntity(current.legalEntityId), keptUti = current.regulatory.uti) }
-            .let { if (runChecks) it.copy(approvalFindings = runChecks(it)) else it }
-    }
-
-    private fun saveAmended(current: TradeView, next: TradeView, actor: String, reason: String) {
-        val wasFirm = current.obligationsOpen
-        save(next, actor, reason)
-        events.publishEvent(TradeAmended(next, current.version))
-        if (wasFirm) obligationsOf(current).forEach { events.publishEvent(DeliveryObligationClosed(it, "amended")) }
-    }
-
-    /**
-     * The mirror of an intercompany trade after the same amendment, with the sides turned round. The source's delivery
-     * account is the mirror's counterparty account, and the source's counterparty account (held by the mirror's entity)
-     * the mirror's delivery account: an account the amendment changed on [amended] follows to the mirror, one it left as
-     * it was keeps the mirror's own value. A leg added by the amendment takes the source's accounts, as at capture. It is
-     * worked out like any amendment and, like the mirror at capture, without pre-trade checks. When the mirror cannot take
-     * the change (it has deliveries, an option leg decided, or is in a state that forbids it), the one-sided change is
-     * refused.
-     */
-    private fun amendedMirror(source: TradeView, amended: TradeView, mirror: TradeView, command: AmendTrade): TradeView = try {
-        val mirrorCommand = command.copy(
-            expectedVersion = mirror.version,
-            legs = command.legs?.mapIndexed { index, leg ->
-                val own = mirror.legs.getOrNull(index)
-                val before = source.legs.getOrNull(index)
-                val after = amended.legs[index]
-                val deliveryKept = own != null && before != null && after.deliveryAccountId == before.deliveryAccountId
-                val counterpartyKept = own != null && before != null && after.counterpartyAccountId == before.counterpartyAccountId
-                leg.copy(
-                    side = leg.side.opposite(),
-                    deliveryAccountId = if (counterpartyKept) own.deliveryAccountId else after.counterpartyAccountId,
-                    counterpartyAccountId = if (deliveryKept) own.counterpartyAccountId else after.deliveryAccountId,
-                    counterpartyAccountRef = if (deliveryKept) own.counterpartyAccountRef else null,
-                )
-            },
-        )
-        TradeAggregate(mirror).amend(amendedState(mirror, mirrorCommand, runChecks = false))
-    } catch (e: DomainException) {
-        throw ValidationException(
-            "Trade ${source.tradeNumber} cannot be amended on its own: its intercompany mirror ${mirror.tradeNumber} refuses the change (${e.message})",
-        )
-    }
-
-    // ----------------------------------------------------------------------------------------------------------
-    // Lifecycle
-    // ----------------------------------------------------------------------------------------------------------
-
-    override fun approve(tradeId: UUID): TradeView {
-        val actor = actorProvider.current().userId
-        val current = locked(tradeId)
-        authorise(current.legalEntityId, Role.MIDDLE_OFFICE, Role.RISK)
-        if (current.requiresRiskApproval) actorProvider.current().requireRole(Role.RISK)
-        val next = TradeAggregate(current).approve(actor, clock.instant())
-        save(next, actor, "approved")
-        events.publishEvent(TradeApproved(next))
-        openObligationsIfDue(next)
-        // The other side of an intercompany trade may have been confirmed while this one waited for approval: the
-        // confirmation reached nothing then, so it is taken over now.
-        val linked = next.intercompanyLinkId?.let(::requireTrade)?.takeIf { it.status == TradeStatus.CONFIRMED && it.confirmationRef != null }
-        if (linked != null) return confirmAs(next.id, ConfirmTrade(linked.confirmationRef!!, "INTERCOMPANY", linked.confirmedAt), actor)
-        return next
-    }
-
-    override fun reject(tradeId: UUID, reason: String): TradeView {
-        val current = locked(tradeId)
-        authorise(current.legalEntityId, Role.MIDDLE_OFFICE, Role.RISK)
-        val next = TradeAggregate(current).reject()
-        save(next, actorProvider.current().userId, "rejected: $reason")
-        return next
-    }
-
-    override fun confirm(tradeId: UUID, command: ConfirmTrade): TradeView {
-        authorise(requireTrade(tradeId).legalEntityId, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
-        return confirmAs(tradeId, command, actorProvider.current().userId)
-    }
-
-    /** Confirmation on behalf of [actor], e.g. `system` when the counterparty's confirmation matched ours. */
-    fun confirmAs(tradeId: UUID, command: ConfirmTrade, actor: String): TradeView {
-        val current = locked(tradeId)
-        val next = TradeAggregate(current).confirm(command.confirmationRef, command.confirmedAt ?: clock.instant())
-        save(next, actor, "confirmed via ${command.method}")
-        events.publishEvent(TradeConfirmed(next))
-        if (!current.obligationsOpen) obligationsOf(next).forEach { events.publishEvent(DeliveryObligationOpened(it)) }
-        next.intercompanyLinkId?.let { linkedId ->
-            val linked = locked(linkedId)
-            if (linked.status == TradeStatus.APPROVED) confirmAs(linkedId, command, actor)
-        }
-        return next
-    }
-
-    override fun cancel(tradeId: UUID, reason: String): TradeView {
-        val current = locked(tradeId)
-        authorise(current.legalEntityId, Role.TRADER, Role.MIDDLE_OFFICE)
-        val next = TradeAggregate(current).cancel()
-        // The mirror of an intercompany trade is cancelled with it, or the cancellation is refused: one entity must not
-        // keep the obligation, exposure and position the other has cancelled.
-        val mirror = current.intercompanyLinkId?.let(::locked)?.takeIf { it.status != TradeStatus.CANCELLED }
-        val mirrorNext = mirror?.let { cancelledMirror(current, it) }
-        val actor = actorProvider.current().userId
-        saveCancelled(current, next, actor, reason)
-        if (mirror != null && mirrorNext != null) saveCancelled(mirror, mirrorNext, actor, "$reason (follows ${current.tradeNumber})")
-        return next
-    }
-
-    private fun cancelledMirror(source: TradeView, mirror: TradeView): TradeView = try {
-        TradeAggregate(mirror).cancel()
-    } catch (e: DomainException) {
-        throw ValidationException(
-            "Trade ${source.tradeNumber} cannot be cancelled on its own: its intercompany mirror ${mirror.tradeNumber} refuses it (${e.message})",
-        )
-    }
-
-    private fun saveCancelled(current: TradeView, next: TradeView, actor: String, reason: String) {
-        save(next, actor, "cancelled: $reason")
-        events.publishEvent(TradeCancelled(next, reason))
-        if (current.obligationsOpen) {
-            obligationsOf(current).filter {
-                it.status != DeliveryStatus.DELIVERED
-            }.forEach { events.publishEvent(DeliveryObligationClosed(it, "cancelled")) }
-        }
-    }
-
-    override fun recordDelivery(tradeId: UUID, command: RecordDelivery): TradeView {
-        val actor = actorProvider.current().userId
-        val current = locked(tradeId)
-        if (command.idempotencyKey != null && repository.deliveryRecorded(command.idempotencyKey)) return current
-        val (next, schedule) = TradeAggregate(current).recordDelivery(command.scheduleId, command.quantity)
-        save(next, actor, "delivery ${command.quantity} on ${command.deliveredOn}")
-        val deliveryId = repository.appendDeliveryRecord(
-            command.scheduleId,
-            command.quantity,
-            command.deliveredOn,
-            command.reference,
-            command.idempotencyKey,
-            actor,
-        )
-        val obligation = obligationsOf(next).first { it.scheduleId == schedule.id }
-        events.publishEvent(DeliveryRecorded(next, deliveryId, obligation, command.quantity, command.deliveredOn, command.reference))
-        if (schedule.status == DeliveryStatus.DELIVERED) {
-            events.publishEvent(DeliveryObligationClosed(obligation, "delivered"))
-        } else {
-            events.publishEvent(DeliveryObligationChanged(obligation))
-        }
-        return next
-    }
-
-    /**
-     * Captures, approves and confirms a trade the system makes on another's behalf: the future an option is exercised
-     * into (ADR 0047). No pre-trade checks or approval: the exercise is not a decision.
-     */
-    fun captureConfirmed(command: CaptureTrade, reason: String, confirmationRef: String): TradeView {
-        val trade = build(command, SYSTEM_USER)
-        repository.insert(trade, SYSTEM_USER, reason)
-        val approved = TradeAggregate(trade).submitForApproval(requiresApproval = false)
-        repository.saveVersion(approved, SYSTEM_USER, "approved: $reason")
-        events.publishEvent(TradeCaptured(approved))
-        openObligationsIfDue(approved)
-        return confirmAs(approved.id, ConfirmTrade(confirmationRef, "SYSTEM", clock.instant()), SYSTEM_USER)
-    }
-
-    /** Records an option leg's outcome at expiry; the trade closes once every leg is decided. */
-    fun recordExpiry(tradeId: UUID, legNo: Int, expiry: OptionExpiryView, future: TradeView?): TradeView {
-        val next = TradeAggregate(locked(tradeId)).expire(legNo, expiry)
-        save(next, SYSTEM_USER, "leg $legNo ${expiry.outcome.name.lowercase()} at ${expiry.settlementPrice.toPlainString()}")
-        events.publishEvent(OptionExpired(next, legNo, expiry, future))
-        return next
-    }
-
-    override fun markSettled(tradeId: UUID): TradeView {
-        val next = TradeAggregate(locked(tradeId)).markSettled()
-        save(next, actorProvider.current().userId, "settled")
-        events.publishEvent(TradeSettled(next))
-        return next
-    }
-
-    // ----------------------------------------------------------------------------------------------------------
-    // Queries
-    // ----------------------------------------------------------------------------------------------------------
-
-    @Transactional(readOnly = true)
-    override fun trade(id: UUID): TradeView? = repository.find(id)
-
-    @Transactional(readOnly = true)
-    override fun requireTrade(id: UUID): TradeView = repository.find(id) ?: throw NotFoundException("Trade", id)
-
-    @Transactional(readOnly = true)
-    override fun byNumber(tradeNumber: String): TradeView? = repository.byNumber(tradeNumber)
-
-    @Transactional(readOnly = true)
-    override fun trades(filter: TradeFilter): List<TradeView> = repository.list(filter)
-
-    @Transactional(readOnly = true)
-    override fun visibleTrades(filter: TradeFilter): List<TradeView> {
-        val actor = actorProvider.current()
-        filter.legalEntityId?.let { actor.requireEntity(it) }
-        return repository.list(filter.copy(legalEntityIds = actor.entityFilter))
-    }
-
-    @Transactional(readOnly = true)
-    override fun searchTrades(search: TradeSearch): TradePage {
-        val actor = actorProvider.current()
-        search.legalEntityId?.let { actor.requireEntity(it) }
-        return repository.search(search.copy(legalEntityIds = actor.entityFilter))
-    }
-
-    @Transactional(readOnly = true)
-    override fun requireVisibleTrade(id: UUID): TradeView = requireTrade(id).also { actorProvider.current().requireEntity(it.legalEntityId) }
-
-    @Transactional(readOnly = true)
-    override fun versions(tradeId: UUID): List<TradeVersionView> = repository.versions(tradeId)
-
-    @Transactional(readOnly = true)
-    override fun openObligations(legalEntityId: UUID, side: Side?, productFamily: ProductFamily?): List<DeliveryObligationView> =
-        repository.openObligations(legalEntityId, side, productFamily)
-
-    @Transactional(readOnly = true)
-    override fun obligation(scheduleId: UUID): DeliveryObligationView? = repository.obligation(scheduleId)
-
-    // ----------------------------------------------------------------------------------------------------------
-
-    /**
-     * Whether a trade needs a second person's approval: its notional, converted at the trade date's rate, against the
-     * threshold. A trade whose currency cannot be converted is treated as above it.
-     */
-    private fun requiresApproval(trade: TradeView): Boolean {
-        if (approvalThreshold.signum() == 0 || trade.requiresRiskApproval) return true
-        val converted = trade.legs.map { leg ->
-            fxRates.rate(trade.tradeDate, leg.priceCurrency.currencyCode, thresholdCurrency)?.let { leg.notional * it.rate } ?: return true
-        }
-        return converted.fold(BigDecimal.ZERO, BigDecimal::add) >= approvalThreshold
-    }
-
-    private fun runChecks(trade: TradeView): List<ApprovalFinding> = checks.orderedStream().toList().flatMap { it.check(trade) }
-
-    private fun locked(id: UUID): TradeView = repository.lock(id) ?: throw NotFoundException("Trade", id)
-
-    private fun save(trade: TradeView, actor: String, reason: String?) {
-        if (!repository.saveVersion(trade, actor, reason)) throw StaleVersionException("Trade", trade.id, trade.version - 1, -1)
-    }
-
-    /** Approved trades of entities whose obligations open at approval oblige delivery from now on. */
-    private fun openObligationsIfDue(trade: TradeView) {
-        if (trade.status == TradeStatus.APPROVED && trade.obligationsOpen) obligationsOf(trade).forEach { events.publishEvent(DeliveryObligationOpened(it)) }
-    }
-
-    private fun obligationsOf(trade: TradeView): List<DeliveryObligationView> = trade.legs.flatMap { leg ->
-        leg.deliveries.map { d ->
-            DeliveryObligationView(
-                scheduleId = d.id,
-                tradeId = trade.id,
-                tradeNumber = trade.tradeNumber,
-                legId = leg.id,
-                legalEntityId = trade.legalEntityId,
-                bookId = trade.bookId,
-                counterpartyId = trade.counterpartyId,
-                side = leg.side,
-                productFamily = trade.productFamily,
-                energyCarrier = leg.energyCarrier,
-                allowanceProductCode = leg.allowanceProductCode,
-                criteriaId = leg.criteriaId,
-                criterion = leg.criterion,
-                quantity = d.quantity,
-                deliveredQuantity = d.deliveredQuantity,
-                deliveryWindow = d.deliveryWindow,
-                deliveryDate = d.deliveryDate,
-                deliveryAccountId = leg.deliveryAccountId,
-                counterpartyAccountRef = leg.counterpartyAccountRef,
-                counterpartyAccountId = leg.counterpartyAccountId,
-                price = leg.price,
-                priceCurrency = leg.priceCurrency,
-                priceType = leg.priceType,
-                status = d.status,
-                priceIndex = leg.priceIndex,
-                bucketCode = leg.bucketCode,
-                bucketMatch = leg.bucketMatch,
-            )
-        }
+            .let { if (runChecks) it.copy(approvalFindings = policy.runChecks(it)) else it }
     }
 
     private companion object {
         const val UTI_LENGTH = 52
-        const val SYSTEM_USER = "system"
     }
 }

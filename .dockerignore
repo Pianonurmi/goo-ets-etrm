@@ -1,3 +1,4 @@
-# The image only needs the assembled jar (ops/Dockerfile).
+# The image only needs the assembled jar (ops/Dockerfile): api.jar, or api-showcase.jar for the showcase image.
 **
 !apps/api/build/libs/api.jar
+!apps/api/build/libs/api-showcase.jar

@@ -115,8 +115,8 @@ import com.pianonurmi.etrm.trade.api.PriceType
 import com.pianonurmi.etrm.trade.api.RecordDelivery
 import com.pianonurmi.etrm.trade.api.Side
 import com.pianonurmi.etrm.trade.api.TradeStatus
-import com.pianonurmi.etrm.trade.application.TradeService
 import com.pianonurmi.etrm.trade.fixtures.TradeWiring
+import com.pianonurmi.etrm.trade.fixtures.WiredTrades
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -151,7 +151,7 @@ class SettlementIT {
     private val bus = ApplicationEventPublisher { if (it is DeliveryRecorded) items.on(it) }
     private lateinit var referenceData: ReferenceDataService
     private lateinit var parties: PartyDetailsService
-    private lateinit var trades: TradeService
+    private lateinit var trades: WiredTrades
     private lateinit var vat: VatRuleService
     private lateinit var invoices: InvoiceService
     private lateinit var numbers: JooqNumberSeriesRepository

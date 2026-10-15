@@ -23,6 +23,7 @@ import com.pianonurmi.etrm.product.application.ProductBucketSeeder
 import com.pianonurmi.etrm.product.application.ProductBucketService
 import com.pianonurmi.etrm.product.application.ProductCatalogueService
 import com.pianonurmi.etrm.product.application.TaxonomySnapshots
+import com.pianonurmi.etrm.product.fixtures.ProductWiring
 import com.pianonurmi.etrm.referencedata.adapter.jooq.JooqReferenceDataRepository
 import com.pianonurmi.etrm.referencedata.api.BookType
 import com.pianonurmi.etrm.referencedata.api.CreateBook
@@ -51,9 +52,10 @@ import com.pianonurmi.etrm.trade.api.TradeApproved
 import com.pianonurmi.etrm.trade.api.TradeCaptured
 import com.pianonurmi.etrm.trade.api.TradeStatus
 import com.pianonurmi.etrm.trade.application.ConfirmationService
-import com.pianonurmi.etrm.trade.application.TradeService
 import com.pianonurmi.etrm.trade.domain.ConfirmationMatcher
 import com.pianonurmi.etrm.trade.domain.ConfirmationTolerance
+import com.pianonurmi.etrm.trade.fixtures.TradeWiring
+import com.pianonurmi.etrm.trade.fixtures.WiredTrades
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -84,7 +86,7 @@ class ConfirmationServiceIT {
             is TradeAmended -> confirmations.on(event)
         }
     }
-    private lateinit var trades: TradeService
+    private lateinit var trades: WiredTrades
     private lateinit var documents: DocumentService
     private lateinit var entity: UUID
     private lateinit var book: UUID
@@ -96,27 +98,10 @@ class ConfirmationServiceIT {
         val dsl = TestDatabase.dsl
         val taxonomy = TaxonomyService(JooqTaxonomyRepository(dsl), bus)
         val referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), taxonomy, bus)
-        val criteria = CriteriaServiceImpl(JooqCriteriaRepository(dsl), TaxonomySnapshots(taxonomy))
-        val buckets = ProductBucketService(JooqProductBucketRepository(dsl), criteria)
-        ProductBucketSeeder(buckets, buckets).seed()
         val clock = Clock.systemUTC()
-        trades = TradeService(
-            JooqTradeRepository(dsl),
-            referenceData,
-            criteria,
-            buckets,
-            ProductCatalogueService(JooqAllowanceProductRepository(dsl)),
-            actor,
-            bus,
-            clock,
-            BigDecimal.ZERO,
-            mockk<FxRates>(relaxed = true),
-            "EUR",
-            mockk(relaxed = true),
-            Providers.none(),
-        )
+        trades = TradeWiring.tradeService(dsl, referenceData, ProductWiring(dsl, taxonomy, actor), actor, bus, mockk<FxRates>(relaxed = true), clock)
         documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, bus, clock)
-        confirmations = ConfirmationService(JooqConfirmationRepository(dsl), trades, referenceData, documents, actor, bus, clock)
+        confirmations = ConfirmationService(JooqConfirmationRepository(dsl), trades, trades.lifecycle, referenceData, documents, actor, bus, clock)
         entity = referenceData.createLegalEntity(
             CreateLegalEntity("CONF-CO", "Confirming Oy", "FI", lei = "743700AAAAAAAAAAAA24", validFrom = LocalDate.of(2026, 1, 1)),
         ).id

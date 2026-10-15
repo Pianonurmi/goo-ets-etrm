@@ -7,8 +7,8 @@ import com.pianonurmi.etrm.trade.api.ConfirmationClosed
 import com.pianonurmi.etrm.trade.api.ConfirmationMismatched
 import com.pianonurmi.etrm.trade.api.ConfirmationStatus
 import com.pianonurmi.etrm.trade.api.DifferenceSeverity
+import com.pianonurmi.etrm.trade.api.TradeQuery
 import com.pianonurmi.etrm.trade.application.ConfirmationService
-import com.pianonurmi.etrm.trade.application.TradeService
 import com.pianonurmi.etrm.workflow.api.ApprovalTaskView
 import com.pianonurmi.etrm.workflow.api.Decision
 import com.pianonurmi.etrm.workflow.api.DecisionOutcome
@@ -32,7 +32,7 @@ private const val SUBJECT = "TRADE_CONFIRMATION"
 class ConfirmationBreakTasks(
     private val workflow: WorkflowCommand,
     @Lazy private val confirmations: ConfirmationService,
-    private val trades: TradeService,
+    private val trades: TradeQuery,
 ) : TaskHandler {
     override val definition = TaskTypeDefinition(
         taskType = TYPE,

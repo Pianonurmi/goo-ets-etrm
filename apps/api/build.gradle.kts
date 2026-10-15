@@ -35,6 +35,39 @@ tasks.named<ProcessResources>("processResources") {
     }
 }
 
+// The demo seeder (src/demo, the `demo` profile) fills the showcase and local runs with data. It stays out of the
+// production jar (review finding C10): bootJar leaves it out, showcaseJar adds it, and tests and bootRun see it.
+val main: SourceSet = sourceSets["main"]
+val demo: SourceSet = sourceSets.create("demo") {
+    compileClasspath += main.output + main.compileClasspath
+    runtimeClasspath += output + compileClasspath + main.runtimeClasspath
+}
+// The seeder may use the application's internal declarations, as tests do.
+kotlin.target.compilations.named("demo") { associateWith(kotlin.target.compilations.getByName("main")) }
+sourceSets["test"].compileClasspath += demo.output
+sourceSets["test"].runtimeClasspath += demo.output
+detekt { source.from("src/demo/kotlin") }
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    classpath(demo.output)
+}
+
+/** The showcase image's jar: the production jar plus the demo seeder (`ops/demo`, Playwright). */
+val showcaseJar = tasks.register<org.springframework.boot.gradle.tasks.bundling.BootJar>("showcaseJar") {
+    description = "Assembles api-showcase.jar: the application with the demo seeder."
+    group = "build"
+    val bootJar = tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar")
+    archiveFileName.set("${project.name}-showcase.jar")
+    mainClass.set(bootJar.flatMap { it.mainClass })
+    targetJavaVersion.set(bootJar.flatMap { it.targetJavaVersion })
+    classpath(bootJar.map { it.classpath }, demo.output)
+    from(tasks.named("cyclonedxDirectBom")) {
+        into("META-INF/sbom")
+        rename { "application.cdx.json" }
+    }
+}
+tasks.named("assemble") { dependsOn(showcaseJar) }
+
 // The committed OpenAPI document the web client is generated from (ADR 0027); OpenApiSnapshotIT checks it.
 val openApiSnapshot = layout.projectDirectory.file("openapi/etrm-api.json")
 
