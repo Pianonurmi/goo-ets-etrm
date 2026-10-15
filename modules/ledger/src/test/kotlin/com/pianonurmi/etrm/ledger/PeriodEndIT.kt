@@ -44,6 +44,7 @@ import com.pianonurmi.etrm.ledger.api.PostingFacts
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDesignation
 import com.pianonurmi.etrm.ledger.api.RequestHedgeDiscontinuation
 import com.pianonurmi.etrm.ledger.api.RequestPolicyChange
+import com.pianonurmi.etrm.ledger.application.HedgePositions
 import com.pianonurmi.etrm.ledger.application.HedgeService
 import com.pianonurmi.etrm.ledger.application.LedgerEventListeners
 import com.pianonurmi.etrm.ledger.application.LedgerService
@@ -51,6 +52,7 @@ import com.pianonurmi.etrm.ledger.application.PeriodEndService
 import com.pianonurmi.etrm.ledger.application.PostingRuleSeeder
 import com.pianonurmi.etrm.marketdata.api.CurvePrice
 import com.pianonurmi.etrm.marketdata.api.CurveQuery
+import com.pianonurmi.etrm.marketdata.api.IndexFixings
 import com.pianonurmi.etrm.marketdata.api.PriceOrigin
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
@@ -134,47 +136,56 @@ class PeriodEndIT {
     private var hedgedForward = BigDecimal("80")
     private lateinit var referenceData: ReferenceDataService
 
+    /** Official valuation runs and results per entity, and the hedged item's hypothetical derivative. */
+    private fun valuationsStub(): ValuationQuery {
+        val valuations = mockk<ValuationQuery>()
+        every { valuations.official(any(), any(), true) } answers {
+            valuationRuns[firstArg()].orEmpty().filterKeys { it <= secondArg<LocalDate>() }.maxByOrNull { it.key }?.value
+        }
+        every { valuations.results(any(), null) } answers { valuationResults[firstArg()] ?: emptyList() }
+        every { valuations.run(any()) } answers { valuationRuns.values.flatMap { it.values }.firstOrNull { r -> r.id == firstArg<UUID>() } }
+        // The hypothetical derivative: q x (forward - locked price), undiscounted, in EUR.
+        every { valuations.forwardValue(any(), any(), any()) } answers {
+            val terms = thirdArg<ForwardTerms>()
+            val value = (terms.quantity * (hedgedForward - terms.price)).setScale(2)
+            ForwardValue(hedgedForward, BigDecimal.ONE, value, value, "EUR")
+        }
+        return valuations
+    }
+
+    /** Installations and verified emissions per entity and year. */
+    private fun complianceStub(): EtsComplianceQuery {
+        val compliance = mockk<EtsComplianceQuery>()
+        every { compliance.entityCompliance(any(), any()) } answers {
+            EntityCompliance(firstArg(), secondArg(), LocalDate.MAX, installations[firstArg<UUID>() to secondArg<Int>()] ?: emptyList(), emptySet())
+        }
+        every { compliance.emissions(any(), any()) } answers { emissionRecords[firstArg()].orEmpty().filter { it.complianceYear == secondArg<Int?>() } }
+        return compliance
+    }
+
     @BeforeAll
-    @Suppress("LongMethod") // hand-wired ledger with stubbed neighbours
     fun setUp() {
         TestDatabase.migrate("taxonomy", "referencedata", "ledger")
         val dsl = TestDatabase.dsl
         val publisher = ApplicationEventPublisher { }
         referenceData = ReferenceDataService(JooqReferenceDataRepository(dsl), TaxonomyService(JooqTaxonomyRepository(dsl), publisher), publisher)
         val unposted = LedgerWiring.unposted(dsl, publisher)
-        ledger = LedgerService(
-            JooqGlAccountRepository(dsl),
-            JooqPostingRuleRepository(dsl),
-            JooqJournalRepository(dsl),
-            JooqPeriodRepository(dsl),
-            fx,
-            JooqGlExportRepository(dsl),
-            referenceData,
-            actor,
-            publisher,
-            clock,
-            JooqGlInterfaceRepository(dsl),
-            gates = LedgerWiring.gates(dsl),
-            unposted = unposted,
-        )
+        ledger = LedgerWiring.ledgerService(dsl, fx, referenceData, actor, publisher, clock, unposted)
         PostingRuleSeeder(JooqPostingRuleRepository(dsl), JooqSeedRepository(dsl)).seed()
-        listeners = LedgerEventListeners(ledger, JooqCostLayerRepository(dsl), referenceData, mockk(relaxed = true), mockk(relaxed = true), clock, unposted) {
-            _,
-            _,
-            ->
-            null
-        }
+        val noFixings = IndexFixings { _, _ -> null }
+        listeners = LedgerEventListeners(
+            ledger,
+            JooqCostLayerRepository(dsl),
+            referenceData,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            clock,
+            unposted,
+            noFixings,
+        )
 
-        val valuations = mockk<ValuationQuery>()
-        every { valuations.official(any(), any(), true) } answers {
-            valuationRuns[firstArg()].orEmpty().filterKeys { it <= secondArg<LocalDate>() }.maxByOrNull { it.key }?.value
-        }
-        every { valuations.results(any(), null) } answers { valuationResults[firstArg()] ?: emptyList() }
-        val compliance = mockk<EtsComplianceQuery>()
-        every { compliance.entityCompliance(any(), any()) } answers {
-            EntityCompliance(firstArg(), secondArg(), LocalDate.MAX, installations[firstArg<UUID>() to secondArg<Int>()] ?: emptyList(), emptySet())
-        }
-        every { compliance.emissions(any(), any()) } answers { emissionRecords[firstArg()].orEmpty().filter { it.complianceYear == secondArg<Int?>() } }
+        val valuations = valuationsStub()
+        val compliance = complianceStub()
         val eua = mockk<AllowanceProductView> {
             every { code } returns "EUA"
             every { jurisdiction } returns "EU_ETS"
@@ -197,13 +208,6 @@ class PeriodEndIT {
         }
         val plans = mockk<AllocationQuery> { every { plan(planId) } returns mockk { every { lines } returns listOf(line) } }
         val obligations = mockk<ObligationQuery> { every { obligation(obligationId) } returns mockk { every { sourceRef } returns saleRef } }
-        every { valuations.run(any()) } answers { valuationRuns.values.flatMap { it.values }.firstOrNull { r -> r.id == firstArg<UUID>() } }
-        // The hypothetical derivative: q x (forward - locked price), undiscounted, in EUR.
-        every { valuations.forwardValue(any(), any(), any()) } answers {
-            val terms = thirdArg<ForwardTerms>()
-            val value = (terms.quantity * (hedgedForward - terms.price)).setScale(2)
-            ForwardValue(hedgedForward, BigDecimal.ONE, value, value, "EUR")
-        }
         val trades = mockk<TradeQuery> {
             every { trade(any()) } answers { tradesById[firstArg()] }
             every { obligation(saleRef) } returns mockk<DeliveryObligationView> {
@@ -213,35 +217,8 @@ class PeriodEndIT {
             }
         }
         reservationPlan = planId
-        periodEnd = PeriodEndService(
-            ledger,
-            JooqJournalRepository(dsl),
-            JooqCostLayerRepository(dsl),
-            JooqPeriodRepository(dsl),
-            JooqPeriodEndRepository(dsl),
-            referenceData,
-            catalogue,
-            valuations,
-            compliance,
-            lots,
-            buckets,
-            mockk(relaxed = true),
-            curves,
-            fx,
-            plans,
-            obligations,
-            trades,
-            actor,
-            publisher,
-            clock,
-            // No hedges here: the hedge tests use [withHedges].
-            hedges = { _, _, _ -> emptyList() },
-            clearing = mockk<ClearingQuery> { every { marginedTradeIds(any()) } answers { marginedTrades[firstArg()].orEmpty() } },
-            fixings = { _, _ -> null },
-        )
-        val documents = mockk<DocumentCommand> { every { renderPdf(any()) } returns mockk { every { id } returns UUID.randomUUID() } }
-        hedges = HedgeService(JooqHedgeRepository(dsl), trades, valuations, documents, referenceData, actor, publisher, clock, Savepoints.NONE)
-        withHedges = PeriodEndService(
+
+        fun periodEndService(hedges: HedgePositions, clearing: ClearingQuery) = PeriodEndService(
             ledger,
             JooqJournalRepository(dsl),
             JooqCostLayerRepository(dsl),
@@ -263,9 +240,14 @@ class PeriodEndIT {
             publisher,
             clock,
             hedges,
-            NoClearing,
-            { _, _ -> null },
+            clearing,
+            noFixings,
         )
+        // No hedges here: the hedge tests use [withHedges].
+        periodEnd = periodEndService({ _, _, _ -> emptyList() }, mockk { every { marginedTradeIds(any()) } answers { marginedTrades[firstArg()].orEmpty() } })
+        val documents = mockk<DocumentCommand> { every { renderPdf(any()) } returns mockk { every { id } returns UUID.randomUUID() } }
+        hedges = HedgeService(JooqHedgeRepository(dsl), trades, valuations, documents, referenceData, actor, publisher, clock, Savepoints.NONE)
+        withHedges = periodEndService(hedges, NoClearing)
     }
 
     private lateinit var reservationPlan: UUID

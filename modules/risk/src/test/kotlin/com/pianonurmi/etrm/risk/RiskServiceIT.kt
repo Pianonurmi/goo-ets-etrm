@@ -183,8 +183,35 @@ class RiskServiceIT {
         every { mtmBase } returns value?.let(::BigDecimal)
     }
 
+    /** Official MtM of 300 for [existing] and -100 for another trade; calls valued at a delta of 0.4, puts not at all. */
+    private fun valuations(existing: TradeView): ValuationQuery {
+        val runId = UUID.randomUUID()
+        return mockk<ValuationQuery> {
+            every { official(entity, any(), true) } returns mockk<ValuationRunView> { every { id } returns runId }
+            val base = listOf(mtm(existing.id, "300"), mtm(UUID.randomUUID(), "-100"))
+            every { results(runId, null) } answers { base + extraResults }
+            // Calls are valued at a delta of 0.4; puts cannot be valued (no volatility curve).
+            every { optionValuation(entity, any(), any()) } answers {
+                thirdArg<TradeLegView>().option?.takeIf { it.optionType == OptionType.CALL }?.let {
+                    OptionValuation(
+                        "CALL",
+                        it.strike,
+                        "EUAZ27",
+                        BigDecimal("72"),
+                        BigDecimal("45"),
+                        BigDecimal("0.5"),
+                        BigDecimal("0.4"),
+                        BigDecimal("0.01"),
+                        BigDecimal("0.2"),
+                        "EUA_VOL",
+                        UUID(0, 1),
+                    )
+                }
+            }
+        }
+    }
+
     @BeforeEach
-    @Suppress("LongMethod") // stubs for the modules risk reads from
     fun setUp() {
         TestDatabase.migrate("risk")
         user = "risk1"
@@ -208,31 +235,8 @@ class RiskServiceIT {
             }
         }
         val trades = mockk<TradeQuery> { every { trades(any()) } answers { openTrades.toList() } }
-        val runId = UUID.randomUUID()
         val existing = trade(1000, LocalDate.of(2026, 12, 10))
-        val valuations = mockk<ValuationQuery> {
-            every { official(entity, any(), true) } returns mockk<ValuationRunView> { every { id } returns runId }
-            val base = listOf(mtm(existing.id, "300"), mtm(UUID.randomUUID(), "-100"))
-            every { results(runId, null) } answers { base + extraResults }
-            // Calls are valued at a delta of 0.4; puts cannot be valued (no volatility curve).
-            every { optionValuation(entity, any(), any()) } answers {
-                thirdArg<TradeLegView>().option?.takeIf { it.optionType == OptionType.CALL }?.let {
-                    OptionValuation(
-                        "CALL",
-                        it.strike,
-                        "EUAZ27",
-                        BigDecimal("72"),
-                        BigDecimal("45"),
-                        BigDecimal("0.5"),
-                        BigDecimal("0.4"),
-                        BigDecimal("0.01"),
-                        BigDecimal("0.2"),
-                        "EUA_VOL",
-                        UUID(0, 1),
-                    )
-                }
-            }
-        }
+        val valuations = valuations(existing)
         openTrades += existing
         val settlement = mockk<SettlementReports> {
             every { counterpartyBalances(entity) } answers {
@@ -245,52 +249,30 @@ class RiskServiceIT {
         val events = ApplicationEventPublisher { published += it }
         val actors = ActorProvider { Actor(user, user, setOf(Role.RISK), allEntities = true) }
         val repository = JooqRiskRepository(TestDatabase.dsl)
-        withGoo = { goo, buckets ->
-            RiskService(
-                repository,
-                referenceData,
-                trades,
-                valuations,
-                settlement,
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                fx,
-                actors,
-                events,
-                clock,
-                Providers.none(),
-                goo,
-                buckets,
-                Savepoints.NONE,
-                NoClearing,
-                NoMarginCalls,
-            )
-        }
-        withClearing = { clearing, margin ->
-            RiskService(
-                repository,
-                referenceData,
-                trades,
-                valuations,
-                settlement,
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                fx,
-                actors,
-                events,
-                clock,
-                Providers.none(),
-                Providers.none(),
-                noBuckets,
-                Savepoints.NONE,
-                clearing,
-                margin,
-            )
-        }
+
+        fun service(goo: ObjectProvider<GooRiskQuery>, buckets: ProductBucketQuery, clearing: ClearingQuery, margin: MarginCallQuery) = RiskService(
+            repository,
+            referenceData,
+            trades,
+            valuations,
+            settlement,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            fx,
+            actors,
+            events,
+            clock,
+            Providers.none(),
+            goo,
+            buckets,
+            Savepoints.NONE,
+            clearing,
+            margin,
+        )
+        withGoo = { goo, buckets -> service(goo, buckets, NoClearing, NoMarginCalls) }
+        withClearing = { clearing, margin -> service(Providers.none(), noBuckets, clearing, margin) }
         risk = withGoo(Providers.none(), noBuckets)
         carryOver = CreditLimitCarryOver(repository, referenceData, clock)
     }
