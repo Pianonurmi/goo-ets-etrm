@@ -9,6 +9,8 @@ import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.platform.paging.Cursor
+import com.pianonurmi.etrm.platform.paging.page
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.text.Csv
@@ -23,6 +25,7 @@ import com.pianonurmi.etrm.settlement.api.InvoiceIssued
 import com.pianonurmi.etrm.settlement.api.InvoiceKind
 import com.pianonurmi.etrm.settlement.api.InvoiceLineType
 import com.pianonurmi.etrm.settlement.api.InvoiceLineView
+import com.pianonurmi.etrm.settlement.api.InvoicePage
 import com.pianonurmi.etrm.settlement.api.InvoiceQuery
 import com.pianonurmi.etrm.settlement.api.InvoiceRun
 import com.pianonurmi.etrm.settlement.api.InvoiceStatus
@@ -325,6 +328,14 @@ class InvoiceService(
     override fun invoices(filter: InvoiceFilter): List<InvoiceView> = repository.find(filter)
 
     @Transactional(readOnly = true)
+    override fun invoicePage(filter: InvoiceFilter, cursor: String?): InvoicePage {
+        if (filter.limit !in 1..MAX_PAGE) throw ValidationException("limit must be 1..$MAX_PAGE")
+        val after = cursor?.let { Cursor.decode(it, 2) { (date, id) -> LocalDate.parse(date) to UUID.fromString(id) } }
+        val (items, next) = repository.findPage(filter, after).page(filter.limit) { Cursor.encode(it.invoiceDate, it.id) }
+        return InvoicePage(items, next)
+    }
+
+    @Transactional(readOnly = true)
     override fun export(filter: InvoiceFilter): String = Csv.writeForSpreadsheet(
         listOf("number", "kind", "status", "invoice_date", "tax_point_date", "due_date", "counterparty", "supplier_ref", "currency", "net", "vat", "gross"),
         repository.find(filter).map {
@@ -497,3 +508,5 @@ class InvoiceService(
         val PURCHASE_TOLERANCE = BigDecimal("0.05")
     }
 }
+
+private const val MAX_PAGE = 500

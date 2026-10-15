@@ -144,4 +144,7 @@ interface InvoiceRepository {
     fun find(id: UUID, forUpdate: Boolean = false): InvoiceView?
 
     fun find(filter: InvoiceFilter): List<InvoiceView>
+
+    /** Up to `filter.limit + 1` invoices before [after] (invoice date, id), newest first. */
+    fun findPage(filter: InvoiceFilter, after: Pair<java.time.LocalDate, UUID>?): List<InvoiceView>
 }

@@ -16,6 +16,9 @@ interface PaymentRepository {
     fun updateUnapplied(id: UUID, unapplied: BigDecimal)
 
     fun list(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean): List<PaymentView>
+
+    /** Up to [limit] + 1 payments before [after] (value date, id), newest first. */
+    fun page(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean, limit: Int, after: Pair<java.time.LocalDate, UUID>?): List<PaymentView>
 }
 
 interface AllocationRepository {

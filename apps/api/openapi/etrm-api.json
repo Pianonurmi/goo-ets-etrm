@@ -5597,6 +5597,21 @@
         "required" : [ "description", "lineNo", "lineType", "netAmount", "vatAmount", "vatRate", "vatTreatment" ],
         "type" : "object"
       },
+      "InvoicePage" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/InvoiceView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "items" ],
+        "type" : "object"
+      },
       "InvoiceRun" : {
         "properties" : {
           "counterpartyId" : {
@@ -7545,6 +7560,21 @@
             "type" : [ "string", "null" ]
           }
         },
+        "type" : "object"
+      },
+      "PaymentPage" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PaymentView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "items" ],
         "type" : "object"
       },
       "PaymentView" : {
@@ -11837,6 +11867,21 @@
           }
         },
         "required" : [ "validFrom" ],
+        "type" : "object"
+      },
+      "ValuationResultPage" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ValuationResultView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "items" ],
         "type" : "object"
       },
       "ValuationResultView" : {
@@ -23233,6 +23278,107 @@
         "tags" : [ "Settlement" ]
       }
     },
+    "/api/v1/settlement/invoices/search" : {
+      "get" : {
+        "operationId" : "settlement_searchInvoices",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "counterpartyId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "kind",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "enum" : [ "SALES", "SELF_BILLED", "PURCHASE", "CREDIT_NOTE", "PURCHASE_CREDIT_NOTE" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "enum" : [ "DRAFT", "PENDING_APPROVAL", "ISSUED", "CANCELLED" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 100,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InvoicePage"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Settlement" ]
+      }
+    },
     "/api/v1/settlement/invoices/{id}" : {
       "get" : {
         "operationId" : "settlement_invoice",
@@ -23975,6 +24121,75 @@
               }
             },
             "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Payments and netting" ]
+      }
+    },
+    "/api/v1/settlement/payments/search" : {
+      "get" : {
+        "operationId" : "payment_search",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "legalEntityId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "counterpartyId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "unappliedOnly",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 100,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PaymentPage"
+                }
+              }
+            },
+            "description" : "OK"
           },
           "default" : {
             "content" : {
@@ -26034,6 +26249,67 @@
                     "$ref" : "#/components/schemas/ValuationResultView"
                   },
                   "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Valuation" ]
+      }
+    },
+    "/api/v1/valuation/runs/{id}/results/search" : {
+      "get" : {
+        "operationId" : "valuation_searchResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "bookId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 200,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValuationResultPage"
                 }
               }
             },

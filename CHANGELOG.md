@@ -11,6 +11,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - PostgreSQL JDBC driver 42.7.14 (GHSA-rhp9-mr79-r74h, GHSA-f64h-wr5q-3qf3). The application uses neither
   `requireAuth` nor the driver APIs that padded values with earlier bytes, so 0.14.0 is not exposed.
 
+### Added
+- Invoices, payments and valuation results are listed a page at a time (newest first for invoices and payments), with
+  **Load more** on their screens: `GET /api/v1/settlement/invoices/search`, `/api/v1/settlement/payments/search` and
+  `/api/v1/valuation/runs/{id}/results/search`. The full lists stay for integrations.
+
 ### Changed
 - Period end reads the accounts it measures (MtM, hedges, NRV, provision, grant release, FX revaluation) from its own
   posting rules instead of fixed account numbers, so remapping a rule moves the measurement with it.

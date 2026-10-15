@@ -28,6 +28,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useEntity } from '@/shared/context/EntityContext';
 import { formatDecimal, formatMoney, formatQuantity } from '@/shared/format/format';
 import { DataGrid } from '@/shared/grid/DataGrid';
+import { LoadMore } from '@/shared/grid/LoadMore';
 import { useCounterparties } from '@/features/trades/hooks';
 import { useInvalidateSettlement } from './hooks';
 import {
@@ -48,6 +49,9 @@ import { SettlementReportsTab } from './SettlementReportsTab';
 import { ItemDrawer } from './ItemDrawer';
 import { FixPriceModal, InvoiceRunModal, PurchaseInvoiceModal } from './SettlementModals';
 import { VatRulesTab } from './VatRulesTab';
+
+/** Invoices fetched per page of the invoice list. */
+const INVOICE_PAGE = 100;
 
 const TABS = ['items', 'invoices', 'payments', 'netting', 'vat-rules', 'reports'] as const;
 
@@ -319,16 +323,27 @@ function InvoicesTab({ entityId }: { entityId: string }) {
   const status = INVOICE_STATUSES.find((value) => value === params.get('status')) ?? null;
   const kind = INVOICE_KINDS.find((value) => value === params.get('kind')) ?? null;
   const counterpartyId = params.get('counterparty');
-  const invoices = $api.useQuery('get', '/api/v1/settlement/invoices', {
-    params: {
-      query: {
-        legalEntityId: entityId,
-        status: status ? [status] : undefined,
-        kind: kind ? [kind] : undefined,
-        counterpartyId: counterpartyId ?? undefined,
+  const invoices = $api.useInfiniteQuery(
+    'get',
+    '/api/v1/settlement/invoices/search',
+    {
+      params: {
+        query: {
+          legalEntityId: entityId,
+          status: status ? [status] : undefined,
+          kind: kind ? [kind] : undefined,
+          counterpartyId: counterpartyId ?? undefined,
+          limit: INVOICE_PAGE,
+        },
       },
     },
-  });
+    {
+      initialPageParam: null as string | null,
+      getNextPageParam: (page) => page.nextCursor ?? undefined,
+      pageParamName: 'cursor',
+    },
+  );
+  const rows = useMemo(() => invoices.data?.pages.flatMap((page) => page.items) ?? [], [invoices.data]);
   const columns = useMemo<ColDef<Invoice>[]>(
     () => [
       {
@@ -435,7 +450,7 @@ function InvoicesTab({ entityId }: { entityId: string }) {
           <TableSkeleton />
         ) : (
           <DataGrid<Invoice>
-            rowData={invoices.data ?? []}
+            rowData={rows}
             columnDefs={columns}
             rowId={(row) => row.id}
             fitRows={12}
@@ -444,6 +459,7 @@ function InvoicesTab({ entityId }: { entityId: string }) {
             rowStyle={{ cursor: 'pointer' }}
           />
         )}
+        <LoadMore query={invoices} shown={rows.length} testId="invoice-count" />
       </QueryState>
     </Stack>
   );

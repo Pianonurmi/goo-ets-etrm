@@ -253,7 +253,12 @@ data class InvoiceFilter(
     val from: LocalDate? = null,
     val toExclusive: LocalDate? = null,
     val limit: Int = 500,
+    /** The entities a paged list is limited to (the reader's scope); null for all. */
+    val legalEntityIds: Set<UUID>? = null,
 )
+
+/** One page of invoices, newest first (invoice date, then id); [nextCursor] continues the list. */
+data class InvoicePage(val items: List<InvoiceView>, val nextCursor: String?)
 
 interface InvoiceCommand {
     fun run(command: InvoiceRun): List<InvoiceView>
@@ -274,6 +279,9 @@ interface InvoiceQuery {
     fun invoice(id: UUID): InvoiceView?
 
     fun invoices(filter: InvoiceFilter): List<InvoiceView>
+
+    /** Keyset-paged invoices, newest first; [cursor] is a previous page's `nextCursor`. */
+    fun invoicePage(filter: InvoiceFilter, cursor: String?): InvoicePage
 
     fun export(filter: InvoiceFilter): String
 }

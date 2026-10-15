@@ -21,6 +21,7 @@ import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 @Repository
@@ -56,15 +57,23 @@ class JooqPaymentRepository(private val dsl: DSLContext) : PaymentRepository {
     }
 
     override fun list(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean): List<PaymentView> = dsl.selectFrom(PAYMENT)
-        .where(
-            listOfNotNull(
-                PAYMENT.LEGAL_ENTITY_ID.eq(legalEntityId),
-                counterpartyId?.let(PAYMENT.COUNTERPARTY_ID::eq),
-                if (unappliedOnly) PAYMENT.UNAPPLIED_AMOUNT.gt(BigDecimal.ZERO) else null,
-            ),
-        )
+        .where(paymentConditions(legalEntityId, counterpartyId, unappliedOnly))
         .orderBy(PAYMENT.VALUE_DATE, PAYMENT.BANK_REFERENCE)
         .fetch(::toView)
+
+    override fun page(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean, limit: Int, after: Pair<LocalDate, UUID>?): List<PaymentView> =
+        dsl.selectFrom(PAYMENT)
+            .where(paymentConditions(legalEntityId, counterpartyId, unappliedOnly))
+            .and(after?.let { (date, id) -> DSL.row(PAYMENT.VALUE_DATE, PAYMENT.ID).lt(date, id) } ?: DSL.noCondition())
+            .orderBy(PAYMENT.VALUE_DATE.desc(), PAYMENT.ID.desc())
+            .limit(limit + 1)
+            .fetch(::toView)
+
+    private fun paymentConditions(legalEntityId: UUID, counterpartyId: UUID?, unappliedOnly: Boolean) = listOfNotNull(
+        PAYMENT.LEGAL_ENTITY_ID.eq(legalEntityId),
+        counterpartyId?.let(PAYMENT.COUNTERPARTY_ID::eq),
+        if (unappliedOnly) PAYMENT.UNAPPLIED_AMOUNT.gt(BigDecimal.ZERO) else null,
+    )
 
     private fun toView(r: PaymentRecord) = PaymentView(
         r.id,
