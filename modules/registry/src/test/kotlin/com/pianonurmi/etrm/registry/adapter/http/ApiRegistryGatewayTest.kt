@@ -21,11 +21,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
 import java.net.InetSocketAddress
-import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -36,6 +37,14 @@ class ApiRegistryGatewayTest {
     private lateinit var server: HttpServer
     private val requests = CopyOnWriteArrayList<Recorded>()
     private val tokenCalls = AtomicInteger()
+    private val clock = TestClock()
+
+    /** A slow registry: the stub holds its answer until the test has seen the timeout, then teardown lets it go. */
+    private val stalled = CountDownLatch(1)
+
+    private fun stall() {
+        stalled.await(STALL_LIMIT_SECONDS, TimeUnit.SECONDS)
+    }
 
     /** What the stub answers to POST /instructions next. */
     @Volatile private var submitAnswer: (HttpExchange) -> Unit = { respond(it, 201, """{"id":"REG-1","status":"ACCEPTED"}""") }
@@ -73,7 +82,10 @@ class ApiRegistryGatewayTest {
     }
 
     @AfterEach
-    fun stop() = server.stop(0)
+    fun stop() {
+        stalled.countDown()
+        server.stop(0)
+    }
 
     private fun respond(ex: HttpExchange, status: Int, body: String) {
         val bytes = body.toByteArray()
@@ -85,7 +97,7 @@ class ApiRegistryGatewayTest {
     private fun gateway(vararg extra: RegistryApiMapping, settings: AdapterSettings = settings()): ApiRegistryGateway {
         val properties = RegistryAdapterProperties(mapOf("FINGRID" to settings))
         val clients = RegistryHttpClients(properties)
-        return ApiRegistryGateway(listOf(GenericRestMapping(), *extra), clients, properties, RegistryTokens(clients, Clock.systemUTC()), referenceData, lots)
+        return ApiRegistryGateway(listOf(GenericRestMapping(), *extra), clients, properties, RegistryTokens(clients, clock), referenceData, lots)
     }
 
     private fun settings(mapping: String = "GENERIC_REST", allowUnverified: Boolean = false) = AdapterSettings(
@@ -167,7 +179,7 @@ class ApiRegistryGatewayTest {
         submitAnswer = { respond(it, 502, "") }
         gateway().execute(instruction()).shouldBeInstanceOf<GatewayResult.Unknown>()
         submitAnswer = {
-            Thread.sleep(1_000)
+            stall()
             respond(it, 201, """{"id":"late"}""")
         }
         gateway(settings = settings().copy(readTimeout = SHORT_TIMEOUT)).execute(instruction()).shouldBeInstanceOf<GatewayResult.Unknown>()
@@ -182,10 +194,25 @@ class ApiRegistryGatewayTest {
             ex.responseHeaders.add("Content-Type", "application/json")
             ex.sendResponseHeaders(201, 20)
             ex.responseBody.flush()
-            Thread.sleep(1_000)
+            stall()
             ex.responseBody.use { it.write("""{"id":"late-body"} """.toByteArray()) }
         }
         gateway(settings = settings().copy(readTimeout = SHORT_TIMEOUT)).execute(instruction()).shouldBeInstanceOf<GatewayResult.Unknown>()
+    }
+
+    @Test
+    fun `a token is reused until shortly before it expires`() {
+        val gateway = gateway()
+        repeat(2) { gateway.execute(instruction()).shouldBeInstanceOf<GatewayResult.Sent>() }
+        tokenCalls.get() shouldBe 1
+        // The stub's tokens live 3600 s; within 30 s of the end a new one is fetched before the call.
+        clock.advance(Duration.ofSeconds(3_569))
+        gateway.execute(instruction())
+        tokenCalls.get() shouldBe 1
+        clock.advance(Duration.ofSeconds(2))
+        gateway.execute(instruction())
+        tokenCalls.get() shouldBe 2
+        requests.map { it.headers["auth"] } shouldBe listOf("Bearer t-1", "Bearer t-1", "Bearer t-1", "Bearer t-2")
     }
 
     @Test
@@ -222,6 +249,7 @@ class ApiRegistryGatewayTest {
     }
 
     private companion object {
+        const val STALL_LIMIT_SECONDS = 10L
         val SHORT_TIMEOUT: Duration = Duration.ofMillis(300)
     }
 }
