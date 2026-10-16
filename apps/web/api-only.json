@@ -19,6 +19,7 @@
     "product_bucket": "Single product bucket by code; the products screen shows buckets from its list",
     "taxonomy_get": "Single taxonomy node; the taxonomy editor loads the whole tree",
     "taxonomy_subtree": "Taxonomy subtree for integrations; the taxonomy editor loads the whole tree",
+    "reporting_report": "Synchronous report for scripts and small reports; the reports screen produces exports outside the request (reporting_startExport) and downloads them",
     "payment_payment": "Single payment by id; the payments tab shows payments in full in its list",
     "eventPublication_parked": "Operations endpoint for administrators, used from the event-publications runbook",
     "eventPublication_resubmit": "Operations endpoint for administrators, used from the event-publications runbook",

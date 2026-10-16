@@ -1,11 +1,14 @@
 import { Button, Group, Stack, TextInput } from '@mantine/core';
 import { IconPlayerPlay } from '@tabler/icons-react';
+import { useMutation } from '@tanstack/react-query';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
-import { $api } from '@/shared/api/client';
+import { awaitRun } from '@/shared/api/asyncRun';
+import { api } from '@/shared/api/client';
+import type { Body } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
 import { QueryState } from '@/shared/components/QueryState';
@@ -20,9 +23,14 @@ export function Runs({ entityId }: { entityId: string }) {
   const navigate = useNavigate();
   const [date, setDate] = useState(dayjs().subtract(1, 'day').format('YYYY-MM-DD'));
   const runs = useRecentRuns(entityId);
-  const start = $api.useMutation('post', '/api/v1/valuation/runs', {
+  const start = useMutation({
     meta: { notify: false },
-    onSuccess: (run) => void navigate(`/valuation/runs/${run.id}`),
+    mutationFn: async (body: Body<'RunRequest'>) => {
+      const { data } = await api.POST('/api/v1/valuation/runs', { body });
+      if (!data) throw new Error('The valuation run did not start');
+      return awaitRun(data);
+    },
+    onSuccess: (valuationRunId) => void navigate(`/valuation/runs/${valuationRunId}`),
   });
   const columns = useMemo<ColDef<Run>[]>(
     () => [
@@ -73,7 +81,7 @@ export function Runs({ entityId }: { entityId: string }) {
           <Button
             leftSection={<IconPlayerPlay size={16} />}
             loading={start.isPending}
-            onClick={() => start.mutate({ body: { legalEntityId: entityId, valuationDate: date, kind: 'EOD' } })}
+            onClick={() => start.mutate({ legalEntityId: entityId, valuationDate: date, kind: 'EOD' })}
             data-testid="start-run"
           >
             {t('valuation.start')}

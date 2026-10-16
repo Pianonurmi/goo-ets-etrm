@@ -31,7 +31,9 @@
   | MIFID_ANCILLARY_ACTIVITY | allowance trades of a year by purpose | same |
   | GL_TRIAL_BALANCE | a period's movements per account | accountant, audit |
   | GL_RECONCILIATION | sub-ledger, exported and GL closing balances per GL account (ADR 0024) | accountant, audit |
-- **Every run is an export**: `GET /api/v1/reports/{code}?format=csv|json&...`.
+- **Every run is an export**: `GET /api/v1/reports/{code}?format=csv|json&...`. Since increment 16 the screen
+  produces exports outside the request (`POST /api/v1/reports/{code}/exports`, 202, polled through
+  `GET /api/v1/runs/{id}`); the synchronous `GET` stays for scripts and small reports.
   - The run is numbered per report and entity (`report_export.seq`).
   - The content and its SHA-256 are stored, append-only, and the response headers carry both.
   - A `ReportExported` event goes to the audit trail.

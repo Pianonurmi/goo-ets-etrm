@@ -22,7 +22,8 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { $api, authorisedFetch } from '@/shared/api/client';
+import { awaitRun } from '@/shared/api/asyncRun';
+import { $api, api, authorisedFetch } from '@/shared/api/client';
 import { download } from '@/shared/api/download';
 import type { Schema } from '@/shared/api/types';
 import { Can, useCan } from '@/shared/auth/Can';
@@ -40,7 +41,7 @@ import { previousPeriod } from '@/features/monthend/model/glBalances';
 import {
   missingParameters,
   parameterInput,
-  reportQuery,
+  reportParameters,
   runnableReports,
   type ReportDefinition,
 } from './model/parameters';
@@ -73,10 +74,19 @@ function ReportRunner({ definition, entityId }: { definition: ReportDefinition; 
     ),
   );
   const missing = missingParameters(definition, values, entityId);
+  /** Produces the report as an export outside the request and resolves with the export's id. */
+  const produce = async (format: 'CSV' | 'JSON'): Promise<string> => {
+    const { data } = await api.POST('/api/v1/reports/{code}/exports', {
+      params: { path: { code: definition.code } },
+      body: { format, parameters: reportParameters(definition, values, entityId) },
+    });
+    if (!data) throw new Error(`Report ${definition.code} did not start`);
+    return awaitRun(data);
+  };
   const run = useMutation({
     meta: { notify: false },
     mutationFn: async (): Promise<ReportRun> => {
-      const response = await authorisedFetch(reportQuery(definition, values, entityId, 'json'));
+      const response = await authorisedFetch(`/api/v1/reports/exports/${await produce('JSON')}`);
       const body = (await response.json()) as { columns: string[]; rows: Row[] };
       return {
         ...body,
@@ -87,8 +97,8 @@ function ReportRunner({ definition, entityId }: { definition: ReportDefinition; 
   });
   const csv = useMutation({
     meta: { notify: false },
-    mutationFn: () =>
-      download(reportQuery(definition, values, entityId, 'csv'), `${definition.code.toLowerCase()}.csv`),
+    mutationFn: async () =>
+      download(`/api/v1/reports/exports/${await produce('CSV')}`, `${definition.code.toLowerCase()}.csv`),
     onSuccess: (response) =>
       notifySuccess(t('reports.downloaded', { seq: response.headers.get('X-Report-Seq') ?? '' })),
   });

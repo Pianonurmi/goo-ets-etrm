@@ -20,6 +20,29 @@ class ApiScenario(private val port: Int, val tag: String = "S${COUNTER.increment
     fun asUser(user: String, roles: String = ALL_ROLES): RequestSpecification =
         RestAssured.given().baseUri("http://localhost").port(port).contentType(ContentType.JSON).header("X-Actor", user).header("X-Roles", roles)
 
+    /**
+     * Posts [body] to [path], a long operation that answers 202, and waits for its run; returns the run's result id.
+     * A failed run fails the test with its problem.
+     */
+    fun startRun(user: String, roles: String, path: String, body: String): String {
+        val run: String = asUser(user, roles).body(body).post(path).then().statusCode(202).extract().path("id")
+        return awaitRun(user, roles, run)
+    }
+
+    /** Polls `GET /api/v1/runs/{id}` as the user who started the run until it finishes; returns its result id. */
+    fun awaitRun(user: String, roles: String, runId: String): String {
+        val deadline = System.nanoTime() + RUN_TIMEOUT_NANOS
+        while (System.nanoTime() < deadline) {
+            val status = asUser(user, roles).get("/api/v1/runs/$runId").then().statusCode(200).extract().jsonPath()
+            when (status.getString("status")) {
+                "SUCCEEDED" -> return status.getString("resultId")
+                "FAILED" -> throw AssertionError("Run $runId failed: ${status.getMap<String, Any>("problem")}")
+            }
+            Thread.sleep(RUN_POLL_MILLIS)
+        }
+        throw AssertionError("Run $runId did not finish in time")
+    }
+
     /** Legal entity, trading book, external counterparty, a simulator GoO account and an own hydro device. */
     fun referenceData(): ApiScenario {
         entityId = asUser("admin").body("""{"code":"E-$tag","name":"Entity $tag Oy","country":"FI","validFrom":"2026-01-01"}""")
@@ -83,6 +106,8 @@ class ApiScenario(private val port: Int, val tag: String = "S${COUNTER.increment
         const val ALL_ROLES = "TRADER,MIDDLE_OFFICE,BACK_OFFICE,ACCOUNTANT,REGISTRY_OPERATOR"
         private val COUNTER = AtomicInteger()
         private val DEVICE_COUNTER = AtomicInteger(500)
+        private const val RUN_POLL_MILLIS = 50L
+        private const val RUN_TIMEOUT_NANOS = 120_000_000_000L
 
         /** A valid 18-digit GS1 GSRN derived from a sequence number (mod-10 check digit). */
         fun gsrn(sequence: Int): String {

@@ -27,6 +27,8 @@ enum class DemoUser(val id: String) {
 }
 
 private const val BULK_LIMIT = 100
+private val RUN_POLL = java.time.Duration.ofMillis(100)
+private val RUN_TIMEOUT = java.time.Duration.ofMinutes(10)
 
 class DemoRequestFailed(message: String) : RuntimeException(message)
 
@@ -51,6 +53,24 @@ class DemoClient(baseUrl: String, private val seedToken: String? = null) {
     }
 
     fun post(user: DemoUser, path: String, json: String? = null): Map<String, Any?> = send(client.post().uri(path), user, json)
+
+    /**
+     * Starts a long operation that answers 202 (period end, valuation run, report export), waits for it and returns
+     * the id of what it produced; a failed run fails the step with the run's problem.
+     */
+    fun postRun(user: DemoUser, path: String, json: String): String {
+        val run = post(user, path, json).id()
+        val deadline = System.nanoTime() + RUN_TIMEOUT.toNanos()
+        while (System.nanoTime() < deadline) {
+            val status = get(user, "/api/v1/runs/$run") as Map<*, *>
+            when (status["status"]) {
+                "SUCCEEDED" -> return status["resultId"].toString()
+                "FAILED" -> throw DemoRequestFailed("POST $path failed: ${status["problem"]}")
+            }
+            Thread.sleep(RUN_POLL.toMillis())
+        }
+        throw DemoRequestFailed("POST $path did not finish within $RUN_TIMEOUT")
+    }
 
     /** A body Jackson serialises, for terms read back from the API. */
     fun postBody(user: DemoUser, path: String, body: Any): Map<String, Any?> {

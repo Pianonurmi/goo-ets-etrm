@@ -20,6 +20,7 @@ import com.pianonurmi.etrm.reporting.api.ReportResult
 import com.pianonurmi.etrm.reporting.api.ReportingCommand
 import com.pianonurmi.etrm.reporting.api.ReportingQuery
 import com.pianonurmi.etrm.reporting.domain.EmirCompletenessCheck
+import com.pianonurmi.etrm.reporting.domain.ReportDefinition
 import com.pianonurmi.etrm.reporting.domain.ReportParameters
 import com.pianonurmi.etrm.reporting.domain.ReportingRepository
 import com.pianonurmi.etrm.trade.api.TradeQuery
@@ -46,12 +47,11 @@ class ReportingService(
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
 ) : ReportingQuery, ReportingCommand {
+    override fun authorize(code: String, parameters: Map<String, String>): UUID? = checked(code, parameters).third
+
     override fun produce(code: String, parameters: Map<String, String>, format: ReportFormat): ReportOutput {
-        val definition = catalogue.definition(code) ?: throw NotFoundException("Report", code)
+        val (definition, params, entity) = checked(code, parameters)
         val actor = actorProvider.current()
-        actor.requireRole(*definition.roles.toTypedArray())
-        val params = ReportParameters(parameters.filterKeys { name -> definition.parameters.any { it.name == name } })
-        val entity = if (definition.perEntity) params.uuid("legalEntityId").also(actor::requireEntity) else null
         val result = definition.run(params)
         val content = render(result, format)
         val export = ReportExportView(
@@ -69,6 +69,15 @@ class ReportingService(
         repository.insertExport(export, content)
         events.publishEvent(ReportExported(export.id, export.reportCode, entity, export.seq, export.contentHash))
         return ReportOutput(export, content)
+    }
+
+    private fun checked(code: String, parameters: Map<String, String>): Triple<ReportDefinition, ReportParameters, UUID?> {
+        val definition = catalogue.definition(code) ?: throw NotFoundException("Report", code)
+        val actor = actorProvider.current()
+        actor.requireRole(*definition.roles.toTypedArray())
+        val params = ReportParameters(parameters.filterKeys { name -> definition.parameters.any { it.name == name } })
+        val entity = if (definition.perEntity) params.uuid("legalEntityId").also(actor::requireEntity) else null
+        return Triple(definition, params, entity)
     }
 
     private fun render(result: ReportResult, format: ReportFormat): String = when (format) {
