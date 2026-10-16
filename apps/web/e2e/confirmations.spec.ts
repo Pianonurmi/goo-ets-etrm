@@ -1,13 +1,15 @@
 import { expect, test } from '@playwright/test';
-import { asPersona, captureDemoTrade } from './api';
+import { asPersona, captureDemoTrade, mismatchedConfirmation } from './api';
 import { actAs, switchPersona } from './fixtures';
 
 test.describe('counterparty confirmations', () => {
-  test('the demo mismatch is overridden by a second middle office user and confirms the trade', async ({ page }) => {
+  test('a price mismatch is overridden by a second middle office user and confirms the trade', async ({
+    page,
+    request,
+  }) => {
+    const { confirmationId } = await mismatchedConfirmation(request);
     await actAs(page, 'middle');
-    await page.goto('/confirmations');
-    await page.getByRole('gridcell', { name: 'MISMATCHED' }).first().click();
-    await expect(page).toHaveURL(/\/confirmations\/[0-9a-f-]{36}$/);
+    await page.goto(`/confirmations/${confirmationId}`);
     await expect(page.getByTestId('confirmation-status')).toHaveText(/^mismatched$/i);
     await expect(page.getByTestId('term-price')).toContainText('MISMATCH');
     await expect(page.getByTestId('term-quantity')).not.toContainText('MISMATCH');

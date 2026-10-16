@@ -17,6 +17,7 @@ import com.pianonurmi.etrm.settlement.api.ProposeVatRule
 import com.pianonurmi.etrm.settlement.api.RegisterPurchaseInvoice
 import com.pianonurmi.etrm.settlement.api.SettlementItemCommand
 import com.pianonurmi.etrm.settlement.api.SettlementItemFilter
+import com.pianonurmi.etrm.settlement.api.SettlementItemPage
 import com.pianonurmi.etrm.settlement.api.SettlementItemQuery
 import com.pianonurmi.etrm.settlement.api.SettlementItemStatus
 import com.pianonurmi.etrm.settlement.api.SettlementItemView
@@ -60,6 +61,21 @@ class SettlementController(
         @RequestParam(required = false) tradeId: UUID?,
         @RequestParam(required = false) status: Set<SettlementItemStatus>?,
     ): List<SettlementItemView> = access.visible(itemQuery.items(SettlementItemFilter(legalEntityId, counterpartyId, status, tradeId))) { it.legalEntityId }
+
+    /** Items latest delivery first, a page at a time; `cursor` is the previous page's `nextCursor`. */
+    @GetMapping("/items/search")
+    @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR)
+    fun searchItems(
+        @RequestParam(required = false) legalEntityId: UUID?,
+        @RequestParam(required = false) counterpartyId: UUID?,
+        @RequestParam(required = false) tradeId: UUID?,
+        @RequestParam(required = false) status: Set<SettlementItemStatus>?,
+        @RequestParam(defaultValue = "100") limit: Int,
+        @RequestParam(required = false) cursor: String?,
+    ): SettlementItemPage {
+        val scope = access.reader(legalEntityId).entityFilter
+        return itemQuery.itemPage(SettlementItemFilter(legalEntityId, counterpartyId, status, tradeId, limit, scope), cursor)
+    }
 
     @GetMapping("/items/{id}")
     @AllowedRoles(Role.BACK_OFFICE, Role.ACCOUNTANT, Role.MIDDLE_OFFICE, Role.RISK, Role.AUDITOR)

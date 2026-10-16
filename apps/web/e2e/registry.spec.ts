@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { asPersona } from './api';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { asPersona, unique } from './api';
 import { actAs, switchPersona } from './fixtures';
 
 async function choose(page: Page, testId: string, option: RegExp) {
@@ -7,12 +7,36 @@ async function choose(page: Page, testId: string, option: RegExp) {
   await page.getByRole('option', { name: option }).first().click();
 }
 
+/** A held lot of the demo entity with room for a small transfer. */
+async function heldDemoLot(request: APIRequestContext): Promise<{ id: string }> {
+  const admin = asPersona(request, 'admin', 'ADMIN');
+  const entity = (await admin.get<{ id: string; code: string }[]>('/api/v1/reference/legal-entities')).find(
+    (e) => e.code === 'DEMO-FI',
+  );
+  const lot = (
+    await admin.get<{ id: string; quantityMwh: number }[]>(
+      `/api/v1/inventory/lots?holderEntityId=${entity?.id}&status=HELD`,
+    )
+  ).find((candidate) => candidate.quantityMwh >= 20);
+  if (!lot) throw new Error('No held demo lot');
+  return lot;
+}
+
 test.describe('registry instructions', () => {
-  test('the demo transfer is approved by a second person and executed by the simulator', async ({ page }) => {
+  test('a transfer is approved by a second person and executed by the simulator', async ({ page, request }) => {
+    const lot = await heldDemoLot(request);
+    const instruction = await asPersona(request, 'backoffice', 'BACK_OFFICE,REGISTRY_OPERATOR').post<{ id: string }>(
+      '/api/v1/registry/instructions/transfers',
+      {
+        lotId: lot.id,
+        quantityMwh: 5,
+        toRegistryCode: 'SIMULATOR',
+        toAccountRef: 'SIM-E2E-RECEIVER',
+        idempotencyKey: `e2e-transfer:${unique()}`,
+      },
+    );
     await actAs(page, 'backoffice');
-    await page.goto('/registry');
-    await page.getByRole('gridcell', { name: 'PENDING APPROVAL' }).first().click();
-    await expect(page).toHaveURL(/\/registry\/instructions\/[0-9a-f-]{36}$/);
+    await page.goto(`/registry/instructions/${instruction.id}`);
     await expect(page.getByTestId('instruction-status')).toHaveText(/^pending approval$/i);
     const instructionUrl = page.url();
 
@@ -30,14 +54,7 @@ test.describe('registry instructions', () => {
   });
 
   test('a transfer started from a lot waits for approval and can be cancelled', async ({ page, request }) => {
-    const admin = asPersona(request, 'admin', 'ADMIN');
-    const entity = (await admin.get<{ id: string; code: string }[]>('/api/v1/reference/legal-entities')).find(
-      (e) => e.code === 'DEMO-FI',
-    );
-    const lot = (
-      await admin.get<{ id: string }[]>(`/api/v1/inventory/lots?holderEntityId=${entity?.id}&status=HELD`)
-    )[0];
-    if (!lot) throw new Error('No held demo lot');
+    const lot = await heldDemoLot(request);
 
     await actAs(page, 'backoffice');
     await page.goto(`/inventory/lots/${lot.id}`);

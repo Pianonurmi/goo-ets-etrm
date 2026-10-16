@@ -123,7 +123,12 @@ data class SettlementItemFilter(
     val statuses: Set<SettlementItemStatus>? = null,
     val tradeId: UUID? = null,
     val limit: Int = 500,
+    /** The entities the reader may see; null for all. */
+    val legalEntityIds: Set<UUID>? = null,
 )
+
+/** One page of settlement items, latest delivery first (then id); [nextCursor] continues the list. */
+data class SettlementItemPage(val items: List<SettlementItemView>, val nextCursor: String?)
 
 interface SettlementItemCommand {
     /** Fixes the price of an index or formula schedule; its items waiting for the price are evaluated again. */
@@ -135,6 +140,9 @@ interface SettlementItemCommand {
 
 interface SettlementItemQuery {
     fun items(filter: SettlementItemFilter): List<SettlementItemView>
+
+    /** Keyset-paged items, latest delivery first; [cursor] is a previous page's `nextCursor`. */
+    fun itemPage(filter: SettlementItemFilter, cursor: String?): SettlementItemPage
 
     fun item(id: UUID): SettlementItemView?
 }

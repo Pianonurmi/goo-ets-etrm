@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { issuedDemoInvoice } from './api';
+import { draftNetting, issuedDemoInvoice, unique } from './api';
 import { actAs, switchPersona } from './fixtures';
 
 async function choose(page: Page, testId: string, option: RegExp) {
@@ -25,13 +25,11 @@ test.describe('payments, netting and VAT', () => {
     await expect(page.getByTestId('invoice-payment-status')).toHaveText(/^paid$/i);
   });
 
-  test('the demo netting is agreed by a second accountant and settled with the net payment', async ({ page }) => {
+  test('a netting is agreed by a second accountant and settled with the net payment', async ({ page, request }) => {
+    // A 300 MWh sale at 1.95 against a 200 MWh purchase at 1.70 (340.00 net): the counterparty pays us 245.00 EUR.
+    const { nettingId, counterpartyCode } = await draftNetting(request);
     await actAs(page, 'accountant');
-    await page.goto('/settlement?tab=netting');
-    await page
-      .getByRole('gridcell', { name: /Nordvind/ })
-      .first()
-      .click();
+    await page.goto(`/settlement/netting/${nettingId}`);
     await expect(page.getByTestId('netting-status')).toHaveText(/^draft$/i);
     await expect(page.getByTestId('netting-own')).toBeVisible();
     await expect(page.getByTestId('netting-agree')).toBeHidden();
@@ -40,22 +38,23 @@ test.describe('payments, netting and VAT', () => {
 
     await switchPersona(page, 'controller');
     await page.getByTestId('netting-agree').click();
-    await page.getByTestId('agree-reference').fill('NV e-mail 2026-10');
+    await page.getByTestId('agree-reference').fill(`E-mail ${counterpartyCode}`);
     await page.getByTestId('agree-submit').click();
     await expect(page.getByTestId('netting-status')).toHaveText(/^agreed$/i);
 
-    // Nordvind pays the net amount; nothing in the remittance, so it stays unapplied for the netting.
+    // The counterparty pays the net amount; nothing in the remittance, so it stays unapplied for the netting.
+    const reference = `E2E-NETTING-${counterpartyCode.slice(-8)}`;
     await page.goto('/settlement?tab=payments');
     await page.getByTestId('record-payment').click();
-    await choose(page, 'payment-counterparty', /CP-NORDVIND/);
+    await choose(page, 'payment-counterparty', new RegExp(counterpartyCode));
     await page.getByTestId('payment-amount').fill('245.00');
-    await page.getByTestId('payment-reference').fill('E2E-NETTING-NV');
+    await page.getByTestId('payment-reference').fill(reference);
     await page.getByTestId('payment-submit').click();
     await expect(page.getByText('245.00 EUR is unapplied')).toBeVisible();
 
     await page.goto(statementUrl);
     await page.getByTestId('netting-settle').click();
-    await choose(page, 'settle-payment', /E2E-NETTING-NV/);
+    await choose(page, 'settle-payment', new RegExp(reference));
     await page.getByTestId('settle-submit').click();
     await expect(page.getByTestId('netting-status')).toHaveText(/^settled$/i);
   });
@@ -69,12 +68,13 @@ test.describe('payments, netting and VAT', () => {
     await expect(page.getByTestId('determination-result')).toContainText('GOO-STD-FI');
 
     await page.getByTestId('propose-rule').click();
-    await page.getByTestId('rule-code').fill('E2E-TEST-RULE');
+    const code = `E2E-RULE-${unique()}`;
+    await page.getByTestId('rule-code').fill(code);
     await page.getByTestId('rule-description').fill('End-to-end test rule');
     await page.getByTestId('rule-rate').fill('25.5');
     await page.getByTestId('rule-submit').click();
     await expect(page.getByText('Rule sent for approval')).toBeVisible();
-    await expect(page.getByRole('row', { name: /E2E-TEST-RULE/ })).toContainText('DRAFT');
+    await expect(page.getByRole('row', { name: new RegExp(code) })).toContainText('DRAFT');
 
     await page.goto('/settlement?tab=reports&report=vat');
     await expect(page.getByTestId('report-table')).toBeVisible();

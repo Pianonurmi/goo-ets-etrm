@@ -148,18 +148,26 @@ class JooqSettlementItemRepository(private val dsl: DSLContext) : SettlementItem
 
     override fun find(filter: SettlementItemFilter, forUpdate: Boolean): List<SettlementItemView> {
         val query = dsl.selectFrom(SETTLEMENT_ITEM)
-            .where(
-                listOfNotNull(
-                    filter.legalEntityId?.let(SETTLEMENT_ITEM.LEGAL_ENTITY_ID::eq),
-                    filter.counterpartyId?.let(SETTLEMENT_ITEM.COUNTERPARTY_ID::eq),
-                    filter.tradeId?.let(SETTLEMENT_ITEM.TRADE_ID::eq),
-                    filter.statuses?.let { s -> SETTLEMENT_ITEM.STATUS.`in`(s.map { it.name }) },
-                ),
-            )
+            .where(itemConditions(filter))
             .orderBy(SETTLEMENT_ITEM.DELIVERED_ON, SETTLEMENT_ITEM.ID)
             .limit(filter.limit)
         return (if (forUpdate) query.forUpdate().fetch() else query.fetch()).map(::toView)
     }
+
+    override fun findPage(filter: SettlementItemFilter, after: Pair<LocalDate, UUID>?): List<SettlementItemView> = dsl.selectFrom(SETTLEMENT_ITEM)
+        .where(itemConditions(filter))
+        .and(after?.let { (date, id) -> DSL.row(SETTLEMENT_ITEM.DELIVERED_ON, SETTLEMENT_ITEM.ID).lt(date, id) } ?: DSL.noCondition())
+        .orderBy(SETTLEMENT_ITEM.DELIVERED_ON.desc(), SETTLEMENT_ITEM.ID.desc())
+        .limit(filter.limit + 1)
+        .fetch(::toView)
+
+    private fun itemConditions(filter: SettlementItemFilter) = listOfNotNull(
+        filter.legalEntityId?.let(SETTLEMENT_ITEM.LEGAL_ENTITY_ID::eq),
+        filter.legalEntityIds?.let(SETTLEMENT_ITEM.LEGAL_ENTITY_ID::`in`),
+        filter.counterpartyId?.let(SETTLEMENT_ITEM.COUNTERPARTY_ID::eq),
+        filter.tradeId?.let(SETTLEMENT_ITEM.TRADE_ID::eq),
+        filter.statuses?.let { s -> SETTLEMENT_ITEM.STATUS.`in`(s.map { it.name }) },
+    )
 
     override fun forSchedule(scheduleId: UUID): List<SettlementItemView> =
         dsl.selectFrom(SETTLEMENT_ITEM).where(SETTLEMENT_ITEM.SCHEDULE_ID.eq(scheduleId)).orderBy(SETTLEMENT_ITEM.CREATED_AT).fetch(::toView)

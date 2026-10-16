@@ -27,7 +27,8 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
+  // No retries, in CI either: a flaky test is fixed or gets an issue, never passed on a second try.
+  retries: 0,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'build/playwright-report' }]],
   outputDir: 'build/test-results',
   use: {
