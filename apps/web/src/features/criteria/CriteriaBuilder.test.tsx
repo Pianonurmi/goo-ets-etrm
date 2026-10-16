@@ -35,6 +35,12 @@ const catalogue = {
 
 let lastValidated: unknown = null;
 
+/**
+ * The builder validates 400 ms after the last change (debounced), then renders the server's summary: on a busy CI
+ * runner that takes longer than the 1 s Testing Library waits by default.
+ */
+const VALIDATED = { timeout: 5000 };
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -76,7 +82,7 @@ function renderBuilder(onValue: (value: Criterion) => void = () => undefined) {
 describe('CriteriaBuilder', () => {
   it('shows the server summary of a complete criterion', async () => {
     renderBuilder();
-    expect(await screen.findByText('Nordic hydro')).toBeInTheDocument();
+    expect(await screen.findByText('Nordic hydro', {}, VALIDATED)).toBeInTheDocument();
     expect(screen.getByText('Specificity 3.5')).toBeInTheDocument();
     expect(lastValidated).toEqual(EXAMPLE);
   });
@@ -85,15 +91,16 @@ describe('CriteriaBuilder', () => {
     const user = userEvent.setup();
     let latest: Criterion = EXAMPLE;
     renderBuilder((value) => (latest = value));
-    await screen.findByText('Nordic hydro');
+    await screen.findByText('Nordic hydro', {}, VALIDATED);
     await user.click(screen.getAllByTestId('add-condition')[0] as HTMLElement);
     await user.click(await screen.findByText('Device country · one of'));
     expect(latest).toEqual({
       ...EXAMPLE,
       of: [...(EXAMPLE.type === 'all' ? EXAMPLE.of : []), { type: 'in', attribute: 'DEVICE_COUNTRY', values: [] }],
     });
-    await waitFor(() =>
-      expect(screen.getByTestId('criteria-incomplete')).toHaveTextContent('1 condition still needs a value'),
+    await waitFor(
+      () => expect(screen.getByTestId('criteria-incomplete')).toHaveTextContent('1 condition still needs a value'),
+      VALIDATED,
     );
     expect(screen.getAllByTestId('condition')).toHaveLength(3);
   });
