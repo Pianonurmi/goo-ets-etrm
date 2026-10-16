@@ -17,6 +17,7 @@
 | 13 | Options on EUA futures: option terms on trades (call or put, strike, expiry, underlying future), a volatility curve signed off like other curves, Black-76 valuation with delta and vega and a VOL component in the explain, premiums in the ledger, exercise into the future or abandonment at expiry, delta-equivalent positions and exposure ([plan](plans/increment-13-eua-options.md)) | done (0.13.0) |
 | 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0150) | done (0.14.0) |
 | 15 | Maintainability: the defects increment 14 handed over, test seams, the clock in repositories and events, a beneficiary register and archive cuts, shared four-eyes and paging rules, the large services split and detekt tightened, build inputs, the demo seeder out of the production jar, dependency locking, roles in the OpenAPI document, the web pages split, client error reports, a coverage ratchet and backups through the Barman Cloud plugin ([plan](plans/increment-15-maintainability.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0150) | done (0.15.0) |
+| 16 | Review leftovers: races and idempotency, documents and report retention, asynchronous long operations, request-rate autoscaling and a registry circuit flag, test and code hygiene, self-contained web journeys and settlement items paging ([plan](plans/increment-16-review-leftovers.md)) | planned |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -215,3 +216,15 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M5 | Web: `x-roles` in the OpenAPI document and generated permissions, one URL state hook, amounts through `Money`, coverage over the whole tree with a ratchet, client error reports, large pages split (#66, #67, #68, #70, #71) | done |
 | M7 | Operations: backups and the point-in-time recovery drill through the Barman Cloud plugin (#69); the dedicated-environment load run waits for the environment | done |
 | M8 | Close: arc42 sections 5 and 8, status per finding, the plan's delivered section, release 0.15.0 | done |
+
+## Increment 16: review leftovers
+
+| Milestone | Content | Status |
+|---|---|---|
+| M0 | Races and idempotency: `propose` under the entity lock, workflow `open` on conflict, a required key on manual deliveries, two-thread tests | planned |
+| M1 | Documents and reports: PDF rendering outside the transaction, limits and a bundled font, report content retention | planned |
+| M2 | Period end, valuation runs and report exports run asynchronously; memory of the portfolio flows measured | planned |
+| M3 | Operations: request-rate HPA, registry open-circuit flag, drill and lot journal verification gaps, a migration schema lint | planned |
+| M4 | Tests and code hygiene: `position` tests, no sleeps, plain api contracts, ADRs 0052–0055, contributor handbook, `UnsafeCallOnNullableType` | planned |
+| M5 | Web: page tests with msw, journeys that create their own data, no retries, settlement items paging | planned |
+| M6 | Close and release 0.16.0 | planned |
