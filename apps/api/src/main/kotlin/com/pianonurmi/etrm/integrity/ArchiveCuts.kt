@@ -7,6 +7,7 @@ import com.pianonurmi.etrm.inventory.api.LotQuery
 import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.ActorProvider
+import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -59,7 +60,18 @@ class ArchiveCuts(
 
 @RestController
 @RequestMapping("/api/v1/admin/integrity")
-class IntegrityController(private val cuts: ArchiveCuts) {
+class IntegrityController(private val cuts: ArchiveCuts, private val chains: ChainVerificationJob, private val actors: ActorProvider) {
+    /**
+     * Verifies every hash chain now, for auditors and the disaster recovery drill. It seals pending audit events first,
+     * as the nightly run does, but stores no digest.
+     */
+    @PostMapping("/chains/verify")
+    @AllowedRoles(Role.AUDITOR, Role.ADMIN)
+    fun verifyChains(): ChainReport {
+        actors.current().requireRole(Role.AUDITOR, Role.ADMIN)
+        return chains.verify()
+    }
+
     @PostMapping("/archive-cuts")
     fun declareArchiveCut(
         @RequestBody body: ArchiveCutRequest,

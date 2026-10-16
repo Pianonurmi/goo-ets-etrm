@@ -45,3 +45,11 @@ Events leave without personal data that a topic could not forget (review finding
 sets a cancellation's `beneficiaryName` and `beneficiaryId` to null in every externalised event, and consumers read
 them through the API by the instruction or lot id. Routing and headers still use the event as published. See
 [data protection](../operations/data-protection.md).
+
+## Amendment (2026-10-16, increment 16)
+Republishing is at least once across replicas, not only after a restore. Every replica republishes the incomplete
+publications it finds when it starts (Spring Modulith's republish on restart), and `EventPublicationMaintenance`
+resubmits stale ones from whichever replica holds its lock; neither knows what another replica is sending at that
+moment. So during a rolling upgrade, or when two replicas start together, an event whose send was in flight can reach
+Kafka two or three times. The producer's idempotence removes retries of one send only, not a second send. Consumers
+deduplicate on `etrm-event-id`, as above; the disaster recovery page relies on the same rule after a restore.

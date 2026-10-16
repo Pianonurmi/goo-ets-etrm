@@ -91,6 +91,9 @@ for entity in $entities; do
   ledger=$(curl -fs "${HEADERS[@]}" "$BASE/api/v1/ledger/journal/verify?legalEntityId=$entity")
   echo "$ledger" | grep -Eq '"ok" *: *true' || fail "ledger journal chain broken for $entity: $ledger"
 done
+# Every chain at once, including those with no endpoint of their own: allowance movements and approval task histories.
+chains=$(curl -fs -X POST "${HEADERS[@]}" "$BASE/api/v1/admin/integrity/chains/verify")
+echo "$chains" | grep -Eq '"ok" *: *true' || fail "hash chains do not verify: $chains"
 documents=$(psql -X -At "$TARGET_DB_URL" -c "SELECT id FROM etrm_document.document ORDER BY created_at DESC LIMIT 20" 2>/dev/null || true)
 for document in $documents; do
   curl -fs "${HEADERS[@]}" "$BASE/api/v1/documents/$document/verify" | grep -Eq '"intact" *: *true' || fail "document $document does not match its hash"
@@ -113,7 +116,7 @@ done_at=$(date +%s)
   echo
   echo "- Backup: $(cut -d' ' -f1 "$WORK_DIR/etrm.dump.sha256") ($(du -h "$WORK_DIR/etrm.dump" | cut -f1))"
   echo "- Tables compared: $(wc -l < "$WORK_DIR/source-counts.txt"), rows: $(awk '{s+=$2} END {print s}' "$WORK_DIR/source-counts.txt")"
-  echo "- Lot journal and ledger chains (entities: $(echo "$entities" | wc -w)) verified; documents checked: $(echo "$documents" | wc -w)"
+  echo "- Lot journal and ledger chains (entities: $(echo "$entities" | wc -w)), audit seals, allowance movements and task histories verified; documents checked: $(echo "$documents" | wc -w)"
   echo "- **Result: PASSED**"
 } >> "$REPORT"
 log "drill passed in $((done_at - start)) s; report in $REPORT"

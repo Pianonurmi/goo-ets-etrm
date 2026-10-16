@@ -1506,6 +1506,69 @@
         "required" : [ "end", "quantity", "start" ],
         "type" : "object"
       },
+      "ChainReport" : {
+        "properties" : {
+          "archiveCut" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "auditBroken" : {
+            "items" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "auditHead" : {
+            "type" : [ "string", "null" ]
+          },
+          "auditUnsealed" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "holdingsBroken" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "journalBroken" : {
+            "additionalProperties" : {
+              "items" : {
+                "format" : "uuid",
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "type" : "object"
+          },
+          "lotsBroken" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "ok" : {
+            "readOnly" : true,
+            "type" : "boolean"
+          },
+          "tasksBroken" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "at", "auditBroken", "auditUnsealed", "holdingsBroken", "journalBroken", "lotsBroken", "ok" ],
+        "type" : "object"
+      },
       "ChangeRequestView" : {
         "properties" : {
           "change" : {
@@ -12581,6 +12644,35 @@
           }
         },
         "tags" : [ "integrity-controller" ]
+      }
+    },
+    "/api/v1/admin/integrity/chains/verify" : {
+      "post" : {
+        "operationId" : "integrity_verifyChains",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChainReport"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "integrity-controller" ],
+        "x-roles" : [ "AUDITOR", "ADMIN" ]
       }
     },
     "/api/v1/allocation/coverage" : {

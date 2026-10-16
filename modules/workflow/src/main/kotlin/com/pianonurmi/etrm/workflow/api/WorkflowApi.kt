@@ -199,6 +199,9 @@ interface WorkflowCommand {
 interface WorkflowQuery {
     fun task(id: UUID): ApprovalTaskView?
 
+    /** Tasks whose hash-chained history does not verify (for the nightly chain verification and the DR drill). */
+    fun verifyEvents(): List<UUID>
+
     fun details(id: UUID): TaskDetails
 
     fun inbox(filter: InboxFilter = InboxFilter()): InboxPage

@@ -8,6 +8,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ## [Unreleased]
 
 ### Added
+- `POST /api/v1/admin/integrity/chains/verify` (auditor or administrator) verifies every hash chain at once. The
+  approval tasks' histories (`task_event`) are now among them, in the nightly verification
+  (`etrm.integrity.chain.ok{chain="tasks"}`), and the disaster recovery drill uses it, so it also checks the
+  allowance movements and task histories.
+- The Helm chart can scale on requests per second as well as CPU (`autoscaling.requestsPerSecond`, through the
+  Prometheus adapter; off by default, `docs/operations/kubernetes.md#scaling-on-request-rate`).
+- A build test refuses a migration that names another module's schema (`MigrationSchemaTest`); ledger V3 is the one
+  historical exception.
 - **Registries pause after repeated transport failures.** After `etrm.registry.circuit.failures` (5) failures in a
   row to one registry (unreachable, 408/429/503, timeouts) its dispatch pauses: its instructions wait, the registry
   screen shows it with a **Resume** button (`POST /api/v1/registry/circuits/{registryCode}/resume`, registry
@@ -25,6 +33,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   written.
 
 ### Changed
+- The lot journal verification walks the journal a month (one partition) at a time from the latest archive cut,
+  instead of sorting every event of every lot in one query.
+- ADR 0029 states that republishing events is at least once across replicas, not only after a restore.
 - **PDFs are laid out after the business transaction commits.** The template is filled in within the transaction
   and the document id is reserved there; the page layout runs afterwards on a virtual thread, so no database
   connection waits on it. Reading a document that is still being laid out renders it first, and a job
