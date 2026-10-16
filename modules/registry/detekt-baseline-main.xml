@@ -1,0 +1,23 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:BreakResolutionService.kt$BreakResolutionService$brk.internalQuantity!!</ID>
+    <ID>UnsafeCallOnNullableType:BreakResolutionService.kt$BreakResolutionService$brk.productCode!!</ID>
+    <ID>UnsafeCallOnNullableType:BreakResolutionService.kt$BreakResolutionService$brk.range!!</ID>
+    <ID>UnsafeCallOnNullableType:BreakResolutionService.kt$BreakResolutionService$brk.registryAccountId!!</ID>
+    <ID>UnsafeCallOnNullableType:BreakResolutionService.kt$BreakResolutionService$brk.registryQuantity!!</ID>
+    <ID>UnsafeCallOnNullableType:InstructionCommands.kt$InstructionCommands$next.holdingRef!!</ID>
+    <ID>UnsafeCallOnNullableType:InstructionOutcomes.kt$InstructionOutcomes$instruction.productCode!!</ID>
+    <ID>UnsafeCallOnNullableType:InstructionOutcomes.kt$InstructionOutcomes$instruction.toAccountRef!!</ID>
+    <ID>UnsafeCallOnNullableType:InstructionOutcomes.kt$InstructionOutcomes$instruction.toRegistryCode!!</ID>
+    <ID>UnsafeCallOnNullableType:InstructionOutcomes.kt$InstructionOutcomes$next.cancellation!!</ID>
+    <ID>UnsafeCallOnNullableType:InstructionOutcomes.kt$InstructionOutcomes$next.holdingRef!!</ID>
+    <ID>UnsafeCallOnNullableType:InstructionOutcomes.kt$InstructionOutcomes$next.productCode!!</ID>
+    <ID>UnsafeCallOnNullableType:ReconciliationBreakTasks.kt$BreakAcceptanceTasks$b.acceptanceRequestedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:ReconciliationBreakTasks.kt$BreakAcceptanceTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:RegistryApiGateway.kt$ApiRegistryGateway$mapping(instruction.registryCode)!!</ID>
+    <ID>UnsafeCallOnNullableType:RegistryInstructionTasks.kt$InstructionApprovalTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:RegistryStatementService.kt$StatementFormatService$repository.find(code, format.profileCode, format.kind)!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

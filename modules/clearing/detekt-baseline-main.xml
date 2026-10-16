@@ -1,0 +1,10 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:ClearingBreakTasks.kt$ClearingBreakTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:ClearingDomain.kt$VariationMargin$previousSettlementPrice!!</ID>
+    <ID>UnsafeCallOnNullableType:ClearingStatementService.kt$ClearingStatementService$accounts.account(account.id)!!</ID>
+    <ID>UnsafeCallOnNullableType:MarginCallTasks.kt$MarginCallTasks$task.decidedBy!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

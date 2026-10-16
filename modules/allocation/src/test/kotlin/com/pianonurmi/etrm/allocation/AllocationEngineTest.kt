@@ -14,6 +14,7 @@ import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.region
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.PropTestConfig
@@ -162,24 +163,24 @@ class AllocationEngineTest {
                 val again = solver.solve(problem)
                 again shouldBe result
                 // never over-allocate a class
-                result.groupBy { it.classIndex }.forEach { (c, a) -> (a.sumOf { it.quantityMwh } <= problem.classes[c].quantity) shouldBe true }
+                result.groupBy { it.classIndex }.forEach { (c, a) -> a.sumOf { it.quantityMwh } shouldBeLessThanOrEqualTo problem.classes[c].quantity }
                 // never over-fill an obligation and only use eligible classes
                 result.groupBy { it.obligationIndex }.forEach { (o, a) ->
-                    (a.sumOf { it.quantityMwh } <= problem.obligations[o].demand) shouldBe true
+                    a.sumOf { it.quantityMwh } shouldBeLessThanOrEqualTo problem.obligations[o].demand
                     a.forEach { problem.isEligible(problem.classes[it.classIndex], problem.obligations[o]) shouldBe true }
                 }
                 // device caps hold
                 problem.obligations.forEach { obl ->
                     obl.maxSharePerDevice?.let { pct ->
                         result.filter { it.obligationIndex == obl.index }.groupBy { problem.classes[it.classIndex].deviceGsrn }
-                            .forEach { (_, a) -> (a.sumOf { it.quantityMwh } <= obl.demand * pct / 100) shouldBe true }
+                            .forEach { (_, a) -> a.sumOf { it.quantityMwh } shouldBeLessThanOrEqualTo obl.demand * pct / 100 }
                     }
                 }
                 // greedy never beats the flow bound
                 val coverage = analyser.analyse(problem, EngineFixtures.entity, 1, TestClock.DEFAULT_START)
-                (result.sumOf { it.quantityMwh } <= coverage.totalCoveredMwh) shouldBe true
-                coverage.obligations.forEach { (it.coveredMwh <= it.demandMwh) shouldBe true }
-                (coverage.totalCoveredMwh <= problem.classes.sumOf { it.quantity }) shouldBe true
+                result.sumOf { it.quantityMwh } shouldBeLessThanOrEqualTo coverage.totalCoveredMwh
+                coverage.obligations.forEach { it.coveredMwh shouldBeLessThanOrEqualTo it.demandMwh }
+                coverage.totalCoveredMwh shouldBeLessThanOrEqualTo problem.classes.sumOf { it.quantity }
             }
         }
     }

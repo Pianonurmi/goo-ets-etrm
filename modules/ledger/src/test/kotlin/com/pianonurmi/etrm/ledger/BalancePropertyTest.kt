@@ -5,6 +5,8 @@ import com.pianonurmi.etrm.ledger.domain.EntryBuilder
 import com.pianonurmi.etrm.platform.test.PropertySeeds
 import io.kotest.assertions.withClue
 import io.kotest.common.ExperimentalKotest
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.PropTestConfig
@@ -44,9 +46,12 @@ class BalancePropertyTest {
                 val balanced = EntryBuilder.balanceBase(lines)
                 withClue("seed $seed, rate $rate, debits $debitCents, credits $credits") {
                     EntryBuilder.requireBalanced(balanced)
-                    balanced.all { it.baseDebit.signum() >= 0 && it.baseCredit.signum() >= 0 } shouldBe true
+                    balanced.forEach {
+                        it.baseDebit.signum() shouldBeGreaterThanOrEqual 0
+                        it.baseCredit.signum() shouldBeGreaterThanOrEqual 0
+                    }
                     val tolerance = BigDecimal("0.01") * BigDecimal(lines.size)
-                    balanced.all { (exact(it) - (it.baseDebit + it.baseCredit)).abs() <= tolerance } shouldBe true
+                    balanced.forEach { (exact(it) - (it.baseDebit + it.baseCredit)).abs() shouldBeLessThanOrEqualTo tolerance }
                 }
             }
         }

@@ -9,6 +9,7 @@ import com.pianonurmi.etrm.valuation.api.ResultStatus
 import com.pianonurmi.etrm.valuation.api.ValuationResultView
 import com.pianonurmi.etrm.valuation.domain.Mtm
 import com.pianonurmi.etrm.valuation.domain.PnlExplainer
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.PropTestConfig
@@ -130,7 +131,7 @@ class PnlExplainTest {
             val rows = PnlExplainer.explain(before, after, { _, r1 -> rolled.getValue(r1.scheduleId) }) { false }
             rows.fold(BigDecimal.ZERO) { sum, r -> sum + r.amountBase }.compareTo(after.sumOf { it.mtmBase!! } - before.sumOf { it.mtmBase!! }) shouldBe 0
             // Rounding is all that is left unexplained: two values and five components, half a cent each at most.
-            rows.filter { it.component == ExplainComponent.UNEXPLAINED }.forEach { (it.amountBase.abs() <= BigDecimal("0.035")) shouldBe true }
+            rows.filter { it.component == ExplainComponent.UNEXPLAINED }.forEach { it.amountBase.abs() shouldBeLessThanOrEqualTo BigDecimal("0.035") }
         }
     }
 }

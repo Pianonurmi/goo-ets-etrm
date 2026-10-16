@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$ComplianceShortMeasurer$limit.legalEntityId!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$GooLimitMeasurer$limit.legalEntityId!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$GooLimitMeasurer$limit.scope.bucketCode!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$GooLimitMeasurer$limit.scope.horizonDays!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$MarginLiquidityMeasurer$limit.currency!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$MarginLiquidityMeasurer$limit.legalEntityId!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$PositionLimitMeasurer$limit.legalEntityId!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$StopLossMeasurer$limit.currency!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$StopLossMeasurer$limit.legalEntityId!!</ID>
+    <ID>UnsafeCallOnNullableType:LimitMeasurers.kt$TenorLimitMeasurer$limit.legalEntityId!!</ID>
+    <ID>UnsafeCallOnNullableType:PreTradeChecks.kt$PreTradeChecks$limit.legalEntityId!!</ID>
+    <ID>UnsafeCallOnNullableType:PreTradeChecks.kt$PreTradeChecks$limit.scope.bucketCode!!</ID>
+    <ID>UnsafeCallOnNullableType:RiskFigures.kt$CreditFigures$limit.currency!!</ID>
+    <ID>UnsafeCallOnNullableType:RiskFigures.kt$CreditFigures$limit.scope.counterpartyId!!</ID>
+    <ID>UnsafeCallOnNullableType:RiskFigures.kt$PositionFigures$leg.option!!</ID>
+    <ID>UnsafeCallOnNullableType:RiskLimitService.kt$RiskLimitService$repository.limit(replaced)!!</ID>
+    <ID>UnsafeCallOnNullableType:RiskTasks.kt$CreditSupportTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:RiskTasks.kt$LimitChangeTasks$task.decidedBy!!</ID>
+  </CurrentIssues>
+</SmellBaseline>
