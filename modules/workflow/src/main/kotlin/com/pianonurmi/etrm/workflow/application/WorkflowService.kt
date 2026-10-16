@@ -104,7 +104,11 @@ class WorkflowService(
             payload = command.payload,
             version = 1,
         )
-        repository.insert(task)
+        // A concurrent open of the same task committed first: return that one instead of failing on the unique index.
+        if (!repository.insert(task)) {
+            return repository.openFor(command.type, command.subjectType, command.subjectRef)
+                ?: throw ConflictException("An open ${command.type} task for ${command.subjectType} ${command.subjectRef} was just closed; retry")
+        }
         history(task, "OPENED", command.requestedBy, mapOf("dueAt" to task.dueAt.toString(), "priority" to task.priority))
         events.publishEvent(TaskOpened(task))
         notifier.opened(task)
