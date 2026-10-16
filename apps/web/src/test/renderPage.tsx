@@ -1,12 +1,16 @@
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render } from '@testing-library/react';
+import { configure, render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { Role, Schema } from '@/shared/api/types';
 import { SessionContext } from '@/shared/auth/SessionContext';
 import { EntityProvider } from '@/shared/context/EntityContext';
 import { server } from './server';
+
+// A whole page with AG Grid takes seconds to mount on a loaded CI runner under coverage; the default 1 s wait of
+// `findBy…`/`waitFor` is too short there. Only the page tests import this module.
+configure({ asyncUtilTimeout: 10_000 });
 
 /**
  * Renders a whole page as the app does (session, selected entity, router, query client) at `url`, matched by `route`.
