@@ -54,6 +54,9 @@ import { VatRulesTab } from './VatRulesTab';
 /** Invoices fetched per page of the invoice list. */
 const INVOICE_PAGE = 100;
 
+/** Items fetched per page of the item list. */
+const ITEM_PAGE = 100;
+
 const TABS = ['items', 'invoices', 'payments', 'netting', 'vat-rules', 'reports'] as const;
 
 /**
@@ -184,9 +187,17 @@ function ItemsTab({ entityId }: { entityId: string }) {
   const [fixing, setFixing] = useState<Item | null>(null);
   // A link may open an item (`?item=<id>`); the grid opens one by id from its row.
   const [openItem, setOpenItem] = useState<string | null>(() => params.get('item'));
-  const items = $api.useQuery('get', '/api/v1/settlement/items', {
-    params: { query: { legalEntityId: entityId, status: itemStatuses(view) } },
-  });
+  const items = $api.useInfiniteQuery(
+    'get',
+    '/api/v1/settlement/items/search',
+    { params: { query: { legalEntityId: entityId, status: itemStatuses(view), limit: ITEM_PAGE } } },
+    {
+      initialPageParam: null as string | null,
+      getNextPageParam: (page) => page.nextCursor ?? undefined,
+      pageParamName: 'cursor',
+    },
+  );
+  const rows = useMemo(() => items.data?.pages.flatMap((page) => page.items) ?? [], [items.data]);
   const columns = useMemo<ColDef<Item>[]>(
     () => [
       {
@@ -288,13 +299,14 @@ function ItemsTab({ entityId }: { entityId: string }) {
           <TableSkeleton />
         ) : (
           <DataGrid<Item>
-            rowData={items.data ?? []}
+            rowData={rows}
             columnDefs={columns}
             rowId={(row) => row.id}
             fitRows={12}
             overlayNoRowsTemplate={t(`settlement.noItems.${view}`)}
           />
         )}
+        <LoadMore query={items} shown={rows.length} testId="item-count" />
       </QueryState>
       {fixing && <FixPriceModal item={fixing} onClose={() => setFixing(null)} />}
       {openItem && (

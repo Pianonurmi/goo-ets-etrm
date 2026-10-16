@@ -56,6 +56,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `idempotencyKey` (422), so a retried request cannot record a delivery twice. The web app already sent one; scripts
   that record deliveries must now send a key that is unique per delivery.
 
+- **Settlement items page by keyset**, latest delivery first, with **Load more**, like invoices and payments
+  (`GET /api/v1/settlement/items/search`, `limit` up to 500 and `cursor`); the unpaged list stays for the KPIs.
+
 ### Fixed
 - Two allocation proposals for one entity no longer soft-reserve the same certificates: a proposal now takes the
   entity's lock, as approval does, and solves against the other proposal's reservations.
