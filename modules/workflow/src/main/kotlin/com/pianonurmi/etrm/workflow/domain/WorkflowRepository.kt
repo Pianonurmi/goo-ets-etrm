@@ -24,7 +24,8 @@ interface ApprovalTaskRepository {
     /** Open tasks past their due date, locked with SKIP LOCKED so parallel escalation runs do not collide. */
     fun lockOverdue(now: Instant, limit: Int): List<ApprovalTaskView>
 
-    fun insert(task: ApprovalTaskView)
+    /** Inserts an open task; false when another one is already open for the same type and subject (the partial unique index). */
+    fun insert(task: ApprovalTaskView): Boolean
 
     /** Optimistic update: succeeds only if the stored version is `task.version - 1`. */
     fun update(task: ApprovalTaskView): Boolean

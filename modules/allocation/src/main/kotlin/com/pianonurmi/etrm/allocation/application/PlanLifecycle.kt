@@ -76,8 +76,9 @@ import java.util.UUID
 
 /**
  * Plan lifecycle: propose (solve, soft-reserve) -> approve (four-eyes, hard-reserve, instruct) -> confirm per line
- * as registry instructions complete ([PlanOutcomes]) -> close. Proposals read without locks; the approve commit runs
- * under a per-entity advisory lock and marks the plan STALE if any lot can no longer be reserved.
+ * as registry instructions complete ([PlanOutcomes]) -> close. Proposals and the approve commit run under a per-entity
+ * advisory lock, so two proposals for one entity soft-reserve one after the other; approve marks the plan STALE if any
+ * lot can no longer be reserved.
  */
 @Service
 @Transactional
@@ -96,6 +97,8 @@ class PlanLifecycle(
 
     fun propose(command: ProposeAllocation): AllocationPlanView {
         actorProvider.authorise(command.holderEntityId, Role.TRADER, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
+        // Serialises proposals for the entity: the second one computes against the first one's soft reservations.
+        plans.lockEntity(command.holderEntityId)
         plans.byKey(command.idempotencyKey)?.let { return it }
         val plan = computation.compute(command, clock.instant(), actorProvider.current().userId)
         plans.insert(plan)
