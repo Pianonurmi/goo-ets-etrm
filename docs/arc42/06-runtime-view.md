@@ -97,6 +97,38 @@ sequenceDiagram
    - a mismatch opens `CONFIRMATION_BREAK`, where a second person overrides it (the trade is confirmed) or disputes it.
 3. Amending the trade re-matches open confirmations against the next issue.
 
+## A registry that keeps failing (increment 16)
+
+After `etrm.registry.circuit.failures` transport failures in a row to one registry, its circuit opens: the dispatcher
+sends nothing more to that registry and the registry screen shows it as paused. After
+`etrm.registry.circuit.cool-down` the next dispatch sends one instruction as a probe; success closes the circuit, a
+failure keeps it open for another cool-down. An operator can also resume it (`POST /api/v1/registry/circuits/{code}/resume`).
+Only transport failures count. A refusal is an answer, and an unknown outcome is still queried, never resent (ADR 0012).
+
+## A long operation run outside the request (increment 16)
+
+```mermaid
+sequenceDiagram
+  participant W as web
+  participant C as controller
+  participant A as async runs
+  participant S as service
+  W->>C: POST /ledger/period-end/runs
+  C->>C: roles and entity scope (403 at once)
+  C->>A: start(kind, entity, work)
+  A->>A: insert async_run RUNNING
+  A-->>W: 202 AsyncRunView (id)
+  A->>S: work on a virtual thread, as the requesting actor, in a child span
+  loop until done
+    W->>A: GET /runs/{id}
+    A-->>W: RUNNING / SUCCEEDED (resultId) / FAILED (problem)
+  end
+```
+
+Period end, valuation runs and report exports run this way. The run row carries a heartbeat; another instance fails
+a run whose heartbeat stopped (`etrm.async-runs.abandon-after`), so a restart never leaves a run running forever. A
+failed run's `problem` is the problem the request would have answered, and the web shows it the same way.
+
 ## Month end (increment 3)
 
 1. **Market data.** Quotes and FX rates are imported (or entered), and suspect quotes are flagged. Each curve's

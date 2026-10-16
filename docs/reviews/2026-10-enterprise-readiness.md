@@ -30,12 +30,15 @@ The short form, by quality:
 Grades read: A meets enterprise expectations, B meets them with known small gaps, C has gaps that must close before
 production, D has a gap that must close before any exposure, E is unfit.
 
-## Status after 0.15.0
+<a id="status-after-0150"></a>
+
+## Status after 0.16.0
 
 The findings as acted on by the patches 0.13.1 and 0.13.2, by
-[increment 14](../plans/increment-14-production-readiness.md) (0.14.0) and by
-[increment 15](../plans/increment-15-maintainability.md) (0.15.0). What is marked open is left for a later increment or
-the owner (issues #16–#21). The findings below are kept as written at the time of the review.
+[increment 14](../plans/increment-14-production-readiness.md) (0.14.0), by
+[increment 15](../plans/increment-15-maintainability.md) (0.15.0) and by
+[increment 16](../plans/increment-16-review-leftovers.md) (0.16.0). What is marked open is left for the owner (issues
+#16–#21) or named with its reason. The findings below are kept as written at the time of the review.
 
 | Finding | Status |
 |---|---|
@@ -51,11 +54,11 @@ the owner (issues #16–#21). The findings below are kept as written at the time
 | D1–D4 | Fixed in 0.14.0: owner and runtime roles, the journal guarded in the database with chain version 2, allowance movements append-only and chained, the double reversal closed |
 | D5–D7 | Fixed in 0.14.0: savepoints at every site found, lot expiry per lot, one rounding rule with entries balanced in base currency |
 | D8–D10 | Fixed in 0.14.0: closed-period and balance guards, append-only history and instruction events, expand/contract migrations with a previous-release check (ADR 0048) |
-| D11 | Partly: the scheduled chain verification and the allowance movement chain are in 0.14.0. Open: propose without the entity lock, workflow open, PDF rendering in a transaction, lot journal verification, the cross-schema migration, unkeyed manual deliveries |
+| D11 | Fixed: the scheduled chain verification and the allowance movement chain (0.14.0); propose under the entity lock, workflow open without a duplicate-key race, PDFs laid out after commit, the lot journal verified partition by partition, a build test against cross-schema migrations (ledger V3 the recorded exception), a key required on manual deliveries, task events and allowance movements in the drill (0.16.0) |
 | O1–O4 | Fixed in 0.14.0: migrations in a pre-upgrade job; job metrics, alert rules and runbooks; a request limit and readiness without the database; a point-in-time recovery drill on CloudNativePG |
-| O5 | Mostly fixed in 0.14.0 (shutdown waits for jobs, PDB, bounded `/tmp`). Open: an HPA on request rate |
-| O6 | Mostly fixed in 0.14.0 (Kafka, configuration, registry, ECB and egress values). Open: asynchronous long operations and a measured memory figure |
-| O7 | Partly in 0.14.0: one HTTP client per registry, publications with an attempt count and a parked state. Open: the open-circuit flag, PDF limits and report retention |
+| O5 | Fixed: shutdown waits for jobs, PDB, bounded `/tmp` (0.14.0); an optional HPA metric on request rate (0.16.0) |
+| O6 | Fixed: Kafka, configuration, registry, ECB and egress values (0.14.0); period end, valuation runs and report exports run outside the request and are polled, ingress timeouts shortened, the memory request set from a measured figure (0.16.0) |
+| O7 | Fixed: one HTTP client per registry, publications with an attempt count and a parked state (0.14.0); a registry's dispatch pauses after repeated transport failures and resumes by an operator or a probe, PDF page and size limits with an embedded font, report content kept for a retention period (0.16.0) |
 | O8 | Fixed in 0.14.0: runbooks linked from every alert |
 | O9 | Partly in 0.14.0: a month-end scenario in the load test (it found a period-end defect, fixed). A run on a dedicated environment needs that environment from the owner |
 | P1 | Process in place (pull requests with CI, `CODEOWNERS`, template, contributing guide); branch protection and a second maintainer are the owner's (#21) |
@@ -70,12 +73,12 @@ the owner (issues #16–#21). The findings below are kept as written at the time
 | C3 | Fixed in 0.14.0: unposted events, `NOT_MEASURED` limits, incomplete exposures, checks that warn when they cannot run |
 | C4 | Fixed in 0.14.0: arc42 sections 5 and 8 updated, the module diagram generated and checked by `ModularityTests` |
 | C7 | Fixed: ADR 0050, `TimeSourceTest`, `TestClock`, controllers and jobs on the clock (0.14.0); repositories and event metadata on the clock, `TimeSourceTest` over the tests too (0.15.0) |
-| C8 | Fixed in 0.14.0: a ledger property test, seeds through `PropertySeeds` with a nightly random run, concurrency tests for the plan, netting and cache locks. Open: the other row locks |
-| C9 | Fixed in 0.14.0: Kover at 90 % of lines and 65 % of branches |
-| C11 | Partly: ADRs for the test strategy and the time source (0049, 0050). Open: the rest |
+| C8 | Fixed: a ledger property test, seeds through `PropertySeeds` with a nightly random run, concurrency tests for the plan, netting and cache locks (0.14.0); two-thread tests for deliveries on one schedule, settlement item re-evaluation, proposals and task opens, and `position` tested on its own (0.16.0) |
+| C9 | Fixed in 0.14.0: Kover at 90 % of lines and 65 % of branches; the levels and ratchets recorded in ADR 0053 (0.16.0) |
+| C11 | Fixed: ADRs for the test strategy and the time source (0049, 0050, 0.14.0); registry HTTP tests on a test clock and latches, property tests that show their operands, ADRs 0052–0055, the contributor handbook that `CLAUDE.md` imports, and a new `!!` on a nullable value failing the build (0.16.0). The Jackson annotations in `allocation/api` and `product/api` stay: the OpenAPI document needs them for the discriminators (ADR 0054) |
 | W1–W3, W5, W7 | Fixed in 0.14.0 |
-| W4 | Partly in 0.15.0: Vitest coverage over the whole tree with floors that only rise. Open: end-to-end journeys that create their own data |
-| W6 | Fixed: lists cut at their limit say so (0.14.0); keyset paging for invoices, payments and valuation results (0.15.0). Open: the same for settlement items |
+| W4 | Fixed: Vitest coverage with floors that only rise (0.15.0); page tests for the heaviest pages against msw, Playwright without retries, and the payments, confirmations, reconciliation, registry and risk journeys creating their own subjects (0.16.0). Open: the clearing and hedge journeys still use single-use demo rows, so they do not yet run twice on one database |
+| W6 | Fixed: lists cut at their limit say so (0.14.0); keyset paging for invoices, payments and valuation results (0.15.0) and settlement items (0.16.0) |
 | W8 | Fixed in 0.15.0: roles in the OpenAPI document (`x-roles`), the web permission table generated from it |
 | W9 | Fixed in 0.15.0: the large pages split into one file per tab, drawer and modal; client errors reported to the server, with source maps kept out of the jar |
 | W10 | Fixed in 0.14.0; amounts shown in cells go through `Money` (0.15.0) |
