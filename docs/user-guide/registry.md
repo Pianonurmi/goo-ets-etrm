@@ -22,6 +22,10 @@ registry, and those that need attention (failed, or the outcome is unknown). Swi
 - On the instruction, **Confirm executed** or **Mark failed** by hand where the registry is operated manually;
   **Retry** a failed instruction; **Cancel instruction** withdraws it.
 - **New transfer** (GoO) and **Allowance transfer** (Union Registry) start one from this screen.
+- When a registry cannot be reached several times in a row, its dispatch pauses and the screen says so above the
+  cards: the registry's instructions wait instead of piling up failed attempts. One is tried again after a few
+  minutes, and the first answer from the registry resumes the rest. **Resume** (registry operators and back office
+  who see every legal entity) sends them again at once, for example when the registry announces it is back.
 
 ## Transfer routes and statement formats
 

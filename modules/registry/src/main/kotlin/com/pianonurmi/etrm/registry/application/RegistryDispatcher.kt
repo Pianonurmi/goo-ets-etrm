@@ -32,6 +32,7 @@ class RegistryDispatcher(
     private val repository: RegistryInstructionRepository,
     private val gateways: List<RegistryGateway>,
     private val instructions: InstructionOutcomes,
+    private val circuits: RegistryCircuits,
     transactionManager: PlatformTransactionManager,
     private val settings: RegistryDispatchSettings,
     private val clock: Clock,
@@ -40,12 +41,20 @@ class RegistryDispatcher(
     private val tx = TransactionTemplate(transactionManager)
     private val outboxChannels: Set<String> = gateways.filterNot { it.inline }.map { it.channel }.toSet()
 
-    /** Claims and executes due instructions; returns how many were executed. */
+    /**
+     * Claims and executes due instructions; returns how many were executed. A paused registry's instructions wait,
+     * except one probe once its cool-down has passed ([RegistryCircuits]).
+     */
     fun dispatchDue(): Int {
         val now = clock.instant()
-        val claimed = tx.execute { repository.claimDue(outboxChannels, now, now.plus(settings.lease), settings.batchSize) }.orEmpty()
-        claimed.forEach(::executeClaimed)
-        return claimed.size
+        val leaseUntil = now.plus(settings.lease)
+        val gate = circuits.gate(now)
+        val claimed = tx.execute { repository.claimDue(outboxChannels, now, leaseUntil, settings.batchSize, excludedRegistries = gate.paused) }.orEmpty()
+        val probes = gate.probing.flatMap { code ->
+            tx.execute { repository.claimDue(outboxChannels, now, leaseUntil, 1, onlyRegistry = code) }.orEmpty()
+        }
+        (claimed + probes).forEach(::executeClaimed)
+        return claimed.size + probes.size
     }
 
     /** Marks instructions whose dispatcher lease ran out as UNKNOWN. */
@@ -78,7 +87,10 @@ class RegistryDispatcher(
         } else {
             safely("dispatch of ${instruction.instructionKey}") { gateway.execute(instruction) } ?: GatewayResult.Unknown("gateway call failed unexpectedly")
         }
-        tx.executeWithoutResult { instructions.applyDispatchResult(id, result) }
+        tx.executeWithoutResult {
+            instructions.applyDispatchResult(id, result)
+            circuits.record(instruction.registryCode, result)
+        }
     }
 
     private fun gateway(channel: String, registryCode: String): RegistryGateway? = gateways.firstOrNull { it.channel == channel && it.supports(registryCode) }
@@ -130,6 +142,7 @@ class RegistryMetrics(
     meters: ObjectProvider<MeterRegistry>,
     private val repository: RegistryInstructionRepository,
     private val breaks: ReconciliationQuery,
+    private val circuits: RegistryCircuits,
     private val clock: Clock,
 ) {
     init {
@@ -151,6 +164,9 @@ class RegistryMetrics(
                     .description("Open reconciliation breaks by days since first seen")
                     .register(registry)
             }
+            Gauge.builder("etrm.registry.circuits.paused") { circuits.pausedCount().toDouble() }
+                .description("Registries whose dispatch is paused after transport failures in a row")
+                .register(registry)
             Gauge.builder("etrm.registry.dispatch.lag.seconds") {
                 repository.oldestPendingSince()?.let { Duration.between(it, Instant.now(clock)).seconds.toDouble() } ?: 0.0
             }

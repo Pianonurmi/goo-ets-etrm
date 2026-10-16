@@ -47,9 +47,12 @@ class RegistryAccess(
     }
 
     /** A registry-wide transaction export confirms instructions of every entity, so it needs access to all of them. */
-    fun registryWideImporter(): Actor = actorProvider.current().also {
+    fun registryWideImporter(): Actor = registryWideOperator("A registry transaction export")
+
+    /** [what] acts on instructions of every legal entity at one registry, so it needs access to all of them. */
+    fun registryWideOperator(what: String): Actor = actorProvider.current().also {
         it.requireRole(Role.REGISTRY_OPERATOR, Role.BACK_OFFICE)
-        if (!it.seesAllEntities) throw ForbiddenException("A registry transaction export affects every legal entity; user ${it.userId} sees only some")
+        if (!it.seesAllEntities) throw ForbiddenException("$what affects every legal entity; user ${it.userId} sees only some")
     }
 
     private fun submitter(holderEntityId: UUID?): Actor = actorProvider.current().also {

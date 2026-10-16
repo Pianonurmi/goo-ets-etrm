@@ -31,7 +31,7 @@ flowchart TB
     demo --> config & web
     events --> inventory & ledger & registry & risk & settlement & trade
     home --> allocation & audit & etscompliance & inventory & ledger & position & referencedata & risk & settlement & trade & valuation & workflow
-    integrity --> audit & document & inventory & ledger & referencedata
+    integrity --> audit & document & inventory & ledger & referencedata & workflow
     jobs --> platform
     showcase --> config & web
     web --> audit

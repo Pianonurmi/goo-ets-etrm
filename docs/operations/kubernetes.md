@@ -49,7 +49,7 @@ and CI starts the previous release on each build's schema to prove it (`ops/rele
 | Shutdown | `preStop` sleep of 10 s so the endpoints drop the pod first; requests in flight and a running scheduled job get 30 s to finish, then async runs 15 s more (`etrm.async-runs.shutdown-wait`; a run cut off is failed by another instance within three minutes and can be started again); 60 s grace period |
 | Security | non-root user 10001 (numeric in the image), read-only root file system with `emptyDir` for `/tmp`, all capabilities dropped, `RuntimeDefault` seccomp, no service account token. `/tmp` must allow exec: the exact allocation solver unpacks its native library (about 70 MB) there at every container start. An `emptyDir` does, and otherwise exact allocation falls back to greedy and says so; `tmpSizeLimit` (512 MiB) bounds it. |
 | Secrets | database URL and credentials from `database.existingSecret` (default `etrm-db-app` from CloudNativePG); nothing secret in values |
-| Scaling | HPA on CPU (2–6 replicas); scheduled jobs run once across replicas through ShedLock; the PDB lets node drains take one pod at a time; pods spread across zones and nodes |
+| Scaling | HPA on CPU (2–6 replicas), optionally on request rate too ([below](#scaling-on-request-rate)); scheduled jobs run once across replicas through ShedLock; the PDB lets node drains take one pod at a time; pods spread across zones and nodes |
 | Timeouts | the ingress waits 45 s for an answer (`proxy-read-timeout`, 5 s to connect). Period end, valuation runs and report exports answer 202 and run outside the request (`GET /api/v1/runs/{id}` reports their status), so the slowest synchronous request is an allocation proposal at design size, about 25 s: 3 s preparing the portfolio, 6 s greedy, up to 10 s exact and 5 s pricing. The synchronous report (`GET /api/v1/reports/{code}`) is bounded by the same timeout; long reports go through `POST /api/v1/reports/{code}/exports`. |
 | Memory | request 1.5 GiB, limit 2 GiB; see [memory](#memory) |
 | Network | ingress routes only the HTTP port. The network policy admits the ingress controller's namespace to HTTP and the monitoring namespace to the management port. With `networkPolicy.egress` (a list of egress rules) outbound traffic is limited to DNS and those destinations: the database, the identity provider, the registries, Kafka, the collector, and the ECB when it is on. |
@@ -99,6 +99,33 @@ extraEnv:
     valueFrom:
       secretKeyRef: {name: etrm-registry-fingrid, key: client-secret}
 ```
+
+### Scaling on request rate
+
+CPU follows load late when requests wait on the database rather than compute. With
+`autoscaling.requestsPerSecond.enabled` the HPA also scales on requests per second per pod, a custom pods metric the
+[Prometheus adapter](https://github.com/kubernetes-sigs/prometheus-adapter) serves from the application's
+`http_server_requests_seconds_count`. The adapter needs a rule like this one (the name must match
+`autoscaling.requestsPerSecond.metricName`):
+
+```yaml
+rules:
+  custom:
+    - seriesQuery: 'http_server_requests_seconds_count{namespace!="",pod!=""}'
+      resources:
+        overrides:
+          namespace: {resource: namespace}
+          pod: {resource: pod}
+      name:
+        as: http_server_requests_per_second
+      metricsQuery: 'sum(rate(<<.Series>>{<<.LabelMatchers>>,uri!~"/actuator.*"}[2m])) by (<<.GroupBy>>)'
+```
+
+The default target, 150 requests per second per pod, is where one instance still answered reads at a p95 of 25 ms
+in the load test (`baseline`, 144 req/s); at 556 req/s (`stress`) the p95 was 600 ms
+([load testing](load-testing.md)). The HPA takes the larger of the CPU and request-rate recommendations. Check
+`kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/<ns>/pods/*/http_server_requests_per_second"`
+before turning it on: without the adapter the HPA reports the metric as missing and scales on CPU alone.
 
 ## PostgreSQL
 

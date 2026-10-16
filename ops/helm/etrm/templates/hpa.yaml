@@ -19,6 +19,18 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- with .Values.autoscaling.requestsPerSecond }}
+    {{- if .enabled }}
+    # Requests per second per pod, served by the Prometheus adapter as a custom pods metric (kubernetes.md).
+    - type: Pods
+      pods:
+        metric:
+          name: {{ .metricName }}
+        target:
+          type: AverageValue
+          averageValue: {{ .target | quote }}
+    {{- end }}
+    {{- end }}
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300

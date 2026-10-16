@@ -8,6 +8,20 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ## [Unreleased]
 
 ### Added
+- `POST /api/v1/admin/integrity/chains/verify` (auditor or administrator) verifies every hash chain at once. The
+  approval tasks' histories (`task_event`) are now among them, in the nightly verification
+  (`etrm.integrity.chain.ok{chain="tasks"}`), and the disaster recovery drill uses it, so it also checks the
+  allowance movements and task histories.
+- The Helm chart can scale on requests per second as well as CPU (`autoscaling.requestsPerSecond`, through the
+  Prometheus adapter; off by default, `docs/operations/kubernetes.md#scaling-on-request-rate`).
+- A build test refuses a migration that names another module's schema (`MigrationSchemaTest`); ledger V3 is the one
+  historical exception.
+- **Registries pause after repeated transport failures.** After `etrm.registry.circuit.failures` (5) failures in a
+  row to one registry (unreachable, 408/429/503, timeouts) its dispatch pauses: its instructions wait, the registry
+  screen shows it with a **Resume** button (`POST /api/v1/registry/circuits/{registryCode}/resume`, registry
+  operator or back office with every legal entity), and after `etrm.registry.circuit.cool-down` (5 min) one
+  instruction goes as a probe; the registry's first answer resumes the rest. Alert `EtrmRegistryPaused`, gauge
+  `etrm.registry.circuits.paused`. Unknown outcomes are still never resent (ADR 0012).
 - **Report export retention.** The content of a report export is kept for `etrm.reporting.retention` (400 days by
   default, at least 30); a nightly job then drops it. The export's number, parameters, row count, hash and audit event
   stay, the export log shows **Content expired**, and a download of it answers 409. The append-only trigger on
@@ -19,6 +33,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   written.
 
 ### Changed
+- The lot journal verification walks the journal a month (one partition) at a time from the latest archive cut,
+  instead of sorting every event of every lot in one query.
+- ADR 0029 states that republishing events is at least once across replicas, not only after a restore.
 - **Period end, valuation runs and report exports run outside the request.** `POST /api/v1/ledger/period-end/runs`
   and `POST /api/v1/valuation/runs` now answer 202 with a run (`AsyncRunView`) instead of 201 with the result; poll
   `GET /api/v1/runs/{id}` (only the user who started it may) until it is `SUCCEEDED`, whose `resultId` names the

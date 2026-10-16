@@ -15,6 +15,8 @@ import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import tools.jackson.core.type.TypeReference
 import java.time.Instant
+import java.time.YearMonth
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -62,30 +64,48 @@ class JooqLotEventJournal(private val dsl: DSLContext) : LotEventJournal {
 
     override fun lastSeq(): Long = dsl.select(DSL.coalesce(DSL.max(LOT_EVENT.SEQ), DSL.inline(0L))).from(LOT_EVENT).fetchOne(0, Long::class.java) ?: 0L
 
-    /** One probe of the lot/seq index per lot of the holder; queries the partitioned parent table (ADR 0030). */
+    /**
+     * Walks the journal a month at a time, so each query reads one partition (ADR 0030) instead of sorting every
+     * event of every lot at once. It starts at the latest archive cut: events before it may already be archived, and
+     * the anchor kept at the cut stands for them. A lot's events are written under its row lock, so within one lot
+     * the sequence and the recording time agree, and month by month in sequence order is each lot's own order.
+     */
     override fun brokenChains(): List<UUID> {
-        val broken = mutableListOf<UUID>()
         val anchors = dsl.select(LOT_EVENT_ANCHOR.LOT_ID, LOT_EVENT_ANCHOR.HASH).from(LOT_EVENT_ANCHOR)
             .fetchGroups(LOT_EVENT_ANCHOR.LOT_ID, LOT_EVENT_ANCHOR.HASH)
-        dsl.selectFrom(LOT_EVENT).orderBy(LOT_EVENT.LOT_ID, LOT_EVENT.SEQ).fetchLazy().use { cursor ->
-            var currentLot: UUID? = null
-            var expectedPrev: String? = null
-            for (r in cursor) {
-                if (r.lotId != currentLot) {
-                    currentLot = r.lotId
-                    // Events before an archive cut may be gone; the anchor kept at the cut starts the remaining chain.
-                    expectedPrev = r.prevHash?.takeIf { anchors[r.lotId]?.contains(it) == true }
+        val bounds = dsl.select(DSL.min(LOT_EVENT.RECORDED_AT), DSL.max(LOT_EVENT.RECORDED_AT)).from(LOT_EVENT).fetchOne()
+        val first = bounds?.value1() ?: return emptyList()
+        val last = bounds.value2() ?: return emptyList()
+        val since = dsl.select(DSL.max(LOT_EVENT_ANCHOR.CUT)).from(LOT_EVENT_ANCHOR).fetchOne()?.value1()?.takeIf { it.isAfter(first) } ?: first
+        val lastHash = HashMap<UUID, String>()
+        val broken = LinkedHashSet<UUID>()
+        var month = YearMonth.from(since.atOffset(ZoneOffset.UTC))
+        while (!monthStart(month).isAfter(last)) {
+            val from = maxOf(monthStart(month), since)
+            dsl.selectFrom(LOT_EVENT)
+                .where(LOT_EVENT.RECORDED_AT.ge(from), LOT_EVENT.RECORDED_AT.lt(monthStart(month.plusMonths(1))))
+                .orderBy(LOT_EVENT.SEQ)
+                .fetchLazy()
+                .use { cursor ->
+                    for (r in cursor) {
+                        // A lot first met here starts from nothing, or from the anchor kept at the cut.
+                        val expectedPrev = if (lastHash.containsKey(r.lotId)) {
+                            lastHash[r.lotId]
+                        } else {
+                            r.prevHash?.takeIf { anchors[r.lotId]?.contains(it) == true }
+                        }
+                        val payload = Json.canonical(r.payload.data())
+                        val recomputed = HashChain.next(expectedPrev, hashInput(r.lotId, r.eventType, r.effectiveAt, r.actor, payload))
+                        if (r.prevHash != expectedPrev || r.hash != recomputed) broken += r.lotId
+                        lastHash[r.lotId] = r.hash
+                    }
                 }
-                val payload = Json.canonical(r.payload.data())
-                val recomputed = HashChain.next(expectedPrev, hashInput(r.lotId, r.eventType, r.effectiveAt, r.actor, payload))
-                if (r.prevHash != expectedPrev || r.hash != recomputed) {
-                    if (broken.lastOrNull() != r.lotId) broken += r.lotId
-                }
-                expectedPrev = r.hash
-            }
+            month = month.plusMonths(1)
         }
-        return broken
+        return broken.toList()
     }
+
+    private fun monthStart(month: YearMonth): Instant = month.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC)
 
     override fun anchor(cut: Instant): Int = dsl.execute(
         """
