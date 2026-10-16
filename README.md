@@ -296,3 +296,5 @@ SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun   # web UI and Swagg
 Provena is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE): you may read, run, change
 and share it for any noncommercial purpose. Commercial use needs a separate licence; ask the maintainer through
 GitHub. Third-party libraries, fonts and images keep their own licences, listed in the SBOMs each CI run publishes.
+The PDF documents embed Liberation Sans, bundled under the SIL Open Font License 1.1
+([`OFL.txt`](modules/document/src/main/resources/documents/fonts/OFL.txt)).

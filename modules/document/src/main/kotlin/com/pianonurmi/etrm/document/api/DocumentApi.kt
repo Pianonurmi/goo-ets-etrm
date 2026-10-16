@@ -59,8 +59,16 @@ data class StoreDocument(
     override fun hashCode(): Int = 31 * ownerRef.hashCode() + bytes.contentHashCode()
 }
 
+/**
+ * A PDF that will be stored under [id]. It is rendered after the requesting transaction commits, so the caller keeps
+ * the id (on an invoice, a confirmation) without waiting for the page layout; reading the document renders it first if
+ * it is still pending.
+ */
+data class PendingDocument(val id: UUID)
+
 interface DocumentCommand {
-    fun renderPdf(command: RenderPdf): DocumentView
+    /** Fills in the template now and renders the PDF once the current transaction commits. */
+    fun renderPdf(command: RenderPdf): PendingDocument
 
     fun store(command: StoreDocument): DocumentView
 }
