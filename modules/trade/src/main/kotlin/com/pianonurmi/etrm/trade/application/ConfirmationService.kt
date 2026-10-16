@@ -171,7 +171,7 @@ class ConfirmationService(
         return when {
             ours != null -> match(theirs, ours)
             // Issuing ours matches every confirmation of theirs that is waiting, this one included.
-            trade.status in ISSUABLE -> issue(trade.id).let { repository.find(theirs.id)!! }
+            trade.status in ISSUABLE -> issue(trade.id).let { checkNotNull(repository.find(theirs.id)) { "Confirmation ${theirs.id} is gone" } }
             else -> theirs
         }
     }
@@ -271,7 +271,8 @@ class ConfirmationService(
 
     private fun confirmTrade(theirs: ConfirmationView, method: String, actor: String) {
         val trade = trades.requireTrade(theirs.tradeId)
-        if (trade.confirmedAt == null) lifecycle.confirmAs(trade.id, ConfirmTrade(theirs.reference!!, method), actor)
+        val reference = checkNotNull(theirs.reference) { "Confirmation ${theirs.id} has no reference" }
+        if (trade.confirmedAt == null) lifecycle.confirmAs(trade.id, ConfirmTrade(reference, method), actor)
     }
 
     private fun close(view: ConfirmationView): ConfirmationView {

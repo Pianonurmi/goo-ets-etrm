@@ -210,7 +210,8 @@ class TradeValuer(
             null
         }
         val market: CurvePrice = when (trade.productFamily) {
-            ProductFamily.EMISSION_ALLOWANCE -> curves.forwardPrice(leg.allowanceProductCode!!, draft.deliveryDate, date)
+            ProductFamily.EMISSION_ALLOWANCE ->
+                curves.forwardPrice(checkNotNull(leg.allowanceProductCode) { "Allowance leg ${leg.id} has no product" }, draft.deliveryDate, date)
             ProductFamily.GUARANTEE_OF_ORIGIN -> curves.vintagePrice(
                 leg.bucketCode ?: throw Unpriced(ResultStatus.MISSING_BUCKET, year, "No product bucket contains the delivery criteria"),
                 year ?: draft.deliveryDate.year,
@@ -228,7 +229,11 @@ class TradeValuer(
             else -> indexPrice(leg, draft.deliveryDate, date, year, marketContract) + leg.price
         }
         // Futures are margined daily: their value is paid out now, not on delivery.
-        val df = if (leg.futuresContractCode != null) DiscountFactor.NONE else discount(draft.contractCurrency, draft.payDate!!)
+        val df = if (leg.futuresContractCode != null) {
+            DiscountFactor.NONE
+        } else {
+            discount(draft.contractCurrency, checkNotNull(draft.payDate) { "Leg ${leg.id} has no pay date" })
+        }
         val undiscounted = Mtm.value(draft.quantity, marketContract, contract)
         val value = Mtm.value(draft.quantity, marketContract, contract, df.value)
         return draft.copy(
@@ -265,7 +270,7 @@ class TradeValuer(
         base: String,
         discount: (String, LocalDate) -> DiscountFactor,
     ): ValuationResultView {
-        val product = leg.allowanceProductCode!!
+        val product = checkNotNull(leg.allowanceProductCode) { "Allowance leg ${leg.id} has no product" }
         val underlying = futures.futuresContract(terms.underlyingContractCode)
             ?: throw Unpriced(ResultStatus.MISSING_PRICE, null, "Underlying contract ${terms.underlyingContractCode} not found")
         val forward = curves.forwardPrice(product, underlying.deliveryDate, date)

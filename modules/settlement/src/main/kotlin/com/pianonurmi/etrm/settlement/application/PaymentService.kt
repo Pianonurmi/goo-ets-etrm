@@ -124,7 +124,7 @@ class InvoiceSettlement(
         val applied = apply(original, creditNote.grossTotal.negate(), AllocationKind.CREDIT_NOTE, by, creditNote = creditNote)
         // What the original no longer needed stays on the credit note, to be refunded or netted.
         val used = applied.negate()
-        val current = invoices.find(creditNote.id, forUpdate = true)!!
+        val current = checkNotNull(invoices.find(creditNote.id, forUpdate = true)) { "Credit note ${creditNote.id} is gone" }
         val status = when {
             used.compareTo(current.grossTotal) == 0 -> PaymentStatus.PAID
             applied.signum() > 0 -> PaymentStatus.PARTIALLY_PAID

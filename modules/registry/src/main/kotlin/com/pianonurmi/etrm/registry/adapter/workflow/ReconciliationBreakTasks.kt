@@ -118,8 +118,8 @@ class BreakAcceptanceTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> reconciliation.decideAcceptance(task.subjectRef, true, task.decidedBy!!, reason)
-            Decision.REJECT -> reconciliation.decideAcceptance(task.subjectRef, false, task.decidedBy!!, reason)
+            Decision.APPROVE -> reconciliation.decideAcceptance(task.subjectRef, true, task.decider(), reason)
+            Decision.REJECT -> reconciliation.decideAcceptance(task.subjectRef, false, task.decider(), reason)
             Decision.ACKNOWLEDGE -> throw ValidationException("Break acceptance is approved or rejected")
         }
         return DecisionOutcome.Applied
@@ -135,7 +135,7 @@ class BreakAcceptanceTasks(
                 b.id,
                 referenceData.entityOf(b),
                 "Accept reconciliation break: ${describe(b)} — ${b.resolution}",
-                b.acceptanceRequestedBy!!,
+                checkNotNull(b.acceptanceRequestedBy) { "Break ${b.id} has no acceptance request" },
                 mapOf("type" to b.type.name, "reason" to b.resolution),
             ),
         )

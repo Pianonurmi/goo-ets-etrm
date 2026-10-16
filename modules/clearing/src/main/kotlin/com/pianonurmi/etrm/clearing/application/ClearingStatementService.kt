@@ -116,7 +116,7 @@ class ClearingStatementService(
         )
         repository.insertStatement(statement)
         // The level of initial margin is the latest day's; an earlier day re-sent does not move it.
-        val reported = accounts.account(account.id)!!.initialMargin
+        val reported = checkNotNull(accounts.account(account.id)) { "Clearing account ${account.id} is gone" }.initialMargin
         val imChange = if (latest == null || !day.businessDate.isBefore(latest)) {
             repository.setInitialMargin(account.id, day.initialMargin)
             day.initialMargin - reported

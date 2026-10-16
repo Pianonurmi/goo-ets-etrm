@@ -48,7 +48,7 @@ class InstructionApprovalTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> instructions.approve(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> instructions.approve(task.subjectRef, task.decider())
             Decision.REJECT -> instructions.cancel(task.subjectRef, "rejected: ${reason ?: "no reason"}")
             Decision.ACKNOWLEDGE -> throw ValidationException("Registry instructions are approved or rejected")
         }

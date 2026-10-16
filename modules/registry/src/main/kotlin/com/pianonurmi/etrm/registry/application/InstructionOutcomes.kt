@@ -169,15 +169,24 @@ class InstructionOutcomes(
         when (next.type) {
             InstructionType.TRANSFER -> events.publishEvent(InstructionConfirmed(next, lots.confirmTransferOut(next.requireLot(), next.id, next.externalRef)))
             InstructionType.CANCELLATION -> events.publishEvent(
-                InstructionConfirmed(next, lots.cancel(next.requireLot(), null, next.cancellation!!.copy(registryCancellationRef = next.externalRef))),
+                InstructionConfirmed(
+                    next,
+                    lots.cancel(
+                        next.requireLot(),
+                        null,
+                        checkNotNull(next.cancellation) {
+                            "Instruction ${next.instructionKey} cancels nothing"
+                        }.copy(registryCancellationRef = next.externalRef),
+                    ),
+                ),
             )
             InstructionType.ALLOWANCE_TRANSFER, InstructionType.SURRENDER -> {
-                allowances.release(next.holdingRef!!, next.quantity)
+                allowances.release(next.requireHolding(), next.quantity)
                 val holding = allowances.record(
                     RecordAllowanceMovement(
                         holderEntityId = next.holderEntityId,
                         registryAccountId = next.fromAccountId,
-                        productCode = next.productCode!!,
+                        productCode = next.requireProduct(),
                         type = next.movementType ?: AllowanceMovementType.TRANSFER_OUT,
                         quantity = next.quantity,
                         effectiveDate = store.dateOf(next.confirmedAt ?: store.now()),
@@ -196,14 +205,16 @@ class InstructionOutcomes(
 
     /** A transfer to another of our accounts lands there too: a purchase at the sale price, or a plain transfer in. */
     private fun receiveInternally(instruction: RegistryInstructionView) {
-        val target = referenceData.registryAccountByNumber(instruction.toRegistryCode!!, instruction.toAccountRef!!) ?: return
+        val registryCode = checkNotNull(instruction.toRegistryCode) { "Instruction ${instruction.instructionKey} has no destination registry" }
+        val accountRef = checkNotNull(instruction.toAccountRef) { "Instruction ${instruction.instructionKey} has no destination account" }
+        val target = referenceData.registryAccountByNumber(registryCode, accountRef) ?: return
         if (target.holderType != HolderType.LEGAL_ENTITY) return
         val sale = instruction.movementType == AllowanceMovementType.SALE
         allowances.record(
             RecordAllowanceMovement(
                 holderEntityId = target.holderId,
                 registryAccountId = target.id,
-                productCode = instruction.productCode!!,
+                productCode = instruction.requireProduct(),
                 type = if (sale) AllowanceMovementType.PURCHASE else AllowanceMovementType.TRANSFER_IN,
                 quantity = instruction.quantity,
                 effectiveDate = store.dateOf(instruction.confirmedAt ?: store.now()),
@@ -219,7 +230,7 @@ class InstructionOutcomes(
         store.save(next, response)
         when (next.assetKind) {
             AssetKind.GOO_LOT -> lots.failTransfer(next.requireLot(), next.id, reason)
-            AssetKind.ALLOWANCE -> allowances.release(next.holdingRef!!, next.quantity)
+            AssetKind.ALLOWANCE -> allowances.release(next.requireHolding(), next.quantity)
         }
         events.publishEvent(InstructionFailed(next, reason))
         return next

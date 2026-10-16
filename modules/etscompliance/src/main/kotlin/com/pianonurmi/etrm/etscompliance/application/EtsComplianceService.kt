@@ -183,7 +183,7 @@ class EtsComplianceService(
             .filter { it.kind == EmissionKind.VERIFIED && it.status == EmissionStatus.APPROVED }
             .forEach { repository.setEmissionStatus(it.id, EmissionStatus.SUPERSEDED) }
         repository.setEmissionStatus(recordId, EmissionStatus.APPROVED, by, clock.instant())
-        val approved = repository.emission(recordId)!!
+        val approved = checkNotNull(repository.emission(recordId)) { "Emission record $recordId is gone" }
         events.publishEvent(VerifiedEmissionsApproved(approved, requireInstallation(approved.installationId)))
         return approved
     }
@@ -199,7 +199,7 @@ class EtsComplianceService(
         authorise(installation.legalEntityId, Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
         if (command.allocated < 0 || (command.adjusted ?: 0) < 0) throw ValidationException("Allocations cannot be negative")
         repository.upsertFreeAllocation(installationId, year, command, actorProvider.current().userId)
-        return freeAllocationOf(installation, year)!!
+        return checkNotNull(freeAllocationOf(installation, year)) { "No free allocation of $installation for $year after recording it" }
     }
 
     // ----------------------------------------------------------------------------------------------------------

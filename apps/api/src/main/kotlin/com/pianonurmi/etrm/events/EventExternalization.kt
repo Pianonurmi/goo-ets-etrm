@@ -100,7 +100,7 @@ class EventExternalizationConfig {
     fun eventExternalization(): EventExternalizationConfiguration = EventExternalizationConfiguration.externalizing()
         .select { ExternalEvents.route(it) != null }
         .routeAll { event ->
-            val (topic, key) = ExternalEvents.route(event)!!
+            val (topic, key) = checkNotNull(ExternalEvents.route(event)) { "No Kafka route for ${event::class.simpleName}" }
             RoutingTarget.forTarget(topic).andKey(key)
         }
         .mapping(ExternalEvents::payload)

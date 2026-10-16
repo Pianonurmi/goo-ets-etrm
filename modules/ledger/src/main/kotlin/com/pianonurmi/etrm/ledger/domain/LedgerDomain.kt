@@ -135,8 +135,8 @@ object EntryBuilder {
         val status = period?.status ?: PeriodStatus.OPEN
         when (status) {
             PeriodStatus.OPEN -> Unit
-            PeriodStatus.SOFT_CLOSED -> if (!manual) throw ValidationException("Period ${period!!.period} is soft-closed; only manual adjustments are allowed")
-            PeriodStatus.CLOSED -> throw ValidationException("Period ${period!!.period} is closed")
+            PeriodStatus.SOFT_CLOSED -> if (!manual) throw ValidationException("Period ${period?.period} is soft-closed; only manual adjustments are allowed")
+            PeriodStatus.CLOSED -> throw ValidationException("Period ${period?.period} is closed")
         }
     }
 }

@@ -39,7 +39,7 @@ class LimitChangeTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> risk.approveLimit(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> risk.approveLimit(task.subjectRef, task.decider())
             Decision.REJECT -> risk.rejectLimit(task.subjectRef)
             Decision.ACKNOWLEDGE -> throw ValidationException("Limit changes are approved or rejected")
         }
@@ -87,7 +87,7 @@ class CreditSupportTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> risk.approveCreditSupport(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> risk.approveCreditSupport(task.subjectRef, task.decider())
             Decision.REJECT -> risk.rejectCreditSupport(task.subjectRef)
             Decision.ACKNOWLEDGE -> throw ValidationException("Credit support is approved or rejected")
         }

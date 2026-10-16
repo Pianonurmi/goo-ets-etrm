@@ -117,7 +117,7 @@ class JooqHedgeRepository(private val dsl: DSLContext) : HedgeRepository {
             .set(HEDGE_MEASUREMENT.MEASURED_AT, measurement.measuredAt)
             .onConflictDoNothing()
             .execute()
-        return measurement(measurement.relationshipId, measurement.valuationRunId)!!
+        return checkNotNull(measurement(measurement.relationshipId, measurement.valuationRunId)) { "Hedge measurement was not stored" }
     }
 
     override fun measurement(relationshipId: UUID, valuationRunId: UUID): HedgeMeasurementView? = dsl.selectFrom(HEDGE_MEASUREMENT)

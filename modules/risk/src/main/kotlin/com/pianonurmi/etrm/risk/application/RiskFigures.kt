@@ -110,9 +110,10 @@ class PositionFigures(
      */
     private fun deltaEquivalent(trade: TradeView, leg: TradeLegView, gaps: MeasurementGaps): BigDecimal {
         val delta = optionValuation(trade, leg, LocalDate.now(clock))?.delta
-            ?: (if (leg.option!!.optionType == OptionType.CALL) BigDecimal.ONE else BigDecimal.ONE.negate()).also {
-                gaps.assumed("option of trade ${trade.tradeNumber} has no value: a delta of $it is assumed")
-            }
+            ?: (if (checkNotNull(leg.option) { "Leg ${leg.id} is not an option" }.optionType == OptionType.CALL) BigDecimal.ONE else BigDecimal.ONE.negate())
+                .also {
+                    gaps.assumed("option of trade ${trade.tradeNumber} has no value: a delta of $it is assumed")
+                }
         return leg.quantity * delta
     }
 
@@ -161,11 +162,11 @@ class CreditFigures(
 ) {
     /** Exposure to the limit's counterparty and its group, over the limit's entity or all entities, in the limit's currency. */
     fun creditUsage(limit: RiskLimitView, today: LocalDate, gaps: MeasurementGaps): Pair<BigDecimal, String?> {
-        val members = CounterpartyGroups.members(limit.scope.counterpartyId!!, parentMap())
+        val members = CounterpartyGroups.members(checkNotNull(limit.scope.counterpartyId) { "Limit ${limit.id} has no counterparty" }, parentMap())
         val exposures = repository.exposures(limit.legalEntityId).filter { it.counterpartyId in members }
         // An exposure that left something out passes that on: the limit is only as complete as the figures under it.
         exposures.filter { it.incomplete }.forEach { gaps.addAll(it.leftOutCurrencies, it.incompleteReasons) }
-        val total = exposures.sumOf { fx.convert(it.exposure, it.currency, limit.currency!!, today, gaps) }
+        val total = exposures.sumOf { fx.convert(it.exposure, it.currency, limit.currencyCode(), today, gaps) }
         return total to "${exposures.size} exposures over ${members.size} counterparties"
     }
 

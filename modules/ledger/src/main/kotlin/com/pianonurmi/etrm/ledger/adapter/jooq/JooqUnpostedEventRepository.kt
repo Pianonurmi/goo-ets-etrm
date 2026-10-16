@@ -34,7 +34,7 @@ class JooqUnpostedEventRepository(private val dsl: DSLContext) : UnpostedEventRe
                 .set(UNPOSTED_EVENT.LAST_ATTEMPT_AT, DSL.currentInstant())
                 .where(UNPOSTED_EVENT.ID.eq(existing.id))
                 .returning()
-                .fetchOne()!!
+                .fetchSingle()
                 .let(::toDomain)
         }
         return dsl.insertInto(UNPOSTED_EVENT)
@@ -50,7 +50,7 @@ class JooqUnpostedEventRepository(private val dsl: DSLContext) : UnpostedEventRe
             .set(UNPOSTED_EVENT.FACTS_JSON, event.factsJson?.let(JSONB::jsonb))
             .set(UNPOSTED_EVENT.REPLAYABLE, event.replayable)
             .returning()
-            .fetchOne()!!
+            .fetchSingle()
             .let(::toDomain)
     }
 

@@ -101,7 +101,7 @@ class LotService(
         val device = referenceData.productionDeviceByGsrn(command.deviceGsrn)
         val attrs = command.deviceAttributes
         if (device == null && attrs == null) throw ValidationException("Production device ${command.deviceGsrn} is unknown; supply deviceAttributes")
-        val energySourceCode = device?.energySourceCode ?: attrs!!.energySourceCode
+        val energySourceCode = checkNotNull(device?.energySourceCode ?: attrs?.energySourceCode) { "Device ${command.deviceGsrn} has no energy source" }
         val technologyCode = device?.technologyCode ?: attrs?.technologyCode
         val energySource = taxonomy.require(TaxonomyScheme.ENERGY_SOURCE, energySourceCode)
         val technology = technologyCode?.let { taxonomy.require(TaxonomyScheme.TECHNOLOGY, it) }
@@ -129,7 +129,7 @@ class LotService(
             deviceId = device?.id,
             deviceGsrn = command.deviceGsrn.trim(),
             deviceName = device?.name ?: attrs?.name,
-            deviceCountry = (device?.country ?: attrs!!.country).uppercase(),
+            deviceCountry = checkNotNull(device?.country ?: attrs?.country) { "Device ${command.deviceGsrn} has no country" }.uppercase(),
             deviceRegion = device?.regionCode ?: attrs?.region,
             deviceCommissioningDate = device?.commissioningDate ?: attrs?.commissioningDate,
             deviceCapacityKw = device?.capacityKw ?: attrs?.capacityKw,
@@ -233,7 +233,7 @@ class LotService(
         val recorded = beneficiaries.record(details)
         val next = CertificateLot(target).cancel(recorded.copy(consumptionCountry = recorded.consumptionCountry.uppercase()))
         persist(next, record(next.id, "LotCancelled", clock.instant(), mapOf("cancellation" to next.cancellation)))
-        events.publishEvent(LotCancelled(next, next.cancellation!!))
+        events.publishEvent(LotCancelled(next, checkNotNull(next.cancellation) { "Cancelled lot ${next.id} has no cancellation" }))
         return next
     }
 

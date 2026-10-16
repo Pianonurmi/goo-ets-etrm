@@ -46,7 +46,7 @@ class VerifiedEmissionsTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> compliance.approveVerified(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> compliance.approveVerified(task.subjectRef, task.decider())
             Decision.REJECT -> compliance.rejectVerified(task.subjectRef)
             Decision.ACKNOWLEDGE -> throw ValidationException("Verified emissions are approved or rejected")
         }

@@ -64,7 +64,7 @@ class BreakResolutionService(
     override fun recordReceipt(breakId: UUID, receipt: ReceiveLots, note: String): ReconciliationBreakView {
         operator()
         val brk = open(breakId, BreakType.MISSING_INTERNALLY)
-        requireSameCertificates(brk, receipt, brk.range!!)
+        requireSameCertificates(brk, receipt, checkNotNull(brk.range) { "Break $breakId has no certificate range" })
         val lot = lots.receive(receipt)
         return reconciliation.resolveBreak(breakId, BreakAction.RECORD_RECEIPT, "${note.trim()} (lot ${lot.id})")
     }
@@ -73,7 +73,7 @@ class BreakResolutionService(
         operator()
         val brk = open(breakId, BreakType.MISSING_IN_REGISTRY)
         val lot = heldLot(brk)
-        val missing = isolate(lot, brk.range!!)
+        val missing = isolate(lot, checkNotNull(brk.range) { "Break $breakId has no certificate range" })
         lots.withdraw(missing.id, "reconciliation break $breakId: ${note.trim()}")
         return reconciliation.resolveBreak(breakId, BreakAction.WITHDRAW_LOT, "${note.trim()} (lot ${missing.id} withdrawn)")
     }
@@ -100,13 +100,14 @@ class BreakResolutionService(
     override fun correctHolding(breakId: UUID, note: String): ReconciliationBreakView {
         operator()
         val brk = open(breakId, BreakType.BALANCE_MISMATCH)
-        val difference = brk.registryQuantity!! - brk.internalQuantity!!
-        val account = referenceData.requireRegistryAccount(brk.registryAccountId!!)
+        val difference = checkNotNull(brk.registryQuantity) { "Balance break $breakId has no registry quantity" } -
+            checkNotNull(brk.internalQuantity) { "Balance break $breakId has no internal quantity" }
+        val account = referenceData.requireRegistryAccount(checkNotNull(brk.registryAccountId) { "Balance break $breakId has no account" })
         allowances.record(
             RecordAllowanceMovement(
                 holderEntityId = account.holderId,
                 registryAccountId = account.id,
-                productCode = brk.productCode!!,
+                productCode = checkNotNull(brk.productCode) { "Balance break $breakId has no product" },
                 type = AllowanceMovementType.CORRECTION,
                 quantity = difference,
                 effectiveDate = brk.lastSeenOn ?: LocalDate.now(clock),

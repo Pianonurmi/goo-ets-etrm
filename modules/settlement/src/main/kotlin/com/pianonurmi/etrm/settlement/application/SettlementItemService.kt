@@ -247,7 +247,12 @@ class SettlementItemService(
         val net = Amounts.money(item.quantity * price)
         val supply = supplyOf(item)
         val determination = vat.determine(item.productFamily, supply.supplierCountry, supply.customerCountry, item.deliveredOn)
-        val rule = determination.rule ?: return item.needs(determination.problem!!).copy(unitPrice = price, netAmount = net)
+        val rule = determination.rule
+            ?: return item.needs(
+                checkNotNull(determination.problem) {
+                    "A VAT determination without a rule names its problem"
+                },
+            ).copy(unitPrice = price, netAmount = net)
         if (rule.treatment == VatTreatment.REVERSE_CHARGE_CROSS_BORDER && supply.customerVatNumber == null) {
             return item.needs("The customer has no VAT number; cross-border reverse charge needs one").copy(unitPrice = price, netAmount = net)
         }
@@ -277,7 +282,7 @@ class SettlementItemService(
     private fun indexPrice(item: SettlementItemView): BigDecimal? {
         val o = trades.obligation(item.scheduleId) ?: return null
         if (o.priceType != PriceType.INDEX || o.priceIndex == null) return null
-        val fixing = fixings.fixing(o.priceIndex!!, o.deliveryDate) ?: return null
+        val fixing = fixings.fixing(checkNotNull(o.priceIndex) { "Index-priced schedule without an index" }, o.deliveryDate) ?: return null
         if (fixing.currency != item.currency) {
             throw ValidationException(
                 "Index ${o.priceIndex} fixes in ${fixing.currency}; trade ${item.tradeNumber} is in ${item.currency}",

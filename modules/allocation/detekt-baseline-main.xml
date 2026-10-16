@@ -1,9 +1,0 @@
-<?xml version="1.0" ?>
-<SmellBaseline>
-  <ManuallySuppressedIssues/>
-  <CurrentIssues>
-    <ID>UnsafeCallOnNullableType:JooqAllocationRepositories.kt$JooqObligationRepository$window.lower()!!</ID>
-    <ID>UnsafeCallOnNullableType:JooqAllocationRepositories.kt$JooqObligationRepository$window.upper()!!</ID>
-    <ID>UnsafeCallOnNullableType:PlanSupport.kt$PlanInstructions$line.reservedLotId!!</ID>
-  </CurrentIssues>
-</SmellBaseline>

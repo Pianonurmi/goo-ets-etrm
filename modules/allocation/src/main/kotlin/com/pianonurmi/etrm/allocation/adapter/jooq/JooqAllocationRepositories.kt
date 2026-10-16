@@ -27,6 +27,7 @@ import com.pianonurmi.etrm.allocation.api.VirtualLineView
 import com.pianonurmi.etrm.allocation.domain.AllocationPlanRepository
 import com.pianonurmi.etrm.allocation.domain.ObligationRepository
 import com.pianonurmi.etrm.inventory.api.CancellationDetails
+import com.pianonurmi.etrm.platform.db.toLocalDateRange
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.api.BucketMatchKind
@@ -71,7 +72,7 @@ class JooqObligationRepository(private val dsl: DSLContext) : ObligationReposito
     )
         .from(OBLIGATION)
         .where(OBLIGATION.HOLDER_ENTITY_ID.eq(holderEntityId), OBLIGATION.STATUS.eq(ObligationStatus.OPEN.name))
-        .fetchOne { "${it.value1()}:${it.value2()}:${it.value3()}:${it.value4()}" }!!
+        .fetchSingle { "${it.value1()}:${it.value2()}:${it.value3()}:${it.value4()}" }
 
     override fun insert(obligation: ObligationView) {
         val o = obligation
@@ -129,7 +130,7 @@ class JooqObligationRepository(private val dsl: DSLContext) : ObligationReposito
             criteriaSummary = r.criteriaSummary,
             quantityMwh = r.quantityMwh,
             fulfilledMwh = r.fulfilledMwh,
-            deliveryWindow = LocalDateRange(window.lower()!!, window.upper()!!),
+            deliveryWindow = window.toLocalDateRange("obligation.delivery_window"),
             deliveryDate = r.deliveryDate,
             targetRegistryCode = r.targetRegistryCode,
             targetAccountRef = r.targetAccountRef,

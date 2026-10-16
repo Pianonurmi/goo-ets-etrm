@@ -12,6 +12,7 @@ import com.pianonurmi.etrm.inventory.api.LotStatus
 import com.pianonurmi.etrm.inventory.api.LotView
 import com.pianonurmi.etrm.inventory.domain.LotChange
 import com.pianonurmi.etrm.inventory.domain.LotRepository
+import com.pianonurmi.etrm.platform.db.toLocalDateRange
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
 import com.pianonurmi.etrm.product.api.EnergyCarrier
@@ -102,7 +103,7 @@ class JooqLotRepository(private val dsl: DSLContext) : LotRepository {
     )
         .from(CERTIFICATE_LOT)
         .where(CERTIFICATE_LOT.HOLDER_ENTITY_ID.eq(holderEntityId))
-        .fetchOne { HoldingStamp(it.value1().toLong(), it.value2().toLong(), it.value3().toLong()) }!!
+        .fetchSingle { HoldingStamp(it.value1().toLong(), it.value2().toLong(), it.value3().toLong()) }
 
     override fun liveVersions(holderEntityId: UUID): Map<UUID, Int> = dsl.select(CERTIFICATE_LOT.ID, CERTIFICATE_LOT.VERSION)
         .from(CERTIFICATE_LOT)
@@ -209,7 +210,7 @@ class JooqLotRepository(private val dsl: DSLContext) : LotRepository {
             energySourcePath = r.energySourcePath.data(),
             technologyCode = r.technologyCode,
             technologyPath = r.technologyPath?.data(),
-            productionPeriod = LocalDateRange(period.lower()!!, period.upper()!!),
+            productionPeriod = period.toLocalDateRange("certificate_lot.production_period"),
             issueDate = r.issueDate,
             expiryDate = r.expiryDate,
             supportProduction = r.supportProduction,

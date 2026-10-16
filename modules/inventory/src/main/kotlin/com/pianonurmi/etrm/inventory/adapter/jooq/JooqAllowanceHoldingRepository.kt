@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.inventory.adapter.jooq
 
+import com.pianonurmi.etrm.inventory.adapter.jooq.generated.EtrmInventory.ETRM_INVENTORY
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.AllowanceHolding.ALLOWANCE_HOLDING
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.AllowanceMovement.ALLOWANCE_MOVEMENT
 import com.pianonurmi.etrm.inventory.adapter.jooq.generated.tables.records.AllowanceHoldingRecord
@@ -38,7 +39,7 @@ class JooqAllowanceHoldingRepository(private val dsl: DSLContext) : AllowanceHol
         return dsl.selectFrom(ALLOWANCE_HOLDING)
             .where(ALLOWANCE_HOLDING.REGISTRY_ACCOUNT_ID.eq(registryAccountId), ALLOWANCE_HOLDING.PRODUCT_CODE.eq(productCode))
             .forUpdate()
-            .fetchOne()!!
+            .fetchSingle()
             .let(::toView)
     }
 
@@ -67,7 +68,7 @@ class JooqAllowanceHoldingRepository(private val dsl: DSLContext) : AllowanceHol
         .set(ALLOWANCE_MOVEMENT.ACTOR, movement.actor)
         .set(ALLOWANCE_MOVEMENT.CORRELATION_ID, movement.correlationId)
         .returning()
-        .fetchOne()!!
+        .fetchSingle()
         .let(::toMovement)
 
     override fun movements(holdingId: UUID): List<AllowanceMovementView> =
@@ -96,7 +97,7 @@ class JooqAllowanceHoldingRepository(private val dsl: DSLContext) : AllowanceHol
         ORDER BY holding_id
         """.trimIndent(),
         ALLOWANCE_MOVEMENT,
-        DSL.name(ALLOWANCE_MOVEMENT.schema!!.name),
+        DSL.name(ETRM_INVENTORY.name),
     ).map { it.get(0, UUID::class.java) }
 
     private fun toView(r: AllowanceHoldingRecord) = AllowanceHoldingView(

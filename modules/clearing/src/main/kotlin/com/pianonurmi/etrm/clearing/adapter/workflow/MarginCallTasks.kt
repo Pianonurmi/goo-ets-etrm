@@ -43,8 +43,8 @@ class MarginCallTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> calls.decide(task.subjectRef, task.decidedBy!!, pay = true, reason)
-            Decision.REJECT -> calls.decide(task.subjectRef, task.decidedBy!!, pay = false, reason)
+            Decision.APPROVE -> calls.decide(task.subjectRef, task.decider(), pay = true, reason)
+            Decision.REJECT -> calls.decide(task.subjectRef, task.decider(), pay = false, reason)
             Decision.ACKNOWLEDGE -> throw ValidationException("A margin call is paid (approve) or disputed (reject)")
         }
         return DecisionOutcome.Applied

@@ -53,7 +53,7 @@ class OptionExpiryService(
         var trade = trades.requireTrade(tradeId)
         if (trade.status != TradeStatus.CONFIRMED) return null
         trade.legs.filter { leg -> leg.option != null && leg.expiry == null && !leg.option.expiryDate.isAfter(date) }.forEach { leg ->
-            val terms = leg.option!!
+            val terms = checkNotNull(leg.option) { "Leg ${leg.id} is not an option" }
             val settlement = settlementPrice(terms.underlyingContractCode, terms.expiryDate)
             if (settlement == null) {
                 log.warn(
@@ -93,7 +93,7 @@ class OptionExpiryService(
 
     /** The future at the strike: a bought call or sold put buys it, a bought put or sold call sells it. */
     private fun exercise(option: TradeView, leg: TradeLegView): CaptureTrade {
-        val terms = leg.option!!
+        val terms = checkNotNull(leg.option) { "Leg ${leg.id} is not an option" }
         val contract = futures.futuresContract(terms.underlyingContractCode)
             ?: error("Underlying ${terms.underlyingContractCode} of ${option.tradeNumber} not found")
         val side = when {
