@@ -1,0 +1,60 @@
+name: Demo seed (today)
+
+# The demo data follows the date it is seeded on (prices, months, limits). Pull requests seed it on their own
+# day; this run seeds it every night, so a date that breaks the seed shows the next morning, not at a deploy.
+on:
+  schedule:
+    - cron: "43 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-nightly
+  cancel-in-progress: false
+
+jobs:
+  demo:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_USER: etrm
+          POSTGRES_PASSWORD: etrm
+          POSTGRES_DB: etrm_codegen
+        # A free host port: the runner may host other jobs and databases.
+        ports: ["5432"]
+        options: >-
+          --health-cmd "pg_isready -U etrm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ETRM_DB_USER: etrm
+      ETRM_DB_PASSWORD: etrm
+    steps:
+      - name: Database on the service's port
+        run: |
+          port=${{ job.services.postgres.ports['5432'] }}
+          {
+            echo "PGPORT=$port"
+            echo "ETRM_CODEGEN_DB_URL=jdbc:postgresql://localhost:$port/etrm_codegen"
+            echo "ETRM_TEST_DB_URL=jdbc:postgresql://localhost:$port/etrm_test"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: |
+            25
+            21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+      - name: Create the test database
+        run: PGPASSWORD=etrm psql -h localhost -U etrm -d etrm_codegen -c "CREATE DATABASE etrm_test;"
+      - name: Seed the demo at today's date
+        run: ./gradlew --no-daemon -Petrm.skipWeb :apps:api:test --tests '*DemoDataSeederIT'
