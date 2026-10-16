@@ -1,5 +1,8 @@
 package com.pianonurmi.etrm.demo
 
+import java.math.BigDecimal
+import java.math.RoundingMode
+
 /**
  * Risk limits, credit support and an EU ETS installation for the Finnish entity: active limits measured against
  * the demo trades, one limit change waiting for the second risk analyst, and an installation with free allocation,
@@ -16,10 +19,6 @@ class DemoCompliance(private val api: DemoClient, private val calendar: DemoCale
         approvedLimit(
             """{"legalEntityId":"${entity.id}","type":"CREDIT_EXPOSURE","scope":{"counterpartyId":"$nordvind"},"amount":50000,
                "currency":"EUR","warningPct":80,"reason":"Annual credit review"}""",
-        )
-        approvedLimit(
-            """{"legalEntityId":"${entity.id}","type":"CREDIT_EXPOSURE","scope":{"counterpartyId":"$rheinstrom"},"amount":40000,
-               "currency":"EUR","warningPct":75,"reason":"Annual credit review"}""",
         )
         approvedLimit(
             """{"legalEntityId":"${entity.id}","type":"TENOR_MAX_MONTHS","scope":{"productFamily":"GUARANTEE_OF_ORIGIN"},"amount":24,
@@ -42,7 +41,26 @@ class DemoCompliance(private val api: DemoClient, private val calendar: DemoCale
                "validFrom":"${calendar.today.withDayOfYear(1)}","reference":"DEMO-PG-001"}""",
         ).id()
         api.approveTask(DemoUser.RISK2, "CREDIT_SUPPORT_CHANGE", guarantee)
+        approvedLimit(
+            """{"legalEntityId":"${entity.id}","type":"CREDIT_EXPOSURE","scope":{"counterpartyId":"$rheinstrom"},"amount":${rheinstromLimit(
+                entity,
+                rheinstrom,
+            )},
+               "currency":"EUR","warningPct":75,"reason":"Annual credit review"}""",
+        )
         api.post(DemoUser.RISK, "/api/v1/risk/measure?legalEntityId=${entity.id}")
+    }
+
+    /**
+     * Rheinstrom's exposure follows the seed date (prices and which months it bought in), so a fixed limit breaks the
+     * seed on some days: later steps sell to Rheinstrom and middle office approves. The limit sits at about 80 % of
+     * today's exposure, net of the guarantee: in warning (75 %), with room for those sales.
+     */
+    private fun rheinstromLimit(entity: DemoEntity, rheinstrom: String): Long {
+        val exposure = api.getList(DemoUser.RISK, "/api/v1/risk/exposures?legalEntityId=${entity.id}")
+            .firstOrNull { it["counterpartyId"] == rheinstrom }?.get("exposure")?.let { BigDecimal(it.toString()) } ?: BigDecimal.ZERO
+        val fourFifths = exposure.multiply(BigDecimal(5)).divide(BigDecimal(4), 0, RoundingMode.CEILING).toLong()
+        return maxOf(MIN_RHEINSTROM_LIMIT, (fourFifths + LIMIT_STEP - 1) / LIMIT_STEP * LIMIT_STEP)
     }
 
     /**
@@ -120,5 +138,9 @@ class DemoCompliance(private val api: DemoClient, private val calendar: DemoCale
     companion object {
         /** A heating plant burns more in winter. */
         private val MONTHLY = listOf(1900, 1700, 1500, 1100, 800, 500, 400, 450, 700, 1100, 1500, 1800)
+
+        /** Rheinstrom's credit limit in EUR: at least this, in steps of [LIMIT_STEP]. */
+        private const val MIN_RHEINSTROM_LIMIT = 40_000L
+        private const val LIMIT_STEP = 1_000L
     }
 }
