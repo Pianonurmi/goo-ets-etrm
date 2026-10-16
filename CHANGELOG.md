@@ -14,8 +14,17 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   `report_export` allows that one change and nothing else.
 - A nightly workflow seeds the demo at that day's date (`demo-nightly.yml`), so a date that breaks the demo seed
   shows the next morning instead of at a deploy.
+- Issued PDFs (invoices, netting statements, trade confirmations, hedge documentation) embed Liberation Sans (SIL
+  OFL, metric-compatible with Helvetica), so names with letters outside Latin-1, such as Šiauliai or Ķēniņš, print as
+  written.
 
 ### Changed
+- **PDFs are laid out after the business transaction commits.** The template is filled in within the transaction
+  and the document id is reserved there; the page layout runs afterwards on a virtual thread, so no database
+  connection waits on it. Reading a document that is still being laid out renders it first, and a job
+  (`etrm.documents.render-delay`, every minute) picks up renders lost to a restart.
+- A PDF over `etrm.documents.max-pages` (200) or `etrm.documents.max-bytes` (20 MB) is refused and not stored; reading
+  it answers 409 with the reason.
 - **Manual deliveries need an idempotency key.** `POST /api/v1/trades/{id}/deliveries` refuses a request without
   `idempotencyKey` (422), so a retried request cannot record a delivery twice. The web app already sent one; scripts
   that record deliveries must now send a key that is unique per delivery.
