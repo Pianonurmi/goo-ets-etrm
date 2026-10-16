@@ -6,13 +6,14 @@ export type EmirEvent = Schema<'EmirEventView'>;
 
 /**
  * A logged export can be downloaded again by whoever may run its report (the service checks the report's roles and
- * the export's entity), so the runnable reports decide.
+ * the export's entity), so the runnable reports decide; once its content expired (retention) only the log entry and
+ * its hash remain.
  */
 export function canDownloadExport(
-  reportExport: Pick<ReportExport, 'reportCode'>,
+  reportExport: Pick<ReportExport, 'reportCode' | 'contentExpiredAt'>,
   runnable: readonly Pick<ReportDefinition, 'code'>[],
 ): boolean {
-  return runnable.some((report) => report.code === reportExport.reportCode);
+  return !reportExport.contentExpiredAt && runnable.some((report) => report.code === reportExport.reportCode);
 }
 
 /** The fallback name of a downloaded export (a CSV export comes with its own name from the server). */

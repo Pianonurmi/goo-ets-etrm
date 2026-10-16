@@ -2207,6 +2207,8 @@
     "eventDate": "Date",
     "action": "Action",
     "downloadAgain": "Download again",
+    "contentExpired": "Content expired",
+    "contentExpiredHint": "The content was dropped after the retention period; the number and hash prove what was produced. Run the report again for new content.",
     "downloadedAgain": "Export {{seq}} downloaded again",
     "reportError": "Report error",
     "reportErrorTitle": "Report {{trade}} in error",

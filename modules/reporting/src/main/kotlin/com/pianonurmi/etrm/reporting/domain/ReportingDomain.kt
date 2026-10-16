@@ -150,7 +150,11 @@ interface ReportingRepository {
 
     fun exports(legalEntityId: UUID?, reportCode: String?): List<ReportExportView>
 
-    fun export(id: UUID): Pair<ReportExportView, String>?
+    /** The export and its content; the content is null once it expired. */
+    fun export(id: UUID): Pair<ReportExportView, String?>?
+
+    /** Drops the content of up to [limit] exports produced before [before]; returns how many. */
+    fun expireContent(before: Instant, at: Instant, limit: Int): Int
 
     /** Records an EMIR event once per trade, action and source; returns whether it was recorded now. */
     fun insertEmirEvent(event: EmirEventView): Boolean

@@ -24,6 +24,14 @@ describe('report exports and EMIR errors', () => {
     expect(canDownloadExport({ reportCode: 'EMIR_ACTIVITY' }, runnable)).toBe(false);
   });
 
+  it('offers no download once the content expired', () => {
+    const runnable = [{ code: 'GL_TRIAL_BALANCE' }];
+    expect(
+      canDownloadExport({ reportCode: 'GL_TRIAL_BALANCE', contentExpiredAt: '2027-11-20T00:00:00Z' }, runnable),
+    ).toBe(false);
+    expect(canDownloadExport({ reportCode: 'GL_TRIAL_BALANCE', contentExpiredAt: null }, runnable)).toBe(true);
+  });
+
   it('names the file by report, number and format', () => {
     expect(exportFileName({ reportCode: 'EMIR_ACTIVITY', seq: 3, format: 'CSV' })).toBe('emir_activity-3.csv');
     expect(exportFileName({ reportCode: 'EMIR_ACTIVITY', seq: 4, format: 'JSON' })).toBe('emir_activity-4.json');
