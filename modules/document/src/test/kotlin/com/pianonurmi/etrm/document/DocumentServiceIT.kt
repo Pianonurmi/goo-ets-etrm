@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DocumentServiceIT {
     private val published: MutableList<Any> = Collections.synchronizedList(mutableListOf())
+    private val clock: Clock = Clock.systemUTC()
     private val renders = AtomicInteger()
     private val renderer = PdfRenderer { xhtml, title -> renders.incrementAndGet().let { OpenHtmlPdfRenderer().render(xhtml, title) } }
     private val transactions by lazy { TransactionTemplate(DataSourceTransactionManager(TestDatabase.dataSource)) }
@@ -53,7 +54,7 @@ class DocumentServiceIT {
         renderer,
         ActorProvider { Actor("backoffice", "Back office", setOf(Role.BACK_OFFICE)) },
         ApplicationEventPublisher { published += it },
-        Clock.systemUTC(),
+        clock,
         transactions,
         limits,
     )
@@ -133,11 +134,11 @@ class DocumentServiceIT {
             requestedAt = requestedAt,
         ).also { repository.insertJob(it) }
 
-        val read = pendingJob(Instant.now())
+        val read = pendingJob(clock.instant())
         documents.content(read.id).document.createdBy shouldBe "trader"
         repository.job(read.id) shouldBe null
 
-        val lost = pendingJob(Instant.now().minus(Duration.ofMinutes(5)))
+        val lost = pendingJob(clock.instant().minus(Duration.ofMinutes(5)))
         documents.renderDue() shouldBe 1
         repository.find(lost.id) shouldNotBe null
     }
