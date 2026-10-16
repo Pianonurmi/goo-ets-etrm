@@ -1,6 +1,7 @@
 package com.pianonurmi.etrm.config
 
 import com.pianonurmi.etrm.platform.security.Actor
+import com.pianonurmi.etrm.platform.security.ActorBinding
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.web.Personas
@@ -197,6 +198,8 @@ class SpringSecurityActorProvider(
     private val headersAllowed: Boolean = false,
 ) : ActorProvider {
     override fun current(): Actor {
+        // Work that left its request (an async run) acts as the request's actor, bound for the work.
+        ActorBinding.bound()?.let { return it }
         val authentication: Authentication? = SecurityContextHolder.getContext().authentication
         return when {
             // The showcase seeder acts as the personas named by the dev headers, through every check a visitor meets.

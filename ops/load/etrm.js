@@ -41,6 +41,8 @@ export const options = {
     'http_req_duration{kind:check}': ['p(95)<150'],
     // Batch work runs over the whole book of the entity: a valuation, the period end, a report or an export.
     'http_req_duration{kind:batch}': ['p(95)<10000'],
+    // Period end, valuation runs and exports answer 202 at once; this is the whole run, start to finish (polled).
+    etrm_async_run: ['p(95)<10000'],
     checks: ['rate>0.99'],
   },
 };
@@ -168,18 +170,43 @@ function batchCall(method, path, body, roleHeaders, name, ok) {
   return res;
 }
 
+const asyncRun = new Trend('etrm_async_run', true);
+
+/**
+ * A long operation that answers 202 (period end, valuation run, report export): starts it, then polls its run until it
+ * finishes, so `etrm_async_run{name}` measures the whole run and not only the 202. A refusal by the operation's gate
+ * (422 in the run's problem) counts as served when 422 is listed in ok.
+ */
+function batchRun(path, body, roleHeaders, name, ok) {
+  const res = batchCall('POST', path, body, roleHeaders, name, [202]);
+  if (res.status !== 202) return;
+  const started = Date.now();
+  const id = res.json('id');
+  let run = res.json();
+  while (run.status === 'RUNNING' && Date.now() - started < RUN_TIMEOUT_MS) {
+    sleep(0.25);
+    const poll = http.get(`${BASE}/api/v1/runs/${id}`, { headers: roleHeaders, tags: { kind: 'poll', name } });
+    if (poll.status !== 200) break;
+    run = poll.json();
+  }
+  asyncRun.add(Date.now() - started, { name });
+  check(run, { [`${name} finished`]: (r) => r.status === 'SUCCEEDED' || (r.status === 'FAILED' && ok.includes(r.problem.status)) });
+}
+
+const RUN_TIMEOUT_MS = 300000;
+
 export function batch(ctx) {
   const today = new Date().toISOString().slice(0, 10);
   const period = today.slice(0, 7);
   group('batch', () => {
     // An ad hoc valuation of the entity's whole book (curves, options, FX), stored as a draft run.
-    batchCall('POST', '/api/v1/valuation/runs', { legalEntityId: ctx.entityId, valuationDate: today, kind: 'ADHOC', note: 'load test' },
-      RISK, 'valuation run', [200, 201]);
+    batchRun('/api/v1/valuation/runs', { legalEntityId: ctx.entityId, valuationDate: today, kind: 'ADHOC', note: 'load test' },
+      RISK, 'valuation run', []);
     // The period end of the open month; a re-run posts only differences. 422 when a gate refuses it (no official
     // valuation for the period, a closed period): the measurement still ran.
-    batchCall('POST', '/api/v1/ledger/period-end/runs', { legalEntityId: ctx.entityId, period }, ACCOUNTANT, 'period end', [200, 201, 422]);
-    batchCall('GET', `/api/v1/reports/GL_TRIAL_BALANCE?legalEntityId=${ctx.entityId}&period=${period}&format=csv`, null, ACCOUNTANT,
-      'trial balance', [200]);
+    batchRun('/api/v1/ledger/period-end/runs', { legalEntityId: ctx.entityId, period }, ACCOUNTANT, 'period end', [422]);
+    batchRun(`/api/v1/reports/GL_TRIAL_BALANCE/exports`, { format: 'CSV', parameters: { legalEntityId: ctx.entityId, period } },
+      ACCOUNTANT, 'trial balance', []);
     batchCall('GET', `/api/v1/reports/MTM_BY_TRADE?legalEntityId=${ctx.entityId}&format=csv`, null, RISK, 'mtm report', [200, 404, 422]);
     batchCall('GET', `/api/v1/settlement/invoices/export?legalEntityId=${ctx.entityId}&format=csv`, null, OPERATIONS, 'invoice export', [200]);
   });

@@ -1,7 +1,10 @@
 import { Alert, Button, Card, Group, Stack, Table, Text, Title } from '@mantine/core';
 import { IconPlayerPlay } from '@tabler/icons-react';
+import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { $api } from '@/shared/api/client';
+import { awaitRun } from '@/shared/api/asyncRun';
+import { $api, api } from '@/shared/api/client';
+import type { Body } from '@/shared/api/types';
 import { Can } from '@/shared/auth/Can';
 import { notifySuccess } from '@/shared/components/notify';
 import { ProblemAlert } from '@/shared/components/ProblemAlert';
@@ -17,10 +20,15 @@ export function PeriodEndRuns({ entityId, period }: { entityId: string; period: 
   const runs = $api.useQuery('get', '/api/v1/ledger/period-end/runs', {
     params: { query: { legalEntityId: entityId, period } },
   });
-  const run = $api.useMutation('post', '/api/v1/ledger/period-end/runs', {
+  const run = useMutation({
     meta: { notify: false },
-    onSuccess: (result) => {
-      notifySuccess(t('monthEnd.runDone', { seq: result.seq }));
+    mutationFn: async (body: Body<'RunPeriodEnd'>) => {
+      const { data } = await api.POST('/api/v1/ledger/period-end/runs', { body });
+      if (!data) throw new Error('The period-end run did not start');
+      return awaitRun(data);
+    },
+    onSuccess: () => {
+      notifySuccess(t('monthEnd.runDone'));
       void invalidate();
     },
   });
@@ -34,7 +42,7 @@ export function PeriodEndRuns({ entityId, period }: { entityId: string; period: 
             variant="light"
             leftSection={<IconPlayerPlay size={16} />}
             loading={run.isPending}
-            onClick={() => run.mutate({ body: { legalEntityId: entityId, period } })}
+            onClick={() => run.mutate({ legalEntityId: entityId, period })}
           >
             {t('monthEnd.runPeriodEnd')}
           </Button>

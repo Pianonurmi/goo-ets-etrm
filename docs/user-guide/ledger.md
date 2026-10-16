@@ -72,7 +72,8 @@ hard-close blockers, the latest period-end run and the latest GL export. The tab
 ![Month end: close, blockers and period end](../images/monthend-close.png)
 
 1. On **Close**, **Run period end** posts the revaluations and accruals the month needs (re-running posts only the
-   difference).
+   difference). It runs in the background: the button shows progress until the run has posted, and a refusal (for
+   example, no official valuation of the month's last business day) appears above the run.
 2. **Soft close** stops ordinary postings; **Reopen** if something was missed.
 3. On **GL interface**, **Export to GL** exports the month to the general ledger (**Export as CSV file** saves it;
    **CSV** downloads an earlier export). Mark it **Delivered**, then record the ERP's answer with **Acknowledge**

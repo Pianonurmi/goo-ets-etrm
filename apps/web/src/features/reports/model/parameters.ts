@@ -37,17 +37,16 @@ export function missingParameters(
     .map((p) => p.name);
 }
 
-/** The query string of a report run: one plain parameter per value (the API reads them as a map). */
-export function reportQuery(
+/** The parameters of a report run, one plain value per parameter (the API reads them as a map). */
+export function reportParameters(
   definition: ReportDefinition,
   values: Record<string, string>,
   entityId: string | undefined,
-  format: 'json' | 'csv',
-): string {
-  const query = new URLSearchParams({ format });
+): Record<string, string> {
+  const parameters: Record<string, string> = {};
   for (const parameter of definition.parameters) {
     const value = parameterInput(parameter) === 'entity' ? entityId : values[parameter.name]?.trim();
-    if (value) query.set(parameter.name, value);
+    if (value) parameters[parameter.name] = value;
   }
-  return `/api/v1/reports/${encodeURIComponent(definition.code)}?${query.toString()}`;
+  return parameters;
 }

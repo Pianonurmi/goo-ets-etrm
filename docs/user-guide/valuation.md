@@ -8,8 +8,9 @@ The page opens with four cards: the official mark to market of the latest offici
 status, the runs awaiting sign-off, and the exceptions in the latest run (deliveries without a price or rate). Three
 tabs follow: **Runs**, **Official run** and **P&L explain**.
 
-- **Run valuation** (on the **Runs** tab, with a **Valuation date**) starts a run. Runs are submitted by middle
-  office or risk and made official by a second person.
+- **Run valuation** (on the **Runs** tab, with a **Valuation date**) starts a run. It runs in the background: the
+  button shows progress, and the run opens when it is done. Runs are submitted by middle office or risk and made
+  official by a second person.
 - Open a run to see its key facts, a **Lifecycle** timeline and the **Results by delivery**, which you can filter by
   book; they come two hundred at a time, with **Load more** below the grid. **Submit for sign-off** sends a draft to
   the inbox; **Sign-off task** opens the task.

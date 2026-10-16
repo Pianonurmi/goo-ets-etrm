@@ -19,6 +19,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   written.
 
 ### Changed
+- **Period end, valuation runs and report exports run outside the request.** `POST /api/v1/ledger/period-end/runs`
+  and `POST /api/v1/valuation/runs` now answer 202 with a run (`AsyncRunView`) instead of 201 with the result; poll
+  `GET /api/v1/runs/{id}` (only the user who started it may) until it is `SUCCEEDED`, whose `resultId` names the
+  period-end or valuation run, or `FAILED`, whose `problem` is what the request would have answered. Roles and
+  entity scope are still checked at once (403). New: `POST /api/v1/reports/{code}/exports` produces a report the
+  same way, its result is the export to download from `/api/v1/reports/exports/{id}`; the synchronous
+  `GET /api/v1/reports/{code}` stays for scripts and small reports. Runs record a heartbeat; a run whose instance
+  stops is failed within three minutes (`etrm.async-runs.*`). Scripts calling these endpoints must poll.
+- The Helm chart sets ingress timeouts (45 s to answer, 5 s to connect), now that no long operation is synchronous,
+  and raises the memory request to 1.5 GiB after measuring the footprint (`docs/operations/kubernetes.md#memory`).
 - **PDFs are laid out after the business transaction commits.** The template is filled in within the transaction
   and the document id is reserved there; the page layout runs afterwards on a virtual thread, so no database
   connection waits on it. Reading a document that is still being laid out renders it first, and a job

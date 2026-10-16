@@ -94,13 +94,21 @@ ingress:
   className: nginx
   host: etrm.example.com
   tlsSecret: etrm-tls
+  # Long operations (period end, valuation runs, report exports) answer 202 and run outside the request, so no request
+  # needs long: the slowest synchronous one is an allocation proposal at design size, about 25 s (kubernetes.md).
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "5"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "45"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "45"
 
+# Sized from measurements (docs/operations/kubernetes.md#memory): at rest the heap holds about 160 MB and the JVM
+# 160 MB more, but ZGC keeps committed heap for minutes, so the resident set settles near 1.4 GB; preparing one entity's
+# portfolio flow at design size peaks at about 470 MB of heap. The image gives the heap 75 % of the limit.
 resources:
   requests:
     cpu: 500m
-    memory: 1Gi
+    memory: 1536Mi
   limits:
     memory: 2Gi
 

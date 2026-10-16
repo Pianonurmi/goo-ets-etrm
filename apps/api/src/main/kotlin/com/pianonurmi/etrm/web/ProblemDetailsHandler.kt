@@ -25,6 +25,15 @@ import java.net.URI
 class ProblemDetailsHandler {
     private val log = LoggerFactory.getLogger(ProblemDetailsHandler::class.java)
 
+    /** The problem a request would answer for [ex], for work that failed outside a request (async runs). */
+    fun problemFor(ex: Throwable): ProblemDetail = when (ex) {
+        is DomainException -> handleDomain(ex)
+        is IllegalArgumentException -> handleIllegalArgument(ex)
+        is org.springframework.dao.DuplicateKeyException -> handleDuplicateKey(ex)
+        is Exception -> handleUnexpected(ex)
+        else -> handleUnexpected(IllegalStateException("Unexpected error", ex))
+    }
+
     @ExceptionHandler(DomainException::class)
     fun handleDomain(ex: DomainException): ProblemDetail {
         val status = when (ex) {

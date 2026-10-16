@@ -8,7 +8,7 @@ in parallel for the whole test:
 | `reads` | trade search, lots of an entity, GoO position, ETS ladder, inbox and its counts, audit trail; an available-to-sell check (ADR 0036) | `kind:read`, `kind:check` |
 | `trades` | captures an EUA forward (trade approval task, EMIR fields, audit, events), then reads it back | `kind:write` |
 | `allocation` | allocation what-if for the entity: snapshot, problem build and greedy solve, nothing stored | `kind:solve` |
-| `batch` | month-end work while the desk trades: an ad hoc valuation run of the entity's book, the period end of the open month, the trial balance, the MTM report and the invoice export (review finding O9) | `kind:batch` |
+| `batch` | month-end work while the desk trades: an ad hoc valuation run of the entity's book, the period end of the open month, the trial balance, the MTM report and the invoice export (review finding O9). The valuation, the period end and the trial balance answer 202 and run outside the request (increment 16); the scenario polls each run to its end | `kind:batch`; whole runs `etrm_async_run{name}` |
 
 Profiles (`-e PROFILE=`):
 
@@ -29,7 +29,7 @@ The run fails (k6 exit code 99) when one of these is missed.
 | Writes | p95 < 800 ms, p99 < 2 s |
 | Allocation what-if | p95 < 3 s |
 | Available to sell | p95 < 150 ms |
-| Batch (valuation, period end, reports, exports) | p95 < 10 s |
+| Batch (valuation, period end, reports, exports) | p95 < 10 s, request and whole run (`etrm_async_run`) alike |
 | Checks | > 99 % pass |
 
 ## Running

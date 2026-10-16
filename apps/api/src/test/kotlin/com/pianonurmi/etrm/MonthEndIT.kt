@@ -64,8 +64,7 @@ class MonthEndIT {
             .put("/api/v1/market-data/quotes").then().statusCode(200)
 
     private fun officialValuation(date: String): String {
-        val run: String = s.asUser("analyst", ANALYST).body("""{"legalEntityId":"${s.entityId}","valuationDate":"$date","kind":"EOD"}""")
-            .post("/api/v1/valuation/runs").then().statusCode(201).extract().path("id")
+        val run = s.startRun("analyst", ANALYST, "/api/v1/valuation/runs", """{"legalEntityId":"${s.entityId}","valuationDate":"$date","kind":"EOD"}""")
         s.asUser("analyst", ANALYST).post("/api/v1/valuation/runs/$run/submit").then().statusCode(200)
         approve("VALUATION_SIGN_OFF", run, roles = "RISK")
         return run
@@ -179,15 +178,18 @@ class MonthEndIT {
             .then().statusCode(200).header("X-Report-Seq", "1")
 
         // 5. Period end: trading MtM posted and reversed on 1 October, own use disclosed, certificates written down.
-        val run =
-            json(
-                s.asUser(
-                    "accountant",
-                ).body(
-                    """{"legalEntityId":"${s.entityId}","period":"2026-09"}""",
-                ).post("/api/v1/ledger/period-end/runs").then().statusCode(201).extract().response(),
-            )
-        val components = run.getList<Map<String, Any>>("components").associateBy { "${it["kind"]}:${it["key"]}" }
+        val runId = s.startRun(
+            "accountant",
+            ApiScenario.ALL_ROLES,
+            "/api/v1/ledger/period-end/runs",
+            """{"legalEntityId":"${s.entityId}","period":"2026-09"}""",
+        )
+        val runs = s.asUser("accountant").get("/api/v1/ledger/period-end/runs?legalEntityId=${s.entityId}&period=2026-09")
+            .then().statusCode(200).extract().jsonPath().getList<Map<String, Any>>("")
+        val run = runs.single { it["id"] == runId }
+
+        @Suppress("UNCHECKED_CAST")
+        val components = (run["components"] as List<Map<String, Any>>).associateBy { "${it["kind"]}:${it["key"]}" }
         BigDecimal(components.getValue("MTM:TRADING:ASSET")["posted"].toString()).compareTo(BigDecimal("4000")) shouldBe 0
         components.getValue("MTM:OWN_USE:ASSET")["disclosedOnly"] shouldBe true
         BigDecimal(components.getValue("MTM:OWN_USE:ASSET")["required"].toString()).compareTo(BigDecimal("1640")) shouldBe 0
