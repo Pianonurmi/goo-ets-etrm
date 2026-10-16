@@ -5,7 +5,9 @@ choose **Run** to see the rows, or **Download CSV**. A report is produced in the
 time out: the button shows progress until the rows appear or the file downloads. Until you run it, the screen says
 **Not run yet**. Every run is
 numbered and logged with a hash of its content in the **Export log**, where an earlier export can be downloaded
-again with **Download again**.
+again with **Download again**. The content of an export is kept for the retention period (400 days unless your
+administrator set another); after it the log shows **Content expired**, and the number and hash still prove what was
+produced. Run the report again for new content.
 
 ![The report catalogue](../images/reports-catalogue.png)
 

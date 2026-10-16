@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":modules:risk"))
     implementation(project(":modules:ledger"))
     implementation(libs.springdoc.openapi)
+    implementation(libs.shedlock.spring)
 
     testImplementation(testFixtures(project(":platform")))
     testImplementation(testFixtures(project(":modules:ledger")))

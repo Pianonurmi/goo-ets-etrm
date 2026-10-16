@@ -35,6 +35,8 @@ data class ReportExportView(
     val contentHash: String,
     val exportedBy: String,
     val exportedAt: Instant,
+    /** Set once the content was dropped after the retention period; number, parameters and hash stay. */
+    val contentExpiredAt: Instant? = null,
 )
 
 data class ReportOutput(val export: ReportExportView, val content: String)

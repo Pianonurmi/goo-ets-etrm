@@ -17,6 +17,7 @@ import org.jooq.JSONB
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import tools.jackson.core.type.TypeReference
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
@@ -62,8 +63,21 @@ class JooqReportingRepository(private val dsl: DSLContext) : ReportingRepository
         .limit(MAX_LISTED)
         .fetch(::toExport)
 
-    override fun export(id: UUID): Pair<ReportExportView, String>? =
+    override fun export(id: UUID): Pair<ReportExportView, String?>? =
         dsl.selectFrom(REPORT_EXPORT).where(REPORT_EXPORT.ID.eq(id)).fetchOne()?.let { toExport(it) to it.content }
+
+    override fun expireContent(before: Instant, at: Instant, limit: Int): Int = dsl.update(REPORT_EXPORT)
+        .setNull(REPORT_EXPORT.CONTENT)
+        .set(REPORT_EXPORT.CONTENT_EXPIRED_AT, at)
+        .where(
+            REPORT_EXPORT.ID.`in`(
+                DSL.select(REPORT_EXPORT.ID).from(REPORT_EXPORT)
+                    .where(REPORT_EXPORT.CONTENT.isNotNull, REPORT_EXPORT.EXPORTED_AT.lt(before))
+                    .orderBy(REPORT_EXPORT.EXPORTED_AT)
+                    .limit(limit),
+            ),
+        )
+        .execute()
 
     override fun insertEmirEvent(event: EmirEventView): Boolean = dsl.insertInto(EMIR_EVENT)
         .set(EMIR_EVENT.ID, event.id)
@@ -108,6 +122,7 @@ class JooqReportingRepository(private val dsl: DSLContext) : ReportingRepository
         r.contentHash,
         r.exportedBy,
         r.exportedAt,
+        r.contentExpiredAt,
     )
 
     private fun toEvent(r: EmirEventRecord) = EmirEventView(

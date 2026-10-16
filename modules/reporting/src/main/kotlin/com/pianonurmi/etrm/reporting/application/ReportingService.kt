@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.reporting.application
 
+import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
@@ -123,6 +124,10 @@ class ReportingService(
         val actor = actorProvider.current()
         actor.requireRole(*(catalogue.definition(export.reportCode)?.roles ?: setOf(Role.AUDITOR)).toTypedArray())
         actor.requireEntity(export.legalEntityId)
+        content ?: throw ConflictException(
+            "The content of ${export.reportCode} #${export.seq} was dropped after the retention period on " +
+                "${export.contentExpiredAt}; its hash ${export.contentHash} still proves what was produced. Run the report again.",
+        )
         return ReportOutput(export, content)
     }
 
