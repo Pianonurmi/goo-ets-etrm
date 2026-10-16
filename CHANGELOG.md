@@ -21,8 +21,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   (`etrm.documents.render-delay`, every minute) picks up renders lost to a restart.
 - A PDF over `etrm.documents.max-pages` (200) or `etrm.documents.max-bytes` (20 MB) is refused and not stored; reading
   it answers 409 with the reason.
-
-### Changed
 - **Manual deliveries need an idempotency key.** `POST /api/v1/trades/{id}/deliveries` refuses a request without
   `idempotencyKey` (422), so a retried request cannot record a delivery twice. The web app already sent one; scripts
   that record deliveries must now send a key that is unique per delivery.
