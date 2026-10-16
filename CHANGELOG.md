@@ -8,6 +8,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ## [Unreleased]
 
 ### Added
+- **Registries pause after repeated transport failures.** After `etrm.registry.circuit.failures` (5) failures in a
+  row to one registry (unreachable, 408/429/503, timeouts) its dispatch pauses: its instructions wait, the registry
+  screen shows it with a **Resume** button (`POST /api/v1/registry/circuits/{registryCode}/resume`, registry
+  operator or back office with every legal entity), and after `etrm.registry.circuit.cool-down` (5 min) one
+  instruction goes as a probe; the registry's first answer resumes the rest. Alert `EtrmRegistryPaused`, gauge
+  `etrm.registry.circuits.paused`. Unknown outcomes are still never resent (ADR 0012).
 - **Report export retention.** The content of a report export is kept for `etrm.reporting.retention` (400 days by
   default, at least 30); a nightly job then drops it. The export's number, parameters, row count, hash and audit event
   stay, the export log shows **Content expired**, and a download of it answers 409. The append-only trigger on

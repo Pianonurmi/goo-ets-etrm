@@ -8,6 +8,7 @@ import { useEntity } from '@/shared/context/EntityContext';
 import { useUrlTab } from '@/shared/useUrlState';
 import { AllowanceTransferModal } from './AllowanceTransferModal';
 import { FormatsTab } from './FormatsTab';
+import { PausedRegistries } from './PausedRegistries';
 import { InstructionsTab } from './InstructionsTab';
 import { RegistryKpis } from './RegistryKpis';
 import { RoutesTab } from './RoutesTab';
@@ -56,6 +57,7 @@ export function RegistryPage() {
         <Alert color="gray">{t('header.noEntity')}</Alert>
       ) : (
         <>
+          <PausedRegistries />
           <RegistryKpis entityId={entity.id} />
           <Tabs value={tab} onChange={(value) => setTab(value)} keepMounted={false}>
             <Tabs.List>

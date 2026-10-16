@@ -39,6 +39,17 @@ data class RegistryDispatchSettings(
     fun backoff(attempts: Int): Duration = retryBackoff.multipliedBy(attempts.coerceIn(1, 60).toLong())
 }
 
+/**
+ * The dispatch circuit per registry (`etrm.registry.circuit.*`): [failures] transport failures in a row pause the
+ * registry; after [coolDown] one instruction is sent as a probe.
+ */
+@ConfigurationProperties(prefix = "etrm.registry.circuit")
+data class RegistryCircuitSettings(val failures: Int = 5, val coolDown: Duration = Duration.ofMinutes(5)) {
+    init {
+        require(failures >= 1) { "etrm.registry.circuit.failures must be at least 1" }
+    }
+}
+
 /** Starts dispatching an outbox instruction once the creating transaction has committed. */
 fun interface DispatchNudge {
     fun afterCommit(instructionId: UUID)
@@ -49,7 +60,7 @@ fun interface DispatchNudge {
 }
 
 @Configuration
-@EnableConfigurationProperties(RegistryDispatchSettings::class, RegistryAdapterProperties::class)
+@EnableConfigurationProperties(RegistryDispatchSettings::class, RegistryAdapterProperties::class, RegistryCircuitSettings::class)
 class RegistryConfiguration {
     @Bean
     @Qualifier("registryDispatchExecutor")

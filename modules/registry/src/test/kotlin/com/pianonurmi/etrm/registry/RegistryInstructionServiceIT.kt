@@ -19,6 +19,7 @@ import com.pianonurmi.etrm.inventory.application.AllowanceHoldingService
 import com.pianonurmi.etrm.inventory.application.BeneficiaryService
 import com.pianonurmi.etrm.inventory.application.LotService
 import com.pianonurmi.etrm.inventory.application.ReconciliationService
+import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.security.Actor
@@ -42,6 +43,7 @@ import com.pianonurmi.etrm.referencedata.application.ReferenceDataService
 import com.pianonurmi.etrm.registry.adapter.gateway.FileRegistryGateway
 import com.pianonurmi.etrm.registry.adapter.gateway.ManualRegistryGateway
 import com.pianonurmi.etrm.registry.adapter.gateway.SimulatorRegistryGateway
+import com.pianonurmi.etrm.registry.adapter.jooq.JooqRegistryCircuitRepository
 import com.pianonurmi.etrm.registry.adapter.jooq.JooqRegistryInstructionRepository
 import com.pianonurmi.etrm.registry.adapter.jooq.JooqStatementFormatRepository
 import com.pianonurmi.etrm.registry.adapter.jooq.JooqTransferRouteRepository
@@ -56,6 +58,8 @@ import com.pianonurmi.etrm.registry.api.SubmitTransfer
 import com.pianonurmi.etrm.registry.api.TransactionLineStatus
 import com.pianonurmi.etrm.registry.api.UpsertStatementFormat
 import com.pianonurmi.etrm.registry.api.UpsertTransferRoute
+import com.pianonurmi.etrm.registry.application.RegistryCircuitSettings
+import com.pianonurmi.etrm.registry.application.RegistryCircuits
 import com.pianonurmi.etrm.registry.application.RegistryDispatchSettings
 import com.pianonurmi.etrm.registry.application.RegistryDispatcher
 import com.pianonurmi.etrm.registry.application.RegistryStatementService
@@ -129,6 +133,7 @@ class RegistryInstructionServiceIT {
     private lateinit var instructions: WiredInstructions
     private lateinit var fourEyes: WiredInstructions
     private lateinit var dispatcher: RegistryDispatcher
+    private lateinit var circuits: RegistryCircuits
     private lateinit var statements: RegistryStatementService
     private lateinit var formats: StatementFormatService
     private lateinit var entityId: UUID
@@ -174,7 +179,16 @@ class RegistryInstructionServiceIT {
         )
         instructions = instructionService(settings)
         fourEyes = instructionService(settings.copy(unplannedNeedsApproval = true))
-        dispatcher = RegistryDispatcher(repository, gateways, instructions.outcomes, DataSourceTransactionManager(TestDatabase.dataSource), settings, clock)
+        circuits = RegistryCircuits(JooqRegistryCircuitRepository(dsl), RegistryCircuitSettings(failures = 3, coolDown = Duration.ofMinutes(5)), actor, clock)
+        dispatcher = RegistryDispatcher(
+            repository,
+            gateways,
+            instructions.outcomes,
+            circuits,
+            DataSourceTransactionManager(TestDatabase.dataSource),
+            settings,
+            clock,
+        )
         formats = StatementFormatService(JooqStatementFormatRepository(dsl), referenceData, actor, clock)
         val documents = DocumentService(JooqDocumentRepository(dsl), OpenHtmlPdfRenderer(), actor, publisher, clock)
         val reconciliation =
@@ -334,6 +348,66 @@ class RegistryInstructionServiceIT {
         dispatcher.recoverExpiredLeases() shouldBe 1
         instructions.requireInstruction(second.id).status shouldBe InstructionStatus.UNKNOWN
         lots.requireLot(second.requireLot()).status shouldBe LotStatus.IN_TRANSFER
+    }
+
+    @Test
+    fun `transport failures in a row pause a registry until a probe gets an answer or an operator resumes it`() {
+        fun transfer(serial: String, key: String) =
+            instructions.submitTransfer(SubmitTransfer(receive(cesarAccount, serial, 1, 10).id, null, "CESAR", "SE-CP-1", idempotencyKey = key))
+
+        fun failThreeTimes() = repeat(3) {
+            api.results += GatewayResult.Retry("connection refused")
+            now = now.plus(Duration.ofMinutes(10))
+            dispatcher.dispatchDue() shouldBe 1
+        }
+        val first = transfer("SE-0101", "c-1")
+        failThreeTimes()
+        val pausedAt = now
+        circuits.circuits().single().let {
+            it.registryCode shouldBe "CESAR"
+            it.paused shouldBe true
+            it.consecutiveFailures shouldBe 3
+            it.lastFailure shouldBe "connection refused"
+            it.pausedSince shouldBe pausedAt
+            it.probeAfter shouldBe pausedAt.plus(Duration.ofMinutes(5))
+        }
+        // Paused: nothing goes, not even an instruction submitted since.
+        val second = transfer("SE-0102", "c-2")
+        now = pausedAt.plus(Duration.ofMinutes(4))
+        dispatcher.dispatchDue() shouldBe 0
+
+        // Past the cool-down one instruction goes as a probe. The registry is still unreachable, so the circuit stays open.
+        api.results += GatewayResult.Retry("connection refused")
+        now = pausedAt.plus(Duration.ofMinutes(6))
+        dispatcher.dispatchDue() shouldBe 1
+        circuits.circuits().single().let {
+            it.paused shouldBe true
+            it.consecutiveFailures shouldBe 4
+            it.pausedSince shouldBe pausedAt
+            it.probeAfter shouldBe now.plus(Duration.ofMinutes(5))
+        }
+        dispatcher.dispatchDue() shouldBe 0
+
+        // The next probe gets an answer: the circuit closes and dispatch goes on as before.
+        now = now.plus(Duration.ofMinutes(6))
+        dispatcher.dispatchDue() shouldBe 1
+        circuits.circuits() shouldBe emptyList()
+        now = now.plus(Duration.ofMinutes(10))
+        dispatcher.dispatchDue() shouldBe 1
+        listOf(first.id, second.id).map { instructions.requireInstruction(it).status } shouldBe List(2) { InstructionStatus.SENT }
+
+        // An operator may resume a paused registry before the cool-down; a registry that never failed has nothing to resume.
+        val third = transfer("SE-0103", "c-3")
+        failThreeTimes()
+        circuits.circuits().single().paused shouldBe true
+        circuits.resume("CESAR").let {
+            it.paused shouldBe false
+            it.resumedBy shouldBe "registry-op"
+        }
+        now = now.plus(Duration.ofMinutes(10))
+        dispatcher.dispatchDue() shouldBe 1
+        instructions.requireInstruction(third.id).status shouldBe InstructionStatus.SENT
+        shouldThrow<NotFoundException> { circuits.resume("FINGRID") }
     }
 
     @Test

@@ -9569,6 +9569,40 @@
         "required" : [ "expectedVersion", "reason" ],
         "type" : "object"
       },
+      "RegistryCircuitView" : {
+        "properties" : {
+          "consecutiveFailures" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lastFailure" : {
+            "type" : [ "string", "null" ]
+          },
+          "paused" : {
+            "type" : "boolean"
+          },
+          "pausedSince" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "probeAfter" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "registryCode" : {
+            "type" : "string"
+          },
+          "resumedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "resumedBy" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "consecutiveFailures", "paused", "registryCode" ],
+        "type" : "object"
+      },
       "RegistryInstructionView" : {
         "properties" : {
           "approvedAt" : {
@@ -21877,6 +21911,74 @@
           }
         },
         "tags" : [ "Reconciliation breaks" ],
+        "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
+      }
+    },
+    "/api/v1/registry/circuits" : {
+      "get" : {
+        "operationId" : "registryCircuit_circuits",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RegistryCircuitView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Registry" ]
+      }
+    },
+    "/api/v1/registry/circuits/{registryCode}/resume" : {
+      "post" : {
+        "operationId" : "registryCircuit_resume",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "registryCode",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RegistryCircuitView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Registry" ],
         "x-roles" : [ "REGISTRY_OPERATOR", "BACK_OFFICE" ]
       }
     },
