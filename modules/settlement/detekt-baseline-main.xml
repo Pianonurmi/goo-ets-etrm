@@ -1,0 +1,17 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:InvoiceService.kt$InvoiceService$creditNote.originalInvoiceId!!</ID>
+    <ID>UnsafeCallOnNullableType:InvoiceService.kt$InvoiceService$invoice.customer!!</ID>
+    <ID>UnsafeCallOnNullableType:InvoiceService.kt$InvoiceService$invoice.supplier!!</ID>
+    <ID>UnsafeCallOnNullableType:InvoiceService.kt$InvoiceService$item.netAmount!!</ID>
+    <ID>UnsafeCallOnNullableType:InvoiceService.kt$InvoiceService$repository.find(final.id)!!</ID>
+    <ID>UnsafeCallOnNullableType:PaymentService.kt$InvoiceSettlement$invoices.find(creditNote.id, forUpdate = true)!!</ID>
+    <ID>UnsafeCallOnNullableType:SettlementItemService.kt$SettlementItemService$determination.problem!!</ID>
+    <ID>UnsafeCallOnNullableType:SettlementItemService.kt$SettlementItemService$o.priceIndex!!</ID>
+    <ID>UnsafeCallOnNullableType:SettlementTasks.kt$InvoiceApprovalTasks$i.submittedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:SettlementTasks.kt$InvoiceApprovalTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:SettlementTasks.kt$VatRuleApprovalTasks$task.decidedBy!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

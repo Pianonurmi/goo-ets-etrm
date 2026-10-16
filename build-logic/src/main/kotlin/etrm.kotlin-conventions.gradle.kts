@@ -1,4 +1,5 @@
 import io.gitlab.arturbosch.detekt.Detekt
+import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
 import org.gradle.accessors.dm.LibrariesForLibs
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -86,7 +87,9 @@ detekt {
     buildUponDefaultConfig = true
     allRules = false
     config.setFrom(rootProject.files("config/detekt/detekt.yml"))
-    baseline = rootProject.file("config/detekt/baseline.xml").takeIf { it.exists() }
+    // Findings that predate a rule, per module (detekt-baseline-main.xml for `detektMain`); CI refuses a pull request
+    // that adds entries (ops/ci/detekt-baseline-check.sh).
+    baseline = file("detekt-baseline.xml")
     source.setFrom("src/main/kotlin", "src/test/kotlin")
 }
 
@@ -98,6 +101,33 @@ tasks.withType<Detekt>().configureEach {
         xml.required.set(true)
         sarif.required.set(true)
     }
+}
+
+tasks.withType<DetektCreateBaselineTask>().configureEach {
+    jvmTarget = "21"
+}
+
+// The type-resolving run covers only the rules in type-resolution.yml; the plain `detekt` task covers the rest.
+listOf("detektMain", "detektBaselineMain").forEach { name ->
+    tasks.matching { it.name == name }.configureEach {
+        val typeResolutionConfig = rootProject.files("config/detekt/type-resolution.yml")
+        when (this) {
+            is Detekt -> {
+                config.setFrom(typeResolutionConfig)
+                buildUponDefaultConfig = false
+                exclude("**/generated/**")
+            }
+            is DetektCreateBaselineTask -> {
+                config.setFrom(typeResolutionConfig)
+                buildUponDefaultConfig.set(false)
+                exclude("**/generated/**")
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("detektMain")
 }
 
 ktlint {

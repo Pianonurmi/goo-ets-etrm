@@ -147,7 +147,12 @@ cd apps/web && npm run e2e          # when a screen or a REST guard changed
 
 ## Lint
 
-Kotlin warnings are errors. detekt config is `config/detekt/detekt.yml` (max line length 160; services too: at most 9 constructor dependencies, 24 functions, 500 lines). Split a growing service by responsibility behind the module API; an exception is a `@Suppress` at the class with the reason. ktlint follows `.editorconfig`. Run `./gradlew ktlintFormat detekt` before pushing.
+Kotlin warnings are errors. detekt config is `config/detekt/detekt.yml` (max line length 160; services too: at most 9 constructor dependencies, 24 functions, 500 lines). Split a growing service by responsibility behind the module API; an exception is a `@Suppress` at the class with the reason. ktlint follows `.editorconfig`. Run `./gradlew ktlintFormat detekt detektMain` before pushing.
+
+`detektMain` (part of `check`) runs the rules that need type resolution, listed in
+`config/detekt/type-resolution.yml`; today that is `UnsafeCallOnNullableType`, so a new `!!` on a nullable value
+fails the build. Findings older than the rule sit in each module's `detekt-baseline-main.xml`. Fix one when you touch
+its line and delete its entry; CI refuses a pull request that adds entries (`ops/ci/detekt-baseline-check.sh`).
 
 ## Commits
 

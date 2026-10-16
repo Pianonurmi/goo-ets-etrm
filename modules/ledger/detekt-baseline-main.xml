@@ -1,0 +1,26 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:AccountingPolicyService.kt$AccountingPolicyService$c.allowanceCostToSell!!</ID>
+    <ID>UnsafeCallOnNullableType:AccountingPolicyService.kt$AccountingPolicyService$c.bookType!!</ID>
+    <ID>UnsafeCallOnNullableType:AccountingPolicyService.kt$AccountingPolicyService$c.currency!!</ID>
+    <ID>UnsafeCallOnNullableType:AccountingPolicyService.kt$AccountingPolicyService$c.expiryDays!!</ID>
+    <ID>UnsafeCallOnNullableType:AccountingPolicyService.kt$AccountingPolicyService$c.gooCostToSellPerMwh!!</ID>
+    <ID>UnsafeCallOnNullableType:AccountingPolicyService.kt$AccountingPolicyService$c.treatment!!</ID>
+    <ID>UnsafeCallOnNullableType:AccountingPolicyTasks.kt$AccountingPolicyTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:ClearingPostings.kt$ClearingPostings$call.decidedAt!!</ID>
+    <ID>UnsafeCallOnNullableType:HedgeService.kt$HedgeService$hedge.designationPrice!!</ID>
+    <ID>UnsafeCallOnNullableType:HedgeService.kt$HedgeService$hedge.discontinuation!!</ID>
+    <ID>UnsafeCallOnNullableType:HedgeService.kt$HedgeService$trades.trade(it.tradeId)!!</ID>
+    <ID>UnsafeCallOnNullableType:HedgeTasks.kt$HedgeDesignationTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:HedgeTasks.kt$HedgeDiscontinuationTasks$h.discontinuation!!</ID>
+    <ID>UnsafeCallOnNullableType:HedgeTasks.kt$HedgeDiscontinuationTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:JooqHedgeRepository.kt$JooqHedgeRepository$measurement(measurement.relationshipId, measurement.valuationRunId)!!</ID>
+    <ID>UnsafeCallOnNullableType:LedgerAttentionTasks.kt$LedgerAttentionTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:LedgerDomain.kt$EntryBuilder$period!!</ID>
+    <ID>UnsafeCallOnNullableType:MtmStep.kt$MtmStep$policy!!</ID>
+    <ID>UnsafeCallOnNullableType:PostingRuleChangeTasks.kt$PostingRuleChangeTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:SettlementPostings.kt$SettlementPostings$invoice.number!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

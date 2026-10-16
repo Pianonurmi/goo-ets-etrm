@@ -143,6 +143,14 @@ jobs:
             echo "::error::distributionSha256Sum $pinned differs from the published $published for $url"
             exit 1
           fi
+      # detekt baselines hold findings that predate a rule and only shrink (config/detekt/type-resolution.yml).
+      - name: detekt baselines do not grow
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          ops/ci/detekt-baseline-check.sh FETCH_HEAD
       # The application runs on Java 25 (toolchain); Gradle itself runs on 21, the last one listed.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
