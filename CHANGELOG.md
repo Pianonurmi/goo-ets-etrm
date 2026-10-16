@@ -7,6 +7,22 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Added
+- A nightly workflow seeds the demo at that day's date (`demo-nightly.yml`), so a date that breaks the demo seed
+  shows the next morning instead of at a deploy.
+
+## [0.15.1] - 2026-10-16
+
+A fix for the demo data: the public demo could not start on a fresh database since 2026-10-15.
+
+### Fixed
+- **Demo seed stuck at step 21 ("Operations").** Rheinstrom's demo credit limit was a fixed EUR 40,000, while the
+  demo's exposure to Rheinstrom follows the date it is seeded on. From 2026-10-15 a sale in the "Operations" step put
+  the exposure over the limit, its approval needed the risk role, and the seed failed and restarted on every start.
+  The limit now follows the exposure measured while seeding (about 80 % used, so it still shows a warning), and the
+  demo seed test checks that the seed leaves it unbreached. Affects the `demo` profile and the showcase image only;
+  0.13.x and 0.14.x demos have the same fault and should move to 0.15.1.
+
 ## [0.15.0] - 2026-10-15
 
 Increment 15, maintainability: the defects increment 14 handed over, then test seams, the clock everywhere, the
@@ -546,7 +562,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.15.0
 [0.14.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.14.0
 [0.13.2]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.2
