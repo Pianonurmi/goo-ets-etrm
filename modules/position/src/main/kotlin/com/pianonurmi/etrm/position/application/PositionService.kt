@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional
 import tools.jackson.core.type.TypeReference
 import java.time.Clock
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /** Jurisdiction of the allowances that count towards EU ETS compliance (EUA and EUAA). */
@@ -59,19 +58,10 @@ class PositionService(
         val today = LocalDate.now(clock)
         val bound = buckets.bind(criteria.contextFor(today))
         val live = lots.lots(LotFilter(holderEntityId = legalEntityId, statuses = LotStatus.LIVE, limit = Int.MAX_VALUE))
-        val inventory = live.groupBy { (bound.best(it)?.code ?: "UNBUCKETED") to it.productionPeriod.start.year }
-            .map { (key, group) ->
-                BucketPosition(
-                    bucketCode = key.first,
-                    productionYear = key.second,
-                    heldMwh = group.filter { it.status == LotStatus.HELD }.sumOf { it.quantityMwh },
-                    reservedMwh = group.filter { it.status == LotStatus.RESERVED }.sumOf { it.quantityMwh },
-                    inTransferMwh = group.filter { it.status == LotStatus.IN_TRANSFER }.sumOf { it.quantityMwh },
-                    expiringWithin90DaysMwh = group.filter { ChronoUnit.DAYS.between(today, it.expiryDate) in 0..90 }.sumOf { it.quantityMwh },
-                    lotCount = group.size,
-                )
-            }
-            .sortedWith(compareBy({ it.bucketCode }, { it.productionYear }))
+        val inventory = PositionMath.inventory(
+            live.map { PositionLot(bound.best(it)?.code, it.productionPeriod.start.year, it.status, it.quantityMwh, it.expiryDate) },
+            today,
+        )
         val coverage = allocation.coverage(legalEntityId)
         return GooPositionReport(
             legalEntityId = legalEntityId,
