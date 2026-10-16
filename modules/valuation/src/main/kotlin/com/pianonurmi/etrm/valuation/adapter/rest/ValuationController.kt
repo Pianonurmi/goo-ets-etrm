@@ -1,6 +1,9 @@
 package com.pianonurmi.etrm.valuation.adapter.rest
 
+import com.pianonurmi.etrm.platform.async.AsyncRunView
+import com.pianonurmi.etrm.platform.async.AsyncRuns
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.valuation.api.PnlExplainView
@@ -29,13 +32,25 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/valuation")
 @Tag(name = "Valuation", description = "Mark-to-market runs, sign-off and P&L explain")
-class ValuationController(private val query: ValuationQuery, private val command: ValuationCommand) {
+class ValuationController(
+    private val query: ValuationQuery,
+    private val command: ValuationCommand,
+    private val runs: AsyncRuns,
+    private val actors: ActorProvider,
+) {
+    /** Starts a valuation run (202); poll `GET /api/v1/runs/{id}`, whose result id is the valuation run's. */
     @PostMapping("/runs")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
     fun run(
         @RequestBody body: RunRequest,
-    ): ValuationRunView = command.run(body.legalEntityId, body.valuationDate, body.kind, body.note)
+    ): AsyncRunView {
+        actors.current().apply {
+            requireRole(Role.MIDDLE_OFFICE, Role.RISK)
+            requireEntity(body.legalEntityId)
+        }
+        return runs.start(RUN_KIND, body.legalEntityId) { command.run(body.legalEntityId, body.valuationDate, body.kind, body.note).id }
+    }
 
     @PostMapping("/runs/{id}/submit")
     @AllowedRoles(Role.MIDDLE_OFFICE, Role.RISK)
@@ -106,3 +121,5 @@ class ValuationController(private val query: ValuationQuery, private val command
 
     data class RunRequest(val legalEntityId: UUID, val valuationDate: LocalDate, val kind: RunKind = RunKind.ADHOC, val note: String? = null)
 }
+
+private const val RUN_KIND = "VALUATION"

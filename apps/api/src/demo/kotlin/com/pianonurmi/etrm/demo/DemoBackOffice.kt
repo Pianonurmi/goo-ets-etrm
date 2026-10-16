@@ -456,11 +456,11 @@ class DemoBackOffice(private val api: DemoClient, private val calendar: DemoCale
                 api.post(DemoUser.RISK, "/api/v1/workflow/tasks/${it["id"]}/acknowledge", """{"reason":"Guarantee requested from Vinden; trading paused"}""")
             }
         }
-        val run = api.post(
+        val run = api.postRun(
             DemoUser.RISK,
             "/api/v1/valuation/runs",
             """{"legalEntityId":"${sweden.id}","valuationDate":"${calendar.lastClose}","kind":"EOD"}""",
-        ).id()
+        )
         api.post(DemoUser.RISK, "/api/v1/valuation/runs/$run/submit")
     }
 

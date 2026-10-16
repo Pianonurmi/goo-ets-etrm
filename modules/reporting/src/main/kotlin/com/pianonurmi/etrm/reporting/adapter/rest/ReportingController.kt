@@ -1,5 +1,7 @@
 package com.pianonurmi.etrm.reporting.adapter.rest
 
+import com.pianonurmi.etrm.platform.async.AsyncRunView
+import com.pianonurmi.etrm.platform.async.AsyncRuns
 import com.pianonurmi.etrm.platform.errors.NotFoundException
 import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
@@ -15,6 +17,7 @@ import com.pianonurmi.etrm.reporting.api.ReportingQuery
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
 import java.util.UUID
@@ -30,7 +34,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/reports")
 @Tag(name = "Reports", description = "Report catalogue and export log, EMIR events and completeness")
-class ReportingController(private val query: ReportingQuery, private val command: ReportingCommand) {
+class ReportingController(private val query: ReportingQuery, private val command: ReportingCommand, private val runs: AsyncRuns) {
     @GetMapping
     fun catalogue(): List<ReportDefinitionView> = query.catalogue()
 
@@ -43,6 +47,21 @@ class ReportingController(private val query: ReportingQuery, private val command
     ): ResponseEntity<String> {
         val output = command.produce(code, parameters - "format", ReportFormat.valueOf(format.uppercase()))
         return respond(output)
+    }
+
+    /**
+     * Produces a report outside the request (202): poll `GET /api/v1/runs/{id}`, then download the export named by its
+     * result id from `GET /api/v1/reports/exports/{id}`. Long reports go this way; the synchronous `GET` above is for
+     * small ones and is bounded by the ingress timeout.
+     */
+    @PostMapping("/{code}/exports")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun startExport(
+        @PathVariable code: String,
+        @RequestBody body: StartExport,
+    ): AsyncRunView {
+        val entity = command.authorize(code, body.parameters)
+        return runs.start(RUN_KIND, entity) { command.produce(code, body.parameters, body.format).export.id }
     }
 
     @GetMapping("/exports")
@@ -95,3 +114,7 @@ class ReportingController(private val query: ReportingQuery, private val command
 }
 
 data class ErrorReport(val reason: String)
+
+data class StartExport(val format: ReportFormat = ReportFormat.CSV, val parameters: Map<String, String> = emptyMap())
+
+private const val RUN_KIND = "REPORT_EXPORT"

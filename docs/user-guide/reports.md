@@ -1,7 +1,9 @@
 # Reports
 
 The **Catalogue** lists the reports you may run, with their parameters. Pick a report, fill in the parameters and
-choose **Run** to see the rows, or **Download CSV**. Until you run it, the screen says **Not run yet**. Every run is
+choose **Run** to see the rows, or **Download CSV**. A report is produced in the background, so a large one does not
+time out: the button shows progress until the rows appear or the file downloads. Until you run it, the screen says
+**Not run yet**. Every run is
 numbered and logged with a hash of its content in the **Export log**, where an earlier export can be downloaded
 again with **Download again**.
 

@@ -98,7 +98,7 @@ class DemoHistory(
 
     /** Period end and the close of one month; the month after must still be open (MtM reverses on its first day). */
     fun close(entity: DemoEntity, month: YearMonth, hard: Boolean, acknowledge: Boolean) {
-        api.post(DemoUser.ACCOUNTANT, "/api/v1/ledger/period-end/runs", """{"legalEntityId":"${entity.id}","period":"$month"}""")
+        api.postRun(DemoUser.ACCOUNTANT, "/api/v1/ledger/period-end/runs", """{"legalEntityId":"${entity.id}","period":"$month"}""")
         api.post(DemoUser.ACCOUNTANT, "/api/v1/ledger/periods/$month/close?legalEntityId=${entity.id}")
         val export = api.post(DemoUser.ACCOUNTANT, "/api/v1/ledger/exports/$month?legalEntityId=${entity.id}&format=GENERIC_CSV").id()
         api.post(DemoUser.ACCOUNTANT, "/api/v1/ledger/exports/$export/delivered")
@@ -341,7 +341,7 @@ class DemoDesk(private val api: DemoClient, private val calendar: DemoCalendar) 
 
     /** An end-of-day valuation, submitted by one analyst and signed off by the other. */
     fun officialValuation(entity: DemoEntity, date: LocalDate) {
-        val run = api.post(DemoUser.RISK, "/api/v1/valuation/runs", """{"legalEntityId":"${entity.id}","valuationDate":"$date","kind":"EOD"}""").id()
+        val run = api.postRun(DemoUser.RISK, "/api/v1/valuation/runs", """{"legalEntityId":"${entity.id}","valuationDate":"$date","kind":"EOD"}""")
         api.post(DemoUser.RISK, "/api/v1/valuation/runs/$run/submit")
         api.approveTask(DemoUser.RISK2, "VALUATION_SIGN_OFF", run)
     }

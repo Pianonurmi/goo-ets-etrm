@@ -63,12 +63,21 @@ class PortfolioPrepareBenchmarkTest {
         val builder = ProblemBuilder(FixturePorts.Criteria, FixturePorts.buckets(asOf), FixturePorts.routes(), GooMarks { _, _, _ -> BigDecimal("1.50") })
         val snapshot = LotSnapshot(EngineFixtures.entity, 0, lots)
 
+        val baselineHeap = Memory.usedAfterGc()
+        Memory.resetPeaks()
         lateinit var built: ProblemBuilder.Built
         val buildMs = measureTimeMillis { built = builder.build(snapshot, obligations, emptyMap(), asOf, future = future) }
         val problem = built.problem
         lateinit var state: FlowState
         val flowMs = measureTimeMillis { state = CoverageAnalyser(built.scoring::bestBucketCode).solve(problem) }
         val graph = state.graph
+        // What one prepared entity keeps (the problem and its flow state, both still referenced below) and what
+        // preparing it took at the peak: the figures behind the chart's memory default (docs/operations/kubernetes.md).
+        val retainedMb = (Memory.usedAfterGc() - baselineHeap) / MB
+        println(
+            "benchmark prepare memory: retained=${retainedMb}MB peak heap=${Memory.peakHeap() / MB}MB " +
+                "inputs=${baselineHeap / MB}MB process peak RSS=${Memory.peakRss()?.let { "${it / MB}MB" } ?: "n/a"}",
+        )
         // The same graph without profiles: every class refined on its own (the slower exact path).
         lateinit var plain: CompressedFlowGraph
         val bucketOf = built.scoring::bestBucketCode
@@ -197,3 +206,26 @@ class PortfolioPrepareBenchmarkTest {
         ProblemBuilder.FutureLot(supply, stand, 800L)
     }
 }
+
+/** Heap and resident-set figures of this JVM, for the benchmark's memory line. */
+private object Memory {
+    private val pools = java.lang.management.ManagementFactory.getMemoryPoolMXBeans().filter { it.type == java.lang.management.MemoryType.HEAP }
+
+    fun usedAfterGc(): Long {
+        repeat(2) { java.lang.management.ManagementFactory.getMemoryMXBean().gc() }
+        return pools.sumOf { it.usage.used }
+    }
+
+    fun resetPeaks() = pools.forEach { it.resetPeakUsage() }
+
+    /** The sum of each heap pool's peak since [resetPeaks]: an upper bound on the heap the work needed at once. */
+    fun peakHeap(): Long = pools.sumOf { it.peakUsage.used }
+
+    /** The process's peak resident set (`VmHWM`), on Linux. */
+    fun peakRss(): Long? = runCatching {
+        java.io.File("/proc/self/status").readLines().first { it.startsWith("VmHWM:") }.split(Regex("\\s+"))[1].toLong() * KB
+    }.getOrNull()
+}
+
+private const val KB = 1024L
+private const val MB = 1024L * 1024L

@@ -81,6 +81,12 @@ interface ReportingCommand {
     /** Runs a report with its parameters and logs the export; returns the content in the format asked for. */
     fun produce(code: String, parameters: Map<String, String>, format: ReportFormat): ReportOutput
 
+    /**
+     * The checks [produce] starts with (the report exists, the actor holds one of its roles and may see its legal
+     * entity), for a caller that runs [produce] later; returns the report's legal entity, if it has one.
+     */
+    fun authorize(code: String, parameters: Map<String, String>): UUID?
+
     /** Records that a reported trade should not have been reported (EROR). */
     fun reportError(tradeId: UUID, reason: String): EmirEventView
 }

@@ -2099,7 +2099,7 @@
     "readyToClose": "Nothing blocks the hard close.",
     "periodEnd": "Period-end measurement",
     "runPeriodEnd": "Run period end",
-    "runDone": "Period-end run {{seq}} posted",
+    "runDone": "Period-end run posted",
     "noRuns": "No period-end run for this period yet",
     "runBy_one": "Run {{seq}} by {{who}} at {{at}}",
     "runBy_other": "Run {{seq}} by {{who}} at {{at}} ({{count}} runs)",

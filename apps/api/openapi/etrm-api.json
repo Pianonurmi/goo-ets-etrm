@@ -810,6 +810,71 @@
         "required" : [ "assignee" ],
         "type" : "object"
       },
+      "AsyncRunProblem" : {
+        "properties" : {
+          "detail" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "violations" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Violation"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "status", "title" ],
+        "type" : "object"
+      },
+      "AsyncRunView" : {
+        "properties" : {
+          "finishedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "legalEntityId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "problem" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/AsyncRunProblem"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requestedBy" : {
+            "type" : "string"
+          },
+          "resultId" : {
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "enum" : [ "RUNNING", "SUCCEEDED", "FAILED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "kind", "requestedAt", "requestedBy", "status" ],
+        "type" : "object"
+      },
       "AuditEventView" : {
         "properties" : {
           "actor" : {
@@ -10479,6 +10544,21 @@
         "required" : [ "carved", "retained" ],
         "type" : "object"
       },
+      "StartExport" : {
+        "properties" : {
+          "format" : {
+            "enum" : [ "CSV", "JSON" ],
+            "type" : "string"
+          },
+          "parameters" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
+          }
+        },
+        "type" : "object"
+      },
       "StatementFormatView" : {
         "properties" : {
           "active" : {
@@ -17367,15 +17447,15 @@
           "required" : true
         },
         "responses" : {
-          "201" : {
+          "202" : {
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/PeriodEndRunView"
+                  "$ref" : "#/components/schemas/AsyncRunView"
                 }
               }
             },
-            "description" : "Created"
+            "description" : "Accepted"
           },
           "default" : {
             "content" : {
@@ -23028,6 +23108,52 @@
         "tags" : [ "Reports" ]
       }
     },
+    "/api/v1/reports/{code}/exports" : {
+      "post" : {
+        "operationId" : "reporting_startExport",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "code",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartExport"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AsyncRunView"
+                }
+              }
+            },
+            "description" : "Accepted"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Reports" ]
+      }
+    },
     "/api/v1/risk/breaches" : {
       "get" : {
         "operationId" : "risk_breaches",
@@ -23463,6 +23589,43 @@
         },
         "tags" : [ "Risk" ],
         "x-roles" : [ "RISK", "MIDDLE_OFFICE", "TRADER", "AUDITOR" ]
+      }
+    },
+    "/api/v1/runs/{id}" : {
+      "get" : {
+        "operationId" : "asyncRun_run",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AsyncRunView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem details"
+          }
+        },
+        "tags" : [ "Async runs" ]
       }
     },
     "/api/v1/settlement/invoice-runs" : {
@@ -26532,15 +26695,15 @@
           "required" : true
         },
         "responses" : {
-          "201" : {
+          "202" : {
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ValuationRunView"
+                  "$ref" : "#/components/schemas/AsyncRunView"
                 }
               }
             },
-            "description" : "Created"
+            "description" : "Accepted"
           },
           "default" : {
             "content" : {
@@ -27529,6 +27692,9 @@
   }, {
     "description" : "MtM, net realisable value, emission provision, grant release and FX revaluation; accounting policies",
     "name" : "Period end"
+  }, {
+    "description" : "Status and result of long operations that answered 202",
+    "name" : "Async runs"
   }, {
     "description" : "Deal capture, approval, confirmation, delivery and settlement",
     "name" : "Trades"
