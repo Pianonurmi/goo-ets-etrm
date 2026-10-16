@@ -15,6 +15,7 @@ plugins {
 val libs = the<LibrariesForLibs>()
 val moduleName: String = project.name
 val schemaName = DatabaseSettings.schemaFor(moduleName)
+val codegenDb = DatabaseSettings.from(providers)
 val migrationsDir = layout.projectDirectory.dir("src/main/resources/db/migration/$moduleName")
 
 dependencies {
@@ -64,9 +65,9 @@ if (migrationsDir.asFile.exists()) {
                     logging = Logging.WARN
                     jdbc.apply {
                         driver = "org.postgresql.Driver"
-                        url = DatabaseSettings.codegenUrl
-                        user = DatabaseSettings.user
-                        password = DatabaseSettings.password
+                        url = codegenDb.codegenUrl
+                        user = codegenDb.user
+                        password = codegenDb.password
                     }
                     generator.apply {
                         name = "org.jooq.codegen.JavaGenerator"
@@ -122,12 +123,13 @@ if (migrationsDir.asFile.exists()) {
         allInputsDeclared.set(true)
         // Plain values only, so the action can be stored in the configuration cache.
         val platformSchema = DatabaseSettings.schemaFor("platform")
+        val codegenDatabase = codegenDb
         val platformDir = platformMigrations.asFile
         val moduleSchema = schemaName
         val moduleDir = migrationsDir.asFile
         doFirst {
-            CodegenMigrations.migrate(platformSchema, platformDir, logger)
-            CodegenMigrations.migrate(moduleSchema, moduleDir, logger)
+            CodegenMigrations.migrate(codegenDatabase, platformSchema, platformDir, logger)
+            CodegenMigrations.migrate(codegenDatabase, moduleSchema, moduleDir, logger)
         }
     }
 }
