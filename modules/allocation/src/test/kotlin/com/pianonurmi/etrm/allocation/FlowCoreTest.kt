@@ -17,6 +17,7 @@ import com.pianonurmi.etrm.product.api.criteria.Criterion
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.all
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.energySource
 import com.pianonurmi.etrm.product.api.criteria.Criterion.Companion.region
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
@@ -83,8 +84,8 @@ class FlowCoreTest {
                 report.shortageGroups.map { it.obligationIds.toSet() to it.shortfallMwh }.toSet() shouldBe reference.shortageGroups()
                 report.surplusByBucket.sumOf { it.surplusMwh } shouldBe problem.classes.sumOf { it.quantity } - reference.total
                 // Compression never adds nodes.
-                (state.graph.groups.size <= problem.obligations.size) shouldBe true
-                (state.graph.atoms.size <= problem.classes.size) shouldBe true
+                state.graph.groups.size shouldBeLessThanOrEqualTo problem.obligations.size
+                state.graph.atoms.size shouldBeLessThanOrEqualTo problem.classes.size
             }
         }
     }
@@ -150,7 +151,7 @@ class FlowCoreTest {
         // A new sale either can serve finds only what is left over: 100.
         state.headroom(hydroOrWind) shouldBe 100
         state.headroom(hydro, limit = 30) shouldBe 30
-        state.network.snapshot().contentEquals(before) shouldBe true
+        state.network.snapshot() shouldBe before
         state.groupFlow(0) shouldBe 100
 
         // Hydro only for the generic sale: nothing is free for a new hydro sale, and nothing is stolen from the old one.
@@ -238,7 +239,7 @@ class FlowCoreTest {
                 val before = state.network.snapshot()
                 val news = newSpecs.map { (q, mask) -> maskOf(mask) to q }
                 val joint = state.jointHeadroom(news)!!
-                state.network.snapshot().contentEquals(before) shouldBe true
+                state.network.snapshot() shouldBe before
                 news.forEach { (eligible, _) -> state.headroomDetail(eligible).let { it.freeMwh shouldBeLessThanOrEqual it.mwh } }
                 val kept = state.graph.groups.map { state.groupFlow(it.index) }
 
