@@ -49,7 +49,7 @@ class OperationsGuardsIT {
         val s = ApiScenario(port).referenceData()
         val sold = s.confirmedHydroSale(100)
         val scheduleId: String = s.asUser("backoffice").get("/api/v1/trades/$sold").then().extract().path("legs[0].deliveries[0].id")
-        s.asUser("backoffice").body("""{"scheduleId":"$scheduleId","quantity":100,"deliveredOn":"${LocalDate.now(clock)}"}""")
+        s.asUser("backoffice").body("""{"scheduleId":"$scheduleId","quantity":100,"deliveredOn":"${LocalDate.now(clock)}","idempotencyKey":"guards:$sold"}""")
             .post("/api/v1/trades/$sold/deliveries").then().statusCode(200)
         val itemId: String = s.asUser("backoffice").get("/api/v1/settlement/items?tradeId=$sold").then().statusCode(200).extract().path("[0].id")
 

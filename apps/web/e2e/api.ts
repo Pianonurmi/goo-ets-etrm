@@ -122,6 +122,7 @@ export async function deliveredDemoSale(
     scheduleId,
     quantity,
     deliveredOn: new Date().toISOString().slice(0, 10),
+    idempotencyKey: `e2e-delivery:${tradeId}`,
   });
   return { tradeId, tradeNumber };
 }

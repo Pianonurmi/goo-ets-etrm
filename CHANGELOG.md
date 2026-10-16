@@ -15,6 +15,17 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - A nightly workflow seeds the demo at that day's date (`demo-nightly.yml`), so a date that breaks the demo seed
   shows the next morning instead of at a deploy.
 
+### Changed
+- **Manual deliveries need an idempotency key.** `POST /api/v1/trades/{id}/deliveries` refuses a request without
+  `idempotencyKey` (422), so a retried request cannot record a delivery twice. The web app already sent one; scripts
+  that record deliveries must now send a key that is unique per delivery.
+
+### Fixed
+- Two allocation proposals for one entity no longer soft-reserve the same certificates: a proposal now takes the
+  entity's lock, as approval does, and solves against the other proposal's reservations.
+- Two listeners opening the same approval task at once no longer fail on the unique index: the second one gets the
+  first one's task.
+
 ## [0.15.1] - 2026-10-16
 
 A fix for the demo data: the public demo could not start on a fresh database since 2026-10-15.
