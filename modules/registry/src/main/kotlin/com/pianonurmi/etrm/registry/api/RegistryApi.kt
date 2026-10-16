@@ -377,3 +377,29 @@ data class InstructionFailed(
     val reason: String,
     val metadata: EventMetadata = EventMetadata(),
 ) : InstructionEvent, DomainEvent by metadata
+
+/**
+ * A registry's dispatch circuit (increment 16 M3): after `etrm.registry.circuit.failures` transport failures in a
+ * row the registry is [paused] and its instructions wait; after the cool-down one instruction goes as a probe
+ * ([probeAfter]), and the registry's answer, or an operator's resume, closes the circuit.
+ */
+data class RegistryCircuitView(
+    val registryCode: String,
+    val paused: Boolean,
+    val consecutiveFailures: Int,
+    val lastFailure: String?,
+    val pausedSince: Instant?,
+    val probeAfter: Instant?,
+    val resumedBy: String?,
+    val resumedAt: Instant?,
+)
+
+interface RegistryCircuitQuery {
+    /** Every registry that has failed at least once since its last answer, paused or not. */
+    fun circuits(): List<RegistryCircuitView>
+}
+
+interface RegistryCircuitCommand {
+    /** Closes a paused registry's circuit, so its instructions are dispatched again at the next run. */
+    fun resume(registryCode: String): RegistryCircuitView
+}

@@ -9,6 +9,7 @@ import com.pianonurmi.etrm.inventory.api.LotQuery
 import com.pianonurmi.etrm.ledger.api.LedgerQuery
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.referencedata.api.ReferenceDataQuery
+import com.pianonurmi.etrm.workflow.api.WorkflowQuery
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
@@ -53,16 +54,18 @@ data class ChainReport(
     val lotsBroken: List<UUID>,
     val holdingsBroken: List<UUID>,
     val journalBroken: Map<String, List<UUID>>,
+    /** Approval tasks whose history (`task_event`) does not verify. */
+    val tasksBroken: List<UUID> = emptyList(),
     val archiveCut: Instant? = null,
 ) {
     val ok: Boolean
         get() = auditBroken.isEmpty() && auditUnsealed == 0L && lotsBroken.isEmpty() && holdingsBroken.isEmpty() &&
-            journalBroken.values.all { it.isEmpty() }
+            journalBroken.values.all { it.isEmpty() } && tasksBroken.isEmpty()
 }
 
 /**
  * Verifies every hash chain each night (review finding S6): the audit trail's seals, the lot journal, the allowance
- * movements and each legal entity's journal. The gauge `etrm.integrity.chain.ok{chain}` is 1 when a chain verified
+ * movements, each legal entity's journal and the approval tasks' histories. The gauge `etrm.integrity.chain.ok{chain}` is 1 when a chain verified
  * and 0 when it did not; the alert rule fires on 0. The result goes to the audit trail, and a digest with the audit
  * head (which, through the events it seals, covers the postings and lot events of the day) is stored as a document,
  * signed with `etrm.integrity.signing-key` when one is configured, for the operator to keep outside the database.
@@ -74,6 +77,7 @@ class ChainVerificationJob(
     private val ledger: LedgerQuery,
     private val lots: LotQuery,
     private val holdings: AllowanceHoldingQuery,
+    private val tasks: WorkflowQuery,
     private val referenceData: ReferenceDataQuery,
     private val documents: DocumentCommand,
     private val properties: IntegrityProperties,
@@ -95,27 +99,7 @@ class ChainVerificationJob(
     @Scheduled(cron = "\${etrm.integrity.verify-cron:0 40 2 * * *}", zone = "UTC")
     @SchedulerLock(name = "integrity-chain-verification", lockAtMostFor = "PT2H")
     fun run(): ChainReport {
-        audit.seal(catchUp = true)
-        val trail = auditQuery.verifyTrail()
-        val report = ChainReport(
-            at = clock.instant(),
-            auditBroken = trail.brokenSeqs,
-            auditUnsealed = trail.unsealed,
-            auditHead = trail.head,
-            lotsBroken = lots.verifyJournal(),
-            holdingsBroken = holdings.verifyMovements(),
-            journalBroken = referenceData.legalEntities().associate { it.code to ledger.verifyJournal(it.id) },
-            archiveCut = auditQuery.archiveCut(),
-        )
-        status["audit"] = flag(report.auditBroken.isEmpty() && report.auditUnsealed == 0L)
-        status["lots"] = flag(report.lotsBroken.isEmpty())
-        status["allowances"] = flag(report.holdingsBroken.isEmpty())
-        status["journal"] = flag(report.journalBroken.values.all { it.isEmpty() })
-        if (report.ok) {
-            log.info("All hash chains verify; audit head {}", report.auditHead)
-        } else {
-            log.error("Hash chains do not verify: {}", summary(report))
-        }
+        val report = verify()
         val digest = digest(report)
         val date = LocalDate.ofInstant(report.at, ZoneOffset.UTC)
         val document = documents.store(
@@ -134,6 +118,34 @@ class ChainVerificationJob(
         return report
     }
 
+    /** Verifies every chain and updates the gauges, without storing a digest (the nightly [run], and the DR drill). */
+    fun verify(): ChainReport {
+        audit.seal(catchUp = true)
+        val trail = auditQuery.verifyTrail()
+        val report = ChainReport(
+            at = clock.instant(),
+            auditBroken = trail.brokenSeqs,
+            auditUnsealed = trail.unsealed,
+            auditHead = trail.head,
+            lotsBroken = lots.verifyJournal(),
+            holdingsBroken = holdings.verifyMovements(),
+            journalBroken = referenceData.legalEntities().associate { it.code to ledger.verifyJournal(it.id) },
+            tasksBroken = tasks.verifyEvents(),
+            archiveCut = auditQuery.archiveCut(),
+        )
+        status["audit"] = flag(report.auditBroken.isEmpty() && report.auditUnsealed == 0L)
+        status["lots"] = flag(report.lotsBroken.isEmpty())
+        status["allowances"] = flag(report.holdingsBroken.isEmpty())
+        status["journal"] = flag(report.journalBroken.values.all { it.isEmpty() })
+        status["tasks"] = flag(report.tasksBroken.isEmpty())
+        if (report.ok) {
+            log.info("All hash chains verify; audit head {}", report.auditHead)
+        } else {
+            log.error("Hash chains do not verify: {}", summary(report))
+        }
+        return report
+    }
+
     private fun summary(report: ChainReport): Map<String, Any?> = mapOf(
         "ok" to report.ok,
         "auditHead" to report.auditHead,
@@ -142,6 +154,7 @@ class ChainVerificationJob(
         "lotsBroken" to report.lotsBroken.take(MAX_LISTED),
         "holdingsBroken" to report.holdingsBroken.take(MAX_LISTED),
         "journalBroken" to report.journalBroken.filterValues { it.isNotEmpty() }.mapValues { it.value.take(MAX_LISTED) },
+        "tasksBroken" to report.tasksBroken.take(MAX_LISTED),
         "archiveCut" to report.archiveCut?.toString(),
     )
 
@@ -159,7 +172,7 @@ class ChainVerificationJob(
     private fun flag(ok: Boolean) = if (ok) 1.0 else 0.0
 
     companion object {
-        val CHAINS = listOf("audit", "lots", "allowances", "journal")
+        val CHAINS = listOf("audit", "lots", "allowances", "journal", "tasks")
         const val EVENT_TYPE = "ChainVerification"
         const val DIGEST_KIND = "INTEGRITY_DIGEST"
         const val DIGEST_OWNER = "Integrity"

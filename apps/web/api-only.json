@@ -13,6 +13,7 @@
     "marketData_rate": "FX conversion service for other systems; the market data screen shows the stored rates",
     "audit_event": "Single audit event by id for integrations; the audit trail shows events in full in its list",
     "audit_verify": "Seal chain check of the audit trail for auditors' tools and operations scripts; the nightly chain verification reports it as the etrm.integrity.chain.ok metric",
+    "integrity_verifyChains": "Verifies every hash chain at once for auditors' tools and the disaster recovery drill (ops/dr/drill.sh); the nightly chain verification reports the same as the etrm.integrity.chain.ok metric",
     "changeRequest_changeRequest": "Single change request by id; the change request list and the inbox task show it in full",
     "referenceData_book": "Single book by id; books are shown from the legal entity's book list",
     "product_bucket": "Single product bucket by code; the products screen shows buckets from its list",

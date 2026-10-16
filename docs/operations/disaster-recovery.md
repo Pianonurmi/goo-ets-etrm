@@ -54,6 +54,8 @@ are stateless, apart from the registry FILE outbox, which is regenerated from th
      - `GET /api/v1/inventory/journal/verify`
      - `GET /api/v1/ledger/journal/verify?legalEntityId=` for each entity
      - `GET /api/v1/documents/{id}/verify` for a sample of documents
+     - `POST /api/v1/admin/integrity/chains/verify` (auditor or administrator) for every chain at once, including the
+       allowance movements and the approval tasks' histories (`task_event`), which have no endpoint of their own
    - `etrm_events_publications_incomplete`: a restore to an earlier time can resend events that consumers already
      saw. They deduplicate on `etrm-event-id`.
 5. **Reconcile with the registries:** run the holdings statements for every account. Instructions sent after the
@@ -66,7 +68,7 @@ are stateless, apart from the registry FILE outbox, which is regenerated from th
 
 `ops/dr/drill.sh` does the same on any PostgreSQL. It backs up a source database with `pg_dump`, restores it into an
 empty one, and compares the row counts of every table. Then it starts the jar on the copy (no migrations allowed),
-verifies the lot and ledger chains and recent documents, and writes `build/dr/report.md` with the time of each step.
+verifies the lot, ledger, audit, allowance movement and task history chains and recent documents, and writes `build/dr/report.md` with the time of each step.
 
 ```bash
 SOURCE_DB_URL=postgresql://etrm:etrm@localhost:5432/etrm \

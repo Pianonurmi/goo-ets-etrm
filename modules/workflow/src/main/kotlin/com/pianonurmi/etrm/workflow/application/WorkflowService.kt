@@ -254,6 +254,9 @@ class WorkflowService(
     override fun task(id: UUID): ApprovalTaskView? = repository.find(id)?.also { actorProvider.current().requireEntity(it.legalEntityId) }
 
     @Transactional(readOnly = true)
+    override fun verifyEvents(): List<UUID> = repository.brokenEventChains()
+
+    @Transactional(readOnly = true)
     override fun details(id: UUID): TaskDetails {
         val task = task(id) ?: throw NotFoundException("ApprovalTask", id)
         return TaskDetails(task, repository.comments(id), repository.events(id))

@@ -118,6 +118,13 @@ spec:
           annotations:
             summary: Registry instructions wait more than ten minutes to be sent
             runbook_url: {{ $runbooks }}/registry-instructions.md
+        - alert: EtrmRegistryPaused
+          expr: max(etrm_registry_circuits_paused{service="{{ $service }}"}) > 0
+          for: 15m
+          labels: {severity: warning}
+          annotations:
+            summary: A registry's dispatch is paused after transport failures in a row; its instructions wait
+            runbook_url: {{ $runbooks }}/registry-instructions.md#a-registry-is-paused
         - alert: EtrmRegistryInstructionsUnknown
           expr: max(etrm_registry_instructions_open{service="{{ $service }}", status="UNKNOWN"}) > 0
           for: 30m

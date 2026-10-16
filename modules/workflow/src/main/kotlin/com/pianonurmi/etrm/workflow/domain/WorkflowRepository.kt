@@ -38,6 +38,9 @@ interface ApprovalTaskRepository {
 
     fun events(taskId: UUID): List<TaskEventView>
 
+    /** Tasks whose event chain (`task_event`) does not verify: a changed, removed or reordered event. */
+    fun brokenEventChains(): List<UUID>
+
     fun upsertDefinition(definition: TaskTypeDefinition, at: Instant)
 }
 

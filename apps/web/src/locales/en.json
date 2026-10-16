@@ -2966,7 +2966,14 @@
     "registrySaid": "The registry's answer",
     "relatedTasks": "Tasks",
     "relatedTasksHint": "The approval and any follow-up in the inbox.",
-    "noTasks": "No tasks for this instruction."
+    "noTasks": "No tasks for this instruction.",
+    "circuit": {
+      "title": "Dispatch to {{registry}} is paused",
+      "detail_one": "{{count}} attempt failed to reach the registry ({{reason}}). Its instructions wait; one is tried again at {{probe}}, or resume now when the registry is back.",
+      "detail_other": "{{count}} attempts in a row failed to reach the registry (last: {{reason}}). Its instructions wait; one is tried again at {{probe}}, or resume now when the registry is back.",
+      "resume": "Resume",
+      "resumed": "Dispatch to {{registry}} resumed"
+    }
   },
   "clearing": {
     "title": "Clearing",

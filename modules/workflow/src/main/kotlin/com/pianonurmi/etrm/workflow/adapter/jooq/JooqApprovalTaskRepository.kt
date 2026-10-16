@@ -144,8 +144,7 @@ class JooqApprovalTaskRepository(private val dsl: DSLContext) : ApprovalTaskRepo
     override fun appendEvent(taskId: UUID, eventType: String, actor: String, at: Instant, data: Map<String, Any?>): TaskEventView {
         val previous = dsl.select(TASK_EVENT.HASH).from(TASK_EVENT).where(TASK_EVENT.TASK_ID.eq(taskId))
             .orderBy(TASK_EVENT.SEQ.desc()).limit(1).fetchOne(TASK_EVENT.HASH)
-        val payload = Json.canonical(mapOf("taskId" to taskId.toString(), "eventType" to eventType, "actor" to actor, "at" to at.toString(), "data" to data))
-        val hash = HashChain.next(previous, payload)
+        val hash = HashChain.next(previous, eventPayload(taskId, eventType, actor, at, data))
         val record = dsl.insertInto(TASK_EVENT)
             .set(TASK_EVENT.TASK_ID, taskId)
             .set(TASK_EVENT.EVENT_TYPE, eventType)
@@ -163,6 +162,28 @@ class JooqApprovalTaskRepository(private val dsl: DSLContext) : ApprovalTaskRepo
         .where(TASK_EVENT.TASK_ID.eq(taskId))
         .orderBy(TASK_EVENT.SEQ)
         .fetch { TaskEventView(it.seq, it.taskId, it.eventType, it.actor, it.at, Json.mapper.readValue(it.data.data(), mapType), it.hash) }
+
+    override fun brokenEventChains(): List<UUID> {
+        val broken = LinkedHashSet<UUID>()
+        dsl.selectFrom(TASK_EVENT).orderBy(TASK_EVENT.TASK_ID, TASK_EVENT.SEQ).fetchLazy().use { cursor ->
+            var task: UUID? = null
+            var expectedPrev: String? = null
+            for (r in cursor) {
+                if (r.taskId != task) {
+                    task = r.taskId
+                    expectedPrev = null
+                }
+                val payload = eventPayload(r.taskId, r.eventType, r.actor, r.at, Json.mapper.readValue(r.data.data(), mapType))
+                if (r.prevHash != expectedPrev || r.hash != HashChain.next(expectedPrev, payload)) broken += r.taskId
+                expectedPrev = r.hash
+            }
+        }
+        return broken.toList()
+    }
+
+    /** What an event's hash covers; writing and verifying use the same function, so they cannot drift apart. */
+    private fun eventPayload(taskId: UUID, eventType: String, actor: String, at: Instant, data: Map<String, Any?>): String =
+        Json.canonical(mapOf("taskId" to taskId.toString(), "eventType" to eventType, "actor" to actor, "at" to at.toString(), "data" to data))
 
     override fun upsertDefinition(definition: TaskTypeDefinition, at: Instant) {
         fun names(values: Collection<Enum<*>>) = values.map { it.name }.sorted().toTypedArray()

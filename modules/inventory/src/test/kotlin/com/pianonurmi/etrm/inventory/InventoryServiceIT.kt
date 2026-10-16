@@ -218,6 +218,36 @@ class InventoryServiceIT {
     }
 
     @Test
+    fun `a lot's chain verifies across monthly partitions`() {
+        val lot = receive("FI-2026-0950", 95_000, 95_099)
+        lots.reserve(lot.id, null, UUID.randomUUID())
+        val last = lots.history(lot.id).last().seq
+        // Its last event moves to a later month's partition (the journal's own trigger is bypassed to do so).
+        TestDatabase.dataSource.connection.use { c ->
+            c.createStatement().use { st ->
+                st.execute("SET session_replication_role = replica")
+                st.execute("UPDATE etrm_inventory.lot_event SET recorded_at = recorded_at + interval '40 days' WHERE seq = $last")
+                st.execute("SET session_replication_role = origin")
+            }
+        }
+        lots.verifyJournal() shouldNotContain lot.id
+
+        // A changed event in the later partition breaks the chain; other tests share the journal, so it is put back.
+        fun actor(name: String) = TestDatabase.dataSource.connection.use { c ->
+            c.createStatement().use { st ->
+                st.execute("SET session_replication_role = replica")
+                st.execute("UPDATE etrm_inventory.lot_event SET actor = '$name' WHERE seq = $last")
+                st.execute("SET session_replication_role = origin")
+            }
+        }
+        val original = lots.history(lot.id).last().actor
+        actor("someone-else")
+        lots.verifyJournal() shouldContain lot.id
+        actor(original)
+        lots.verifyJournal() shouldNotContain lot.id
+    }
+
+    @Test
     fun `a lot's chain verifies from its anchor once the events before an archive cut are gone`() {
         val archived = receive("FI-2026-0900", 90_000, 90_099)
         val ref = UUID.randomUUID()

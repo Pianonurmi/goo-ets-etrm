@@ -24,8 +24,10 @@ import com.pianonurmi.etrm.workflow.api.TaskStatus
 import com.pianonurmi.etrm.workflow.api.TaskTypeDefinition
 import com.pianonurmi.etrm.workflow.application.WorkflowService
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.BeforeAll
@@ -200,6 +202,20 @@ class WorkflowServiceIT {
         val history = workflow.details(task.id).history
         history.map { it.eventType } shouldContainExactly listOf("OPENED", "DECIDED")
         history.map { it.hash }.toSet() shouldHaveSize 2
+        // The history is a hash chain: it verifies, and a changed event breaks it (put back: other tests share it).
+        workflow.verifyEvents() shouldNotContain task.id
+
+        fun reason(text: String) = TestDatabase.dataSource.connection.use { c ->
+            c.createStatement().use { st ->
+                st.execute("SET session_replication_role = replica")
+                st.execute("UPDATE etrm_workflow.task_event SET data = jsonb_set(data, '{reason}', '\"$text\"') WHERE seq = ${history.last().seq}")
+                st.execute("SET session_replication_role = origin")
+            }
+        }
+        reason("approved without reading")
+        workflow.verifyEvents() shouldContain task.id
+        reason("fine")
+        workflow.verifyEvents() shouldNotContain task.id
 
         val stale = approval()
         approvals.supersedeNext = "subject changed"

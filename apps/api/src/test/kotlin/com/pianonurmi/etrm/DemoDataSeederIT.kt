@@ -74,6 +74,11 @@ class DemoDataSeederIT {
         inboxes()
         home(finland)
 
+        // Six months of business through every module leave every hash chain intact, task histories included.
+        asUser("auditor", "AUDITOR").post("/api/v1/admin/integrity/chains/verify").then().statusCode(200)
+            .body("ok", equalTo(true))
+            .body("tasksBroken.size()", equalTo(0))
+
         // The run log is public progress: the UI waits on it while the data is being created.
         RestAssured.given().baseUri("http://localhost").port(port).get("/api/v1/ui-config").then().statusCode(200)
             .body("demoSeed.state", equalTo("COMPLETED"))

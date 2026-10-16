@@ -151,13 +151,22 @@ class JooqRegistryInstructionRepository(private val dsl: DSLContext) : RegistryI
         .where(REGISTRY_INSTRUCTION.REGISTRY_CODE.eq(registryCode), REGISTRY_INSTRUCTION.EXTERNAL_REF.eq(externalRef))
         .fetchOne()?.let(::toView)
 
-    override fun claimDue(channels: Set<String>, now: Instant, leaseUntil: Instant, limit: Int): List<UUID> {
+    override fun claimDue(
+        channels: Set<String>,
+        now: Instant,
+        leaseUntil: Instant,
+        limit: Int,
+        excludedRegistries: Set<String>,
+        onlyRegistry: String?,
+    ): List<UUID> {
         if (channels.isEmpty()) return emptyList()
         val due = dsl.select(REGISTRY_INSTRUCTION.ID).from(REGISTRY_INSTRUCTION)
             .where(
                 REGISTRY_INSTRUCTION.STATUS.eq(InstructionStatus.PENDING.name),
                 REGISTRY_INSTRUCTION.CHANNEL.`in`(channels),
                 REGISTRY_INSTRUCTION.NEXT_ATTEMPT_AT.isNull.or(REGISTRY_INSTRUCTION.NEXT_ATTEMPT_AT.le(now)),
+                if (excludedRegistries.isEmpty()) DSL.noCondition() else REGISTRY_INSTRUCTION.REGISTRY_CODE.notIn(excludedRegistries),
+                onlyRegistry?.let(REGISTRY_INSTRUCTION.REGISTRY_CODE::eq) ?: DSL.noCondition(),
             )
             .orderBy(REGISTRY_INSTRUCTION.NEXT_ATTEMPT_AT.asc().nullsFirst(), REGISTRY_INSTRUCTION.CREATED_AT)
             .limit(limit)

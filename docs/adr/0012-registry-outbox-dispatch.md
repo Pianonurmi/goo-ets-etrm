@@ -19,6 +19,7 @@ connection pools and duplicate transfers of certificates.
 - Instructions that do not come from an approved allocation plan, and manual retries, need a second person (`PENDING_APPROVAL`, task `INSTRUCTION_APPROVAL`).
 - Confirmation also comes from statements: an in-flight lot missing from its account's holdings statement confirms its instruction; a transaction export confirms or fails instructions matched by instruction key, registry reference or certificate range.
 - Instructions with the registry beyond the channel's confirmation SLA, and those with an unknown outcome, open an `INSTRUCTION_FOLLOW_UP` task.
+- Circuit per registry (increment 16): `Retry` and `Unknown` count as transport failures, any other answer resets the count. After `etrm.registry.circuit.failures` in a row the registry's pending instructions are no longer claimed; after `etrm.registry.circuit.cool-down` one is sent as a probe, and an answer (or an operator's resume) closes the circuit. The circuit only decides what is claimed; an `Unknown` outcome is still never resent.
 
 ## Consequences
 - The approve response of an allocation plan on an API or file registry shows `INSTRUCTED`; confirmation arrives later, by the dispatcher or a statement.

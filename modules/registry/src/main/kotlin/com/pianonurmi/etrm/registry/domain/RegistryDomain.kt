@@ -4,6 +4,7 @@ import com.pianonurmi.etrm.platform.errors.IllegalStateTransitionException
 import com.pianonurmi.etrm.registry.api.InstructionPage
 import com.pianonurmi.etrm.registry.api.InstructionSearch
 import com.pianonurmi.etrm.registry.api.InstructionStatus
+import com.pianonurmi.etrm.registry.api.RegistryCircuitView
 import com.pianonurmi.etrm.registry.api.RegistryInstructionView
 import com.pianonurmi.etrm.registry.api.StatementFormatView
 import com.pianonurmi.etrm.registry.api.StatementKind
@@ -177,8 +178,18 @@ interface RegistryInstructionRepository {
 
     fun forPlan(planRef: UUID): List<RegistryInstructionView>
 
-    /** Atomically moves due PENDING instructions of [channels] to DISPATCHING with a lease; returns the claimed ids. */
-    fun claimDue(channels: Set<String>, now: Instant, leaseUntil: Instant, limit: Int): List<UUID>
+    /**
+     * Atomically moves due PENDING instructions of [channels] to DISPATCHING with a lease; returns the claimed ids.
+     * [excludedRegistries] are left out; with [onlyRegistry], only that registry's instructions are claimed.
+     */
+    fun claimDue(
+        channels: Set<String>,
+        now: Instant,
+        leaseUntil: Instant,
+        limit: Int,
+        excludedRegistries: Set<String> = emptySet(),
+        onlyRegistry: String? = null,
+    ): List<UUID>
 
     /** DISPATCHING instructions whose lease expired (the dispatcher died mid-call). */
     fun expiredLeases(now: Instant, limit: Int): List<UUID>
@@ -211,4 +222,23 @@ interface StatementFormatRepository {
     fun all(registryCode: String?): List<StatementFormatView>
 
     fun upsert(format: StatementFormatView)
+}
+
+/** Dispatch circuits per registry (`registry_circuit`). Unknown registries have a closed circuit. */
+interface RegistryCircuitRepository {
+    fun all(): List<RegistryCircuitView>
+
+    fun find(registryCode: String): RegistryCircuitView?
+
+    /**
+     * Counts a transport failure. At [threshold] failures in a row the circuit opens (or stays open) with the next
+     * probe at [probeAfter].
+     */
+    fun failure(registryCode: String, reason: String, at: Instant, threshold: Int, probeAfter: Instant): RegistryCircuitView
+
+    /** The registry answered: the failure count is reset and an open circuit closes. Returns whether it was open. */
+    fun answered(registryCode: String, at: Instant): Boolean
+
+    /** An operator closes the circuit. Returns null for a registry without a circuit row. */
+    fun resume(registryCode: String, by: String, at: Instant): RegistryCircuitView?
 }

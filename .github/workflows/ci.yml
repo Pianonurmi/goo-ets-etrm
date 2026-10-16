@@ -59,10 +59,11 @@ jobs:
             --set kafka.enabled=true --set kafka.bootstrapServers=kafka:9092 --set serviceMonitor.enabled=true \
             --set prometheusRule.enabled=true --set prometheusRule.cnpg.enabled=true \
             --set tracing.otlpEndpoint=http://otel:4318/v1/traces > full.yaml
+          helm template etrm ops/helm/etrm --set autoscaling.requestsPerSecond.enabled=true > hpa.yaml
           kubeconform -strict -summary -kubernetes-version 1.31.0 \
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-            default.yaml full.yaml ops/k8s/postgres-cluster.yaml
+            default.yaml full.yaml hpa.yaml ops/k8s/postgres-cluster.yaml
       # The public demo stack (docs/deploy/vps.md): both compose variants resolve, the tunnel variant publishes no
       # port, and both Caddyfiles parse.
       - name: Validate the demo stack
