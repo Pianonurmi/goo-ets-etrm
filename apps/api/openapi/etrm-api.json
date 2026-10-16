@@ -9870,6 +9870,10 @@
       },
       "ReportExportView" : {
         "properties" : {
+          "contentExpiredAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
           "contentHash" : {
             "type" : "string"
           },

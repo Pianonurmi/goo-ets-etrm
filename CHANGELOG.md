@@ -8,6 +8,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ## [Unreleased]
 
 ### Added
+- **Report export retention.** The content of a report export is kept for `etrm.reporting.retention` (400 days by
+  default, at least 30); a nightly job then drops it. The export's number, parameters, row count, hash and audit event
+  stay, the export log shows **Content expired**, and a download of it answers 409. The append-only trigger on
+  `report_export` allows that one change and nothing else.
 - A nightly workflow seeds the demo at that day's date (`demo-nightly.yml`), so a date that breaks the demo seed
   shows the next morning instead of at a deploy.
 

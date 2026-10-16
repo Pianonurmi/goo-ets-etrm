@@ -2,6 +2,7 @@ package com.pianonurmi.etrm.reporting
 
 import com.pianonurmi.etrm.allocation.api.GiveAwayLine
 import com.pianonurmi.etrm.ledger.fixtures.NoHedges
+import com.pianonurmi.etrm.platform.errors.ConflictException
 import com.pianonurmi.etrm.platform.errors.ForbiddenException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.money.QuantityUnit
@@ -23,6 +24,8 @@ import com.pianonurmi.etrm.reporting.api.ReportExported
 import com.pianonurmi.etrm.reporting.api.ReportFormat
 import com.pianonurmi.etrm.reporting.application.EmirEvents
 import com.pianonurmi.etrm.reporting.application.ReportCatalogue
+import com.pianonurmi.etrm.reporting.application.ReportRetention
+import com.pianonurmi.etrm.reporting.application.ReportRetentionProperties
 import com.pianonurmi.etrm.reporting.application.ReportingService
 import com.pianonurmi.etrm.trade.api.ClearingStatus
 import com.pianonurmi.etrm.trade.api.DeliveryScheduleView
@@ -42,15 +45,20 @@ import com.pianonurmi.etrm.valuation.api.ValuationRunView
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.mockk.every
 import io.mockk.mockk
+import org.jooq.exception.DataAccessException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.transaction.support.TransactionOperations
 import java.math.BigDecimal
 import java.security.MessageDigest
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -248,6 +256,36 @@ class ReportingServiceIT {
         shouldThrow<ValidationException> { reporting.reportError(t.id, "again") }
         emir.on(TradeConfirmed(trade("T-2", version = 2)))
         reporting.emirEvents(entity, LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1)).map { it.action } shouldBe listOf(EmirAction.NEWT, EmirAction.EROR)
+    }
+
+    /** After the retention period the content goes; the export's number, parameters and hash stay in the log. */
+    @Test
+    fun `export content is dropped after the retention period and the log keeps the hash`() {
+        trade("H-1")
+        val parameters = mapOf("legalEntityId" to entity.toString(), "year" to "2026")
+        val old = reporting.produce("MIFID_ANCILLARY_ACTIVITY", parameters, ReportFormat.CSV)
+        val repository = JooqReportingRepository(TestDatabase.dsl)
+        val transactions = TransactionOperations.withoutTransaction()
+
+        ReportRetention(repository, ReportRetentionProperties(), transactions, clock).expire() shouldBe 0
+        val later = Clock.fixed(Instant.parse("2027-11-20T00:00:00Z"), ZoneOffset.UTC)
+        val fresh = reporting.produce("MIFID_ANCILLARY_ACTIVITY", parameters, ReportFormat.JSON)
+        ReportRetention(repository, ReportRetentionProperties(), transactions, later).expire() shouldBe 2
+        ReportRetention(repository, ReportRetentionProperties(), transactions, later).expire() shouldBe 0
+
+        val logged = reporting.exports(entity, "MIFID_ANCILLARY_ACTIVITY").single { it.id == old.export.id }
+        logged.contentExpiredAt shouldBe later.instant()
+        logged.contentHash shouldBe old.export.contentHash
+        logged.seq shouldBe 1
+        shouldThrow<ConflictException> { reporting.export(old.export.id) }.message!! shouldContain old.export.contentHash
+        reporting.exports(entity, "MIFID_ANCILLARY_ACTIVITY").single { it.id == fresh.export.id }.contentExpiredAt shouldNotBe null
+
+        // Only dropping the content is allowed; the rest of the row stays append-only.
+        shouldThrow<DataAccessException> {
+            TestDatabase.dsl.execute("UPDATE etrm_reporting.report_export SET row_count = 0 WHERE id = '${old.export.id}'")
+        }
+        shouldThrow<DataAccessException> { TestDatabase.dsl.execute("DELETE FROM etrm_reporting.report_export WHERE id = '${old.export.id}'") }
+        shouldThrow<IllegalArgumentException> { ReportRetentionProperties(Duration.ofDays(7)) }
     }
 
     @Test

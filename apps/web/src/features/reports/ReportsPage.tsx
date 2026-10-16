@@ -264,8 +264,22 @@ function ExportLog({ entityId }: { entityId: string | undefined }) {
         minWidth: 64,
         sortable: false,
         filter: false,
-        cellRenderer: (p: ICellRendererParams<ReportExport>) =>
-          p.data && canDownloadExport(p.data, runnable) ? <DownloadExport reportExport={p.data} /> : null,
+        cellRenderer: (p: ICellRendererParams<ReportExport>) => {
+          if (!p.data) return null;
+          if (p.data.contentExpiredAt) {
+            return (
+              <Text
+                size="xs"
+                c="dimmed"
+                title={t('reports.contentExpiredHint')}
+                data-testid={`export-expired-${p.data.id}`}
+              >
+                {t('reports.contentExpired')}
+              </Text>
+            );
+          }
+          return canDownloadExport(p.data, runnable) ? <DownloadExport reportExport={p.data} /> : null;
+        },
       },
       {
         field: 'exportedAt',
