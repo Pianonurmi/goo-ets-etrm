@@ -1,6 +1,8 @@
 package com.pianonurmi.etrm.trade.adapter.rest
 
 import com.pianonurmi.etrm.platform.errors.NotFoundException
+import com.pianonurmi.etrm.platform.errors.ValidationException
+import com.pianonurmi.etrm.platform.errors.Violation
 import com.pianonurmi.etrm.platform.security.AllowedRoles
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.product.api.ProductFamily
@@ -133,12 +135,19 @@ class TradeController(private val command: TradeCommand, private val query: Trad
         @RequestBody body: ReasonRequest,
     ): TradeView = command.cancel(id, body.reason)
 
+    /** A manual delivery needs an idempotency key: a retried request then records the delivery once. */
     @PostMapping("/{id}/deliveries")
     @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)
     fun recordDelivery(
         @PathVariable id: UUID,
         @RequestBody body: RecordDelivery,
-    ): TradeView = command.requireTradeOperator(id).let { command.recordDelivery(id, body) }
+    ): TradeView {
+        command.requireTradeOperator(id)
+        if (body.idempotencyKey.isNullOrBlank()) {
+            throw ValidationException("A manual delivery needs an idempotency key", listOf(Violation("idempotencyKey", "required")))
+        }
+        return command.recordDelivery(id, body)
+    }
 
     @PostMapping("/{id}/settle")
     @AllowedRoles(Role.MIDDLE_OFFICE, Role.BACK_OFFICE)

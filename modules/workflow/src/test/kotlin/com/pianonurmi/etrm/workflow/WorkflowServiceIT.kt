@@ -33,12 +33,17 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.support.StaticListableBeanFactory
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.jdbc.datasource.DataSourceTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class WorkflowServiceIT {
@@ -66,7 +71,7 @@ class WorkflowServiceIT {
     private val entityA = UUID.randomUUID()
     private val entityB = UUID.randomUUID()
     private var actor = Actor("trader", "trader", setOf(Role.TRADER), allEntities = true)
-    private val published = mutableListOf<Any>()
+    private val published: MutableList<Any> = java.util.Collections.synchronizedList(mutableListOf())
     private var now = Instant.parse("2026-10-12T08:00:00Z")
     private val clock = object : Clock() {
         override fun getZone() = ZoneOffset.UTC
@@ -117,6 +122,53 @@ class WorkflowServiceIT {
 
     private fun approval(subject: UUID = UUID.randomUUID(), entity: UUID? = entityA, requester: String = "trader", priority: Int? = null) =
         workflow.open(OpenTask("TEST_APPROVAL", "THING", subject, entity, "Approve $subject", requester, priority = priority))
+
+    /**
+     * Two listeners open the same task at once. The second one does not see the first one's uncommitted row, so it
+     * inserts too and waits on the partial unique index; once the first commits it gets the first one's task back
+     * instead of a duplicate-key error that would roll back the transaction that published its event.
+     */
+    @Test
+    fun `two concurrent opens of one task return the same task`() {
+        val transactions = TransactionTemplate(DataSourceTransactionManager(TestDatabase.dataSource))
+        val subject = UUID.randomUUID()
+        val firstOpened = CountDownLatch(1)
+        val commitFirst = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            val first = pool.submit<ApprovalTaskView> {
+                transactions.execute {
+                    approval(subject).also {
+                        firstOpened.countDown()
+                        commitFirst.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    }
+                }
+            }
+            firstOpened.await(TIMEOUT_SECONDS, TimeUnit.SECONDS) shouldBe true
+            val second = pool.submit<ApprovalTaskView> { transactions.execute { approval(subject) } }
+            awaitWaitingOnAnotherTransaction()
+            commitFirst.countDown()
+            second.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).id shouldBe first.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).id
+        } finally {
+            commitFirst.countDown()
+            pool.shutdownNow()
+        }
+        workflow.openFor("TEST_APPROVAL", "THING", subject) shouldNotBe null
+    }
+
+    /** Waits until a backend waits for another transaction: the second insert has reached the unique index. */
+    private fun awaitWaitingOnAnotherTransaction() {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)
+        while (System.nanoTime() < deadline) {
+            val waiting = TestDatabase.dsl.fetchValue(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event = 'transactionid'",
+            ).toString().toInt()
+            if (waiting > 0) return
+            Thread.onSpinWait()
+            Thread.yield()
+        }
+        throw AssertionError("the second open never waited on the first one's row")
+    }
 
     @Test
     fun `decisions follow the type rules and are applied by the owning module`() {
@@ -226,5 +278,9 @@ class WorkflowServiceIT {
         workflow.task(task.id)!!.escalationLevel shouldBe 3
         published.filterIsInstance<TaskEscalated>().count { it.task.id == task.id } shouldBe 2
         workflow.inbox(InboxFilter(overdue = true, subjectType = "THING")).items.any { it.id == task.id } shouldBe true
+    }
+
+    private companion object {
+        const val TIMEOUT_SECONDS = 30L
     }
 }
