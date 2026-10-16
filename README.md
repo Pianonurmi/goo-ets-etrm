@@ -280,7 +280,7 @@ SPRING_PROFILES_ACTIVE=dev,demo ./gradlew :apps:api:bootRun   # web UI and Swagg
 - **Why PostgreSQL first:** the build needs it before the tests, because the jOOQ sources are generated from a
   migrated database.
 - **Web UI with hot reload:** `cd apps/web && npm run dev`. Vite proxies `/api` to port 8080.
-- **Conventions:** `CLAUDE.md` lists the commands and conventions for working on the code.
+- **Conventions:** the [contributor handbook](docs/contributing.md) lists the commands and conventions for working on the code; `CLAUDE.md` imports it for coding assistants.
 
 ## Documentation
 

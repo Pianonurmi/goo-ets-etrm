@@ -10,7 +10,7 @@ process in [contributing](../contributing.md) enforceable; until they are on, it
 | Target branches | `main`, `release/*` |
 | Restrict deletions | on |
 | Block force pushes | on |
-| Require linear history | off (merge commits keep pull requests visible) |
+| Require linear history | on (pull requests are squash-merged, one commit each) |
 | Require a pull request before merging | on: 1 approval, dismiss stale approvals on new commits, require review from Code Owners, require conversation resolution |
 | Require status checks to pass | on: `chart`, `build`; require branches to be up to date |
 | Require signed commits | on once every contributor has a signing key |

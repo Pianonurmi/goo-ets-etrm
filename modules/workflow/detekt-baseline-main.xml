@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:JooqApprovalTaskRepository.kt$JooqApprovalTaskRepository$dsl.insertInto(TASK_EVENT) .set(TASK_EVENT.TASK_ID, taskId) .set(TASK_EVENT.EVENT_TYPE, eventType) .set(TASK_EVENT.ACTOR, actor) .set(TASK_EVENT.AT, at) .set(TASK_EVENT.DATA, JSONB.jsonb(Json.mapper.writeValueAsString(data))) .set(TASK_EVENT.PREV_HASH, previous) .set(TASK_EVENT.HASH, hash) .returning() .fetchOne()!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

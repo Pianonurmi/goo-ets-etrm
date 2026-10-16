@@ -1,0 +1,10 @@
+# Rules that need type resolution run in `detektMain` (part of `check`), on main sources only. The detekt release we
+# use resolves types with an older Kotlin compiler, so only rules checked to give no false positives on this code are
+# on; `UnreachableCode`, for one, misreads `?: throw` and stays off. Findings that predate a rule sit in each module's
+# detekt-baseline-main.xml, which CI refuses to let grow (ops/ci/detekt-baseline-check.sh).
+build:
+  maxIssues: 0
+
+potential-bugs:
+  UnsafeCallOnNullableType:
+    active: true

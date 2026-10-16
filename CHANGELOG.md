@@ -58,6 +58,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 - **Settlement items page by keyset**, latest delivery first, with **Load more**, like invoices and payments
   (`GET /api/v1/settlement/items/search`, `limit` up to 500 and `cursor`); the unpaged list stays for the KPIs.
+- Contributors: `docs/contributing.md` is the handbook (build, layout, conventions, lint, commits); `CLAUDE.md`
+  imports it. A build whose codegen database was migrated by another checkout now fails with a message instead of
+  generating code for the wrong schema. A new `!!` on a nullable value fails `detektMain`; existing ones are in
+  per-module baselines that CI keeps from growing. ADRs 0052–0055 record virtual threads, coverage ratchets, API
+  nullability and JSON types, and cursor encoding.
+- End-to-end tests: Playwright no longer retries a failed test, in CI either. The payments, confirmations,
+  reconciliation, registry and risk journeys create their own subjects through the API instead of using named demo
+  rows, so they run again on the same database.
 
 ### Fixed
 - Two allocation proposals for one entity no longer soft-reserve the same certificates: a proposal now takes the

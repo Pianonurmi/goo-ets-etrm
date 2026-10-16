@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:JooqReferenceDataRepository.kt$JooqReferenceDataRepository$period.lower()!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -20,7 +20,7 @@ Increment 1 is delivered. These points deliberately differ from the plan below:
 | Lot table partitioned by expiry year | Not partitioned; the audit trail and the lot journal are partitioned by month (ADR 0030) | The overlap exclusion constraint must hold across all lots, and PostgreSQL allows exclusion constraints on a partitioned table only from version 17 and only with the partition key. Live lots are a bounded working set, while the journals grow without bound. |
 | Coverage with priority-ordered augmentation per obligation | Augmentation per priority tier | Same guarantee for higher priorities at a fraction of the cost (ADR 0007) |
 | Benchmark 100 k lots × 5 k obligations | Benchmark test defaults to 20 k × 1 k; full size via system properties | Keeps CI fast; see the README for the full-size command |
-| File paths in section 7 | Actual layout uses `api`, `domain`, `application`, `adapter/rest`, `adapter/jooq` per module | See `CLAUDE.md` and arc42 section 5 |
+| File paths in section 7 | Actual layout uses `api`, `domain`, `application`, `adapter/rest`, `adapter/jooq` per module | See the [contributor handbook](contributing.md) and arc42 section 5 |
 
 ## Status after increment 2
 

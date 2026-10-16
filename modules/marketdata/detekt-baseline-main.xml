@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:CurveService.kt$CurveService$curve.allowanceProductCode!!</ID>
+    <ID>UnsafeCallOnNullableType:CurveService.kt$CurveService$curves.curve(base.curveCode)!!</ID>
+    <ID>UnsafeCallOnNullableType:CurveService.kt$CurveService$curves.curve(curve.code)!!</ID>
+    <ID>UnsafeCallOnNullableType:CurveService.kt$CurveService$curves.snapshot(snapshotId)!!</ID>
+    <ID>UnsafeCallOnNullableType:CurveSignOffTasks.kt$CurveSignOffTasks$task.decidedBy!!</ID>
+    <ID>UnsafeCallOnNullableType:JooqCurveRepository.kt$JooqCurveRepository$curve(r.curveCode)!!</ID>
+    <ID>UnsafeCallOnNullableType:MarketDataService.kt$MarketDataService$previous!!</ID>
+    <ID>UnsafeCallOnNullableType:MarketDataService.kt$MarketDataService$quotes.current(instrument.code, command.quoteDate, command.quoteType, command.source.uppercase())!!</ID>
+    <ID>UnsafeCallOnNullableType:MarketDataService.kt$MarketDataService$quotes.find(quoteId)!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

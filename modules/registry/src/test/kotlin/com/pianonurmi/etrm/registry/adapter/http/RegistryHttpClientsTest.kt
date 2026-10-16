@@ -10,11 +10,14 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.ResourceAccessException
 import java.net.InetSocketAddress
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class RegistryHttpClientsTest {
     private lateinit var server: HttpServer
     private val calls = AtomicInteger()
+    private val stalled = CountDownLatch(1)
     private lateinit var settings: AdapterSettings
     private val clients = RegistryHttpClients(RegistryAdapterProperties())
 
@@ -33,7 +36,8 @@ class RegistryHttpClientsTest {
             exchange.close()
         }
         server.createContext("/slow") { exchange ->
-            Thread.sleep(1_000)
+            // Holds the answer until the test has seen the timeout; teardown lets it go.
+            stalled.await(STALL_LIMIT_SECONDS, TimeUnit.SECONDS)
             exchange.sendResponseHeaders(200, -1)
             exchange.close()
         }
@@ -48,7 +52,10 @@ class RegistryHttpClientsTest {
     }
 
     @AfterEach
-    fun stop() = server.stop(0)
+    fun stop() {
+        stalled.countDown()
+        server.stop(0)
+    }
 
     @Test
     fun `idempotent reads retry server errors until they succeed`() {
@@ -79,3 +86,5 @@ class RegistryHttpClientsTest {
         RegistryAdapterProperties(mapOf("FINGRID" to settings)).settings("fingrid")?.enabled shouldBe true
     }
 }
+
+private const val STALL_LIMIT_SECONDS = 10L
