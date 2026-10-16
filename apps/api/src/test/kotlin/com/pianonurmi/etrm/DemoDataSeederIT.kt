@@ -13,6 +13,7 @@ import org.hamcrest.Matchers.hasItem
 import org.hamcrest.Matchers.hasItems
 import org.hamcrest.Matchers.notNullValue
 import org.hamcrest.Matchers.nullValue
+import org.hamcrest.Matchers.oneOf
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -247,6 +248,13 @@ class DemoDataSeederIT {
         asUser("risk", "RISK").get("/api/v1/risk/breaches?legalEntityId=$sweden").then().statusCode(200)
             .body("findAll { it.status == 'OPEN' }.size()", greaterThanOrEqualTo(1))
         asUser("risk", "RISK").get("/api/v1/risk/exposures?legalEntityId=$finland").then().statusCode(200).body("size()", greaterThan(0))
+        // Rheinstrom's limit follows its exposure on the seed date, so the seed itself never breaches it.
+        val rheinstrom = asUser("admin", "ADMIN").get("/api/v1/reference/counterparties").then().extract().jsonPath()
+            .getString("find { it.code == 'CP-RHEINSTROM' }.id")
+        val rheinstromLimit = asUser("risk", "RISK").get("/api/v1/risk/limits?legalEntityId=$finland").then().extract().jsonPath()
+            .getString("find { it.type == 'CREDIT_EXPOSURE' && it.scope.counterpartyId == '$rheinstrom' && it.status == 'ACTIVE' }.id")
+        asUser("risk", "RISK").get("/api/v1/risk/limits/$rheinstromLimit/utilisation").then().statusCode(200)
+            .body("status", oneOf("OK", "WARNING"))
         asUser("middle", "MIDDLE_OFFICE").get("/api/v1/ets/installations?legalEntityId=$sweden").then().statusCode(200).body("size()", equalTo(1))
         asUser("middle", "MIDDLE_OFFICE").get("/api/v1/workflow/tasks?type=VERIFIED_EMISSIONS_APPROVAL&actionable=true").then()
             .body("items.size()", equalTo(1))

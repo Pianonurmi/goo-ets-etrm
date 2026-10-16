@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Added
+- A nightly workflow seeds the demo at that day's date (`demo-nightly.yml`), so a date that breaks the demo seed
+  shows the next morning instead of at a deploy.
+
 ### Changed
 - **Manual deliveries need an idempotency key.** `POST /api/v1/trades/{id}/deliveries` refuses a request without
   `idempotencyKey` (422), so a retried request cannot record a delivery twice. The web app already sent one; scripts
@@ -17,6 +21,18 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
   entity's lock, as approval does, and solves against the other proposal's reservations.
 - Two listeners opening the same approval task at once no longer fail on the unique index: the second one gets the
   first one's task.
+
+## [0.15.1] - 2026-10-16
+
+A fix for the demo data: the public demo could not start on a fresh database since 2026-10-15.
+
+### Fixed
+- **Demo seed stuck at step 21 ("Operations").** Rheinstrom's demo credit limit was a fixed EUR 40,000, while the
+  demo's exposure to Rheinstrom follows the date it is seeded on. From 2026-10-15 a sale in the "Operations" step put
+  the exposure over the limit, its approval needed the risk role, and the seed failed and restarted on every start.
+  The limit now follows the exposure measured while seeding (about 80 % used, so it still shows a warning), and the
+  demo seed test checks that the seed leaves it unbreached. Affects the `demo` profile and the showcase image only;
+  0.13.x and 0.14.x demos have the same fault and should move to 0.15.1.
 
 ## [0.15.0] - 2026-10-15
 
@@ -557,7 +573,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.15.0
 [0.14.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.14.0
 [0.13.2]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.13.2
