@@ -33,6 +33,11 @@ A fix for the demo data: the public demo could not start on a fresh database sin
   The limit now follows the exposure measured while seeding (about 80 % used, so it still shows a warning), and the
   demo seed test checks that the seed leaves it unbreached. Affects the `demo` profile and the showcase image only;
   0.13.x and 0.14.x demos have the same fault and should move to 0.15.1.
+- **CI: the previous-release check after 0.15.0.** The check started the previous release's jar to seed the migrated
+  schema, but since 0.15.0 the demo seeder ships only in the showcase image, so every build after 0.15.0 failed it. It
+  now takes the seeder from the previous release's showcase image. When the previous release's own demo data fails on
+  the day (as 0.15.0's does), it compares with a seed of that release on its own schema and passes with a warning
+  when both fail at the same step.
 
 ## [0.15.0] - 2026-10-15
 

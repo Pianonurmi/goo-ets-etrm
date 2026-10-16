@@ -23,7 +23,10 @@
   because of the rule above.
 - **CI checks it**: each build migrates an empty database with its own jar (`--migrate-only`), then starts the
   latest published release on it with migrations off and lets its demo seeder write a full data set through the
-  REST API (`ops/release/compat-check.sh`, step "Previous release on the migrated schema").
+  REST API (`ops/release/compat-check.sh`, step "Previous release on the migrated schema"). The seeder comes from the
+  previous release's showcase image. Its demo data follows the date it is seeded on, so when it fails on the migrated
+  schema the check seeds the previous release on its own migrations too: the same failing step there shows that the
+  release's demo data, not the schema, is at fault, and the check passes with a warning.
 
 ## Consequences
 - Some changes take two or three releases. The pull request template asks whether a migration is additive.
