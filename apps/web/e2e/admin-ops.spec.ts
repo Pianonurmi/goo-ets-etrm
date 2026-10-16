@@ -127,9 +127,14 @@ test.describe('reference data operations', () => {
 
     await choose(page, `default-book-${account.id}`, new RegExp(`^${code}-TRD · `));
     await expect(page.getByTestId(`default-book-${account.id}`)).toHaveValue(`${code}-TRD · End-to-end trading`);
+    // The save refetches the drawer's records; edit only once that has settled, or the refetch can land mid-edit.
+    await expect(page.getByTestId(`default-book-${account.id}`)).toBeEnabled();
+    await expect(page.getByText(`Default book of UNION_REGISTRY:EU-E2E-${suffix} saved`)).toBeVisible();
 
     await page.getByTestId('record-edit').click();
-    await page.getByTestId('edit-name').fill(`End-to-end renamed ${suffix}`);
+    const dialog = page.getByRole('dialog', { name: `Edit ${code}` });
+    await expect(dialog).toBeVisible();
+    await dialog.getByTestId('edit-name').fill(`End-to-end renamed ${suffix}`);
     // Deactivated, the test entity stays out of the header's entity menu for later runs.
     await page.getByTestId('edit-active').click({ force: true });
     await page.getByTestId('edit-save').click();
