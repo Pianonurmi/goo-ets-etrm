@@ -119,6 +119,9 @@ interface SettlementItemRepository {
 
     fun find(filter: SettlementItemFilter, forUpdate: Boolean = false): List<SettlementItemView>
 
+    /** Items after [after] (delivery date, id), latest first, one more than the limit to tell whether a page follows. */
+    fun findPage(filter: SettlementItemFilter, after: Pair<java.time.LocalDate, UUID>?): List<SettlementItemView>
+
     fun forSchedule(scheduleId: UUID): List<SettlementItemView>
 
     fun priceFixing(scheduleId: UUID): PriceFixingView?

@@ -71,12 +71,14 @@ export default defineConfig({
       reporter: ['text-summary', 'lcov'],
       // A ratchet: the build fails below these floors, and a local run raises them to the new whole percentage
       // when coverage grows (commit the change). CI never rewrites them.
+      // Only files a test imports are measured. The page tests of increment 16 brought whole pages in (1,500 more
+      // lines, 400 more of them covered), so the floors were reset to that wider measure once (ADR 0053).
       thresholds: {
         autoUpdate: process.env.CI ? false : (next: number) => Math.floor(next),
-        statements: 73,
-        branches: 69,
-        functions: 64,
-        lines: 73,
+        statements: 59,
+        branches: 57,
+        functions: 48,
+        lines: 58,
       },
       reportsDirectory: 'build/coverage',
     },

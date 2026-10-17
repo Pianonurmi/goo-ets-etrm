@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { asPersona, unique } from './api';
 import { actAs, switchPersona } from './fixtures';
 
 async function choose(page: Page, testId: string, option: RegExp) {
@@ -7,22 +8,30 @@ async function choose(page: Page, testId: string, option: RegExp) {
 }
 
 test.describe('risk and EU ETS compliance', () => {
-  test('a credit limit is requested by one analyst and approved by another', async ({ page }) => {
+  test('a credit limit is requested by one analyst and approved by another', async ({ page, request }) => {
+    const reason = `New counterparty onboarding ${unique()}`;
     await actAs(page, 'risk');
     await page.goto('/risk');
     await expect(page.getByRole('gridcell', { name: 'Credit exposure' }).first()).toBeVisible();
     await page.getByTestId('request-limit').click();
     await choose(page, 'limit-counterparty', /CP-AURORA/);
     await page.getByTestId('limit-amount').fill('75000');
-    await page.getByTestId('limit-reason').fill('New counterparty onboarding');
+    await page.getByTestId('limit-reason').fill(reason);
     await page.getByTestId('request-limit-submit').click();
     await expect(page.getByText('Limit sent for approval')).toBeVisible();
 
+    // Earlier runs left limits on Aurora; this run's is the one with its reason.
+    const limits = await asPersona(request, 'risk', 'RISK').get<{ id: string; reason: string }[]>(
+      '/api/v1/risk/limits?activeOnly=false',
+    );
+    const requested = limits.find((limit) => limit.reason === reason);
+    if (!requested) throw new Error(`No limit requested with reason ${reason}`);
     await page.getByLabel('Show pending, rejected and retired').check();
     await page
-      .getByRole('gridcell', { name: /Aurora/ })
+      .getByRole('row', { name: /Aurora/ })
       .first()
-      .click();
+      .waitFor();
+    await page.goto(`/risk/limits/${requested.id}`);
     await expect(page).toHaveURL(/\/risk\/limits\/[0-9a-f-]{36}$/);
     await expect(page.getByTestId('limit-status')).toHaveText(/^pending approval$/i);
     await page.getByRole('link', { name: 'Approval task' }).click();
@@ -41,7 +50,7 @@ test.describe('risk and EU ETS compliance', () => {
     await choose(page, 'limit-bucket', /NORDIC_HYDRO/);
     await page.getByTestId('limit-vintage').fill('2025');
     await page.getByTestId('limit-amount').fill('50000');
-    await page.getByTestId('limit-reason').fill('Cap unsold Nordic hydro certificates of 2025');
+    await page.getByTestId('limit-reason').fill(`Cap unsold Nordic hydro certificates of 2025 ${unique()}`);
     await page.getByTestId('request-limit-submit').click();
     await expect(page.getByText('Limit sent for approval')).toBeVisible();
     // The vintage is part of the limit's scope (the new limit waits for approval, so show pending ones).
@@ -70,9 +79,11 @@ test.describe('risk and EU ETS compliance', () => {
     await expect(page).toHaveURL(/\/ets\/installations\/[0-9a-f-]{36}/);
     await expect(page.getByRole('gridcell', { name: 'Forecast' })).toBeVisible();
     await page.getByTestId('record-emissions').click();
-    await page.getByTestId('emissions-quantity').fill('1234');
+    // An estimate no earlier run recorded, so its row is this run's.
+    const tonnes = 1000 + Math.floor(Math.random() * 9000);
+    await page.getByTestId('emissions-quantity').fill(String(tonnes));
     await page.getByTestId('record-emissions-submit').click();
     await expect(page.getByText('Emissions recorded')).toBeVisible();
-    await expect(page.getByRole('gridcell', { name: '1,234 t' })).toBeVisible();
+    await expect(page.getByRole('gridcell', { name: `${tonnes.toLocaleString('en-GB')} t` }).first()).toBeVisible();
   });
 });

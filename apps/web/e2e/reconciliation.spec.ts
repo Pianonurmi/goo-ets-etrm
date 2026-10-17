@@ -38,6 +38,32 @@ function statement(lots: Lot[]): string {
   );
 }
 
+interface Break {
+  id: string;
+  lotId: string | null;
+  status: string;
+}
+
+/** Uploads a holdings statement for [accountId] through the API as back office; returns the breaks it opened. */
+async function uploadStatement(request: APIRequestContext, accountId: string, csv: string): Promise<Break[]> {
+  const headers = { 'X-Actor': 'backoffice', 'X-Roles': 'BACK_OFFICE', 'Content-Type': 'text/csv' };
+  const today = new Date().toISOString().slice(0, 10);
+  const response = await request.post(
+    `/api/v1/registry/statements/csv?registryAccountId=${accountId}&statementDate=${today}`,
+    { headers, data: csv },
+  );
+  if (!response.ok()) throw new Error(`Statement upload: ${response.status()} ${await response.text()}`);
+  return ((await response.json()) as { breaks: Break[] }).breaks;
+}
+
+/** Every break on [accountId], whatever its status (the list defaults to open ones). */
+async function allBreaks(request: APIRequestContext, accountId: string): Promise<Break[]> {
+  const statuses = ['OPEN', 'INVESTIGATING', 'PENDING_ACCEPTANCE', 'RESOLVED', 'ACCEPTED', 'AUTO_CLEARED'];
+  return asPersona(request, 'admin', 'ADMIN').get<Break[]>(
+    `/api/v1/inventory/breaks?registryAccountId=${accountId}&${statuses.map((status) => `status=${status}`).join('&')}`,
+  );
+}
+
 async function upload(page: Page, csv: string): Promise<void> {
   await page.getByTestId('upload-holdings').click();
   await page.getByTestId('holdings-csv').fill(csv);
@@ -47,12 +73,28 @@ async function upload(page: Page, csv: string): Promise<void> {
 }
 
 test.describe('reconciliation', () => {
-  test('the demo break is taken, its acceptance asked for and approved by a second person', async ({ page }) => {
+  test('a break is taken, its acceptance asked for and approved by a second person', async ({ page, request }) => {
+    // A statement without the newest held lot opens a break: in our books, not in the registry.
+    // A lot no earlier run has had a break on: an accepted break settles that lot for good.
+    const lots = await demoAccountLots(request);
+    const accountId = lots[0]?.registryAccountId ?? '';
+    const earlier = new Set((await allBreaks(request, accountId)).map((brk) => brk.lotId));
+    const omitted = lots.filter((lot) => lot.status === 'HELD' && !earlier.has(lot.id)).at(-1);
+    if (!omitted) throw new Error('No held lot without a break on the demo account');
+    const created = await uploadStatement(
+      request,
+      omitted.registryAccountId,
+      statement(lots.filter((lot) => lot.id !== omitted.id)),
+    );
+    const brk = created.find((candidate) => candidate.lotId === omitted.id && candidate.status === 'OPEN');
+    if (!brk) throw new Error(`No break for lot ${omitted.id}`);
+
     await actAs(page, 'backoffice');
     await page.goto('/reconciliation');
     await expect(page.getByTestId('break-ageing')).toBeVisible();
-    await page.getByRole('gridcell', { name: 'In our books, not in the registry' }).first().click();
+    await page.goto(`/reconciliation/breaks/${brk.id}`);
     await expect(page.getByTestId('break-status')).toHaveText(/^open$/i);
+    await expect(page.getByText('In our books, not in the registry').first()).toBeVisible();
     const breakUrl = page.url();
 
     await page.getByTestId('break-take').click();
