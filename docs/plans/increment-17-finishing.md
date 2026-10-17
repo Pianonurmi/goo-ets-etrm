@@ -1,6 +1,6 @@
 # Increment 17: finishing the review's code items
 
-**Status: planned.** Follows [increment 16](increment-16-review-leftovers.md) (0.16.0).
+**Status: done (0.17.0).** Follows [increment 16](increment-16-review-leftovers.md) (0.16.0).
 
 ## Context
 
@@ -77,3 +77,27 @@ specifications, #16–#21) is the owner's and stays as it is.
   lint, format, Vitest with coverage, `coverage:api`, `check:help`, `budget`).
 - M1: the whole Playwright suite twice in a row on one database.
 - M3: the full backend build; no baseline file left.
+
+## Delivered
+
+Every milestone landed through its own pull request with green CI: M0 (#88), M1 (#92), M2 (#91), M3 (#90). What each
+finding came to is in the review's [status table](../reviews/2026-10-enterprise-readiness.md#status-after-0170).
+
+| Measure | At 0.16.0 | At 0.17.0 |
+|---|---|---|
+| Playwright on one database | five journeys repeatable; clearing and hedge single-use | every journey creates its subjects; the whole suite passes twice in a row |
+| Web coverage (statements, branches, functions, lines) | 59 %, 57 %, 48 %, 58 % | 68 %, 63 %, 57 %, 67 % |
+| `!!` on a nullable value | 126 in per-module detekt baselines | none; no baseline files |
+
+Differences from the plan:
+
+- **Done differently:**
+  - **Coverage** reached 67 % lines, not 70 %: the tabs and drawers the plan named are covered; the rest of the
+    gap is in screens with page tests already, in branches the tests do not take.
+  - **Page tests** each do one action: a CI runner takes several seconds per interaction with a page that holds a grid,
+    so a test that did three actions ran past the 15 s limit there.
+- **Found and left alone:** after preparing a netting, the modal's navigation does not settle in the test router
+  (a bare navigation in the same harness does). The test asserts the request; the browser journey covers the rest.
+- **Not done, open:** outside the code, as before: the penetration test, UAT, the load-test environment, the
+  sign-offs and the external specifications (#16–#21).
+
