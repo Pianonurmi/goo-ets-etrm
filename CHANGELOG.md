@@ -7,6 +7,19 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-17
+
+Increment 16, review leftovers: races and idempotency, documents and report retention, long operations run outside
+the request, operations (request-rate autoscaling, a registry circuit, verification gaps), test and code hygiene, and
+web tests with repeatable journeys ([plan](docs/plans/increment-16-review-leftovers.md), status per finding in the
+[review](docs/reviews/2026-10-enterprise-readiness.md#status-after-0160)).
+
+**Before upgrading:**
+- Scripts that start a period end (`POST /api/v1/ledger/period-end/runs`) or a valuation run
+  (`POST /api/v1/valuation/runs`) now get 202 with a run and must poll `GET /api/v1/runs/{id}`.
+- Scripts that record manual deliveries (`POST /api/v1/trades/{id}/deliveries`) must send an `idempotencyKey`.
+- The Helm chart raises the memory request to 1.5 GiB and sets ingress timeouts of 45 s; check the node capacity.
+
 ### Added
 - `POST /api/v1/admin/integrity/chains/verify` (auditor or administrator) verifies every hash chain at once. The
   approval tasks' histories (`task_event`) are now among them, in the nightly verification
@@ -629,7 +642,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.15.0
 [0.14.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.14.0
