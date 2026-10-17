@@ -14,7 +14,8 @@ days after its successor's release. Security fixes reach both lines as patch ver
 
 | Version | Supported |
 |---|---|
-| 0.16.x | yes |
+| 0.17.x | yes |
+| 0.16.x | security fixes until 90 days after the 0.17.0 release (2027-01-15) |
 | 0.15.x | security fixes until 90 days after the 0.16.0 release (2027-01-15) |
 | 0.14.x | security fixes until 90 days after the 0.15.0 release (2027-01-13) |
 | 0.13.x | security fixes until 2027-01-13, as promised with 0.14.0 |
