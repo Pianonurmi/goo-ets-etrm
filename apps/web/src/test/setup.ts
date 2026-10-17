@@ -25,3 +25,14 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 window.ResizeObserver = ResizeObserverStub;
+
+// Mantine's autosizing textarea listens for web fonts loading, through an API jsdom does not have.
+if (!('fonts' in document)) {
+  Object.defineProperty(document, 'fonts', {
+    configurable: true,
+    value: { addEventListener: () => undefined, removeEventListener: () => undefined },
+  });
+}
+
+// Mantine's combobox scrolls the selected option into view when the dropdown opens; jsdom has no layout to scroll.
+if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => undefined;
