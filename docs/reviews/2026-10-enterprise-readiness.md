@@ -31,13 +31,15 @@ Grades read: A meets enterprise expectations, B meets them with known small gaps
 production, D has a gap that must close before any exposure, E is unfit.
 
 <a id="status-after-0150"></a>
+<a id="status-after-0160"></a>
 
-## Status after 0.16.0
+## Status after 0.17.0
 
 The findings as acted on by the patches 0.13.1 and 0.13.2, by
 [increment 14](../plans/increment-14-production-readiness.md) (0.14.0), by
-[increment 15](../plans/increment-15-maintainability.md) (0.15.0) and by
-[increment 16](../plans/increment-16-review-leftovers.md) (0.16.0). What is marked open is left for the owner (issues
+[increment 15](../plans/increment-15-maintainability.md) (0.15.0), by
+[increment 16](../plans/increment-16-review-leftovers.md) (0.16.0) and by
+[increment 17](../plans/increment-17-finishing.md) (0.17.0). What is marked open is left for the owner (issues
 #16–#21) or named with its reason. The findings below are kept as written at the time of the review.
 
 | Finding | Status |
@@ -75,9 +77,9 @@ The findings as acted on by the patches 0.13.1 and 0.13.2, by
 | C7 | Fixed: ADR 0050, `TimeSourceTest`, `TestClock`, controllers and jobs on the clock (0.14.0); repositories and event metadata on the clock, `TimeSourceTest` over the tests too (0.15.0) |
 | C8 | Fixed: a ledger property test, seeds through `PropertySeeds` with a nightly random run, concurrency tests for the plan, netting and cache locks (0.14.0); two-thread tests for deliveries on one schedule, settlement item re-evaluation, proposals and task opens, and `position` tested on its own (0.16.0) |
 | C9 | Fixed in 0.14.0: Kover at 90 % of lines and 65 % of branches; the levels and ratchets recorded in ADR 0053 (0.16.0) |
-| C11 | Fixed: ADRs for the test strategy and the time source (0049, 0050, 0.14.0); registry HTTP tests on a test clock and latches, property tests that show their operands, ADRs 0052–0055, the contributor handbook that `CLAUDE.md` imports, and a new `!!` on a nullable value failing the build (0.16.0). The Jackson annotations in `allocation/api` and `product/api` stay: the OpenAPI document needs them for the discriminators (ADR 0054) |
+| C11 | Fixed: ADRs for the test strategy and the time source (0049, 0050, 0.14.0); registry HTTP tests on a test clock and latches, property tests that show their operands, ADRs 0052–0055, the contributor handbook that `CLAUDE.md` imports, and a new `!!` on a nullable value failing the build (0.16.0); every older `!!` replaced by a named check and the detekt baselines deleted (0.17.0). The Jackson annotations in `allocation/api` and `product/api` stay: the OpenAPI document needs them for the discriminators (ADR 0054) |
 | W1–W3, W5, W7 | Fixed in 0.14.0 |
-| W4 | Fixed: Vitest coverage with floors that only rise (0.15.0); page tests for the heaviest pages against msw, Playwright without retries, and the payments, confirmations, reconciliation, registry and risk journeys creating their own subjects (0.16.0). Open: the clearing and hedge journeys still use single-use demo rows, so they do not yet run twice on one database |
+| W4 | Fixed: Vitest coverage with floors that only rise (0.15.0); page tests for the heaviest pages against msw, Playwright without retries, and the payments, confirmations, reconciliation, registry and risk journeys creating their own subjects (0.16.0); the clearing and hedge journeys too, so the whole suite runs twice on one database, and page tests for the tabs and drawers that were near zero, with the floors raised to 68 % statements and 67 % lines (0.17.0) |
 | W6 | Fixed: lists cut at their limit say so (0.14.0); keyset paging for invoices, payments and valuation results (0.15.0) and settlement items (0.16.0) |
 | W8 | Fixed in 0.15.0: roles in the OpenAPI document (`x-roles`), the web permission table generated from it |
 | W9 | Fixed in 0.15.0: the large pages split into one file per tab, drawer and modal; client errors reported to the server, with source maps kept out of the jar |
