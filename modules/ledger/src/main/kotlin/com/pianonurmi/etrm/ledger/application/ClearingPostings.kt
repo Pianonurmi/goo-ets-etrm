@@ -83,7 +83,7 @@ class ClearingPostings(private val ledger: LedgerService, private val unposted: 
                 legalEntityId = call.legalEntityId,
                 eventType = CALL_EVENT,
                 eventId = event.eventId,
-                postingDate = LocalDate.ofInstant(call.decidedAt!!, ZoneOffset.UTC),
+                postingDate = LocalDate.ofInstant(checkNotNull(call.decidedAt) { "Margin call ${call.id} is not decided" }, ZoneOffset.UTC),
                 currency = call.currency,
                 sourceType = "MARGIN_CALL",
                 sourceRef = call.id.toString(),

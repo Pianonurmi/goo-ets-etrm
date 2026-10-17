@@ -46,8 +46,8 @@ class ConfirmationBreakTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> confirmations.override(task.subjectRef, task.decidedBy!!, reason)
-            Decision.REJECT -> confirmations.dispute(task.subjectRef, task.decidedBy!!, reason)
+            Decision.APPROVE -> confirmations.override(task.subjectRef, task.decider(), reason)
+            Decision.REJECT -> confirmations.dispute(task.subjectRef, task.decider(), reason)
             Decision.ACKNOWLEDGE -> throw ValidationException("A confirmation break is overridden (approve) or disputed (reject)")
         }
         return DecisionOutcome.Applied

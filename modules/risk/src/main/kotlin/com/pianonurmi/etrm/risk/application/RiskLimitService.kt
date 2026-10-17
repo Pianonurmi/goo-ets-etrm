@@ -148,7 +148,7 @@ class RiskLimitService(
             repository.openBreach(replaced)?.let { breach ->
                 val closed = breach.copy(closedAt = now, status = BreachStatus.CLOSED)
                 repository.updateBreach(closed)
-                events.publishEvent(LimitBreachResolved(closed, repository.limit(replaced)!!))
+                events.publishEvent(LimitBreachResolved(closed, checkNotNull(repository.limit(replaced)) { "Replaced limit $replaced is gone" }))
             }
         }
         repository.setLimitStatus(id, LimitStatus.ACTIVE, by, now)

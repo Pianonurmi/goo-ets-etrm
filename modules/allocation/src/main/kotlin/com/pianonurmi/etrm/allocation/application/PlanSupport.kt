@@ -145,7 +145,7 @@ class PlanInstructions(
     ): RegistryInstructionView = when (obligation.kind) {
         ObligationKind.SALE, ObligationKind.INTERCOMPANY -> instructions.submitTransfer(
             SubmitTransfer(
-                lotId = line.reservedLotId!!,
+                lotId = checkNotNull(line.reservedLotId) { "Plan line ${line.id} reserves no lot" },
                 quantityMwh = null,
                 toRegistryCode = obligation.targetRegistryCode ?: lotQuery.requireLot(line.reservedLotId).registryCode,
                 toAccountRef = obligation.targetAccountRef ?: throw ValidationException("Obligation ${obligation.id} has no target account"),
@@ -157,7 +157,7 @@ class PlanInstructions(
         )
         ObligationKind.DISCLOSURE, ObligationKind.OWN_CONSUMPTION -> instructions.submitCancellation(
             SubmitCancellation(
-                lotId = line.reservedLotId!!,
+                lotId = checkNotNull(line.reservedLotId) { "Plan line ${line.id} reserves no lot" },
                 quantityMwh = null,
                 details = (obligation.cancellation ?: throw ValidationException("Obligation ${obligation.id} has no cancellation details"))
                     .copy(obligationRef = obligation.id),

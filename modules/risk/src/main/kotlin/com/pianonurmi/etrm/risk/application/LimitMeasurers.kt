@@ -47,7 +47,7 @@ class PositionLimitMeasurer(private val positions: PositionFigures) : LimitMeasu
 
     override fun measure(limit: RiskLimitView, today: LocalDate): LimitMeasure {
         val gaps = MeasurementGaps()
-        return LimitMeasure(positions.positionNet(limit.legalEntityId!!, limit.scope, null, gaps).abs(), null, gaps)
+        return LimitMeasure(positions.positionNet(limit.entity(), limit.scope, null, gaps).abs(), null, gaps)
     }
 }
 
@@ -57,7 +57,7 @@ class TenorLimitMeasurer(private val positions: PositionFigures) : LimitMeasurer
     override val types = setOf(LimitType.TENOR_MAX_MONTHS)
 
     override fun measure(limit: RiskLimitView, today: LocalDate): LimitMeasure =
-        LimitMeasure(BigDecimal(positions.maxTenor(positions.openTrades(limit.legalEntityId!!, limit.scope, null), limit.scope, today)), null)
+        LimitMeasure(BigDecimal(positions.maxTenor(positions.openTrades(limit.entity(), limit.scope, null), limit.scope, today)), null)
 }
 
 /** Loss of MtM since the end of last month (in the book, if the limit names one), in the limit's currency. */
@@ -67,10 +67,10 @@ class StopLossMeasurer(private val valuations: ValuationQuery, private val fx: R
 
     override fun measure(limit: RiskLimitView, today: LocalDate): LimitMeasure {
         val gaps = MeasurementGaps()
-        val explain = valuations.explain(limit.legalEntityId!!, today.withDayOfMonth(1).minusDays(1), today)
+        val explain = valuations.explain(limit.entity(), today.withDayOfMonth(1).minusDays(1), today)
             ?: return LimitMeasure(BigDecimal.ZERO, "no official runs to compare", gaps)
         val change = limit.scope.bookId?.let { book -> explain.rows.filter { it.bookId == book }.sumOf { it.amountBase } } ?: (explain.mtmTo - explain.mtmFrom)
-        val loss = fx.convert(change.negate().max(BigDecimal.ZERO), explain.baseCurrency, limit.currency!!, today, gaps)
+        val loss = fx.convert(change.negate().max(BigDecimal.ZERO), explain.baseCurrency, limit.currencyCode(), today, gaps)
         return LimitMeasure(loss, "MtM ${explain.fromDate} to ${explain.toDate}: $change ${explain.baseCurrency}", gaps)
     }
 }
@@ -82,7 +82,7 @@ class ComplianceShortMeasurer(private val positions: PositionQuery) : LimitMeasu
 
     override fun measure(limit: RiskLimitView, today: LocalDate): LimitMeasure {
         val year = limit.scope.complianceYear ?: today.year
-        return LimitMeasure(BigDecimal(maxOf(0L, -positions.complianceLadder(limit.legalEntityId!!, year).netPosition)), "compliance year $year")
+        return LimitMeasure(BigDecimal(maxOf(0L, -positions.complianceLadder(limit.entity(), year).netPosition)), "compliance year $year")
     }
 }
 
@@ -93,9 +93,9 @@ class MarginLiquidityMeasurer(private val margin: MarginCallQuery, private val f
 
     override fun measure(limit: RiskLimitView, today: LocalDate): LimitMeasure {
         val gaps = MeasurementGaps()
-        val posted = margin.marginPosted(limit.legalEntityId!!)
-        val initial = posted.sumOf { fx.convert(it.initialMargin, it.currency, limit.currency!!, today, gaps) }
-        val calls = posted.sumOf { fx.convert(it.openCalls, it.currency, limit.currency!!, today, gaps) }
+        val posted = margin.marginPosted(limit.entity())
+        val initial = posted.sumOf { fx.convert(it.initialMargin, it.currency, limit.currencyCode(), today, gaps) }
+        val calls = posted.sumOf { fx.convert(it.openCalls, it.currency, limit.currencyCode(), today, gaps) }
         return LimitMeasure(money(initial + calls), "initial margin ${money(initial)}, open calls ${money(calls)} over ${posted.size} clearing accounts", gaps)
     }
 }
@@ -126,13 +126,13 @@ class GooLimitMeasurer(
     }
 
     private fun measure(query: GooRiskQuery, limit: RiskLimitView): LimitMeasure {
-        val entity = limit.legalEntityId!!
+        val entity = limit.entity()
         val inEur = limit.currency == EUR
         val year = limit.scope.productionYear
         val vintage = year?.let { " (vintage $it)" }.orEmpty()
         return when (limit.type) {
             LimitType.GOO_CONCENTRATION -> {
-                val code = limit.scope.bucketCode!!
+                val code = checkNotNull(limit.scope.bucketCode) { "Limit ${limit.id} has no bucket" }
                 val measured = query.concentration(entity, code, year) ?: return LimitMeasure.notMeasured("no active bucket $code")
                 if (inEur) {
                     LimitMeasure(
@@ -144,7 +144,7 @@ class GooLimitMeasurer(
                 }
             }
             LimitType.GOO_EXPIRY -> {
-                val days = limit.scope.horizonDays!!
+                val days = checkNotNull(limit.scope.horizonDays) { "Limit ${limit.id} has no horizon" }
                 LimitMeasure(BigDecimal(query.unusedExpiringMwh(entity, days, limit.scope.bucketCode, year)), "unused$vintage, expiring within $days days")
             }
             else -> {

@@ -35,8 +35,8 @@ class AccountingPolicyTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> periodEnd.applyPolicyChange(task.subjectRef, task.decidedBy!!)
-            Decision.REJECT -> periodEnd.rejectPolicyChange(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> periodEnd.applyPolicyChange(task.subjectRef, task.decider())
+            Decision.REJECT -> periodEnd.rejectPolicyChange(task.subjectRef, task.decider())
             Decision.ACKNOWLEDGE -> throw ValidationException("Policy changes are approved or rejected")
         }
         return DecisionOutcome.Applied

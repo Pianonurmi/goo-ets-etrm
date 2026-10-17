@@ -8,6 +8,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 ## [Unreleased]
 
 ### Changed
+- Every older `!!` on a nullable value is a named check that says what was missing (`checkNotNull` with a message,
+  `ApprovalTaskView.decider()`, `fetchSingle()`, one helper for PostgreSQL date ranges), and the per-module detekt
+  baselines are gone: `UnsafeCallOnNullableType` now holds for all main code without exceptions.
 - End-to-end tests: the clearing journey opens its own clearing account at a new clearing house and imports a
   statement that breaks and calls for margin; the hedge journey buys its own EUA forward and designates it. Every
   journey now creates its subjects, so the whole Playwright suite runs twice in a row on one database.

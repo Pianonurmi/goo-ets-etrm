@@ -34,7 +34,7 @@ class ValuationSignOffTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> valuations.signOff(task.subjectRef, task.decidedBy!!, reason)
+            Decision.APPROVE -> valuations.signOff(task.subjectRef, task.decider(), reason)
             Decision.REJECT -> valuations.reject(task.subjectRef, reason)
             Decision.ACKNOWLEDGE -> throw ValidationException("Valuations are signed off or rejected")
         }

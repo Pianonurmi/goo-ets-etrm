@@ -154,7 +154,7 @@ class CurveService(
      */
     private fun pillars(curve: CurveView, asOf: LocalDate): List<PillarInput> = when (curve.kind) {
         CurveKind.EUA_FORWARD -> {
-            val product = curve.allowanceProductCode!!
+            val product = checkNotNull(curve.allowanceProductCode) { "Allowance curve ${curve.code} has no product" }
             val byContract = instruments.all(InstrumentKind.EUA_FUTURE, true).associateBy { it.futuresContractCode }
             val forwards = futures.futuresContracts(product, activeOnly = true)
                 .filter { it.deliveryDate.isAfter(asOf) && it.currency == curve.currency }
@@ -165,7 +165,7 @@ class CurveService(
         }
         CurveKind.EUA_VOLATILITY -> {
             val byContract = instruments.all(InstrumentKind.EUA_FUTURE, true).associateBy { it.futuresContractCode }
-            futures.futuresContracts(curve.allowanceProductCode!!, activeOnly = true)
+            futures.futuresContracts(checkNotNull(curve.allowanceProductCode) { "Allowance curve ${curve.code} has no product" }, activeOnly = true)
                 .filter { it.lastTradingDay.isAfter(asOf) && it.currency == curve.currency }
                 .mapNotNull { c -> byContract[c.code]?.let { PillarInput(c.code, c.lastTradingDay, null, it.code) } }
                 .sortedBy { it.pillarDate }
@@ -228,7 +228,7 @@ class CurveService(
         if (note.isBlank()) throw ValidationException("An override needs a reason")
         val base = curves.snapshot(snapshotId) ?: throw NotFoundException("CurveSnapshot", snapshotId)
         if (base.kind != CurveKind.DISCOUNT && price.signum() <= 0) throw ValidationException("A price must be positive")
-        val curve = curves.curve(base.curveCode)!!
+        val curve = checkNotNull(curves.curve(base.curveCode)) { "Curve ${base.curveCode} is gone" }
         val existing = base.points.firstOrNull { it.pillar == pillar } ?: throw NotFoundException("CurvePillar", pillar)
         val points = base.points.map { if (it.pillar == pillar) it.copy(price = price, origin = PointOrigin.OVERRIDE, note = note) else it }
         return store(curve, base.asOfDate, points, base.gaps, "Override of ${existing.pillar} in version ${base.version}: $note")
@@ -239,7 +239,7 @@ class CurveService(
         val curve = curves.curve(curveCode.uppercase()) ?: throw NotFoundException("Curve", curveCode)
         if (curve.kind != CurveKind.EUA_FORWARD && interpolation != Interpolation.LINEAR) throw ValidationException("Only forward curves are read with carry")
         curves.setInterpolation(curve.code, interpolation)
-        return curves.curve(curve.code)!!
+        return checkNotNull(curves.curve(curve.code)) { "Curve ${curve.code} is gone" }
     }
 
     override fun submit(snapshotId: UUID): CurveSnapshotView {
@@ -247,7 +247,7 @@ class CurveService(
         val snapshot = curves.snapshot(snapshotId, lock = true) ?: throw NotFoundException("CurveSnapshot", snapshotId)
         if (snapshot.status != SnapshotStatus.DRAFT) throw ValidationException("Snapshot ${snapshot.id} is ${snapshot.status}")
         curves.setStatus(snapshotId, SnapshotStatus.PENDING_SIGN_OFF)
-        val submitted = curves.snapshot(snapshotId)!!
+        val submitted = checkNotNull(curves.snapshot(snapshotId)) { "Snapshot $snapshotId is gone" }
         events.publishEvent(CurveSnapshotSubmitted(submitted))
         return submitted
     }
@@ -261,7 +261,7 @@ class CurveService(
         val previous = curves.official(snapshot.curveCode, snapshot.asOfDate, null, null)
         previous?.let { curves.supersede(it.id, now) }
         curves.setStatus(snapshotId, SnapshotStatus.OFFICIAL, by, now)
-        val official = curves.snapshot(snapshotId)!!
+        val official = checkNotNull(curves.snapshot(snapshotId)) { "Snapshot $snapshotId is gone" }
         events.publishEvent(CurveSnapshotSignedOff(official, previous?.id))
         return official
     }
@@ -270,7 +270,7 @@ class CurveService(
         val snapshot = curves.snapshot(snapshotId, lock = true) ?: throw NotFoundException("CurveSnapshot", snapshotId)
         if (snapshot.status != SnapshotStatus.PENDING_SIGN_OFF) throw ValidationException("Snapshot ${snapshot.id} is ${snapshot.status}")
         curves.setStatus(snapshotId, SnapshotStatus.REJECTED)
-        val rejected = curves.snapshot(snapshotId)!!
+        val rejected = checkNotNull(curves.snapshot(snapshotId)) { "Snapshot $snapshotId is gone" }
         events.publishEvent(CurveSnapshotRejected(rejected, reason))
         return rejected
     }

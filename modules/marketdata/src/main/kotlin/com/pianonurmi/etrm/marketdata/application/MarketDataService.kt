@@ -189,7 +189,9 @@ class MarketDataService(
         actorProvider.current().requireRole(Role.MIDDLE_OFFICE, Role.RISK)
         val instrument = instruments.byCode(command.instrumentCode.uppercase()) ?: throw NotFoundException("Instrument", command.instrumentCode)
         return storeQuote(instrument, command.quoteDate, command.quoteType, command.value, command.currency, command.source.uppercase(), null)
-            ?: quotes.current(instrument.code, command.quoteDate, command.quoteType, command.source.uppercase())!!
+            ?: checkNotNull(quotes.current(instrument.code, command.quoteDate, command.quoteType, command.source.uppercase())) {
+                "An unchanged quote of ${instrument.code} on ${command.quoteDate} is stored"
+            }
     }
 
     /** Stores a price unless the same one is already current; returns the new row, or null when nothing changed. */
@@ -229,14 +231,14 @@ class MarketDataService(
             source = source,
             importId = importId,
             quality = if (suspect) QuoteQuality.SUSPECT else QuoteQuality.OK,
-            qualityNote = if (suspect) suspectNote(instrument, previous!!) else null,
+            qualityNote = if (suspect) suspectNote(instrument, checkNotNull(previous) { "A suspect quote has a previous quote" }) else null,
             recordedBy = actorProvider.current().userId,
             recordedAt = now,
             supersededAt = null,
             acknowledgedBy = null,
         )
         quotes.insert(quote)
-        if (suspect) events.publishEvent(QuoteFlagged(quote, previous!!.value))
+        if (suspect) events.publishEvent(QuoteFlagged(quote, checkNotNull(previous) { "A suspect quote has a previous quote" }.value))
         return quote
     }
 
@@ -253,7 +255,7 @@ class MarketDataService(
         if (quote.quality != QuoteQuality.SUSPECT) throw ValidationException("Quote ${quote.id} is ${quote.quality}")
         SecondPerson.require(actor.userId, quote.recordedBy) { "A suspect price is acknowledged by someone other than who recorded it" }
         quotes.acknowledge(quoteId, actor.userId, note)
-        return quotes.find(quoteId)!!
+        return checkNotNull(quotes.find(quoteId)) { "Quote $quoteId is gone" }
     }
 
     // ----------------------------------------------------------------------------------------------------------

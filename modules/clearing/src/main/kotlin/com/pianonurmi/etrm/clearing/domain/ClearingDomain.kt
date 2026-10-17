@@ -52,7 +52,11 @@ object VariationMargin {
         previousSettlementPrice: BigDecimal?,
     ): MarginLineView {
         require(positionBefore.signum() == 0 || previousSettlementPrice != null) { "$contractCode has a position but no previous settlement price" }
-        val carried = if (positionBefore.signum() == 0) BigDecimal.ZERO else positionBefore * (settlementPrice - previousSettlementPrice!!)
+        val carried = if (positionBefore.signum() == 0 || previousSettlementPrice == null) {
+            BigDecimal.ZERO
+        } else {
+            positionBefore * (settlementPrice - previousSettlementPrice)
+        }
         val traded = todays.fold(BigDecimal.ZERO) { sum, f -> sum + f.quantity * (settlementPrice - f.price) }
         val quantity = todays.fold(BigDecimal.ZERO) { sum, f -> sum + f.quantity }
         return MarginLineView(

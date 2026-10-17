@@ -210,7 +210,7 @@ class ApiRegistryGateway(
     override fun status(instruction: RegistryInstructionView): GatewayResult? {
         if (!supports(instruction.registryCode)) return null
         val settings = settings(instruction.registryCode)
-        val mapping = mapping(instruction.registryCode)!!
+        val mapping = checkNotNull(mapping(instruction.registryCode)) { "No API mapping for ${instruction.registryCode}" }
         val request = mapping.statusQuery(instruction) ?: return null
         return try {
             val (_, body) = clients.idempotentRead(settings, "status of ${instruction.instructionKey}") {

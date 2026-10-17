@@ -86,7 +86,7 @@ class InstructionCommands(
                 if (lot.status == LotStatus.IN_TRANSFER && lot.instructionRef == next.id) lots.failTransfer(lot.id, next.id, "instruction cancelled: $reason")
             }
             // A FAILED allowance instruction has already given its reservation back.
-            AssetKind.ALLOWANCE -> if (current.status != InstructionStatus.FAILED) allowances.release(next.holdingRef!!, next.quantity)
+            AssetKind.ALLOWANCE -> if (current.status != InstructionStatus.FAILED) allowances.release(next.requireHolding(), next.quantity)
         }
         events.publishEvent(InstructionCancelled(next, reason))
         return next
@@ -101,7 +101,7 @@ class InstructionCommands(
                 val lot = lotQuery.requireLot(next.requireLot())
                 if (lot.status != LotStatus.IN_TRANSFER) lots.startTransfer(lot.id, next.id)
             }
-            AssetKind.ALLOWANCE -> if (current.status == InstructionStatus.FAILED) allowances.reserve(next.holdingRef!!, next.quantity)
+            AssetKind.ALLOWANCE -> if (current.status == InstructionStatus.FAILED) allowances.reserve(next.requireHolding(), next.quantity)
         }
         events.publishEvent(InstructionSubmitted(next))
         return if (next.status == InstructionStatus.PENDING_APPROVAL) next else execution.proceed(next)

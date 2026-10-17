@@ -154,7 +154,7 @@ class JooqApprovalTaskRepository(private val dsl: DSLContext) : ApprovalTaskRepo
             .set(TASK_EVENT.PREV_HASH, previous)
             .set(TASK_EVENT.HASH, hash)
             .returning()
-            .fetchOne()!!
+            .fetchSingle()
         return TaskEventView(record.seq, taskId, eventType, actor, at, data, hash)
     }
 

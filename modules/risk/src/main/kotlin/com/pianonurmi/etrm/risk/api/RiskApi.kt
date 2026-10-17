@@ -84,6 +84,12 @@ data class RiskLimitView(
     val approvedAt: Instant?,
 ) {
     fun validOn(date: LocalDate): Boolean = !date.isBefore(validFrom) && (validTo == null || date.isBefore(validTo))
+
+    /** The entity an entity-wide limit measures; the limit types that call it always have one. */
+    fun entity(): UUID = checkNotNull(legalEntityId) { "Limit $id ($type) has no legal entity" }
+
+    /** The currency a money limit is set in; the limit types that call it always have one. */
+    fun currencyCode(): String = checkNotNull(currency) { "Limit $id ($type) has no currency" }
 }
 
 /** A new limit, or a new version of one ([replaces]); it applies once a second person in risk approves it. */
