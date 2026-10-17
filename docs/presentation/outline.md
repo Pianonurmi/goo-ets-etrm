@@ -109,7 +109,7 @@ ledger and credit stay on one price per product curve.
 - Audit trail of every change: who, when and why.
 - Pictures: `monthend-close.png`, `audit-trail.png`.
 
-## 11. Architecture: one application, eighteen bounded contexts
+## 11. Architecture: one application, nineteen bounded contexts
 
 - A modular monolith: one deployable and one database, with module boundaries the build verifies.
 - Four groups of modules (trading; operations; finance and risk; platform), each module with its own schema.
@@ -124,23 +124,30 @@ run inside a database transaction.
 
 - Targets: 99.9 % availability in business hours, RPO 15 minutes, RTO 4 hours, read p95 under 300 ms.
 - Measured with k6: 556 requests/s with 104 users and no errors; read p95 15 ms at baseline load.
-- Stateless and horizontally scalable; PostgreSQL as a three-instance CloudNativePG cluster; a monthly DR drill that
-  verifies the hash chains; metrics, traces and structured logs.
+- Scales on CPU or request rate; period end, valuation runs and exports run asynchronously and are polled; a registry
+  outage opens a circuit for that registry only.
+- PostgreSQL as a three-instance CloudNativePG cluster; a point-in-time recovery drill that verifies every hash chain;
+  metrics, traces, structured logs, and alert rules with a runbook each.
 
 *Notes:* The rehearsal still open is a drill against a production backup.
 
 ## 13. Security: least privilege, two people, a checked supply chain
 
-- OIDC sign-in; every read and command checks role and legal entity.
-- Four eyes on everything that moves value, in the services and again in the database.
+- OIDC sign-in with audience checks; every read and command checks role and legal entity, and a generated test drives
+  all 339 operations as a minimal-role user, plain and percent-encoded.
+- Four eyes on everything that moves value, in the services and again in the database; the application connects as a
+  runtime role that cannot alter tables, migrations run as the owner.
 - Strict CSP, CSRF, formula-safe exports; ZAP and accessibility checks.
-- SBOMs for every build; a critical fixable vulnerability stops the image.
+- SBOMs for every build; a high or critical fixable vulnerability stops the image; actions pinned by digest,
+  dependencies locked and checksummed.
 
-*Notes:* The external penetration test is prepared (scope, accounts, rules of engagement) and is the next step.
+*Notes:* The October 2026 independent review's code findings are all fixed (0.17.0). The external penetration test is
+prepared (scope, accounts, rules of engagement) and is the next step.
 
 ## 14. Robustness and data integrity
 
-- Append-only, hash-chained lot journal, ledger and audit trail; corrections by reversal.
+- Append-only, hash-chained lot journal, ledger, allowance movements, audit trail and task history, verified every
+  night; a signed daily digest of the chain heads; corrections by reversal.
 - Registry calls through an outbox; idempotent deliveries and GL exports; a timeout is reconciled, never resent.
 - Bitemporal lots, prices and reference data; every report run logged with its content hash.
 - Downstream problems are parked for attention; exact decimals only.
@@ -149,32 +156,39 @@ run inside a database transaction.
 
 - Each module owns its schema and exposes one API package; any other dependency fails the build.
 - The OpenAPI document is committed and the web types are generated from it.
-- 43 architecture decision records, arc42 and a manual inside the application.
-- Warnings are errors, static analysis, a coverage rule; `main` moves only on a green pipeline. Current stack: Java 25,
+- 55 architecture decision records, arc42, a contributor handbook and a manual inside the application.
+- Warnings are errors, static analysis without baselines, coverage floors that only rise, locked and verified
+  dependencies; `main` moves only through green pull requests. Current stack: Java 25,
   Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript.
 
-## 16. Roadmap: thirteen increments, each one shippable
+## 16. Roadmap: seventeen increments, each one shippable
 
 - 1 core domain; 2 registries, settlement, inbox; 3 market data, valuation, risk, ETS, period end; 4–5 the web UI;
   6 operations at scale; 7 the showcase; 8 GoO portfolio management; 9 housekeeping, versioned releases (0.9.0) and this documentation; 10 portfolio
   follow-ups (0.10.0): figures patched in place, GoO limits by vintage, the give-away report; 11 valuation depth
   (0.11.0): discounted MtM, time and rates in the explain, cash flow hedge accounting; 12 futures margining (0.12.0):
   daily variation margin, clearing statements and breaks, margin calls, delivery at the final settlement price; 13 options
-  on EUA futures (0.13.0): volatility curve, Black-76 with greeks, premiums, exercise at expiry, delta in risk.
+  on EUA futures (0.13.0): volatility curve, Black-76 with greeks, premiums, exercise at expiry, delta in risk;
+  14–17 production readiness after the October 2026 enterprise readiness review (0.14.0–0.17.0): access control on
+  every operation, sealed and verified chains, money seams, alerts and runbooks, a recovery drill, asynchronous long
+  runs, a registry circuit, repeatable journeys, no unsafe null dereferences.
 
 ## 17. Path to production
 
-- Assurance: the external penetration test, a DR drill on a production backup, ETS deadline rules checked.
+- Assurance: the external penetration test, a DR drill on a production backup, ETS deadline rules checked, UAT with
+  real users, a load-test environment. Each open item is a GitHub issue (#16–#21).
 - Specifications: registry APIs (G-REX, NECS) and AIB code lists, the GL file layout, the EMIR layout and trade
   repository, market data vendors.
 - Sign-offs: accounting policies, VAT rules, PFE add-ons.
-- Next to build: minimum shares checked against available to sell, fair value hedges, a volatility smile for options.
+- Next to build: minimum shares checked against available to sell, fair value hedges, a volatility smile, gas and
+  hydrogen GoO, ETS2 allowances.
 
 *Notes:* Layouts not checked against their specification are marked unverified.
 
 ## 18. In numbers, and try it
 
-- Automated tests at every level (counts on the slide), API operations with a screen, decision records.
+- 489 backend tests, 454 web component and page tests, 89 Playwright journeys; 313 of 339 API operations with a
+  screen; 55 decision records (counted on 0.17.0).
 - Try it: the demo with guided tours and a manual in the app, or `ops/demo` with Docker on your own server.
 - Picture: `guide.png`.
 

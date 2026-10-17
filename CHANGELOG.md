@@ -7,6 +7,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Changed
+
+- README, the documentation index, the architecture plan (status after increments 13 to 17) and the slide deck
+  describe the system as of 0.17.0.
+
 ## [0.17.0] - 2026-10-17
 
 Increment 17, finishing the review's code items: the last journeys made repeatable, the web tabs and drawers under

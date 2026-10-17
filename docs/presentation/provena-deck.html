@@ -209,7 +209,7 @@
 <div class="frame" id="slide-11"><div class="stage"><section id="architecture" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Architecture</p>
-<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">One application, eighteen bounded contexts</h2>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">One application, nineteen bounded contexts</h2>
 </div>
 <svg aria-label="Architecture: people use the web UI, which calls the REST API of one Provena application. Inside it, four groups of modules (trading and portfolio; operations; finance and risk; platform) share domain events, and each owns its schema in PostgreSQL 17. The application sends registry instructions through an outbox, exports to the general ledger exactly once, publishes events to Kafka after commit, takes identities from an OIDC provider and reports metrics and traces." viewBox="0 0 1664 600" width="1664" height="600" xmlns="http://www.w3.org/2000/svg" font-family="Geist, Arial, sans-serif">
 <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748B"/></marker></defs>
@@ -237,10 +237,11 @@
 <text x="425" y="304" text-anchor="middle" font-size="22" fill="#475569">position</text>
 <rect x="556" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
 <text x="671" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Operations</text>
-<text x="671" y="214" text-anchor="middle" font-size="22" fill="#475569">inventory</text>
-<text x="671" y="244" text-anchor="middle" font-size="22" fill="#475569">registry</text>
-<text x="671" y="274" text-anchor="middle" font-size="22" fill="#475569">settlement</text>
-<text x="671" y="304" text-anchor="middle" font-size="22" fill="#475569">ETS compliance</text>
+<text x="671" y="210" text-anchor="middle" font-size="22" fill="#475569">inventory</text>
+<text x="671" y="238" text-anchor="middle" font-size="22" fill="#475569">registry</text>
+<text x="671" y="266" text-anchor="middle" font-size="22" fill="#475569">clearing</text>
+<text x="671" y="294" text-anchor="middle" font-size="22" fill="#475569">settlement</text>
+<text x="671" y="322" text-anchor="middle" font-size="22" fill="#475569">ETS compliance</text>
 <rect x="802" y="138" width="230" height="214" rx="12" fill="#EEF3F6" stroke="#CBD5E1" stroke-width="2"/>
 <text x="917" y="176" text-anchor="middle" font-size="24" font-weight="600" fill="#0F172A">Finance and risk</text>
 <text x="917" y="210" text-anchor="middle" font-size="22" fill="#475569">market data</text>
@@ -277,9 +278,9 @@
 <line x1="1300" y1="430" x2="1336" y2="480" stroke="#64748B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#ah)"/>
 </svg>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 11 · Registry calls go through an outbox, GL exports are exactly-once, events leave only after commit</p>
-<aside>A modular monolith: one deployable and one database, with the discipline of separate services. Each of the eighteen modules is a bounded context with its own schema and migrations. Another module may only use its published api package, and the build fails on any other dependency. Side effects across modules travel as domain events inside the command transaction; selected events leave for Kafka only after commit. Registry calls never run inside a database transaction: they are written to an outbox first. The web UI is bundled into the same jar, and the OpenAPI document between them is a committed contract.</aside>
+<aside>A modular monolith: one deployable and one database, with the discipline of separate services. Each of the nineteen modules is a bounded context with its own schema and migrations. Another module may only use its published api package, and the build fails on any other dependency. Side effects across modules travel as domain events inside the command transaction; selected events leave for Kafka only after commit. Registry calls never run inside a database transaction: they are written to an outbox first. The web UI is bundled into the same jar, and the OpenAPI document between them is a committed contract.</aside>
 </section></div></div>
-<details class="notes"><summary>11 / 18 · Speaker notes</summary><p>A modular monolith: one deployable and one database, with the discipline of separate services. Each of the eighteen modules is a bounded context with its own schema and migrations. Another module may only use its published api package, and the build fails on any other dependency. Side effects across modules travel as domain events inside the command transaction; selected events leave for Kafka only after commit. Registry calls never run inside a database transaction: they are written to an outbox first. The web UI is bundled into the same jar, and the OpenAPI document between them is a committed contract.</p></details>
+<details class="notes"><summary>11 / 18 · Speaker notes</summary><p>A modular monolith: one deployable and one database, with the discipline of separate services. Each of the nineteen modules is a bounded context with its own schema and migrations. Another module may only use its published api package, and the build fails on any other dependency. Side effects across modules travel as domain events inside the command transaction; selected events leave for Kafka only after commit. Registry calls never run inside a database transaction: they are written to an outbox first. The web UI is bundled into the same jar, and the OpenAPI document between them is a committed contract.</p></details>
 <div class="frame" id="slide-12"><div class="stage"><section id="reliability" data-transition="fade" style="background:#0B1220;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#3FA8B7;letter-spacing:2px;text-transform:uppercase">Reliability</p>
@@ -306,21 +307,21 @@
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Stateless, highly available</h3>
-<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Horizontal scaling on Kubernetes; PostgreSQL as a three-instance cluster with a synchronous replica.</p>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Scales on CPU or request rate; long runs are asynchronous; a registry outage pauses only that registry.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:8px">
 <h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Recovery rehearsed</h3>
-<p style="font-size:26px;line-height:1.4;color:#CBD5E1">A monthly drill restores a backup, compares row counts and verifies the hash chains.</p>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">A point-in-time recovery drill on CloudNativePG restores a backup and verifies every hash chain.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:8px">
 <h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Observable</h3>
-<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Prometheus metrics, OpenTelemetry traces, structured logs, a trace id on every response.</p>
+<p style="font-size:26px;line-height:1.4;color:#CBD5E1">Metrics, traces and structured logs; alert rules with a runbook each; a trace id on every response.</p>
 </div>
 </div>
 <p style="position:absolute;left:128px;bottom:64px;width:1200px;font-size:24px;color:#94A3B8">Provena · 12 · Load figures: k6 against the application with the demo data</p>
-<aside>The targets come from the architecture plan: 99.9 per cent in business hours, RPO 15 minutes, RTO 4 hours, reads under 300 milliseconds at p95. The load figures are measured with k6: the baseline profile of 27 users has a read p95 of 15 milliseconds and a write p95 of 60; the stress profile of 104 users without pauses reached 556 requests a second with no errors. Recovery is a script, not a document: the DR drill backs up, restores, starts the application on the copy and verifies the lot and ledger hash chains. The one rehearsal still open is a drill against a production backup.</aside>
+<aside>The targets come from the architecture plan: 99.9 per cent in business hours, RPO 15 minutes, RTO 4 hours, reads under 300 milliseconds at p95. The load figures are measured with k6: the baseline profile of 27 users has a read p95 of 15 milliseconds and a write p95 of 60; the stress profile of 104 users without pauses reached 556 requests a second with no errors. Recovery is a script, not a document: the DR drill backs up, restores, starts the application on the copy and verifies the lot and ledger hash chains. Period end, valuation runs and report exports run outside the request and are polled, so no request holds a connection for minutes; after five transport failures in a row a registry's dispatch pauses until a probe or an operator resumes it. The one rehearsal still open is a drill against a production backup.</aside>
 </section></div></div>
-<details class="notes"><summary>12 / 18 · Speaker notes</summary><p>The targets come from the architecture plan: 99.9 per cent in business hours, RPO 15 minutes, RTO 4 hours, reads under 300 milliseconds at p95. The load figures are measured with k6: the baseline profile of 27 users has a read p95 of 15 milliseconds and a write p95 of 60; the stress profile of 104 users without pauses reached 556 requests a second with no errors. Recovery is a script, not a document: the DR drill backs up, restores, starts the application on the copy and verifies the lot and ledger hash chains. The one rehearsal still open is a drill against a production backup.</p></details>
+<details class="notes"><summary>12 / 18 · Speaker notes</summary><p>The targets come from the architecture plan: 99.9 per cent in business hours, RPO 15 minutes, RTO 4 hours, reads under 300 milliseconds at p95. The load figures are measured with k6: the baseline profile of 27 users has a read p95 of 15 milliseconds and a write p95 of 60; the stress profile of 104 users without pauses reached 556 requests a second with no errors. Recovery is a script, not a document: the DR drill backs up, restores, starts the application on the copy and verifies the lot and ledger hash chains. Period end, valuation runs and report exports run outside the request and are polled, so no request holds a connection for minutes; after five transport failures in a row a registry's dispatch pauses until a probe or an operator resumes it. The one rehearsal still open is a drill against a production backup.</p></details>
 <div class="frame" id="slide-13"><div class="stage"><section id="security" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Security</p>
@@ -329,11 +330,11 @@
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Identity and access</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">Single sign-on with OIDC. Every read and command checks the role and the legal entity it touches.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">Single sign-on with OIDC and audience checks. Every one of the 339 API operations is tested against a minimal-role user.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Segregation of duties</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">Four eyes on everything that moves value, enforced in the services and again by the database.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">Four eyes on everything that moves value, in the services and again in the database, which the application reaches with a runtime role that cannot alter its tables.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Hardened web tier</h3>
@@ -341,13 +342,13 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Supply chain</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">SBOMs for every build; the image is scanned and a critical fixable flaw stops the release.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">SBOMs for every build; the image is scanned and a high or critical fixable flaw stops the release; dependencies locked and checksummed.</p>
 </div>
 </div>
-<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 13 · Threat model documented; external penetration test prepared (scope, accounts, rules of engagement)</p>
-<aside>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a critical vulnerability with a fix available. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</aside>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 13 · Independent review, October 2026: every code finding fixed; external penetration test prepared</p>
+<aside>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. A generated test drives every API operation as a minimal-role, single-entity user and expects a refusal unless the operation is on a reviewed allow-list, and every path is also tried percent-encoded. The application connects as a runtime role that may not alter tables or switch off their triggers; migrations run separately as the owner. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a high or critical vulnerability with a fix available; actions and images are pinned by digest and Gradle dependencies are locked and checksummed. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</aside>
 </section></div></div>
-<details class="notes"><summary>13 / 18 · Speaker notes</summary><p>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a critical vulnerability with a fix available. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</p></details>
+<details class="notes"><summary>13 / 18 · Speaker notes</summary><p>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. A generated test drives every API operation as a minimal-role, single-entity user and expects a refusal unless the operation is on a reviewed allow-list, and every path is also tried percent-encoded. The application connects as a runtime role that may not alter tables or switch off their triggers; migrations run separately as the owner. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a high or critical vulnerability with a fix available; actions and images are pinned by digest and Gradle dependencies are locked and checksummed. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</p></details>
 <div class="frame" id="slide-14"><div class="stage"><section id="robustness" data-transition="fade" style="background:#0E6E7E;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#CDE9EC;letter-spacing:2px;text-transform:uppercase">Robustness and data integrity</p>
@@ -356,7 +357,7 @@
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Append-only, hash-chained</h3>
-<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Lot journal, ledger and audit trail are protected by triggers. Errors are reversed, never edited.</p>
+<p style="font-size:28px;line-height:1.4;color:#E6F4F5">Lot journal, ledger, allowance movements, audit trail and task history; verified every night. Errors are reversed, never edited.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#F8FAFC">Exactly-once effects</h3>
@@ -372,9 +373,9 @@
 </div>
 </div>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#CDE9EC">Provena · 14 · Registry statements are reconciled against the books; each difference becomes a break with an owner</p>
-<aside>Robustness here means the books cannot drift without someone noticing. The lot journal, the ledger and the audit trail can only be appended to, and each row carries the hash of the one before, which the DR drill verifies. Registry instructions are written to an outbox in the business transaction and sent afterwards, so a crash never loses or duplicates one; a timeout becomes an unknown outcome that reconciliation resolves. When a delivery reaches a listener that cannot process it, the problem is parked as needing attention instead of rolling back the delivery itself.</aside>
+<aside>Robustness here means the books cannot drift without someone noticing. The lot journal, the ledger and the audit trail can only be appended to, and each row carries the hash of the one before, which a nightly job verifies, as does the recovery drill; a daily digest of the chain heads is issued as a signed document, so a rewrite of history would show. Registry instructions are written to an outbox in the business transaction and sent afterwards, so a crash never loses or duplicates one; a timeout becomes an unknown outcome that reconciliation resolves. When a delivery reaches a listener that cannot process it, the problem is parked as needing attention instead of rolling back the delivery itself.</aside>
 </section></div></div>
-<details class="notes"><summary>14 / 18 · Speaker notes</summary><p>Robustness here means the books cannot drift without someone noticing. The lot journal, the ledger and the audit trail can only be appended to, and each row carries the hash of the one before, which the DR drill verifies. Registry instructions are written to an outbox in the business transaction and sent afterwards, so a crash never loses or duplicates one; a timeout becomes an unknown outcome that reconciliation resolves. When a delivery reaches a listener that cannot process it, the problem is parked as needing attention instead of rolling back the delivery itself.</p></details>
+<details class="notes"><summary>14 / 18 · Speaker notes</summary><p>Robustness here means the books cannot drift without someone noticing. The lot journal, the ledger and the audit trail can only be appended to, and each row carries the hash of the one before, which a nightly job verifies, as does the recovery drill; a daily digest of the chain heads is issued as a signed document, so a rewrite of history would show. Registry instructions are written to an outbox in the business transaction and sent afterwards, so a crash never loses or duplicates one; a timeout becomes an unknown outcome that reconciliation resolves. When a delivery reaches a listener that cannot process it, the problem is parked as needing attention instead of rolling back the delivery itself.</p></details>
 <div class="frame" id="slide-15"><div class="stage"><section id="maintainability" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Maintainability</p>
@@ -391,21 +392,21 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Decisions on record</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">43 architecture decision records, arc42 documentation and a user manual inside the application.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">55 architecture decision records, arc42 documentation, a contributor handbook and a user manual inside the application.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Strict by default</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">Warnings are errors; static analysis, a coverage rule, and main moves only on a green pipeline.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">Warnings are errors; static analysis with no baselines, coverage floors that only rise, locked and verified dependencies; main moves only through green pull requests.</p>
 </div>
 </div>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 15 · Current stack: Java 25, Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript</p>
-<aside>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are kept current: increment 9 moved CI off the retired Node 20 and took the major versions of Gradle, Kotlin, Flyway, react-router and ESLint.</aside>
+<aside>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are locked and checksummed, and kept current through Dependabot. Since the October 2026 review every change reaches main through a pull request with a green pipeline; detekt refuses a new unsafe null dereference, with no older ones left in a baseline, and the web coverage floors only move up.</aside>
 </section></div></div>
-<details class="notes"><summary>15 / 18 · Speaker notes</summary><p>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are kept current: increment 9 moved CI off the retired Node 20 and took the major versions of Gradle, Kotlin, Flyway, react-router and ESLint.</p></details>
+<details class="notes"><summary>15 / 18 · Speaker notes</summary><p>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are locked and checksummed, and kept current through Dependabot. Since the October 2026 review every change reaches main through a pull request with a green pipeline; detekt refuses a new unsafe null dereference, with no older ones left in a baseline, and the web coverage floors only move up.</p></details>
 <div class="frame" id="slide-16"><div class="stage"><section id="roadmap" data-transition="fade" style="background:#F8FAFC;color:#0F172A;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#0E6E7E;letter-spacing:2px;text-transform:uppercase">Roadmap</p>
-<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Thirteen increments, each one shippable</h2>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1;color:#0F172A">Seventeen increments, each one shippable</h2>
 </div>
 <table style="width:1664px;border-collapse:collapse;font-size:24px">
 <tr><th style="text-align:left;padding:14px 20px;background:#0E6E7E;color:#F8FAFC;width:120px">Inc.</th><th style="text-align:left;padding:14px 20px;background:#0E6E7E;color:#F8FAFC">Delivered</th></tr>
@@ -415,17 +416,17 @@
 <tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">4–5</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Web UI for every area, including the operations screens</td></tr>
 <tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">6</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Operations at scale: observability, supply chain, Kubernetes, HA database, load tests, DR</td></tr>
 <tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">7</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Showcase: design system, six months of demo data, in-app manual and guided tours</td></tr>
-<tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">8</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">GoO portfolio: value-based allocation, available to sell, future supply, portfolio value, limits</td></tr>
-<tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">9</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Housekeeping: current dependencies, versioned releases and images, enterprise documentation</td></tr>
-<tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">10</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Portfolio follow-ups: figures patched in under a second, fast checks, GoO limits by vintage, give-away report</td></tr>
+<tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">8–10</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">GoO portfolio: value-based allocation, available to sell, future supply, limits; versioned releases; figures in under a second</td></tr>
 <tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">11</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Valuation depth: discount curves and discounted MtM, time and rates in the explain, cash flow hedge accounting</td></tr>
 <tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">12</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Futures margining: daily variation margin, clearing statements and breaks, margin calls, delivery at final settlement</td></tr>
 <tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">13</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Options on EUA futures: volatility curve, Black-76 with greeks, premiums, exercise at expiry, delta in risk</td></tr>
+<tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">14–15</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Production readiness after an independent review: access control, sealed chains, money seams, alerts, DR, gates</td></tr>
+<tr><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;font-weight:600">16–17</td><td style="padding:8px 20px;border-bottom:1px solid #CBD5E1;color:#334155">Review closed: asynchronous long runs, registry circuit, races and idempotency, repeatable journeys, no unchecked nulls</td></tr>
 </table>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 16 · Every increment ends green: full build, end-to-end tests, image scan, then main</p>
-<aside>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation; ten made the portfolio figures fast enough for a production-size book; eleven discounts MtM to payment and accounts for cash flow hedges; twelve margins cleared EUA futures every day and reconciles them with the clearing member; thirteen values options on those futures by Black-76 and exercises them into futures at expiry. Each increment has its plan, its milestone list and its decision records in the repository.</aside>
+<aside>The system was built in increments that each ended in a working, tested release, tagged since 0.9.0. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight to ten turned the GoO book into a managed portfolio with figures fast enough for a production-size book; eleven to thirteen deepened valuation and added cleared futures and options on them. In October 2026 an independent review graded the system against enterprise expectations; increments fourteen to seventeen acted on every code finding: the authentication and authorisation gaps, the accounting defects, sealed and verified hash chains, alerting and runbooks, a point-in-time recovery drill, asynchronous long runs, a circuit for registry outages, and tests that run again on the same database. Each increment has its plan, its milestone list and its decision records in the repository.</aside>
 </section></div></div>
-<details class="notes"><summary>16 / 18 · Speaker notes</summary><p>The system was built in increments that each ended in a working, tested release. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight turned the GoO book into a managed portfolio; nine is housekeeping and this documentation; ten made the portfolio figures fast enough for a production-size book; eleven discounts MtM to payment and accounts for cash flow hedges; twelve margins cleared EUA futures every day and reconciles them with the clearing member; thirteen values options on those futures by Black-76 and exercises them into futures at expiry. Each increment has its plan, its milestone list and its decision records in the repository.</p></details>
+<details class="notes"><summary>16 / 18 · Speaker notes</summary><p>The system was built in increments that each ended in a working, tested release, tagged since 0.9.0. The first three built the domain and the back office without a screen; four and five put every area on the screen; six made it operable at scale; seven made it demonstrable; eight to ten turned the GoO book into a managed portfolio with figures fast enough for a production-size book; eleven to thirteen deepened valuation and added cleared futures and options on them. In October 2026 an independent review graded the system against enterprise expectations; increments fourteen to seventeen acted on every code finding: the authentication and authorisation gaps, the accounting defects, sealed and verified hash chains, alerting and runbooks, a point-in-time recovery drill, asynchronous long runs, a circuit for registry outages, and tests that run again on the same database. Each increment has its plan, its milestone list and its decision records in the repository.</p></details>
 <div class="frame" id="slide-17"><div class="stage"><section id="production" data-transition="fade" style="background:#0E6E7E;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#CDE9EC;letter-spacing:2px;text-transform:uppercase">Path to production</p>
@@ -438,6 +439,7 @@
 <li>External penetration test and retest</li>
 <li>DR drill on a production backup</li>
 <li>ETS deadline rules checked by compliance</li>
+<li>UAT with real users; a load-test environment</li>
 </ul>
 </div>
 <div style="display:flex;flex-direction:column;gap:16px;padding:40px;background:rgba(248,250,252,0.08);border:1px solid rgba(248,250,252,0.28);border-radius:16px">
@@ -460,12 +462,12 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:8px">
 <h3 style="font-size:32px;font-weight:600;color:#F8FAFC">Next to build</h3>
-<p style="font-size:26px;line-height:1.4;color:#E6F4F5">Minimum shares checked against available to sell; fair value hedges; a volatility smile for options.</p>
+<p style="font-size:26px;line-height:1.4;color:#E6F4F5">The October 2026 review's code findings are all fixed (0.17.0). Candidates: minimum shares against available to sell, fair value hedges, a volatility smile, gas and hydrogen GoO, ETS2 allowances.</p>
 </div>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#CDE9EC">Provena · 17 · Unverified external layouts are marked verified = false until checked against their specification</p>
-<aside>The open items before production are inputs from outside the codebase. The integration points exist and are tested against stubs; layouts that have not been checked against the counterparty's own specification are flagged unverified, so nothing pretends to be certified. On the build side, increment 13 delivered options on EUA futures (a volatility curve, Black-76 valuation with greeks, premiums in the ledger, exercise at expiry and delta in risk); the next candidates are checking minimum shares against available to sell, fair value hedges, and a volatility smile.</aside>
+<aside>The open items before production are inputs from outside the codebase. The integration points exist and are tested against stubs; layouts that have not been checked against the counterparty's own specification are flagged unverified, so nothing pretends to be certified. On the build side, increments 14 to 17 acted on every code finding of the October 2026 enterprise readiness review; its status table records what each finding came to. Each open item is a GitHub issue (#16 to #21) with an owner. The next feature candidates are checking minimum shares against available to sell, fair value hedges, a volatility smile, and the gas, hydrogen and ETS2 products the model already has room for.</aside>
 </section></div></div>
-<details class="notes"><summary>17 / 18 · Speaker notes</summary><p>The open items before production are inputs from outside the codebase. The integration points exist and are tested against stubs; layouts that have not been checked against the counterparty's own specification are flagged unverified, so nothing pretends to be certified. On the build side, increment 13 delivered options on EUA futures (a volatility curve, Black-76 valuation with greeks, premiums in the ledger, exercise at expiry and delta in risk); the next candidates are checking minimum shares against available to sell, fair value hedges, and a volatility smile.</p></details>
+<details class="notes"><summary>17 / 18 · Speaker notes</summary><p>The open items before production are inputs from outside the codebase. The integration points exist and are tested against stubs; layouts that have not been checked against the counterparty's own specification are flagged unverified, so nothing pretends to be certified. On the build side, increments 14 to 17 acted on every code finding of the October 2026 enterprise readiness review; its status table records what each finding came to. Each open item is a GitHub issue (#16 to #21) with an owner. The next feature candidates are checking minimum shares against available to sell, fair value hedges, a volatility smile, and the gas, hydrogen and ETS2 products the model already has room for.</p></details>
 <div class="frame" id="slide-18"><div class="stage"><section id="engineering" data-transition="fade" style="background:#0B1220;color:#F8FAFC;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
 <div style="display:flex;flex-direction:column;gap:8px">
 <p style="font-size:24px;font-weight:600;color:#3FA8B7;letter-spacing:2px;text-transform:uppercase">In numbers, and try it</p>
@@ -474,19 +476,19 @@
 <div style="display:flex;gap:48px;align-items:start">
 <div style="width:736px;display:grid;grid-template-columns:1fr 1fr;gap:24px">
 <div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
-<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">339</p>
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">489</p>
 <p style="font-size:24px;line-height:1.35;color:#CBD5E1">backend unit and integration tests</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
-<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">296</p>
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">454</p>
 <p style="font-size:24px;line-height:1.35;color:#CBD5E1">web UI component tests</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
-<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">82</p>
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">89</p>
 <p style="font-size:24px;line-height:1.35;color:#CBD5E1">browser journeys with accessibility checks</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:4px;padding:28px;background:#111A2B;border:1px solid #2A3954;border-radius:16px">
-<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">286 / 303</p>
+<p style="font-size:60px;font-weight:700;line-height:1;color:#3FA8B7">313 / 339</p>
 <p style="font-size:24px;line-height:1.35;color:#CBD5E1">API operations with a screen; the rest have a recorded reason</p>
 </div>
 </div>
@@ -495,10 +497,10 @@
 <p style="font-size:26px;line-height:1.4;color:#CBD5E1;width:880px">The demo with guided tours and a manual in the app, or your own copy with Docker in minutes.</p>
 </div>
 </div>
-<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#94A3B8">Provena · 18 · Counted on the build of October 2026 · github.com/Pianonurmi/goo-ets-etrm</p>
-<aside>Every number on this slide comes from the build itself: 339 backend tests including the end-to-end business scenarios, 296 component tests for the web UI, and 82 Playwright journeys that drive the real application in a browser with accessibility and content-security checks. A check in the build fails when an API operation has no screen and no recorded reason. To try it, use the public demo with a guided tour, or run the same image yourself from ops/demo with Docker Compose. Close with the demo URL and the repository.</aside>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#94A3B8">Provena · 18 · Counted on the 0.17.0 build · github.com/Pianonurmi/goo-ets-etrm</p>
+<aside>Every number on this slide comes from the build itself: 489 backend tests including the end-to-end business scenarios and a test that drives every API operation as a minimal-role user, 454 component and page tests for the web UI, and 89 Playwright journeys that create their own data, so the whole suite runs twice on one database, that drive the real application in a browser with accessibility and content-security checks. A check in the build fails when an API operation has no screen and no recorded reason. To try it, use the public demo with a guided tour, or run the same image yourself from ops/demo with Docker Compose. Close with the demo URL and the repository.</aside>
 </section></div></div>
-<details class="notes"><summary>18 / 18 · Speaker notes</summary><p>Every number on this slide comes from the build itself: 339 backend tests including the end-to-end business scenarios, 296 component tests for the web UI, and 82 Playwright journeys that drive the real application in a browser with accessibility and content-security checks. A check in the build fails when an API operation has no screen and no recorded reason. To try it, use the public demo with a guided tour, or run the same image yourself from ops/demo with Docker Compose. Close with the demo URL and the repository.</p></details>
+<details class="notes"><summary>18 / 18 · Speaker notes</summary><p>Every number on this slide comes from the build itself: 489 backend tests including the end-to-end business scenarios and a test that drives every API operation as a minimal-role user, 454 component and page tests for the web UI, and 89 Playwright journeys that create their own data, so the whole suite runs twice on one database, that drive the real application in a browser with accessibility and content-security checks. A check in the build fails when an API operation has no screen and no recorded reason. To try it, use the public demo with a guided tour, or run the same image yourself from ops/demo with Docker Compose. Close with the demo URL and the repository.</p></details>
 </main>
 <script>
   const fit = () => document.querySelectorAll('.frame').forEach((frame) => {

@@ -2,17 +2,20 @@
 
 | Folder | Content |
 |---|---|
-| `architecture-plan.md` | Approved architecture and delivery plan: target architecture, domain model, non-functional targets, increments 1–5, open questions, and how increment 1 deviates |
-| `arc42/` | Architecture documentation following the arc42 template (sections 1–8, increments 1 and 2) |
+| `architecture-plan.md` | Approved architecture and delivery plan: target architecture, domain model, non-functional targets, the original five increments, open questions, and a status section per increment on how the build differs |
+| `arc42/` | Architecture documentation following the arc42 template (sections 1–8, kept current with each release) |
 | `adr/` | Architecture decision records (MADR format) |
 | `domain/` | Domain model notes: GoO attribute schema, criteria language, allocation engine, posting rules, EU ETS, trade confirmations, settlement, VAT, market data, valuation, regulatory data |
 | `integration/` | Registry integration (outbox, statement formats, Union Registry, breaks, API adapters), the generic registry REST contract, ECB reference rates, GL export, security |
-| `operations/` | Running the system: releases and image tags, branch protection, observability and alerts, runbooks, supply chain, Kubernetes and the Helm chart, database partitions and archiving, load testing, disaster recovery |
-| `security/` | Penetration test preparation: scope, accounts, rules of engagement |
-| `reviews/` | Whole-system reviews: the October 2026 enterprise readiness review with its findings and plan |
+| `operations/` | Running the system: releases and image tags, branch protection, the CI runner, observability and alerts, runbooks, supply chain, Kubernetes and the Helm chart, database roles, partitions and archiving, data protection, load testing, disaster recovery |
+| `security/` | Threat model of the public showcase; penetration test preparation: scope, accounts, rules of engagement |
+| `reviews/` | Whole-system reviews: the October 2026 enterprise readiness review, its findings and a status per finding (all code findings fixed in 0.17.0) |
 | `ui/` | Web UI conventions and screens |
-| `roadmap.md` | Increment plan |
-| `plans/` | Detailed plans for upcoming increments |
+| `roadmap.md` | Increments 1–17 with their milestones and release versions |
+| `plans/` | One plan per increment from 7 on: scope, milestones, verification and what was delivered |
+| `presentation/` | The slide deck (PDF and HTML with speaker notes), its sources and outline |
+| `deploy/` | Running the showcase on a server (VPS) or a homelab VM |
+| `user-guide/` | The manual, also served in the application under `/help/` |
 | `glossary.md` | Terms used across code and documents |
 | `contributing.md` | How changes reach `main`: branches, pull requests, checks, review, conventions |
 

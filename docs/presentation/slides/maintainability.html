@@ -14,13 +14,13 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Decisions on record</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">43 architecture decision records, arc42 documentation and a user manual inside the application.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">55 architecture decision records, arc42 documentation, a contributor handbook and a user manual inside the application.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Strict by default</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">Warnings are errors; static analysis, a coverage rule, and main moves only on a green pipeline.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">Warnings are errors; static analysis with no baselines, coverage floors that only rise, locked and verified dependencies; main moves only through green pull requests.</p>
 </div>
 </div>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 15 · Current stack: Java 25, Kotlin 2.4, Spring Boot 4, Gradle 9, React with TypeScript</p>
-<aside>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are kept current: increment 9 moved CI off the retired Node 20 and took the major versions of Gradle, Kotlin, Flyway, react-router and ESLint.</aside>
+<aside>A modular monolith keeps the cost of one deployable while keeping the discipline of services: modules are bounded contexts with their own schema, and Spring Modulith verifies in every build that they only use each other's published API. The OpenAPI document is a contract: changing a controller means updating the committed snapshot, the web types are regenerated from it, and a check fails when an operation has neither a screen nor a recorded reason. Every significant decision is an ADR. Dependencies are locked and checksummed, and kept current through Dependabot. Since the October 2026 review every change reaches main through a pull request with a green pipeline; detekt refuses a new unsafe null dereference, with no older ones left in a baseline, and the web coverage floors only move up.</aside>
 </section>

@@ -6,11 +6,11 @@
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Identity and access</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">Single sign-on with OIDC. Every read and command checks the role and the legal entity it touches.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">Single sign-on with OIDC and audience checks. Every one of the 339 API operations is tested against a minimal-role user.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Segregation of duties</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">Four eyes on everything that moves value, enforced in the services and again by the database.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">Four eyes on everything that moves value, in the services and again in the database, which the application reaches with a runtime role that cannot alter its tables.</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Hardened web tier</h3>
@@ -18,9 +18,9 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:12px;padding:40px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:16px">
 <h3 style="font-size:36px;font-weight:600;color:#0F172A">Supply chain</h3>
-<p style="font-size:28px;line-height:1.4;color:#475569">SBOMs for every build; the image is scanned and a critical fixable flaw stops the release.</p>
+<p style="font-size:28px;line-height:1.4;color:#475569">SBOMs for every build; the image is scanned and a high or critical fixable flaw stops the release; dependencies locked and checksummed.</p>
 </div>
 </div>
-<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 13 · Threat model documented; external penetration test prepared (scope, accounts, rules of engagement)</p>
-<aside>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a critical vulnerability with a fix available. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</aside>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#64748B">Provena · 13 · Independent review, October 2026: every code finding fixed; external penetration test prepared</p>
+<aside>Authorisation is never left to the screen: the API checks every request, by role and by legal entity, and the screens only hide what the user cannot do. Four-eyes rules are written twice: in the service, which refuses a requester approving their own request, and as database checks, so no path around the service can break them. A generated test drives every API operation as a minimal-role, single-entity user and expects a refusal unless the operation is on a reviewed allow-list, and every path is also tried percent-encoded. The application connects as a runtime role that may not alter tables or switch off their triggers; migrations run separately as the owner. Every CI run publishes CycloneDX SBOMs for the backend, the web bundle and the image, and Trivy blocks the image on a high or critical vulnerability with a fix available; actions and images are pinned by digest and Gradle dependencies are locked and checksummed. Dependabot proposes updates weekly; majors the tooling cannot take yet are held back with the reason written down. The external penetration test is prepared and is the next step before production.</aside>
 </section>

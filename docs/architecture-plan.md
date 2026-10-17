@@ -47,12 +47,42 @@ from the plan or are still open:
 |---|---|---|
 | Market data feeds from EEX/ICE and GoO platforms | File imports with formats stored as data (exchange settlement CSV, broker GoO CSV, ECB files), manual entry with plausibility checks, and an ECB reference rate adapter (disabled by default) | Exchange and platform data are licensed and `www.eex.com` and `www.ecb.europa.eu` are blocked from the build environment. The ECB adapter is tested against a local stub; allow `www.ecb.europa.eu` to test it live |
 | Curves per bucket and delivery period | EUA forward curve from futures settlements and spot; GoO vintage curves per bucket; discount curves (zero rates by tenor) per currency; linear between pillars, flat or at the last carry rate beyond (ADR 0044), proxies and earlier vintages flagged; official snapshots under four eyes | Seasonality waits for monthly-delivery data; rate curves come from files until a vendor feed exists |
-| MtM and P&L explain (price, volume, new, FX, time) | MtM per delivery schedule discounted to the payment date (futures not); explain by new, cancelled, delivered, amended, time, price, rates, FX and unexplained (exact by construction) | Options are out of scope; cleared futures are margined daily (ADR 0046, increment 12) |
+| MtM and P&L explain (price, volume, new, FX, time) | MtM per delivery schedule discounted to the payment date (futures not); explain by new, cancelled, delivered, amended, time, price, rates, FX and unexplained (exact by construction) | Options on EUA futures are valued with Black-76 (ADR 0047, increment 13); cleared futures are margined daily (ADR 0046, increment 12) |
 | MtM accounting under IFRS 9 | Per book type policy as data (P&L, OCI or disclose only) posted at period end and reversed on day one; NRV on inventory; IAS 37 provision (net liability); IAS 20 grant release | Seeded policies are flagged until accounting signs them off; cash flow hedges of forecast transactions are modelled (ADR 0045), fair value hedges are not |
 | Limits and credit exposure | Credit, position, tenor, stop loss and compliance short limits under four eyes; exposure from MtM, receivables, PFE and collateral; pre-trade check through a trade SPI | PFE add-ons are uncalibrated placeholders; concentration and expiry limits are left for later |
 | Installations, emissions, free allocation, surrender | As planned; deadlines as data with reminders | CBAM-linked phase-out of free allocation and ETS2 are not modelled |
 | EMIR / MiFID reporting | EMIR lifecycle events captured, completeness checked, exported; MiFID ancillary activity figures | No trade repository connection and no ISO 20022 XML; the Refit field layout is unverified; the ancillary test needs market-size data |
 | GL interface hardening | Exactly-once exports, layouts as data (generic, SAP-style unverified), acknowledgement, reconciliation with imported GL balances, hard-close gates | The receiving GL's specification is needed to verify the SAP layout |
+
+## Status after increments 14 to 17
+
+In October 2026 an independent [enterprise readiness review](reviews/2026-10-enterprise-readiness.md) graded the
+system against what a business-critical deployment needs. Patches 0.13.1 (an authentication bypass through encoded
+paths) and 0.13.2 (three accounting defects) came first; increments 14 to 17 then acted on the remaining findings
+(plans [14](plans/increment-14-production-readiness.md), [15](plans/increment-15-maintainability.md),
+[16](plans/increment-16-review-leftovers.md), [17](plans/increment-17-finishing.md)). Every code finding is fixed in
+0.17.0; the [status table](reviews/2026-10-enterprise-readiness.md#status-after-0170) records each one. Compared with
+the plan below:
+
+- **Access.** Token audience is checked; ADMIN makes no business decisions; `OperationGuardsIT` drives every operation
+  as a minimal-role user. The database has an owner role for migrations (a Helm job) and a runtime role for the
+  application.
+- **Integrity.** Allowance movements, the audit trail and task history are hash-chained too; a nightly job verifies
+  every chain and a signed daily digest records the heads. Old history can be archived behind an archive cut.
+- **Money seams.** Postings that cannot be made are recorded and replayed; one rounding rule; cross-module calls that
+  may fail run in savepoints.
+- **Operations.** Alert rules with runbooks, a point-in-time recovery drill on CloudNativePG, asynchronous period end,
+  valuation runs and exports, a circuit per registry, scaling on request rate, report content dropped after 400 days
+  with its hash kept.
+- **Process.** Every change through a pull request with green CI; dependencies locked and checksummed; Trivy fails on
+  HIGH; coverage floors that only rise; detekt without baselines.
+
+## Status after increment 13
+
+Increment 13 adds options on EUA futures (see the [plan](plans/increment-13-eua-options.md), ADR 0047): option legs on
+trades, a volatility curve under sign-off, Black-76 valuation with greeks, premiums posted from confirmations, exercise
+or abandonment at expiry creating the future, and option delta in positions, PFE and the pre-trade check. The explain
+revalues options step by step, so only rounding is unexplained.
 
 ## Status after increment 12
 
