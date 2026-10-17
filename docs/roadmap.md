@@ -18,6 +18,7 @@
 | 14 | Production readiness after the [enterprise readiness review](reviews/2026-10-enterprise-readiness.md): patches 0.13.1 (authentication bypass) and 0.13.2 (accounting defects), then process, authorisation, ledger and audit integrity, money seams, observability and alerting, deployment and recovery, quality gates, web fixes ([plan](plans/increment-14-production-readiness.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0150) | done (0.14.0) |
 | 15 | Maintainability: the defects increment 14 handed over, test seams, the clock in repositories and events, a beneficiary register and archive cuts, shared four-eyes and paging rules, the large services split and detekt tightened, build inputs, the demo seeder out of the production jar, dependency locking, roles in the OpenAPI document, the web pages split, client error reports, a coverage ratchet and backups through the Barman Cloud plugin ([plan](plans/increment-15-maintainability.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0150) | done (0.15.0) |
 | 16 | Review leftovers: races and idempotency, documents and report retention, asynchronous long operations, request-rate autoscaling and a registry circuit flag, test and code hygiene, self-contained web journeys and settlement items paging ([plan](plans/increment-16-review-leftovers.md)); status per finding in the [review](reviews/2026-10-enterprise-readiness.md#status-after-0160) | done (0.16.0) |
+| 17 | Finishing the review's code items: the clearing and hedge journeys create their own subjects, web coverage toward 70 % lines, every older `!!` replaced by a named check ([plan](plans/increment-17-finishing.md)) | planned |
 
 Known gaps to close before production: the external penetration test and its retest; a DR drill against a production
 backup in the recovery environment; AIB and registry external code lists; sign-off of accounting policies (MtM by
@@ -228,3 +229,13 @@ EUA futures and GoO marks; EMIR field layout and trade repository delegation; ET
 | M4 | Tests and code hygiene: `position` tests, no sleeps, value assertions, ADRs 0052–0055, contributor handbook, `UnsafeCallOnNullableType` with baselines; the api Jackson annotations stay (ADR 0054) (#84) | done |
 | M5 | Web: page tests with msw, journeys that create their own data, no retries, settlement items paging (#85) | done |
 | M6 | Close: status per finding, arc42 sections 6 and 8, release 0.16.0 | done |
+
+## Increment 17: finishing the review's code items
+
+| Milestone | Content | Status |
+|---|---|---|
+| M0 | Plan and roadmap rows | done |
+| M1 | The clearing and hedge journeys create their own subjects; the whole suite runs twice on one database | planned |
+| M2 | Web coverage: tests for the tabs and drawers near zero, floors raised | planned |
+| M3 | `!!` burn-down: every baseline entry fixed, the baselines deleted | planned |
+| M4 | Close: status per finding, release 0.17.0 | planned |
