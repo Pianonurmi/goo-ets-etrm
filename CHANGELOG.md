@@ -7,6 +7,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Changed
+- End-to-end tests: the clearing journey opens its own clearing account at a new clearing house and imports a
+  statement that breaks and calls for margin; the hedge journey buys its own EUA forward and designates it. Every
+  journey now creates its subjects, so the whole Playwright suite runs twice in a row on one database.
+
 ## [0.16.0] - 2026-10-17
 
 Increment 16, review leftovers: races and idempotency, documents and report retention, long operations run outside

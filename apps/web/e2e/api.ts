@@ -14,6 +14,11 @@ export function asPersona(request: APIRequestContext, actor: string, roles: stri
       if (!response.ok()) throw new Error(`POST ${path}: ${response.status()} ${await response.text()}`);
       return (await response.json()) as T;
     },
+    async postText<T>(path: string, text: string): Promise<T> {
+      const response = await request.post(path, { headers: { ...headers, 'Content-Type': 'text/csv' }, data: text });
+      if (!response.ok()) throw new Error(`POST ${path}: ${response.status()} ${await response.text()}`);
+      return (await response.json()) as T;
+    },
   };
 }
 
@@ -277,13 +282,12 @@ export async function deliveredGoo(
  * there (a limit the demo's exposure has grown into on a database the suite ran on before).
  */
 export async function approveTrade(request: APIRequestContext, tradeId: string): Promise<void> {
-  const tasks = await asPersona(request, 'middle2', 'MIDDLE_OFFICE,RISK').get<{
-    items: { candidateRoles: string[] }[];
-  }>(`/api/v1/workflow/tasks?subjectRef=${tradeId}&type=TRADE_APPROVAL&status=OPEN`);
-  const roles = tasks.items[0]?.candidateRoles ?? [];
-  if (roles.includes('MIDDLE_OFFICE'))
-    await approveTask(request, 'middle2', 'MIDDLE_OFFICE', 'TRADE_APPROVAL', tradeId);
-  else await approveTask(request, 'risk2', 'RISK', 'TRADE_APPROVAL', tradeId);
+  // The task always offers middle office and risk; a trade whose checks found a limit to exceed takes risk's.
+  const trade = await asPersona(request, 'middle2', 'MIDDLE_OFFICE').get<{ requiresRiskApproval: boolean }>(
+    `/api/v1/trades/${tradeId}`,
+  );
+  if (trade.requiresRiskApproval) await approveTask(request, 'risk2', 'RISK', 'TRADE_APPROVAL', tradeId);
+  else await approveTask(request, 'middle2', 'MIDDLE_OFFICE', 'TRADE_APPROVAL', tradeId);
 }
 
 /** Approves the open task of [type] on [subjectRef] as [actor]. */
@@ -382,4 +386,131 @@ export async function mismatchedConfirmation(
     },
   );
   return { confirmationId: theirs.id, tradeId };
+}
+
+/** The last weekday before today, as the clearing member's statements are dated. */
+function lastBusinessDay(): string {
+  const day = new Date(Date.now() - 86_400_000);
+  while (day.getUTCDay() === 0 || day.getUTCDay() === 6) day.setUTCDate(day.getUTCDate() - 1);
+  return day.toISOString().slice(0, 10);
+}
+
+/** The demo's clearing account of DEMO-FI (journeys add accounts of their own, so the page is told which). */
+export async function demoClearingAccount(request: APIRequestContext): Promise<string> {
+  const demo = await demoContext(request);
+  const account = (
+    await asPersona(request, 'backoffice', 'BACK_OFFICE').get<Identified[]>(
+      `/api/v1/clearing/accounts?legalEntityId=${demo.entityId}`,
+    )
+  ).find((a) => a.code === 'ECC-DEMO-FI');
+  if (!account) throw new Error('Demo data missing: no clearing account ECC-DEMO-FI');
+  return account.id;
+}
+
+/**
+ * A clearing account of DEMO-FI at a new clearing house, so nothing of the demo's is margined on it: the day's margin
+ * run is computed (no futures, so nothing), then the member's statement of that day reports a position and variation
+ * margin, which opens a break, and cash 1,250.00 short of the initial margin, which opens a margin call. Imported by
+ * back office; returns the account and the break.
+ */
+export async function clearingBreak(request: APIRequestContext): Promise<{ accountId: string; breakId: string }> {
+  const demo = await demoContext(request);
+  const suffix = unique();
+  const house = await asPersona(request, 'middle', 'MIDDLE_OFFICE').post<Identified>(
+    '/api/v1/reference/counterparties',
+    {
+      code: `CP-E2E-CCP-${suffix}`,
+      name: `End-to-end clearing house ${suffix}`,
+      country: 'DE',
+      counterpartyType: 'CLEARING_HOUSE',
+    },
+  );
+  const backOffice = asPersona(request, 'backoffice', 'BACK_OFFICE');
+  const account = await backOffice.post<Identified>('/api/v1/clearing/accounts', {
+    code: `E2E-${suffix}`,
+    legalEntityId: demo.entityId,
+    clearingHouseId: house.id,
+    clearingMember: 'End-to-end Clearing Bank (fictitious)',
+    currency: 'EUR',
+  });
+  const date = lastBusinessDay();
+  await backOffice.post(`/api/v1/clearing/accounts/${account.id}/margin`, { businessDate: date });
+  const imported = await backOffice.postText<{ breaks: { id: string }[] }>(
+    `/api/v1/clearing/accounts/${account.id}/statements?source=e2e-${suffix}.csv`,
+    [
+      'Date,Account,Record,Contract,Position,SettlementPrice,Amount,Currency',
+      `${date},${account.code},VM,EUAZ-E2E,2000,70.00,-412.50,EUR`,
+      `${date},${account.code},IM,,,,5000.00,EUR`,
+      `${date},${account.code},CASH,,,,3750.00,EUR`,
+    ].join('\n'),
+  );
+  const opened = imported.breaks[0];
+  if (!opened) throw new Error(`The statement of ${account.code} opened no break`);
+  return { accountId: account.id, breakId: opened.id };
+}
+
+/**
+ * An EUA forward bought from a new counterparty for the date of the demo's hedged surrender, approved, and designated
+ * by the accountant as the hedge of that purchase; the designation waits for a second accountant. Returns the hedge.
+ */
+export async function pendingHedge(request: APIRequestContext): Promise<{ hedgeId: string }> {
+  const demo = await demoContext(request);
+  const accountant = asPersona(request, 'accountant', 'ACCOUNTANT');
+  const demoHedge = (
+    await accountant.get<{ item: { expectedDate: string } }[]>(`/api/v1/ledger/hedges?legalEntityId=${demo.entityId}`)
+  )[0];
+  if (!demoHedge) throw new Error('Demo data missing: no hedge to take the surrender date from');
+  const delivery = demoHedge.item.expectedDate;
+  const next = new Date(`${delivery}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  const suffix = unique();
+  const seller = await asPersona(request, 'middle', 'MIDDLE_OFFICE').post<Identified>(
+    '/api/v1/reference/counterparties',
+    {
+      code: `CP-E2E-EUA-${suffix}`,
+      name: `End-to-end allowance seller ${suffix}`,
+      country: 'DE',
+    },
+  );
+  const tonnes = 500;
+  const trade = await asPersona(request, 'trader', 'TRADER').post<{ id: string }>('/api/v1/trades', {
+    legalEntityId: demo.entityId,
+    bookId: demo.bookId,
+    counterpartyId: seller.id,
+    productFamily: 'EMISSION_ALLOWANCE',
+    instrumentType: 'FORWARD',
+    tradeDate: new Date().toISOString().slice(0, 10),
+    legs: [
+      {
+        side: 'BUY',
+        allowanceProductCode: 'EUA',
+        quantity: tonnes,
+        unit: 'TCO2E',
+        price: '70.00',
+        priceCurrency: 'EUR',
+        deliveries: [
+          {
+            deliveryWindow: { start: delivery, endExclusive: next.toISOString().slice(0, 10) },
+            deliveryDate: delivery,
+            quantity: tonnes,
+          },
+        ],
+      },
+    ],
+  });
+  await approveTrade(request, trade.id);
+  const hedge = await accountant.post<{ id: string }>('/api/v1/ledger/hedges', {
+    legalEntityId: demo.entityId,
+    objective: `Fix the price of ${tonnes} t of allowances bought for the surrender (${suffix})`,
+    item: {
+      direction: 'PURCHASE',
+      productFamily: 'EMISSION_ALLOWANCE',
+      allowanceProductCode: 'EUA',
+      quantity: tonnes,
+      expectedDate: delivery,
+      currency: 'EUR',
+    },
+    instruments: [{ tradeId: trade.id, proportion: 1 }],
+  });
+  return { hedgeId: hedge.id };
 }
