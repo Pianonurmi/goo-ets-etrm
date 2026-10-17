@@ -6,6 +6,12 @@ import { ORIGIN, server } from '@/test/server';
 import { Books } from './Books';
 import { DevicesTab } from './DevicesTab';
 
+/** Types [text] into [input] in one go: per-key typing re-renders the form for every character. */
+async function fill(input: HTMLElement, text: string) {
+  await userEvent.click(input);
+  await userEvent.paste(text);
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -37,8 +43,8 @@ describe('Books', () => {
     const dialog = await screen.findByRole('dialog');
     const save = within(dialog).getByRole('button', { name: 'Save' });
     expect(save).toBeDisabled();
-    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Code' }), 'demo-fi-hdg');
-    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Hedging');
+    await fill(within(dialog).getByRole('textbox', { name: 'Code' }), 'demo-fi-hdg');
+    await fill(within(dialog).getByRole('textbox', { name: 'Name' }), 'Hedging');
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Book type' }));
     await userEvent.click(await screen.findByRole('option', { name: 'HEDGING' }));
     await userEvent.click(save);

@@ -8,6 +8,12 @@ import { ORIGIN, server } from '@/test/server';
 import { AccountsTab } from './AccountsTab';
 import type { Account, Posted } from './model/clearing';
 
+/** Types [text] into [input] in one go: per-key typing re-renders the form for every character. */
+async function fill(input: HTMLElement, text: string) {
+  await userEvent.click(input);
+  await userEvent.paste(text);
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -124,17 +130,17 @@ describe('AccountsTab', () => {
     const submit = within(dialog).getByTestId('clearing-account-submit');
     expect(within(dialog).getByTestId('clearing-account-currency')).toHaveValue('EUR');
     expect(submit).toBeDisabled();
-    await userEvent.type(within(dialog).getByTestId('clearing-account-code'), 'ecc-demo-fi');
+    await fill(within(dialog).getByTestId('clearing-account-code'), 'ecc-demo-fi');
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Clearing house' }));
     // Only clearing houses are offered.
     expect(screen.queryByRole('option', { name: 'Rheinstrom AG' })).toBeNull();
     await userEvent.click(await screen.findByRole('option', { name: 'Nordic CCP' }));
-    await userEvent.type(within(dialog).getByTestId('clearing-account-member'), 'Nordic Clearing Bank');
+    await fill(within(dialog).getByTestId('clearing-account-member'), 'Nordic Clearing Bank');
     await userEvent.click(submit);
 
     expect(await within(dialog).findByText('Already used by another account')).toBeInTheDocument();
     await userEvent.clear(within(dialog).getByTestId('clearing-account-code'));
-    await userEvent.type(within(dialog).getByTestId('clearing-account-code'), 'ncc-demo-fi');
+    await fill(within(dialog).getByTestId('clearing-account-code'), 'ncc-demo-fi');
     await userEvent.click(submit);
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith('a2'));

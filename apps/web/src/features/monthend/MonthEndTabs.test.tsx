@@ -6,6 +6,12 @@ import { ORIGIN, server } from '@/test/server';
 import { GlInterface } from './GlInterface';
 import { Policies } from './Policies';
 
+/** Types [text] into [input] in one go: per-key typing re-renders the form for every character. */
+async function fill(input: HTMLElement, text: string) {
+  await userEvent.click(input);
+  await userEvent.paste(text);
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -62,8 +68,8 @@ describe('Policies', () => {
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Kind' }));
     await userEvent.click(await screen.findByRole('option', { name: 'Net realisable value policy' }));
-    await userEvent.type(within(dialog).getByRole('textbox', { name: 'GoO cost to sell (per MWh)' }), '0.07');
-    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Reason' }), 'Broker fees rose');
+    await fill(within(dialog).getByRole('textbox', { name: 'GoO cost to sell (per MWh)' }), '0.07');
+    await fill(within(dialog).getByRole('textbox', { name: 'Reason' }), 'Broker fees rose');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Send for approval' }));
 
     await waitFor(() =>
@@ -156,7 +162,7 @@ describe('GlInterface', () => {
 
     await userEvent.click(within(exportRow).getByRole('button', { name: 'Acknowledge' }));
     const ack = await screen.findByRole('dialog', { name: 'Acknowledge' });
-    await userEvent.type(within(ack).getByRole('textbox', { name: 'GL reference' }), 'SAP-4711');
+    await fill(within(ack).getByRole('textbox', { name: 'GL reference' }), 'SAP-4711');
     await userEvent.click(within(ack).getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1]).toMatchObject({ path: '/api/v1/ledger/exports/x1/acknowledge', body: { reference: 'SAP-4711' } });

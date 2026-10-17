@@ -5,6 +5,12 @@ import { gridRowText, renderPage } from '@/test/renderPage';
 import { ORIGIN, server } from '@/test/server';
 import { VatRulesTab } from './VatRulesTab';
 
+/** Types [text] into [input] in one go: per-key typing re-renders the form for every character. */
+async function fill(input: HTMLElement, text: string) {
+  await userEvent.click(input);
+  await userEvent.paste(text);
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -57,8 +63,8 @@ describe('VatRulesTab', () => {
     await userEvent.click(screen.getByTestId('propose-rule'));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByTestId('rule-submit')).toBeDisabled();
-    await userEvent.type(within(dialog).getByTestId('rule-code'), 'se-goo-exp');
-    await userEvent.type(within(dialog).getByTestId('rule-description'), 'GoO sold outside the EU');
+    await fill(within(dialog).getByTestId('rule-code'), 'se-goo-exp');
+    await fill(within(dialog).getByTestId('rule-description'), 'GoO sold outside the EU');
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Scope' }));
     await userEvent.click(await screen.findByRole('option', { name: 'To outside the EU' }));
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'VAT treatment' }));
@@ -100,13 +106,13 @@ describe('VatRulesTab', () => {
 
     const customer = await screen.findByTestId('determine-customer');
     await userEvent.clear(customer);
-    await userEvent.type(customer, 'fi');
+    await fill(customer, 'fi');
     await userEvent.click(screen.getByTestId('determine'));
     expect(await screen.findByTestId('determination-result')).toHaveTextContent('FI-GOO-DOM v2: Standard rate, 25.5 %');
     expect(screen.getByTestId('determination-result')).toHaveTextContent('AVL 1 §');
 
     await userEvent.clear(customer);
-    await userEvent.type(customer, 'us');
+    await fill(customer, 'us');
     await userEvent.click(screen.getByTestId('determine'));
     await waitFor(() =>
       expect(screen.getByTestId('determination-result')).toHaveTextContent('No VAT rule for a GoO supply'),

@@ -7,6 +7,12 @@ import { ORIGIN, server } from '@/test/server';
 import { EntryDrawer } from './EntryDrawer';
 import { RulesTab } from './RulesTab';
 
+/** Types [text] into [input] in one go: per-key typing re-renders the form for every character. */
+async function fill(input: HTMLElement, text: string) {
+  await userEvent.click(input);
+  await userEvent.paste(text);
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -70,7 +76,7 @@ describe('EntryDrawer', () => {
 
     const reverse = screen.getByRole('button', { name: 'Reverse entry' });
     expect(reverse).toBeDisabled();
-    await userEvent.type(screen.getByLabelText('Reason for the reversal'), 'Posted to the wrong period');
+    await fill(screen.getByLabelText('Reason for the reversal'), 'Posted to the wrong period');
     await userEvent.click(reverse);
     await waitFor(() => expect(reversal).toEqual({ reason: 'Posted to the wrong period' }));
     expect(unanswered()).toEqual([]);

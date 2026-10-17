@@ -8,6 +8,12 @@ import { ItemDrawer } from './ItemDrawer';
 import { NettingTab } from './NettingTab';
 import { PaymentsTab } from './PaymentsTab';
 
+/** Types [text] into [input] in one go: per-key typing re-renders the form for every character. */
+async function fill(input: HTMLElement, text: string) {
+  await userEvent.click(input);
+  await userEvent.paste(text);
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -113,9 +119,9 @@ describe('PaymentsTab', () => {
 
     await userEvent.click(await screen.findByTestId('record-payment'));
     await choose('Counterparty', /Rheinstrom AG/);
-    await userEvent.type(screen.getByTestId('payment-amount'), '1200.50');
-    await userEvent.type(screen.getByTestId('payment-reference'), 'BANK-7');
-    await userEvent.type(screen.getByTestId('payment-remittance'), 'INV-2026-0001');
+    await fill(screen.getByTestId('payment-amount'), '1200.50');
+    await fill(screen.getByTestId('payment-reference'), 'BANK-7');
+    await fill(screen.getByTestId('payment-remittance'), 'INV-2026-0001');
     await userEvent.click(screen.getByTestId('payment-invoices'));
     await userEvent.click(await screen.findByRole('option', { name: /INV-2026-0001/ }));
     await userEvent.click(screen.getByTestId('payment-submit'));
