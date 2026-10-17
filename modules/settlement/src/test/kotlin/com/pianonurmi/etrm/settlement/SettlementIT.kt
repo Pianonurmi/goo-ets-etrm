@@ -354,6 +354,20 @@ class SettlementIT {
     }
 
     @Test
+    fun `settlement items are paged latest delivery first and every page continues where the last stopped`() {
+        repeat(5) { delivered(domestic) }
+        val filter = SettlementItemFilter(legalEntityId = entity, limit = 2)
+        val all = items.items(SettlementItemFilter(legalEntityId = entity, limit = 10_000))
+            .sortedWith(compareByDescending<SettlementItemView> { it.deliveredOn }.thenByDescending { it.id })
+        val paged = generateSequence(items.itemPage(filter, null)) { page -> page.nextCursor?.let { items.itemPage(filter, it) } }.toList()
+        paged.flatMap { it.items }.map { it.id } shouldBe all.map { it.id }
+        paged.dropLast(1).forEach { it.items.size shouldBe 2 }
+        paged.last().nextCursor shouldBe null
+        items.itemPage(filter.copy(legalEntityIds = emptySet()), null).items shouldBe emptyList()
+        shouldThrow<ValidationException> { items.itemPage(filter.copy(limit = 0), null) }
+    }
+
+    @Test
     fun `cross-border sales need the customer's VAT number and are reverse charged`() {
         val item = delivered(german)
         item.status shouldBe SettlementItemStatus.NEEDS_ATTENTION

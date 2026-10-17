@@ -11,6 +11,8 @@ import com.pianonurmi.etrm.platform.errors.SecondPerson
 import com.pianonurmi.etrm.platform.errors.SegregationOfDutiesException
 import com.pianonurmi.etrm.platform.errors.ValidationException
 import com.pianonurmi.etrm.platform.ids.Ids
+import com.pianonurmi.etrm.platform.paging.Cursor
+import com.pianonurmi.etrm.platform.paging.page
 import com.pianonurmi.etrm.platform.security.ActorProvider
 import com.pianonurmi.etrm.platform.security.Role
 import com.pianonurmi.etrm.platform.security.Roles
@@ -26,6 +28,7 @@ import com.pianonurmi.etrm.settlement.api.SettlementItemCommand
 import com.pianonurmi.etrm.settlement.api.SettlementItemCreated
 import com.pianonurmi.etrm.settlement.api.SettlementItemFilter
 import com.pianonurmi.etrm.settlement.api.SettlementItemNeedsAttention
+import com.pianonurmi.etrm.settlement.api.SettlementItemPage
 import com.pianonurmi.etrm.settlement.api.SettlementItemQuery
 import com.pianonurmi.etrm.settlement.api.SettlementItemStatus
 import com.pianonurmi.etrm.settlement.api.SettlementItemView
@@ -228,6 +231,14 @@ class SettlementItemService(
     override fun items(filter: SettlementItemFilter): List<SettlementItemView> = repository.find(filter)
 
     @Transactional(readOnly = true)
+    override fun itemPage(filter: SettlementItemFilter, cursor: String?): SettlementItemPage {
+        if (filter.limit !in 1..MAX_ITEM_PAGE) throw ValidationException("limit must be 1..$MAX_ITEM_PAGE")
+        val after = cursor?.let { Cursor.decode(it, 2) { (date, id) -> LocalDate.parse(date) to UUID.fromString(id) } }
+        val (items, next) = repository.findPage(filter, after).page(filter.limit) { Cursor.encode(it.deliveredOn, it.id) }
+        return SettlementItemPage(items, next)
+    }
+
+    @Transactional(readOnly = true)
     override fun item(id: UUID): SettlementItemView? = repository.find(id)
 
     /**
@@ -327,3 +338,5 @@ class SettlementItemService(
         return Supply(if (selling) entity.country else counterparty.country, customerCountry, customerVat)
     }
 }
+
+private const val MAX_ITEM_PAGE = 500

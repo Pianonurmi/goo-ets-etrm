@@ -1,6 +1,6 @@
 # Increment 16: review leftovers
 
-**Status: planned.** Follows [increment 15](increment-15-maintainability.md) (0.15.0).
+**Status: done (0.16.0).** Follows [increment 15](increment-15-maintainability.md) (0.15.0).
 
 ## Context
 
@@ -149,3 +149,37 @@ These stay with the owner (issues #16–#21):
 - **M0:** each concurrency test fails on `main` before its fix.
 - **M2:** `MonthEndIT` and `GoldenPathIT` pass with the async runs, polling to completion.
 - **M5:** the Playwright suite passes twice in a row on one database, with retries off.
+
+## Delivered
+
+Every milestone landed through its own pull request with green CI: M0 (#78), M1 (#79, #80), M2 (#81), M3 (#83),
+M4 (#84), M5 (#85); #82 fixed a flaky web test that had turned `main` red. What each finding came to is in the
+review's [status table](../reviews/2026-10-enterprise-readiness.md#status-after-0160).
+
+| Measure | At 0.15.0 | At 0.16.0 |
+|---|---|---|
+| Long synchronous calls | period end, valuation runs, report exports | none: each is a run polled at `/api/v1/runs/{id}`; ingress timeout 45 s |
+| Memory figure | unmeasured | at rest about 160 MB heap and 1.35 GB resident; a design-size portfolio flow 58 MB cached, 470 MB at its peak; request 1.5 GiB ([kubernetes](../operations/kubernetes.md#memory)) |
+| Registry outage | dispatch retried each instruction | the registry's circuit pauses it, a probe or an operator resumes it |
+| PDF layout | in the business transaction, base-14 fonts, no limits | after commit, an embedded font, page and size limits |
+| Report export content | kept forever | kept for the retention period; number, hash and audit event stay |
+| `!!` on a nullable value | allowed | refused by `detektMain`; 126 older ones in per-module baselines that CI keeps from growing |
+| Web page tests | none for the heaviest pages | month end, reference data, risk, ledger and trade detail against msw, with the real grid |
+| Playwright | one retry in CI; journeys on named demo rows | no retries; five journeys create their own subjects and run again on the same database |
+
+Differences from the plan:
+
+- **Not done, decided against:**
+  - **Jackson mixins for `allocation/api` and `product/api`.** springdoc reads the annotations to describe the
+    discriminators in the OpenAPI document; mixins would change the published contract. Recorded in ADR 0054.
+- **Done differently:**
+  - **PDF rendering** is deferred rather than moved before the transaction: callers keep the document id they
+    reserve in the transaction, and the layout runs after commit (#79).
+  - **The web coverage floors** were reset once to a wider measure: the page tests bring whole pages under
+    measurement (ADR 0053).
+- **Not done, open:**
+  - The clearing and hedge journeys still depend on single-use demo rows, so the whole suite does not yet run twice
+    on one database; each needs its own setup (a clearing statement with a break, an EUA forward designated as a
+    hedge).
+  - Outside the code, as before: the penetration test, UAT, the load-test environment, the sign-offs and the
+    external specifications (#16–#21).
