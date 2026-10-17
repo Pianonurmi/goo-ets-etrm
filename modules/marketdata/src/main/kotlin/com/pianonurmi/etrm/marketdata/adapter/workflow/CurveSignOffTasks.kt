@@ -34,7 +34,7 @@ class CurveSignOffTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> curves.signOff(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> curves.signOff(task.subjectRef, task.decider())
             Decision.REJECT -> curves.reject(task.subjectRef, reason)
             Decision.ACKNOWLEDGE -> throw ValidationException("Curves are signed off or rejected")
         }

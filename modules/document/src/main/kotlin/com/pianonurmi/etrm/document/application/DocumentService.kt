@@ -118,7 +118,7 @@ class DocumentService(
     override fun content(id: UUID): DocumentContent {
         ensureRendered(id)
         val document = repository.find(id) ?: throw NotFoundException("Document", id)
-        return DocumentContent(document, repository.bytes(id)!!)
+        return DocumentContent(document, checkNotNull(repository.bytes(id)) { "Document $id has no content" })
     }
 
     override fun forOwner(ownerType: String, ownerRef: UUID): List<DocumentView> {

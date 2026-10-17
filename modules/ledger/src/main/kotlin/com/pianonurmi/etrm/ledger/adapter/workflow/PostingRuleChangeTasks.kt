@@ -34,8 +34,8 @@ class PostingRuleChangeTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> gl.applyRuleChange(task.subjectRef, task.decidedBy!!)
-            Decision.REJECT -> gl.rejectRuleChange(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> gl.applyRuleChange(task.subjectRef, task.decider())
+            Decision.REJECT -> gl.rejectRuleChange(task.subjectRef, task.decider())
             Decision.ACKNOWLEDGE -> throw ValidationException("Posting rule changes are approved or rejected")
         }
         return DecisionOutcome.Applied

@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.trade.adapter.jooq
 
+import com.pianonurmi.etrm.platform.db.toLocalDateRange
 import com.pianonurmi.etrm.platform.ids.Ids
 import com.pianonurmi.etrm.platform.json.Json
 import com.pianonurmi.etrm.platform.time.LocalDateRange
@@ -391,7 +392,7 @@ class JooqTradeRepository(private val dsl: DSLContext) : TradeRepository {
             criterion = null,
             quantity = s.quantity,
             deliveredQuantity = s.deliveredQuantity,
-            deliveryWindow = LocalDateRange(window.lower()!!, window.upper()!!),
+            deliveryWindow = window.toLocalDateRange("delivery_schedule.delivery_window"),
             deliveryDate = s.deliveryDate,
             deliveryAccountId = l.deliveryAccountId,
             counterpartyAccountRef = l.counterpartyAccountRef,

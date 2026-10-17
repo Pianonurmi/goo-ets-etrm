@@ -290,8 +290,12 @@ class ReconciliationService(
 
     private fun withIdentity(candidate: ReconciliationBreakView, statement: StatementView): ReconciliationBreakView {
         val identity = when (candidate.type) {
-            BreakType.BALANCE_MISMATCH -> "${candidate.productCode}|-|${candidate.registryQuantity!! - candidate.internalQuantity!!}"
-            else -> "${candidate.issuanceRef}|${candidate.range!!.start}-${candidate.range.end}"
+            BreakType.BALANCE_MISMATCH -> {
+                val theirs = checkNotNull(candidate.registryQuantity) { "Balance break without a registry quantity" }
+                val ours = checkNotNull(candidate.internalQuantity) { "Balance break without our quantity" }
+                "${candidate.productCode}|-|${theirs - ours}"
+            }
+            else -> checkNotNull(candidate.range) { "Certificate break without a range" }.let { "${candidate.issuanceRef}|${it.start}-${it.end}" }
         }
         return candidate.copy(
             registryAccountId = statement.registryAccountId,

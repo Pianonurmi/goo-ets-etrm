@@ -125,15 +125,24 @@ class AccountingPolicyService(
         val now = clock.instant()
         val c = change.change
         when (change.kind) {
-            PolicyKind.MTM -> repository.upsertMtmPolicy(MtmPolicyView(Ids.newId(), c.legalEntityId, c.bookType!!, c.treatment!!, by, now))
+            PolicyKind.MTM -> repository.upsertMtmPolicy(
+                MtmPolicyView(
+                    Ids.newId(),
+                    c.legalEntityId,
+                    checkNotNull(c.bookType) { "MtM policy change $changeId has no book type" },
+                    checkNotNull(c.treatment) { "MtM policy change $changeId has no treatment" },
+                    by,
+                    now,
+                ),
+            )
             PolicyKind.NRV -> repository.upsertNrvPolicy(
                 NrvPolicyView(
                     Ids.newId(),
                     c.legalEntityId,
-                    c.gooCostToSellPerMwh!!,
-                    c.allowanceCostToSell!!,
-                    c.expiryDays!!,
-                    c.currency!!.uppercase(),
+                    checkNotNull(c.gooCostToSellPerMwh) { "NRV policy change $changeId has no GoO cost to sell" },
+                    checkNotNull(c.allowanceCostToSell) { "NRV policy change $changeId has no allowance cost to sell" },
+                    checkNotNull(c.expiryDays) { "NRV policy change $changeId has no expiry days" },
+                    checkNotNull(c.currency) { "NRV policy change $changeId has no currency" }.uppercase(),
                     by,
                     now,
                 ),

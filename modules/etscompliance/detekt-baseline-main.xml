@@ -1,9 +1,0 @@
-<?xml version="1.0" ?>
-<SmellBaseline>
-  <ManuallySuppressedIssues/>
-  <CurrentIssues>
-    <ID>UnsafeCallOnNullableType:EtsComplianceService.kt$EtsComplianceService$freeAllocationOf(installation, year)!!</ID>
-    <ID>UnsafeCallOnNullableType:EtsComplianceService.kt$EtsComplianceService$repository.emission(recordId)!!</ID>
-    <ID>UnsafeCallOnNullableType:EtsComplianceTasks.kt$VerifiedEmissionsTasks$task.decidedBy!!</ID>
-  </CurrentIssues>
-</SmellBaseline>

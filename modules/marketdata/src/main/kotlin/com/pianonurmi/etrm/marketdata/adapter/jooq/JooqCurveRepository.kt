@@ -166,7 +166,7 @@ class JooqCurveRepository(private val dsl: DSLContext) : CurveRepository {
     )
 
     private fun toSnapshot(r: CurveSnapshotRecord): CurveSnapshotView {
-        val curve = curve(r.curveCode)!!
+        val curve = checkNotNull(curve(r.curveCode)) { "Curve ${r.curveCode} of a snapshot is gone" }
         return CurveSnapshotView(
             r.id,
             r.curveCode,

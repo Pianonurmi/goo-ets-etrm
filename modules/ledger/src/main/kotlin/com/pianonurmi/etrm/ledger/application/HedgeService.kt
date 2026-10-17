@@ -107,7 +107,7 @@ class HedgeService(
             instruments = instruments,
             objective = command.objective.trim(),
             hedgeRatio = ratio,
-            checks = checks(item, command.instruments.map { trades.trade(it.tradeId)!! }, ratio),
+            checks = checks(item, command.instruments.map { checkNotNull(trades.trade(it.tradeId)) { "Trade ${it.tradeId} not found" } }, ratio),
             status = HedgeStatus.PENDING,
             requestedBy = actor.userId,
             requestedAt = clock.instant(),
@@ -251,7 +251,7 @@ class HedgeService(
     /** From the discontinuation task: the reserve is frozen at its last measured amount, or recycled when not expected. */
     fun approveDiscontinuation(id: UUID, by: String): HedgeRelationshipView {
         val hedge = discontinuing(id)
-        val request = hedge.discontinuation!!
+        val request = checkNotNull(hedge.discontinuation) { "Hedge ${hedge.id} has no discontinuation request" }
         SecondPerson.require(by, request.requestedBy) { "A discontinuation is approved by someone other than who requested it" }
         val frozen = if (request.stillExpected) {
             repository.measurements(
@@ -309,7 +309,7 @@ class HedgeService(
         val hypothetical = valuations.forwardValue(
             hedge.legalEntityId,
             run.valuationDate,
-            terms(hedge.item, hedge.item.quantity * sign, hedge.designationPrice!!),
+            terms(hedge.item, hedge.item.quantity * sign, checkNotNull(hedge.designationPrice) { "Hedge ${hedge.id} has no designation price" }),
         )
             ?: return null
         val value = instrumentValue(hedge, run)

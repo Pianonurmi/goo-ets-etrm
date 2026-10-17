@@ -134,7 +134,7 @@ class ValuationRunService(
         actor.requireEntity(run.legalEntityId)
         if (run.status != RunStatus.DRAFT) throw ValidationException("Run ${run.id} is ${run.status}")
         repository.setStatus(runId, RunStatus.PENDING_SIGN_OFF)
-        val submitted = repository.run(runId)!!
+        val submitted = checkNotNull(repository.run(runId)) { "Valuation run $runId is gone" }
         events.publishEvent(ValuationRunSubmitted(submitted))
         return submitted
     }
@@ -162,7 +162,7 @@ class ValuationRunService(
             val now = repository.portfolio(runId)
             if (before != null && now != null) repository.insertPortfolioExplain(runId, prior.id, PortfolioExplainer.explain(before, now))
         }
-        val official = repository.run(runId)!!
+        val official = checkNotNull(repository.run(runId)) { "Valuation run $runId is gone" }
         events.publishEvent(ValuationRunSignedOff(official, previous?.id))
         return official
     }
@@ -171,7 +171,7 @@ class ValuationRunService(
         val run = repository.run(runId, lock = true) ?: throw NotFoundException("ValuationRun", runId)
         if (run.status != RunStatus.PENDING_SIGN_OFF) throw ValidationException("Run ${run.id} is ${run.status}")
         repository.setStatus(runId, RunStatus.REJECTED)
-        val rejected = repository.run(runId)!!
+        val rejected = checkNotNull(repository.run(runId)) { "Valuation run $runId is gone" }
         events.publishEvent(ValuationRunRejected(rejected, reason))
         return rejected
     }

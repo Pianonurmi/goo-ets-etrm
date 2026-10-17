@@ -127,18 +127,21 @@ class ReportCatalogue(
         ) { p ->
             val run = valuations.official(p.uuid("legalEntityId"), p.date("date", today()), orEarlier = true)
             run?.let { valuations.results(it.id) }.orEmpty()
-                .filter { it.option != null }
-                .groupBy { Triple(it.option!!.underlyingContractCode, it.deliveryDate, it.contractCurrency) }
+                .mapNotNull { r -> r.option?.let { r to it } }
+                .groupBy { (r, o) -> Triple(o.underlyingContractCode, r.deliveryDate, r.contractCurrency) }
                 .toSortedMap(compareBy({ it.second }, { it.first }, { it.third }))
                 .map { (key, rows) ->
-                    fun total(of: (ValuationResultView) -> BigDecimal) = rows.fold(BigDecimal.ZERO) { sum, r -> sum + of(r) }
+                    fun total(of: (ValuationResultView) -> BigDecimal) = rows.fold(BigDecimal.ZERO) { sum, (r, _) -> sum + of(r) }
+                    val delta = rows.fold(BigDecimal.ZERO) { sum, (r, o) -> sum + r.quantity * o.delta }
+                    val gamma = rows.fold(BigDecimal.ZERO) { sum, (r, o) -> sum + r.quantity * o.gamma }
+                    val vega = rows.fold(BigDecimal.ZERO) { sum, (r, o) -> sum + r.quantity * o.vega }
                     mapOf(
                         "underlyingContractCode" to key.first,
                         "expiryDate" to key.second,
                         "quantity" to total { it.quantity },
-                        "deltaTonnes" to total { it.quantity * it.option!!.delta }.setScale(2, RoundingMode.HALF_EVEN),
-                        "gamma" to total { it.quantity * it.option!!.gamma }.setScale(6, RoundingMode.HALF_EVEN),
-                        "vega" to total { it.quantity * it.option!!.vega }.setScale(2, RoundingMode.HALF_EVEN),
+                        "deltaTonnes" to delta.setScale(2, RoundingMode.HALF_EVEN),
+                        "gamma" to gamma.setScale(6, RoundingMode.HALF_EVEN),
+                        "vega" to vega.setScale(2, RoundingMode.HALF_EVEN),
                         "mtm" to total { it.mtm ?: BigDecimal.ZERO },
                         "currency" to key.third,
                     )
@@ -174,7 +177,7 @@ class ReportCatalogue(
         ) { p ->
             val explain = valuations.explain(p.uuid("legalEntityId"), p.date("from"), p.date("to"))
             explain?.components.orEmpty().map { (component, amount) ->
-                mapOf("component" to component, "amountBase" to amount, "currency" to explain!!.baseCurrency)
+                mapOf("component" to component, "amountBase" to amount, "currency" to checkNotNull(explain) { "No P&L explain" }.baseCurrency)
             }
         },
         Definition(

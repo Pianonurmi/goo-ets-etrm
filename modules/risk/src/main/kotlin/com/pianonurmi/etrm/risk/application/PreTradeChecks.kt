@@ -147,7 +147,7 @@ class PreTradeChecks(
         if (bought.signum() <= 0) return null
         val current = repository.utilisation(limit.id)?.value ?: BigDecimal.ZERO
         val added = if (limit.currency == EUR) {
-            val mark = query.concentration(limit.legalEntityId!!, limit.scope.bucketCode!!, year)?.markEur
+            val mark = query.concentration(limit.entity(), checkNotNull(limit.scope.bucketCode) { "Limit ${limit.id} has no bucket" }, year)?.markEur
                 ?: return concentrationNotChecked(limit, "no mark for ${limit.scope.bucketCode}")
             bought * mark
         } else {
@@ -176,7 +176,7 @@ class PreTradeChecks(
         return creditLimits.mapNotNull { limit ->
             val gaps = MeasurementGaps()
             val current = credit.creditUsage(limit, today, gaps).first
-            val added = credit.pfe(trade, addOns, limit.currency!!, today, gaps)
+            val added = credit.pfe(trade, addOns, limit.currencyCode(), today, gaps)
             val projected = current + added
             val incomplete = if (gaps.isComplete) "" else "; the check is incomplete (${gaps.summary()})"
             val text = "credit exposure to ${counterparty.code} would be ${money(projected)} of ${limit.amount} ${limit.currency} " +
@@ -198,7 +198,7 @@ class PreTradeChecks(
 
     private fun positionFinding(trade: TradeView, limit: RiskLimitView): ApprovalFinding? {
         val gaps = MeasurementGaps()
-        val projected = (positions.positionNet(limit.legalEntityId!!, limit.scope, trade.id, gaps) + positions.netDeliveries(trade, limit.scope, gaps)).abs()
+        val projected = (positions.positionNet(limit.entity(), limit.scope, trade.id, gaps) + positions.netDeliveries(trade, limit.scope, gaps)).abs()
         return if (projected > limit.amount) {
             val incomplete = if (gaps.isComplete) "" else " (incomplete: ${gaps.summary()})"
             ApprovalFinding(

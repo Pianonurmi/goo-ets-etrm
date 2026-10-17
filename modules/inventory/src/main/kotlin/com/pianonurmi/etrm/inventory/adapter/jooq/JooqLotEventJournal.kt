@@ -43,7 +43,7 @@ class JooqLotEventJournal(private val dsl: DSLContext) : LotEventJournal {
             .set(LOT_EVENT.PREV_HASH, previous)
             .set(LOT_EVENT.HASH, hash)
             .returning(LOT_EVENT.SEQ)
-            .fetchOne()!!
+            .fetchSingle()
             .seq
     }
 

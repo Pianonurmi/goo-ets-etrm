@@ -69,15 +69,20 @@ object PnlExplainer {
         return rows
     }
 
+    /** The prices a valued result carries ([valued] has checked them). */
+    private data class Priced(val contract: BigDecimal, val market: BigDecimal, val fx: BigDecimal)
+
+    private fun priced(r: ValuationResultView) = Priced(
+        checkNotNull(r.contractPrice) { "Result of schedule ${r.scheduleId} has no contract price" },
+        checkNotNull(r.marketPriceContract) { "Result of schedule ${r.scheduleId} has no market price" },
+        checkNotNull(r.fxToBase) { "Result of schedule ${r.scheduleId} has no FX rate" },
+    )
+
     private fun decompose(r0: ValuationResultView, r1: ValuationResultView, d0r: BigDecimal): List<Pair<ExplainComponent, BigDecimal>> {
         val q0 = r0.quantity
         val q1 = r1.quantity
-        val k0 = r0.contractPrice!!
-        val k1 = r1.contractPrice!!
-        val f0 = r0.marketPriceContract!!
-        val f1 = r1.marketPriceContract!!
-        val x0 = r0.fxToBase!!
-        val x1 = r1.fxToBase!!
+        val (k0, f0, x0) = priced(r0)
+        val (k1, f1, x1) = priced(r1)
         val d0 = r0.discountFactor ?: BigDecimal.ONE
         val d1 = r1.discountFactor ?: BigDecimal.ONE
         val amended = r0.tradeVersion != r1.tradeVersion
@@ -94,21 +99,23 @@ object PnlExplainer {
     }
 
     private fun decomposeOption(r0: ValuationResultView, r1: ValuationResultView, d0r: BigDecimal): List<Pair<ExplainComponent, BigDecimal>> {
-        val o0 = r0.option!!
-        val o1 = r1.option!!
+        val o0 = checkNotNull(r0.option) { "Result of schedule ${r0.scheduleId} is not an option" }
+        val o1 = checkNotNull(r1.option) { "Result of schedule ${r1.scheduleId} is not an option" }
+        val p0 = priced(r0)
+        val p1 = priced(r1)
         val right = OptionRight.valueOf(o1.optionType)
 
         // The later terms valued at the given market, less the later premium, in the earlier exchange rate.
         fun at(forward: BigDecimal, vol: BigDecimal, years: BigDecimal, df: BigDecimal): BigDecimal =
-            r1.quantity * (Black76.value(right, forward, o1.strike, vol.movePointLeft(2), years, df).price - r1.contractPrice!!) * r0.fxToBase!!
+            r1.quantity * (Black76.value(right, forward, o1.strike, vol.movePointLeft(2), years, df).price - p1.contract) * p0.fx
         val d0 = r0.discountFactor ?: BigDecimal.ONE
-        val v0 = r0.quantity * (r0.marketPriceContract!! - r0.contractPrice!!) * r0.fxToBase!!
+        val v0 = r0.quantity * (p0.market - p0.contract) * p0.fx
         val terms = at(o0.underlyingPrice, o0.volatility, o0.timeToExpiry, d0)
         val time = at(o0.underlyingPrice, o0.volatility, o1.timeToExpiry, d0r)
         val price = at(o1.underlyingPrice, o0.volatility, o1.timeToExpiry, d0r)
         val vol = at(o1.underlyingPrice, o1.volatility, o1.timeToExpiry, d0r)
-        val rates = r1.quantity * (r1.marketPriceContract!! - r1.contractPrice!!) * r0.fxToBase
-        val fx = r1.quantity * (r1.marketPriceContract - r1.contractPrice) * r1.fxToBase!!
+        val rates = r1.quantity * (p1.market - p1.contract) * p0.fx
+        val fx = r1.quantity * (p1.market - p1.contract) * p1.fx
         return listOf(
             (if (r0.tradeVersion != r1.tradeVersion) ExplainComponent.AMENDED else ExplainComponent.DELIVERED) to terms - v0,
             ExplainComponent.TIME to time - terms,

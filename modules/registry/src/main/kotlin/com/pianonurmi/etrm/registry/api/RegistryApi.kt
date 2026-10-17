@@ -132,6 +132,10 @@ data class RegistryInstructionView(
 
     /** The certificate lot of a GOO_LOT instruction. */
     fun requireLot(): UUID = lotId ?: error("Instruction $instructionKey is not a certificate lot instruction")
+
+    fun requireHolding(): UUID = holdingRef ?: error("Instruction $instructionKey is not an allowance instruction")
+
+    fun requireProduct(): String = productCode ?: error("Instruction $instructionKey names no allowance product")
 }
 
 /** Transfer of a lot (or part of it) to another account; a partial quantity splits the lot first. */

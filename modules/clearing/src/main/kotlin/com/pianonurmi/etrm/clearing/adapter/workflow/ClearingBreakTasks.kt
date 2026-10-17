@@ -46,7 +46,7 @@ class ClearingBreakTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         if (decision != Decision.APPROVE) throw ValidationException("A clearing break is accepted, or closes when the margin is corrected")
-        statements.accept(task.subjectRef, task.decidedBy!!, reason)
+        statements.accept(task.subjectRef, task.decider(), reason)
         return DecisionOutcome.Applied
     }
 

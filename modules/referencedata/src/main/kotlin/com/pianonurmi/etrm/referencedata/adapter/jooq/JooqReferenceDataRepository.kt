@@ -407,7 +407,7 @@ class JooqReferenceDataRepository(private val dsl: DSLContext) : ReferenceDataRe
             val period = r.sysPeriod
             HistoryEntry(
                 version = r.version,
-                recordedFrom = period.lower()!!.toInstant(),
+                recordedFrom = checkNotNull(period.lower()) { "History version ${r.version} has no start" }.toInstant(),
                 recordedTo = period.upper()?.toInstant(),
                 actor = r.actor,
                 data = Json.mapper.readValue(r.data.data(), object : TypeReference<Map<String, Any?>>() {}),

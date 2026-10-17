@@ -207,7 +207,7 @@ class TradeBuilder(
         }
         if (trade.productFamily != ProductFamily.EMISSION_ALLOWANCE) throw ValidationException("Options are on allowance futures")
         val venues = trade.legs.map { leg ->
-            val option = leg.option!!
+            val option = checkNotNull(leg.option) { "Leg ${leg.legNo} is not an option" }
             val code = option.underlyingContractCode
             val contract = futures.futuresContract(code)?.takeIf { it.active } ?: throw NotFoundException("FuturesContract", code)
             if (leg.allowanceProductCode != contract.allowanceProductCode) {
@@ -287,7 +287,7 @@ class TradeBuilder(
         }
         val bucket = criteriaRef?.let { ref ->
             val firstDelivery = leg.deliveries.minOf { it.deliveryDate }
-            buckets.bucketFor(ref.id, leg.criterion!!, criteria.contextFor(firstDelivery))
+            buckets.bucketFor(ref.id, checkNotNull(leg.criterion) { "A GoO leg of trade ${ref.id} has no criterion" }, criteria.contextFor(firstDelivery))
         }
         val counterpartyAccount = counterpartyAccount(counterpartyId, legNo, leg)
         return TradeLegView(

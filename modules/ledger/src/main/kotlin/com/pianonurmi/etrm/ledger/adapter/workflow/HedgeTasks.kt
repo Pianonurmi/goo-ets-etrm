@@ -35,8 +35,8 @@ class HedgeDesignationTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> hedges.approveDesignation(task.subjectRef, task.decidedBy!!)
-            Decision.REJECT -> hedges.rejectDesignation(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> hedges.approveDesignation(task.subjectRef, task.decider())
+            Decision.REJECT -> hedges.rejectDesignation(task.subjectRef, task.decider())
             Decision.ACKNOWLEDGE -> throw ValidationException("A hedge designation is approved or rejected")
         }
         return DecisionOutcome.Applied
@@ -84,7 +84,7 @@ class HedgeDiscontinuationTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> hedges.approveDiscontinuation(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> hedges.approveDiscontinuation(task.subjectRef, task.decider())
             Decision.REJECT -> hedges.rejectDiscontinuation(task.subjectRef)
             Decision.ACKNOWLEDGE -> throw ValidationException("A hedge discontinuation is approved or rejected")
         }
@@ -94,7 +94,7 @@ class HedgeDiscontinuationTasks(
     @EventListener
     fun on(event: HedgeDiscontinuationRequested) {
         val h = event.hedge
-        val d = h.discontinuation!!
+        val d = checkNotNull(h.discontinuation) { "Hedge ${h.id} has no discontinuation request" }
         workflow.open(
             OpenTask(
                 TYPE,

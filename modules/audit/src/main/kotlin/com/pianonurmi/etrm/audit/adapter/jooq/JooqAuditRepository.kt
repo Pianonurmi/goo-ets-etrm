@@ -1,5 +1,6 @@
 package com.pianonurmi.etrm.audit.adapter.jooq
 
+import com.pianonurmi.etrm.audit.adapter.jooq.generated.EtrmAudit.ETRM_AUDIT
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditArchiveCut.AUDIT_ARCHIVE_CUT
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditEvent.AUDIT_EVENT
 import com.pianonurmi.etrm.audit.adapter.jooq.generated.tables.AuditSeal.AUDIT_SEAL
@@ -37,7 +38,7 @@ class JooqAuditRepository(private val dsl: DSLContext) : AuditRepository {
         .returning()
         .fetchOne()
         ?.let(::toView)
-        ?: byEventId(event.eventId)!!
+        ?: checkNotNull(byEventId(event.eventId)) { "Audit event ${event.eventId} was neither inserted nor found" }
 
     override fun query(filter: AuditFilter): List<AuditEventView> = dsl.selectFrom(AUDIT_EVENT)
         .where(
@@ -87,7 +88,7 @@ class JooqAuditRepository(private val dsl: DSLContext) : AuditRepository {
             .execute()
     }
 
-    private val schema = DSL.name(AUDIT_EVENT.schema!!.name)
+    private val schema = DSL.name(ETRM_AUDIT.name)
 
     private fun toView(r: AuditEventRecord) = AuditEventView(
         r.seq,

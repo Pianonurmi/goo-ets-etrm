@@ -79,7 +79,7 @@ class StatementFormatService(
             it.isNotEmpty()
         }?.let { throw ValidationException("Invalid statement format: ${it.joinToString("; ")}") }
         repository.upsert(format)
-        return repository.find(code, format.profileCode, format.kind)!!
+        return checkNotNull(repository.find(code, format.profileCode, format.kind)) { "Statement format of $code was not stored" }
     }
 
     companion object {

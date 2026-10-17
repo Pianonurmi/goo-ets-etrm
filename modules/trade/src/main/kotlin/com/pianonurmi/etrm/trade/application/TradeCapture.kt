@@ -38,7 +38,14 @@ class TradeCapture(
         repository.saveVersion(submitted, actor, "submitted")
         events.publishEvent(TradeCaptured(submitted))
         store.openObligationsIfDue(submitted)
-        if (counterparty.counterpartyType == CounterpartyType.INTERCOMPANY) mirror.capture(command, submitted, counterparty.linkedLegalEntityId!!, actor)
+        if (counterparty.counterpartyType == CounterpartyType.INTERCOMPANY) {
+            mirror.capture(
+                command,
+                submitted,
+                checkNotNull(counterparty.linkedLegalEntityId) { "Intercompany counterparty ${counterparty.code} names no legal entity" },
+                actor,
+            )
+        }
         return submitted
     }
 

@@ -227,12 +227,12 @@ class InvoiceService(
         repository.update(final)
         events.publishEvent(InvoiceIssued(final))
         if (final.originalInvoiceId != null) reverse(final, by)
-        return repository.find(final.id)!!
+        return checkNotNull(repository.find(final.id)) { "Invoice ${final.id} is gone" }
     }
 
     /** An issued credit note settles the original and makes its deliveries invoiceable again. */
     private fun reverse(creditNote: InvoiceView, by: String) {
-        val original = locked(creditNote.originalInvoiceId!!)
+        val original = locked(checkNotNull(creditNote.originalInvoiceId) { "Credit note ${creditNote.id} has no original invoice" })
         repository.update(original.copy(credited = true))
         original.lines.mapNotNull { it.settlementItemId }.forEach { id ->
             val item = items.find(id, forUpdate = true)!!
@@ -383,7 +383,7 @@ class InvoiceService(
                 quantity = item.quantity,
                 unit = item.unit,
                 unitPrice = item.unitPrice,
-                netAmount = item.netAmount!!,
+                netAmount = checkNotNull(item.netAmount) { "Item ${item.id} is not priced" },
                 vatRuleCode = item.vatRuleCode,
                 vatTreatment = item.vatTreatment!!,
                 vatRate = item.vatRate!!,
@@ -431,7 +431,7 @@ class InvoiceService(
         if (kind.direction != SettlementDirection.PAYABLE || item.vatTreatment?.reverseCharge != true) return BigDecimal.ZERO
         val rate = standardRates.rate(ourCountry, item.deliveredOn)
             ?: throw ValidationException("No standard VAT rate for $ourCountry on ${item.deliveredOn}; reverse-charged purchases need it")
-        return Amounts.vat(item.netAmount!!, rate)
+        return Amounts.vat(checkNotNull(item.netAmount) { "Item ${item.id} is not priced" }, rate)
     }
 
     private fun snapshot(type: PartyType, id: UUID, name: String, country: String, vatNumber: String?, lei: String?, date: LocalDate) = PartySnapshot(
@@ -462,8 +462,8 @@ class InvoiceService(
         "invoiceDate" to invoice.invoiceDate.toString(),
         "taxPointDate" to invoice.taxPointDate.toString(),
         "dueDate" to invoice.dueDate.toString(),
-        "supplier" to party(invoice.supplier!!),
-        "customer" to party(invoice.customer!!),
+        "supplier" to party(checkNotNull(invoice.supplier) { "Invoice ${invoice.id} has no supplier" }),
+        "customer" to party(checkNotNull(invoice.customer) { "Invoice ${invoice.id} has no customer" }),
         "currency" to invoice.currency,
         "lines" to invoice.lines.map {
             mapOf(

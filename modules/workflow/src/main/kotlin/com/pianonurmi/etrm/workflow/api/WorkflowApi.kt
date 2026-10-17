@@ -108,6 +108,9 @@ data class ApprovalTaskView(
     val version: Int,
 ) {
     fun overdue(now: Instant): Boolean = status == TaskStatus.OPEN && dueAt.isBefore(now)
+
+    /** Who decided the task; a handler's `onDecision` always sees a decided task. */
+    fun decider(): String = checkNotNull(decidedBy) { "Task $id has not been decided" }
 }
 
 data class TaskCommentView(val id: UUID, val taskId: UUID, val author: String, val body: String, val createdAt: Instant)

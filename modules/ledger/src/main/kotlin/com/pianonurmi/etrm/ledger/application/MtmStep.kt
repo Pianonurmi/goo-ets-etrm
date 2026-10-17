@@ -146,7 +146,7 @@ class MtmStep(
             val (liabilityUp, liabilityDown) = PeriodEndMath.movement(liability, bookedLiability)
             val amounts =
                 mapOf("assetIncrease" to assetUp, "assetDecrease" to assetDown, "liabilityIncrease" to liabilityUp, "liabilityDecrease" to liabilityDown)
-            val attributes = mapOf("treatment" to policy!!.treatment.name)
+            val attributes = mapOf("treatment" to checkNotNull(policy) { "No MtM policy" }.treatment.name)
             postings.post(ctx, MTM_EVENT, ctx.end, "Unrealised MtM of $bookType books", amounts, attributes, dims)
             val reversal =
                 mapOf("assetIncrease" to assetDown, "assetDecrease" to assetUp, "liabilityIncrease" to liabilityDown, "liabilityDecrease" to liabilityUp)

@@ -41,7 +41,7 @@ class BeneficiaryErasureTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> beneficiaries.erase(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> beneficiaries.erase(task.subjectRef, task.decider())
             Decision.REJECT -> beneficiaries.withdrawErasure(task.subjectRef, reason)
             Decision.ACKNOWLEDGE -> throw ValidationException("An erasure is approved or rejected")
         }

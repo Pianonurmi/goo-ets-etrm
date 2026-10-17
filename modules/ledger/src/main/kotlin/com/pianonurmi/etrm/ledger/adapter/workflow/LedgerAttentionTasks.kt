@@ -48,13 +48,13 @@ class LedgerAttentionTasks(
         if (record.status != UnpostedStatus.OPEN) return DecisionOutcome.Superseded("Already ${record.status.name.lowercase()}")
         when (decision) {
             Decision.APPROVE -> {
-                val posted = runCatching { replay.retry(record, task.decidedBy!!) }
+                val posted = runCatching { replay.retry(record, task.decider()) }
                     .getOrElse { throw ValidationException(it.message ?: "The event cannot be retried") }
                 if (!posted) {
                     throw ValidationException("Still not posted: ${repository.find(record.id)?.reason ?: record.reason}")
                 }
             }
-            Decision.ACKNOWLEDGE -> repository.resolve(record.id, UnpostedStatus.DISMISSED, task.decidedBy!!, reason)
+            Decision.ACKNOWLEDGE -> repository.resolve(record.id, UnpostedStatus.DISMISSED, task.decider(), reason)
             Decision.REJECT -> throw ValidationException("Retry the posting or dismiss it with a reason")
         }
         return DecisionOutcome.Applied

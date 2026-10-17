@@ -7,6 +7,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+### Changed
+- Every older `!!` on a nullable value is a named check that says what was missing (`checkNotNull` with a message,
+  `ApprovalTaskView.decider()`, `fetchSingle()`, one helper for PostgreSQL date ranges), and the per-module detekt
+  baselines are gone: `UnsafeCallOnNullableType` now holds for all main code without exceptions.
+
 ## [0.16.0] - 2026-10-17
 
 Increment 16, review leftovers: races and idempotency, documents and report retention, long operations run outside

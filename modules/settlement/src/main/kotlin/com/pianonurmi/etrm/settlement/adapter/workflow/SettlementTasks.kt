@@ -38,7 +38,7 @@ class InvoiceApprovalTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> invoices.approve(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> invoices.approve(task.subjectRef, task.decider())
             Decision.REJECT -> invoices.reject(task.subjectRef)
             Decision.ACKNOWLEDGE -> throw ValidationException("Invoices are approved or rejected")
         }
@@ -56,7 +56,7 @@ class InvoiceApprovalTasks(
                 i.legalEntityId,
                 "Approve ${i.kind.name.lowercase().replace('_', ' ')} ${i.currency} ${i.grossTotal} (${i.lines.size} lines)" +
                     (i.counterpartyInvoiceRef?.let { ", supplier ref $it" } ?: ""),
-                i.submittedBy!!,
+                checkNotNull(i.submittedBy) { "Invoice ${i.id} was not submitted" },
                 mapOf("kind" to i.kind.name, "gross" to i.grossTotal.toPlainString(), "currency" to i.currency),
             ),
         )
@@ -91,7 +91,7 @@ class VatRuleApprovalTasks(
 
     override fun onDecision(task: ApprovalTaskView, decision: Decision, reason: String?): DecisionOutcome {
         when (decision) {
-            Decision.APPROVE -> rules.approve(task.subjectRef, task.decidedBy!!)
+            Decision.APPROVE -> rules.approve(task.subjectRef, task.decider())
             Decision.REJECT -> rules.retire(task.subjectRef, reason ?: "rejected")
             Decision.ACKNOWLEDGE -> throw ValidationException("VAT rules are approved or rejected")
         }

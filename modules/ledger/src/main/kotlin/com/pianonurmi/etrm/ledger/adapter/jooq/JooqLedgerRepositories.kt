@@ -268,7 +268,7 @@ class JooqJournalRepository(private val dsl: DSLContext) : JournalRepository {
             .join(JOURNAL_ENTRY).on(JOURNAL_ENTRY.ID.eq(JOURNAL_LINE.ENTRY_ID))
             .join(GL_ACCOUNT).on(GL_ACCOUNT.ID.eq(JOURNAL_LINE.ACCOUNT_ID))
             .where(conditions)
-            .fetchOne()!!
+            .fetchSingle()
         return LineBalance(record.value1(), record.value2(), record.value3(), record.value4())
     }
 
