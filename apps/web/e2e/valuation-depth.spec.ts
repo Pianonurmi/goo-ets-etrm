@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { pendingHedge } from './api';
 import { actAs, switchPersona } from './fixtures';
 
 test.describe('valuation depth: discounting and cash flow hedges', () => {
@@ -16,13 +17,19 @@ test.describe('valuation depth: discounting and cash flow hedges', () => {
     await expect(page.getByRole('columnheader', { name: 'Discount factor' })).toBeVisible();
   });
 
-  test('a hedge proposed by one accountant is approved by another and shows its documentation', async ({ page }) => {
+  test('a hedge proposed by one accountant is approved by another and shows its documentation', async ({
+    page,
+    request,
+  }) => {
+    const { hedgeId } = await pendingHedge(request);
     await actAs(page, 'accountant');
     await page.goto('/ledger/hedges');
     await expect(page.getByTestId('hedges-grid')).toBeVisible();
-    await expect(page.getByTestId('hedge-kpi-active')).toContainText('1');
-    await page.getByRole('gridcell', { name: 'Awaiting approval' }).first().click();
-    await expect(page).toHaveURL(/\/ledger\/hedges\/[0-9a-f-]{36}/);
+    const kpi = page.getByTestId('hedge-kpi-active');
+    await expect(kpi).toContainText(/\d/);
+    const activeBefore = Number((await kpi.innerText()).match(/\d+/)?.[0]);
+
+    await page.goto(`/ledger/hedges/${hedgeId}`);
     await expect(page.getByTestId('hedge-checks')).toBeVisible();
     await page.getByTestId('hedge-task').click();
     await expect(page.getByTestId('own-request')).toBeVisible();
@@ -31,8 +38,8 @@ test.describe('valuation depth: discounting and cash flow hedges', () => {
     await expect(page.getByText('Decided by controller', { exact: false })).toBeVisible();
 
     await page.goto('/ledger/hedges?status=ACTIVE');
-    await expect(page.getByTestId('hedge-kpi-active')).toContainText('2');
-    await page.getByRole('gridcell', { name: 'Active' }).first().click();
+    await expect(page.getByTestId('hedge-kpi-active')).toContainText(new RegExp(`(^|\\D)${activeBefore + 1}(\\D|$)`));
+    await page.goto(`/ledger/hedges/${hedgeId}`);
     await expect(page.getByTestId('hedge-document')).toBeVisible();
     await expect(page.getByTestId('hedge-designation-price')).toBeVisible();
     await page.getByTestId('hedge-tab-effectiveness').click();

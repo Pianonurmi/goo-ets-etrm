@@ -37,7 +37,7 @@ export function renderPage(
   } as unknown as Schema<'MeView'>;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <QueryClientProvider client={client}>
         <SessionContext
           value={{ config: { authMode: 'DEV_HEADERS', environment: 'TEST', version: 'dev', demo: false }, me }}

@@ -75,10 +75,10 @@ export default defineConfig({
       // lines, 400 more of them covered), so the floors were reset to that wider measure once (ADR 0053).
       thresholds: {
         autoUpdate: process.env.CI ? false : (next: number) => Math.floor(next),
-        statements: 59,
-        branches: 57,
-        functions: 48,
-        lines: 58,
+        statements: 68,
+        branches: 63,
+        functions: 57,
+        lines: 67,
       },
       reportsDirectory: 'build/coverage',
     },

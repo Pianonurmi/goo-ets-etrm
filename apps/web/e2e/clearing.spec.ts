@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
+import { clearingBreak, demoClearingAccount } from './api';
 import { actAs, switchPersona } from './fixtures';
 
 test.describe('clearing: futures margining (ADR 0046)', () => {
-  test('daily margin, the member statements and a margin call are read from the clearing account', async ({ page }) => {
+  test('daily margin and the member statements are read from the clearing account', async ({ page, request }) => {
+    const accountId = await demoClearingAccount(request);
     await actAs(page, 'backoffice');
-    await page.goto('/clearing');
+    await page.goto(`/clearing?account=${accountId}`);
     await expect(page.getByTestId('clearing-page')).toBeVisible();
     await expect(page.getByTestId('clearing-accounts-grid')).toContainText('ECC-DEMO-FI');
-    await expect(page.getByTestId('clearing-kpi-calls')).toContainText('1');
-    await expect(page.getByTestId('clearing-kpi-breaks')).toContainText('1');
 
     await page.getByTestId('clearing-tab-margin').click();
     await expect(page.getByTestId('clearing-runs-grid')).toBeVisible();
@@ -19,19 +19,21 @@ test.describe('clearing: futures margining (ADR 0046)', () => {
     await page.getByTestId('clearing-tab-statements').click();
     await page.getByTestId('clearing-statements-grid').getByRole('gridcell').first().click();
     await expect(page.getByTestId('clearing-statement-lines')).toContainText('EUAZ');
-    await page.keyboard.press('Escape');
-
-    await page.getByTestId('clearing-tab-margin-calls').click();
-    await expect(page.getByTestId('clearing-calls-grid')).toContainText('1,250.00');
   });
 
   test('a statement break is accepted in the inbox by someone other than who imported the statement', async ({
     page,
+    request,
   }) => {
+    const { accountId, breakId } = await clearingBreak(request);
     await actAs(page, 'backoffice');
-    await page.goto('/clearing?tab=breaks');
-    await page.getByTestId('clearing-breaks-grid').getByRole('gridcell').first().click();
-    await expect(page).toHaveURL(/\/clearing\/breaks\/[0-9a-f-]{36}/);
+    await page.goto(`/clearing?account=${accountId}`);
+    await expect(page.getByTestId('clearing-kpi-calls')).toContainText('1');
+    await expect(page.getByTestId('clearing-kpi-breaks')).toContainText('1');
+    await page.getByTestId('clearing-tab-margin-calls').click();
+    await expect(page.getByTestId('clearing-calls-grid')).toContainText('1,250.00');
+
+    await page.goto(`/clearing/breaks/${breakId}`);
     await expect(page.getByTestId('clearing-difference-VARIATION_MARGIN').first()).toBeVisible();
     await expect(page.getByTestId('clearing-break-status')).toContainText('Open');
 
@@ -42,13 +44,14 @@ test.describe('clearing: futures margining (ADR 0046)', () => {
     await page.getByTestId('decide-APPROVE').click();
     await expect(page.getByText('Decided by middle', { exact: false })).toBeVisible();
 
-    await page.goto('/clearing?tab=breaks');
+    await page.goto(`/clearing?tab=breaks&account=${accountId}`);
     await expect(page.getByTestId('clearing-kpi-breaks')).toContainText('0');
   });
 
-  test('a statement file is uploaded and its result shown', async ({ page }) => {
+  test('a statement file is uploaded and its result shown', async ({ page, request }) => {
+    const accountId = await demoClearingAccount(request);
     await actAs(page, 'backoffice');
-    await page.goto('/clearing?tab=statements');
+    await page.goto(`/clearing?tab=statements&account=${accountId}`);
     await page.getByTestId('clearing-import-statement').click();
     await expect(page.getByTestId('clearing-import-csv')).toBeVisible();
     await page
