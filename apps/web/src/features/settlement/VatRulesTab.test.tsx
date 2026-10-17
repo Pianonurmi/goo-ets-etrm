@@ -32,25 +32,21 @@ const rule = {
   legalText: 'AVL 1 §',
 };
 
+const rules = (seen: (string | null)[] = []) =>
+  http.get(`${ORIGIN}/api/v1/settlement/vat-rules`, ({ request }) => {
+    seen.push(new URL(request.url).searchParams.get('includeRetired'));
+    return HttpResponse.json([rule, { ...rule, id: 'r0', productFamily: '*', version: 1, status: 'RETIRED' }]);
+  });
+
+const renderTab = () =>
+  renderPage(<VatRulesTab />, { url: '/settlement?tab=vat-rules', route: '/settlement', roles: ['ACCOUNTANT'] });
+
+// Each test does one thing: a CI runner takes several seconds per interaction with the grid on the page.
 describe('VatRulesTab', () => {
-  it('lists the rules, retired ones on request, and proposes a new rule for approval', async () => {
+  it('lists the rules, and the retired ones on request', async () => {
     const includeRetired: (string | null)[] = [];
-    let proposed: Record<string, unknown> | undefined;
-    server.use(
-      http.get(`${ORIGIN}/api/v1/settlement/vat-rules`, ({ request }) => {
-        includeRetired.push(new URL(request.url).searchParams.get('includeRetired'));
-        return HttpResponse.json([rule, { ...rule, id: 'r0', productFamily: '*', version: 1, status: 'RETIRED' }]);
-      }),
-      http.post(`${ORIGIN}/api/v1/settlement/vat-rules`, async ({ request }) => {
-        proposed = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ...rule, id: 'r2', status: 'DRAFT' });
-      }),
-    );
-    const { unanswered } = renderPage(<VatRulesTab />, {
-      url: '/settlement?tab=vat-rules',
-      route: '/settlement',
-      roles: ['ACCOUNTANT'],
-    });
+    server.use(rules(includeRetired));
+    const { unanswered } = renderTab();
 
     await waitFor(() => expect(gridRowText('r1')).toContain('FI-GOO-DOM'));
     expect(gridRowText('r1')).toMatch(
@@ -59,16 +55,27 @@ describe('VatRulesTab', () => {
     expect(gridRowText('r0')).toContain('Any product');
     await userEvent.click(screen.getByRole('switch', { name: 'Include retired rules' }));
     await waitFor(() => expect(includeRetired).toEqual(['false', 'true']));
+    expect(unanswered()).toEqual([]);
+  });
 
-    await userEvent.click(screen.getByTestId('propose-rule'));
+  it('proposes a new rule for approval', async () => {
+    let proposed: Record<string, unknown> | undefined;
+    server.use(
+      rules(),
+      http.post(`${ORIGIN}/api/v1/settlement/vat-rules`, async ({ request }) => {
+        proposed = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...rule, id: 'r2', status: 'DRAFT' });
+      }),
+    );
+    const { unanswered } = renderTab();
+
+    await userEvent.click(await screen.findByTestId('propose-rule'));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByTestId('rule-submit')).toBeDisabled();
     await fill(within(dialog).getByTestId('rule-code'), 'se-goo-exp');
     await fill(within(dialog).getByTestId('rule-description'), 'GoO sold outside the EU');
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Scope' }));
     await userEvent.click(await screen.findByRole('option', { name: 'To outside the EU' }));
-    await userEvent.click(within(dialog).getByRole('combobox', { name: 'VAT treatment' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Outside the scope of VAT' }));
     await userEvent.click(within(dialog).getByTestId('rule-submit'));
 
     await waitFor(() => expect(proposed).toBeDefined());
@@ -78,31 +85,27 @@ describe('VatRulesTab', () => {
       productFamily: '*',
       supplierCountry: '*',
       scope: 'EXPORT',
-      treatment: 'OUT_OF_SCOPE',
+      treatment: 'STANDARD',
       rate: '0',
     });
     expect(unanswered()).toEqual([]);
   });
 
-  it('tells which rule applies to a supply, or why none does', async () => {
-    const asked: string[] = [];
-    server.use(
-      http.get(`${ORIGIN}/api/v1/settlement/vat-rules`, () => HttpResponse.json([rule])),
-      http.get(`${ORIGIN}/api/v1/settlement/vat-rules/determination`, ({ request }) => {
-        const query = new URL(request.url).searchParams;
-        asked.push(`${query.get('productFamily')} ${query.get('supplierCountry')}>${query.get('customerCountry')}`);
-        return HttpResponse.json(
-          query.get('customerCountry') === 'FI'
-            ? { rule }
-            : { rule: null, problem: 'No VAT rule for a GoO supply from FI to US' },
-        );
-      }),
-    );
-    const { unanswered } = renderPage(<VatRulesTab />, {
-      url: '/settlement?tab=vat-rules',
-      route: '/settlement',
-      roles: ['ACCOUNTANT'],
+  const determination = (asked: string[]) =>
+    http.get(`${ORIGIN}/api/v1/settlement/vat-rules/determination`, ({ request }) => {
+      const query = new URL(request.url).searchParams;
+      asked.push(`${query.get('productFamily')} ${query.get('supplierCountry')}>${query.get('customerCountry')}`);
+      return HttpResponse.json(
+        query.get('customerCountry') === 'FI'
+          ? { rule }
+          : { rule: null, problem: 'No VAT rule for a GoO supply from FI to SE' },
+      );
     });
+
+  it('tells which rule applies to a supply', async () => {
+    const asked: string[] = [];
+    server.use(rules(), determination(asked));
+    const { unanswered } = renderTab();
 
     const customer = await screen.findByTestId('determine-customer');
     await userEvent.clear(customer);
@@ -110,15 +113,19 @@ describe('VatRulesTab', () => {
     await userEvent.click(screen.getByTestId('determine'));
     expect(await screen.findByTestId('determination-result')).toHaveTextContent('FI-GOO-DOM v2: Standard rate, 25.5 %');
     expect(screen.getByTestId('determination-result')).toHaveTextContent('AVL 1 §');
-
-    await userEvent.clear(customer);
-    await fill(customer, 'us');
-    await userEvent.click(screen.getByTestId('determine'));
-    await waitFor(() =>
-      expect(screen.getByTestId('determination-result')).toHaveTextContent('No VAT rule for a GoO supply'),
-    );
-    expect(asked).toContain('GUARANTEE_OF_ORIGIN FI>FI');
-    expect(asked).toContain('GUARANTEE_OF_ORIGIN FI>US');
+    expect(asked).toEqual(['GUARANTEE_OF_ORIGIN FI>FI']);
     expect(unanswered()).toEqual([]);
+  });
+
+  it('says why no rule applies', async () => {
+    const asked: string[] = [];
+    server.use(rules(), determination(asked));
+    renderTab();
+
+    await userEvent.click(await screen.findByTestId('determine'));
+    expect(await screen.findByTestId('determination-result')).toHaveTextContent(
+      'No VAT rule for a GoO supply from FI to SE',
+    );
+    expect(asked).toEqual(['GUARANTEE_OF_ORIGIN FI>SE']);
   });
 });

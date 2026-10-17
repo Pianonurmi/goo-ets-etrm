@@ -91,65 +91,73 @@ describe('AccountsTab', () => {
     expect(screen.queryByTestId('clearing-new-account')).toBeNull();
   });
 
-  it('opens an account at a clearing house, and puts a refused field on its input', async () => {
-    const onSelect = vi.fn();
-    const bodies: unknown[] = [];
-    server.use(
-      counterparties,
-      http.post(`${ORIGIN}/api/v1/clearing/accounts`, async ({ request }) => {
-        const body = (await request.json()) as { code: string };
-        bodies.push(body);
-        if (body.code === 'ECC-DEMO-FI')
-          return HttpResponse.json(
-            {
-              status: 422,
-              type: 'urn:etrm:problem:validation-failed',
-              title: 'Validation failed',
-              detail: 'Clearing account ECC-DEMO-FI already exists',
-              violations: [{ field: 'code', message: 'Already used by another account' }],
-            },
-            { status: 422, headers: { 'Content-Type': 'application/problem+json' } },
-          );
-        return HttpResponse.json({ ...account, id: 'a2', code: body.code, clearingHouseId: 'ch2' });
-      }),
-    );
-    renderPage(
-      <AccountsTab
-        entity={entity}
-        accounts={[account]}
-        loading={false}
-        posted={[]}
-        selectedId="a1"
-        onSelect={onSelect}
-      />,
-      { url: '/clearing', route: '/clearing', roles: ['BACK_OFFICE'] },
-    );
+  // The form tests start without accounts, so no grid is mounted: a CI runner takes seconds per grid render.
+  const accountsApi = (bodies: unknown[]) =>
+    http.post(`${ORIGIN}/api/v1/clearing/accounts`, async ({ request }) => {
+      const body = (await request.json()) as { code: string };
+      bodies.push(body);
+      if (body.code === 'ECC-DEMO-FI')
+        return HttpResponse.json(
+          {
+            status: 422,
+            type: 'urn:etrm:problem:validation-failed',
+            title: 'Validation failed',
+            detail: 'Clearing account ECC-DEMO-FI already exists',
+            violations: [{ field: 'code', message: 'Already used by another account' }],
+          },
+          { status: 422, headers: { 'Content-Type': 'application/problem+json' } },
+        );
+      return HttpResponse.json({ ...account, id: 'a2', code: body.code, clearingHouseId: 'ch2' });
+    });
 
-    await userEvent.click(screen.getByTestId('clearing-new-account'));
+  async function submitNewAccount(code: string) {
+    await userEvent.click(await screen.findByTestId('clearing-new-account'));
     const dialog = await screen.findByRole('dialog');
     const submit = within(dialog).getByTestId('clearing-account-submit');
     expect(within(dialog).getByTestId('clearing-account-currency')).toHaveValue('EUR');
     expect(submit).toBeDisabled();
-    await fill(within(dialog).getByTestId('clearing-account-code'), 'ecc-demo-fi');
+    await fill(within(dialog).getByTestId('clearing-account-code'), code);
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Clearing house' }));
     // Only clearing houses are offered.
     expect(screen.queryByRole('option', { name: 'Rheinstrom AG' })).toBeNull();
     await userEvent.click(await screen.findByRole('option', { name: 'Nordic CCP' }));
     await fill(within(dialog).getByTestId('clearing-account-member'), 'Nordic Clearing Bank');
     await userEvent.click(submit);
+    return dialog;
+  }
 
-    expect(await within(dialog).findByText('Already used by another account')).toBeInTheDocument();
-    await userEvent.clear(within(dialog).getByTestId('clearing-account-code'));
-    await fill(within(dialog).getByTestId('clearing-account-code'), 'ncc-demo-fi');
-    await userEvent.click(submit);
+  it('opens an account at a clearing house and selects it', async () => {
+    const onSelect = vi.fn();
+    const bodies: unknown[] = [];
+    server.use(counterparties, accountsApi(bodies));
+    renderPage(
+      <AccountsTab entity={entity} accounts={[]} loading={false} posted={[]} selectedId={null} onSelect={onSelect} />,
+      { url: '/clearing', route: '/clearing', roles: ['BACK_OFFICE'] },
+    );
 
+    await submitNewAccount('ncc-demo-fi');
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith('a2'));
-    expect(bodies[1]).toEqual({
-      code: 'NCC-DEMO-FI',
-      legalEntityId: 'e1',
-      clearingHouseId: 'ch2',
-      clearingMember: 'Nordic Clearing Bank',
-      currency: 'EUR',
-    });
+    expect(bodies).toEqual([
+      {
+        code: 'NCC-DEMO-FI',
+        legalEntityId: 'e1',
+        clearingHouseId: 'ch2',
+        clearingMember: 'Nordic Clearing Bank',
+        currency: 'EUR',
+      },
+    ]);
+  });
+
+  it('puts a refused field on its input', async () => {
+    const onSelect = vi.fn();
+    server.use(counterparties, accountsApi([]));
+    renderPage(
+      <AccountsTab entity={entity} accounts={[]} loading={false} posted={[]} selectedId={null} onSelect={onSelect} />,
+      { url: '/clearing', route: '/clearing', roles: ['BACK_OFFICE'] },
+    );
+
+    const dialog = await submitNewAccount('ecc-demo-fi');
+    expect(await within(dialog).findByText('Already used by another account')).toBeInTheDocument();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

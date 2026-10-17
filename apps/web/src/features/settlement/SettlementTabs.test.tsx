@@ -63,16 +63,10 @@ describe('PaymentsTab', () => {
   const listing = (rows: Schema<'PaymentView'>[]) =>
     http.get(`${ORIGIN}/api/v1/settlement/payments/search`, () => HttpResponse.json({ items: rows, nextCursor: null }));
 
-  it('lists the payments with their unapplied cash, and allocates the cash to an open invoice', async () => {
-    let allocation: unknown;
+  it('lists the payments with their unapplied cash', async () => {
     server.use(
       counterparties,
       listing([payment('p1', 1200), payment('p2', 0, { direction: 'OUTGOING', counterpartyId: null, source: 'CSV' })]),
-      http.get(`${ORIGIN}/api/v1/settlement/invoices`, () => HttpResponse.json([openInvoice])),
-      http.post(`${ORIGIN}/api/v1/settlement/payments/p1/allocations`, async ({ request }) => {
-        allocation = await request.json();
-        return HttpResponse.json(payment('p1', 0));
-      }),
     );
     const { unanswered } = renderPage(<PaymentsTab entityId="e1" />, {
       url: '/settlement?tab=payments',
@@ -86,11 +80,29 @@ describe('PaymentsTab', () => {
     );
     expect(gridRowText('p2')).toMatch(/Paid \| {2}\| 5,000\.00 EUR \| 0\.00 EUR .*CSV/);
     expect(screen.getByTestId('payment-count')).toHaveTextContent('2 shown');
-
     // Only the payment with unapplied cash offers an allocation.
-    const allocate = await screen.findAllByRole('button', { name: 'Allocate' });
-    expect(allocate).toHaveLength(1);
-    await userEvent.click(allocate[0] as HTMLElement);
+    expect(await screen.findAllByRole('button', { name: 'Allocate' })).toHaveLength(1);
+    expect(unanswered()).toEqual([]);
+  });
+
+  it('allocates unapplied cash to an open invoice', async () => {
+    let allocation: unknown;
+    server.use(
+      counterparties,
+      listing([payment('p1', 1200)]),
+      http.get(`${ORIGIN}/api/v1/settlement/invoices`, () => HttpResponse.json([openInvoice])),
+      http.post(`${ORIGIN}/api/v1/settlement/payments/p1/allocations`, async ({ request }) => {
+        allocation = await request.json();
+        return HttpResponse.json(payment('p1', 0));
+      }),
+    );
+    const { unanswered } = renderPage(<PaymentsTab entityId="e1" />, {
+      url: '/settlement?tab=payments',
+      route: '/settlement',
+      roles: ['ACCOUNTANT'],
+    });
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Allocate' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Invoice' }));
     await userEvent.click(await screen.findByRole('option', { name: /INV-2026-0001/ }));
