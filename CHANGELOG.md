@@ -7,6 +7,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-17
+
+Increment 17, finishing the review's code items: the last journeys made repeatable, the web tabs and drawers under
+test, and every older `!!` replaced by a named check ([plan](docs/plans/increment-17-finishing.md), status per finding
+in the [review](docs/reviews/2026-10-enterprise-readiness.md#status-after-0170)). No REST contract, schema or screen
+changes; nothing to do before upgrading.
+
 ### Changed
 - Every older `!!` on a nullable value is a named check that says what was missing (`checkNotNull` with a message,
   `ApprovalTaskView.decider()`, `fetchSingle()`, one helper for PostgreSQL date ranges), and the per-module detekt
@@ -14,6 +21,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as de
 - End-to-end tests: the clearing journey opens its own clearing account at a new clearing house and imports a
   statement that breaks and calls for margin; the hedge journey buys its own EUA forward and designates it. Every
   journey now creates its subjects, so the whole Playwright suite runs twice in a row on one database.
+- Web tests: the payments, netting, VAT rules, exposures, breaches, PFE, journal entry, posting rules, clearing
+  accounts, month-end policies, GL interface, books and production devices screens have page tests against msw; the
+  coverage floors rise to 68 % statements, 63 % branches, 57 % functions and 67 % lines.
 
 ## [0.16.0] - 2026-10-17
 
@@ -650,7 +660,8 @@ Foundation (increment 1).
 - **Workflow and audit.**
 - **CI and documentation.**
 
-[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/Pianonurmi/goo-ets-etrm/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Pianonurmi/goo-ets-etrm/releases/tag/v0.15.0
