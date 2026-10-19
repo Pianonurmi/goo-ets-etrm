@@ -29,7 +29,7 @@ kover = "0.9.11"
 cyclonedx = "3.5.1"
 testcontainers = "2.0.5"
 rest-assured = "6.1.0"
-flyway = "13.10.0"
+flyway = "13.10.3"
 postgresql-driver = "42.7.14"
 
 [libraries]
