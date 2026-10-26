@@ -18,7 +18,7 @@ services:
       - ./site.caddy:/etc/caddy/site.caddy:ro
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.10.0
+    image: cloudflare/cloudflared:2026.10.3
     restart: unless-stopped
     depends_on:
       - caddy
